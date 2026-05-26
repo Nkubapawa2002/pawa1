@@ -130,8 +130,11 @@ input, select, textarea {
   }
 }
 
-/* On the chat page itself, hide the FAB — they're already chatting. */
-body[data-page="chat"] .pawa-fab { display: none; }
+/* Hide the FAB on pages where it gets in the way:
+   - chat: they're already chatting
+   - meet: full-screen live map needs every pixel */
+body[data-page="chat"] .pawa-fab,
+body[data-page="meet"] .pawa-fab { display: none; }
 
 /* ---- Agent sheet (slide-up panel triggered by FAB) ---- */
 .pawa-sheet-backdrop {
