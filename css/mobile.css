@@ -136,6 +136,12 @@ input, select, textarea {
 body[data-page="chat"] .pawa-fab,
 body[data-page="meet"] .pawa-fab { display: none; }
 
+/* On meet.html the map should take the full viewport — hide the global
+   footer ("© 2026 Pawa Bus Cargo — Tanzania Mainland. Need help?") and
+   its slot so nothing covers the map. */
+body[data-page="meet"] .footer,
+body[data-page="meet"] #footer-slot { display: none !important; }
+
 /* ---- Agent sheet (slide-up panel triggered by FAB) ---- */
 .pawa-sheet-backdrop {
   position: fixed; inset: 0; background: rgba(0,0,0,0.45);
