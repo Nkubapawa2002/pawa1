@@ -445,10 +445,21 @@ window.initMeetPage = () => {
       return;
     }
 
-    watchId = navigator.geolocation.watchPosition(
-      onFix,
+    // iOS Safari 14+ sometimes doesn't pop the permission prompt for
+    // watchPosition() alone — getCurrentPosition() reliably does. Fire a
+    // one-shot first so the prompt appears; on success start watching.
+    weatherBody.innerHTML = `<span class="muted">Waiting for GPS permission…</span>`;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        onFix(pos);
+        watchId = navigator.geolocation.watchPosition(
+          onFix,
+          onGeoError,
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+        );
+      },
       onGeoError,
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
 
     // Throttled push of own location to DB (every 5 s minimum)
@@ -490,13 +501,21 @@ window.initMeetPage = () => {
 
   function onGeoError(err) {
     console.warn("geo", err);
+    // Surface every error type, not just PERMISSION_DENIED, so users on iOS
+    // see what's actually happening when GPS silently fails.
+    let msg = "Location unavailable.";
     if (err.code === err.PERMISSION_DENIED) {
-      const isHttp = location.protocol === "http:" && !location.hostname.match(/^(localhost|127\.)/);
-      const hint = isHttp
-        ? `<br><small>On Chrome Android: open <b>chrome://flags/#unsafely-treat-insecure-origin-as-secure</b>, add <b>${location.origin}</b>, tap Enable &amp; relaunch.</small>`
-        : "";
-      weatherBody.innerHTML = `<span class="error-text">Location blocked. Enable it in browser settings.${hint}</span>`;
+      msg = "Location permission denied. iOS: Settings → Safari → Location → Allow. Then reload this page.";
+    } else if (err.code === err.POSITION_UNAVAILABLE) {
+      msg = "Phone can't get a GPS fix right now. Try going outside, or toggle Location Services off and on.";
+    } else if (err.code === err.TIMEOUT) {
+      msg = "GPS timed out. Try again — sometimes the first fix takes 30s indoors.";
     }
+    weatherBody.innerHTML =
+      `<span class="error-text">${msg}</span>` +
+      `<br><button type="button" class="btn btn-outline btn-xs" id="retryGeoBtn" style="margin-top:8px">Try again</button>`;
+    const retry = document.getElementById("retryGeoBtn");
+    if (retry) retry.addEventListener("click", () => startGeolocate());
   }
 
   async function pushMyLocation() {
