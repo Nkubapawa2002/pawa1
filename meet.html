@@ -124,6 +124,26 @@
 <body data-bg style="--page-bg:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')" data-page="meet">
   <div id="nav-slot"></div>
 
+  <!-- Always-visible Exit: cleans up any active room, then returns home -->
+  <button id="meetExitBtn" class="meet-exit-btn" type="button" aria-label="Exit">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <span>Exit</span>
+  </button>
+  <script>
+    document.getElementById("meetExitBtn").addEventListener("click", () => {
+      const leaveBtn = document.getElementById("leaveRoomBtn");
+      const room = document.getElementById("meetRoom");
+      // If a room is active, click the existing Leave button so meet.js can
+      // clean up GPS/realtime/markers; otherwise just navigate.
+      if (leaveBtn && room && !room.hidden) {
+        leaveBtn.click();
+        setTimeout(() => { window.location.href = "index.html"; }, 250);
+      } else {
+        window.location.href = "index.html";
+      }
+    });
+  </script>
+
   <main class="container meet-container">
 
     <!-- Hero -->

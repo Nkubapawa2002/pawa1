@@ -142,6 +142,39 @@ body[data-page="meet"] .pawa-fab { display: none; }
 body[data-page="meet"] .footer,
 body[data-page="meet"] #footer-slot { display: none !important; }
 
+/* Pill-shaped Exit button — top-left, floats above the map so the user
+   always has a clear way out (the navbar can be hidden on small screens
+   and the chat FAB is removed from meet, so without this you'd be stuck
+   on the page). Only renders on meet.html via body[data-page=meet]. */
+body[data-page="meet"] .meet-exit-btn {
+  position: fixed;
+  top: calc(10px + var(--safe-top, 0px));
+  left: calc(10px + var(--safe-left, 0px));
+  z-index: 1100;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+body[data-page="meet"] .meet-exit-btn:hover,
+body[data-page="meet"] .meet-exit-btn:focus-visible {
+  background: rgba(190, 30, 30, 0.85);
+  outline: none;
+}
+body[data-page="meet"] .meet-exit-btn svg { display: block; }
+/* Hide the Exit button on the chat / non-meet pages just in case */
+body:not([data-page="meet"]) .meet-exit-btn { display: none; }
+
 /* ---- Agent sheet (slide-up panel triggered by FAB) ---- */
 .pawa-sheet-backdrop {
   position: fixed; inset: 0; background: rgba(0,0,0,0.45);
