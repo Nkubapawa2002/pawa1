@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Company Dashboard — Pawa</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    /* ── Layout ─────────────────────────────────────────── */
+    .db-wrap { max-width: 1200px; margin: 24px auto; padding: 0 20px; }
+
+    /* ── Shared card ──────────────────────────────────────── */
+    .db-section {
+      background: #fff; border-radius: 14px; padding: 24px;
+      margin-bottom: 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+    }
+    .db-section h2 { margin: 0 0 14px; color: #0B6E4F; font-size: 1.15rem; }
+    .db-section .lead { color: #666; margin: 0 0 16px; font-size: 0.9rem; }
+
+    /* ── Status messages ──────────────────────────────────── */
+    .db-status { padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; }
+    .db-status.ok     { background:#e8f7ee; color:#1a5a30; border:1px solid #a8d9b8; }
+    .db-status.err    { background:#ffe6e6; color:#8a1a1a; border:1px solid #f5b3b3; }
+    .db-status.muted  { background:#f4f4f4; color:#555;    border:1px solid #ddd; }
+    .db-status.warn   { background:#fff8e1; color:#7a5a00; border:1px solid #ffe082; }
+
+    /* ── Login / forbidden ────────────────────────────────── */
+    #dbLogin .form-grid label { display:block; margin-bottom:12px; font-size:0.95rem; }
+    #dbLogin .form-grid input { width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:8px;
+      font-size:0.95rem; box-sizing:border-box; margin-top:4px; }
+
+    /* ── Header bar ───────────────────────────────────────── */
+    .db-header-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .db-header-bar h2 { margin: 0; font-size: 1.25rem; }
+    .db-header-meta { font-size: 0.82rem; color: #666; margin: 4px 0 0; }
+    .copyable { font-family: monospace; background:#f4f4f4; padding:2px 7px; border-radius:5px; font-size:0.85rem; }
+    .pill-status { display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.75rem; font-weight:700; }
+    .pill-status.active    { background:#e0f5e7; color:#1a5a30; }
+    .pill-status.pending   { background:#fff7d6; color:#7a5a00; }
+    .pill-status.suspended { background:#ffe1d6; color:#802b00; }
+    .pill-status.rejected  { background:#ffd6d6; color:#6e1818; }
+
+    /* ── Tab bar ──────────────────────────────────────────── */
+    .db-tabs {
+      display: flex; gap: 4px; background: #f4f6f4;
+      border-radius: 12px; padding: 5px; margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .db-tab {
+      flex: 1 1 auto; padding: 9px 16px; border: none; border-radius: 9px;
+      background: transparent; color: #555; font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap; transition: all 0.15s;
+    }
+    .db-tab:hover { background: #e8ede8; color: #0B6E4F; }
+    .db-tab.active { background: #fff; color: #0B6E4F; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+    /* ── KPI Cards ────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px;
+    }
+    .kpi-card {
+      background: #f9fbf7; border: 1px solid #e2ebde; border-radius: 12px;
+      padding: 18px 16px; text-align: center;
+    }
+    .kpi-card .kpi-val { font-size: 2rem; font-weight: 800; color: #0B6E4F; line-height: 1; }
+    .kpi-card .kpi-lbl { font-size: 0.75rem; color: #777; text-transform: uppercase;
+      letter-spacing: 0.5px; margin-top: 6px; }
+    .kpi-card .kpi-sub { font-size: 0.78rem; color: #888; margin-top: 2px; }
+
+    /* ── Quick actions ────────────────────────────────────── */
+    .qa-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;
+    }
+    .qa-btn {
+      display: flex; flex-direction: column; align-items: flex-start;
+      padding: 16px 18px; background: #f9fbf7; border: 1px solid #dde8da;
+      border-radius: 12px; cursor: pointer; transition: all 0.15s; text-decoration: none;
+    }
+    .qa-btn:hover { background: #eaf3e7; border-color: #aad4a0; transform: translateY(-1px); }
+    .qa-btn .qa-icon { font-size: 1.4rem; margin-bottom: 8px; }
+    .qa-btn .qa-title { font-size: 0.9rem; font-weight: 700; color: #1a3a2a; }
+    .qa-btn .qa-desc  { font-size: 0.78rem; color: #777; margin-top: 2px; }
+
+    /* ── Shipment status badges ───────────────────────────── */
+    .st-badge { display:inline-block; padding:2px 9px; border-radius:999px;
+      font-size:0.72rem; font-weight:700; white-space:nowrap; }
+    .st-badge.Registered  { background:#e8e8e8; color:#555; }
+    .st-badge.Picked-Up   { background:#dbeafe; color:#1e40af; }
+    .st-badge.In-Transit  { background:#fef3c7; color:#92400e; }
+    .st-badge.Arrived     { background:#d1fae5; color:#065f46; }
+    .st-badge.Delivered   { background:#e0f5e7; color:#1a5a30; }
+
+    /* ── Tables ───────────────────────────────────────────── */
+    .db-table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #e5e7e5; }
+    .db-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .db-table th { background: #f5f8f5; padding: 11px 14px; text-align: left;
+      font-weight: 700; color: #444; font-size: 0.78rem; text-transform: uppercase;
+      letter-spacing: 0.4px; border-bottom: 1px solid #e5e7e5; }
+    .db-table td { padding: 11px 14px; border-bottom: 1px solid #f0f2f0; vertical-align: middle; }
+    .db-table tr:last-child td { border-bottom: none; }
+    .db-table tr:hover td { background: #f9fbf7; }
+    .db-table .mono { font-family: monospace; font-size: 0.82rem; }
+    .db-table .muted { color: #888; font-size: 0.82rem; }
+
+    /* ── Search / filter bar ──────────────────────────────── */
+    .db-filter-bar {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center;
+    }
+    .db-filter-bar input, .db-filter-bar select {
+      padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px;
+      font-size: 0.88rem; flex: 1 1 160px; min-width: 0;
+    }
+    .db-filter-bar input { flex: 2 1 220px; }
+
+    /* ── Agent cards ──────────────────────────────────────── */
+    .agent-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;
+    }
+    .agent-card {
+      background: #f9fbf7; border: 1px solid #dde8da; border-radius: 12px; padding: 16px;
+    }
+    .agent-card .ac-name { font-weight: 700; font-size: 0.95rem; color: #1a3a2a; }
+    .agent-card .ac-id   { font-family: monospace; font-size: 0.75rem; color: #888; }
+    .agent-card .ac-row  { font-size: 0.82rem; color: #555; margin-top: 4px; }
+    .agent-card .ac-row span { color: #333; font-weight: 600; }
+    .rating-stars { color: #f59e0b; font-size: 0.8rem; }
+
+    /* ── Bus cards ────────────────────────────────────────── */
+    .bus-card {
+      background: #f9fbf7; border: 1px solid #dde8da; border-radius: 12px; padding: 16px;
+      margin-bottom: 12px;
+    }
+    .bus-card .bc-name  { font-weight: 700; font-size: 1rem; color: #1a3a2a; }
+    .bus-card .bc-id    { font-family: monospace; font-size: 0.75rem; color: #888; margin-left: 8px; }
+    .bus-card .bc-contact { font-size: 0.82rem; color: #555; margin-top: 4px; }
+    .route-pill {
+      display: inline-block; background: #e8f0e8; border: 1px solid #c8ddc8;
+      border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; color: #1a5a30;
+      margin: 3px 3px 0 0;
+    }
+
+    /* ── Team ─────────────────────────────────────────────── */
+    .role-badge {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 700;
+    }
+    .role-badge.owner  { background: #fde8d8; color: #c2440e; }
+    .role-badge.admin  { background: #dbeafe; color: #1e40af; }
+    .role-badge.agent  { background: #e0f5e7; color: #1a5a30; }
+    .role-badge.staff  { background: #f3f4f6; color: #555; }
+    .invite-badge { background: #fff7d6; color: #7a5a00; border: 1px solid #ffe082;
+      display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.72rem; font-weight:700; }
+
+    /* ── Settings forms ───────────────────────────────────── */
+    .db-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .db-grid label { display:block; font-weight:600; color:#333; margin-bottom:4px; font-size:0.9rem; }
+    .db-grid input, .db-grid select, .db-grid textarea {
+      width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:8px;
+      font-size:0.95rem; box-sizing:border-box; font-family:inherit;
+    }
+    .db-grid .full { grid-column: 1 / -1; }
+    .db-form-actions { display:flex; gap:10px; align-items:center; margin-top:16px; }
+    .key-state { display:inline-block; font-size:0.78rem; padding:2px 8px; border-radius:999px;
+      margin-left:8px; font-weight:700; }
+    .key-state.set   { background:#e0f5e7; color:#1a5a30; }
+    .key-state.unset { background:#ffe1d6; color:#802b00; }
+    .secret-input { font-family: monospace; }
+
+    /* ── n8n metrics row ──────────────────────────────────── */
+    .metric-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; }
+    .metric { background:#f9fbf7; padding:14px; border-radius:12px; border:1px solid #e2ebde; }
+    .metric .v { font-size:1.4rem; font-weight:800; color:#0B6E4F; }
+    .metric .l { font-size:0.78rem; color:#666; text-transform:uppercase; letter-spacing:0.4px; }
+
+    /* ── Onboarding checklist ─────────────────────────────── */
+    .checklist { list-style:none; margin:0; padding:0; }
+    .checklist li { display:flex; align-items:center; gap:12px; padding:10px 0;
+      border-bottom:1px solid #f0f2f0; font-size:0.9rem; }
+    .checklist li:last-child { border-bottom:none; }
+    .check-icon { width:24px; height:24px; border-radius:50%; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:700; }
+    .check-icon.done { background:#e0f5e7; color:#1a5a30; }
+    .check-icon.todo { background:#ffe1d6; color:#802b00; }
+    .check-action { margin-left:auto; }
+
+    /* ── Forms (add bus / add agent) ──────────────────────── */
+    .add-form { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .add-form .full { grid-column:1/-1; }
+    .add-form label { display:block; font-size:0.85rem; font-weight:600; color:#444; margin-bottom:3px; }
+    .add-form input, .add-form select, .add-form textarea {
+      width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:8px;
+      font-size:0.9rem; box-sizing:border-box; }
+    @media (max-width:600px) { .add-form { grid-template-columns:1fr; } }
+
+    /* ── Agent application cards ──────────────────────────── */
+    .app-card { background:#fff; border:1px solid #e5e7e5; border-radius:10px; padding:14px;
+      margin-bottom:10px; }
+    .app-card .app-name { font-weight:700; font-size:0.95rem; }
+    .app-card .app-meta { font-size:0.82rem; color:#666; margin-top:3px; }
+    .app-card .app-actions { display:flex; gap:8px; margin-top:10px; }
+
+    /* ── Route row inside bus card ────────────────────────── */
+    .route-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+      padding:8px 0; border-bottom:1px solid #f0f2f0; font-size:0.85rem; }
+    .route-row:last-child { border-bottom:none; }
+    .route-del { background:none; border:none; color:#c0392b; cursor:pointer;
+      font-size:0.8rem; padding:2px 6px; border-radius:5px; }
+    .route-del:hover { background:#ffe1d6; }
+
+    /* ── Add-route inline form ────────────────────────────── */
+    .add-route-form { background:#f4f8f4; border:1px dashed #b8d8b8; border-radius:10px;
+      padding:14px; margin-top:12px; display:none; }
+    .add-route-form.open { display:block; }
+    .add-route-form .route-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .add-route-form label { display:block; font-size:0.82rem; font-weight:600; color:#444; margin-bottom:3px; }
+    .add-route-form input { width:100%; padding:7px 10px; border:1px solid #ccc;
+      border-radius:7px; font-size:0.88rem; box-sizing:border-box; }
+
+    /* ── AI Conversations tab ────────────────────────────── */
+    .call-live-card {
+      background:#f0fdf4; border:1.5px solid #86efac; border-radius:12px;
+      padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; gap:14px;
+    }
+    .call-live-dot { width:10px; height:10px; border-radius:50%; background:#22c55e;
+      flex-shrink:0; box-shadow:0 0 0 3px #bbf7d0; animation:pulse 1.4s infinite; }
+    @keyframes pulse { 0%,100%{ box-shadow:0 0 0 3px #bbf7d0; } 50%{ box-shadow:0 0 0 6px #dcfce7; } }
+    .call-live-card .cl-phone { font-weight:700; font-size:0.95rem; color:#1a3a2a; }
+    .call-live-card .cl-meta  { font-size:0.8rem; color:#555; margin-top:2px; }
+    .call-live-card .cl-dur   { margin-left:auto; font-size:0.85rem; font-weight:700; color:#0B6E4F; }
+
+    .msg-pill { display:inline-block; padding:2px 9px; border-radius:999px;
+      font-size:0.72rem; font-weight:700; white-space:nowrap; }
+    .msg-pill.in  { background:#dbeafe; color:#1e40af; }
+    .msg-pill.out { background:#d1fae5; color:#065f46; }
+    .msg-pill.sms { background:#fef3c7; color:#92400e; }
+    .msg-pill.wa  { background:#dcfce7; color:#166534; }
+
+    .ai-turn-card {
+      background:#fff; border:1px solid #e5e7e5; border-radius:10px;
+      padding:14px 16px; margin-bottom:10px;
+    }
+    .ai-turn-card .turn-meta { font-size:0.78rem; color:#888; margin-bottom:8px; }
+    .turn-user { background:#f0f4ff; border-left:3px solid #6366f1;
+      padding:8px 12px; border-radius:0 6px 6px 0; font-size:0.85rem; color:#1e1b4b; margin-bottom:6px; }
+    .turn-ai   { background:#f0fdf4; border-left:3px solid #22c55e;
+      padding:8px 12px; border-radius:0 6px 6px 0; font-size:0.85rem; color:#14532d; }
+    .turn-label { font-size:0.7rem; font-weight:700; text-transform:uppercase;
+      letter-spacing:0.5px; margin-bottom:3px; opacity:0.7; }
+    .ai-channel-badge { display:inline-block; padding:2px 8px; border-radius:999px;
+      font-size:0.7rem; font-weight:700; }
+    .ai-channel-badge.call { background:#ede9fe; color:#6d28d9; }
+    .ai-channel-badge.sms  { background:#fef9c3; color:#854d0e; }
+    .ai-channel-badge.wa   { background:#dcfce7; color:#166534; }
+    .ai-channel-badge.chat { background:#dbeafe; color:#1e40af; }
+
+    /* ── Misc ─────────────────────────────────────────────── */
+    .empty-state { text-align:center; padding:40px 20px; color:#888; font-size:0.9rem; }
+    .empty-state .es-icon { font-size:2.5rem; margin-bottom:10px; }
+    .section-pair { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .invite-form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+    .invite-form-row label { flex:2 1 180px; }
+    .invite-form-row label span { display:block; font-size:0.85rem; font-weight:600; color:#333; margin-bottom:4px; }
+    .invite-form-row label input, .invite-form-row label select {
+      width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:8px;
+      font-size:0.9rem; box-sizing:border-box;
+    }
+    .invite-form-row label:last-child { flex:0 0 auto; }
+    .pagination { display:flex; gap:8px; align-items:center; justify-content:flex-end;
+      margin-top:14px; font-size:0.88rem; }
+    .pagination button { padding:5px 12px; border:1px solid #ccc; border-radius:7px;
+      background:#fff; cursor:pointer; font-size:0.85rem; }
+    .pagination button:disabled { opacity:0.4; cursor:default; }
+
+    @media (max-width: 700px) {
+      .db-grid { grid-template-columns: 1fr; }
+      .section-pair { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .db-tab { padding: 8px 10px; font-size: 0.82rem; }
+    }
+  </style>
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-page="dashboard">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/raphael-renter-raphi_rawr-gCh36XTm2EA-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-tenant-name>Company Dashboard</h1>
+      <p class="page-subtitle">Everything happening in your company, in one place.</p>
+    </div>
+  </section>
+
+  <main class="db-wrap">
+
+    <!-- ── Login gate ──────────────────────────────────────── -->
+    <section id="dbLogin" class="db-section" hidden>
+      <h2>Sign in</h2>
+      <form id="loginForm" class="form-grid">
+        <label>Email <input type="email" id="loginEmail" required autocomplete="username" /></label>
+        <label>Password <input type="password" id="loginPassword" required autocomplete="current-password" /></label>
+        <button class="btn btn-primary" type="submit">Sign in</button>
+      </form>
+      <p id="loginError" class="db-status err" style="margin-top:12px;" hidden></p>
+    </section>
+
+    <!-- ── Forbidden ──────────────────────────────────────── -->
+    <section id="dbForbidden" class="db-section" hidden>
+      <p class="db-status err">
+        Signed in as <strong id="whoami"></strong>, but you don't belong to any active tenant.
+        Did you sign up at <a href="signup.html">signup.html</a>? If you have already submitted,
+        you may still be in <code>pending_approval</code>.
+      </p>
+      <button id="signOutBtn" class="btn btn-outline" style="margin-top:12px;">Sign out</button>
+    </section>
+
+    <!-- ── Header (shown when logged in) ──────────────────── -->
+    <section id="dbHeader" class="db-section" hidden>
+      <div class="db-header-bar">
+        <div>
+          <h2 style="display:flex; align-items:center; gap:10px;">
+            <span id="tenantName">—</span>
+            <span class="pill-status" id="tenantStatus">—</span>
+          </h2>
+          <p class="db-header-meta">
+            Slug: <span class="copyable" id="tenantSlug">—</span>
+            &nbsp;·&nbsp; ID: <span class="copyable" id="tenantId">—</span>
+            &nbsp;·&nbsp; Approved: <span id="tenantApprovedAt">—</span>
+          </p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a href="accounting.html" class="btn btn-outline btn-sm">Finance &amp; Accounting</a>
+          <button id="signOutBtn2" class="btn btn-outline btn-sm">Sign out</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Tab navigation ─────────────────────────────────── -->
+    <div id="dbTabs" class="db-tabs" hidden>
+      <button class="db-tab active" data-tab="overview">Overview</button>
+      <button class="db-tab" data-tab="shipments">Shipments</button>
+      <button class="db-tab" data-tab="agents">Agents</button>
+      <button class="db-tab" data-tab="buses">Buses &amp; Routes</button>
+      <button class="db-tab" data-tab="team">Team</button>
+      <button class="db-tab" data-tab="aiConversations">AI Logs</button>
+      <button class="db-tab" data-tab="cancelTrip" style="color:var(--danger,#dc2626)">Cancel Trip</button>
+      <button class="db-tab" data-tab="settings">Settings</button>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: Overview
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabOverview" class="db-tab-panel">
+
+      <!-- KPI cards -->
+      <section class="db-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2 style="margin:0;">At a glance</h2>
+          <button class="btn btn-outline btn-sm" id="refreshAll">Refresh</button>
+        </div>
+        <div class="kpi-grid" id="kpiGrid">
+          <div class="kpi-card"><div class="kpi-val" id="kpiShipments">—</div><div class="kpi-lbl">Total Shipments</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="kpiInTransit">—</div><div class="kpi-lbl">In Transit</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="kpiDelivered">—</div><div class="kpi-lbl">Delivered</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="kpiAgents">—</div><div class="kpi-lbl">Active Agents</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="kpiBuses">—</div><div class="kpi-lbl">Buses</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="kpiTeam">—</div><div class="kpi-lbl">Team Members</div></div>
+        </div>
+      </section>
+
+      <!-- Onboarding checklist (hidden once all done) -->
+      <section class="db-section" id="onboardingSection" style="border:2px solid #ffe082; background:#fffdf0;" hidden>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+          <span style="font-size:1.4rem;">🚀</span>
+          <div>
+            <h2 style="margin:0; color:#7a5a00;">Finish setting up your company</h2>
+            <p style="margin:4px 0 0; color:#888; font-size:0.85rem;">Complete these steps to go live and start receiving bookings &amp; cargo orders.</p>
+          </div>
+        </div>
+        <ul class="checklist" id="onboardingList"></ul>
+        <div style="margin-top:12px; font-size:0.82rem; color:#888;" id="onboardingDoneMsg" hidden>
+          All steps complete — your company is fully set up!
+        </div>
+      </section>
+
+      <!-- Today's booking metrics (n8n) -->
+      <section class="db-section">
+        <h2>Today's Booking Metrics</h2>
+        <p class="lead">Live data from your booking agent. Refresh if values show "—".</p>
+        <div class="metric-row" id="metricsRow">
+          <div class="metric"><div class="v" id="mHeld">—</div><div class="l">Held</div></div>
+          <div class="metric"><div class="v" id="mConfirmed">—</div><div class="l">Confirmed</div></div>
+          <div class="metric"><div class="v" id="mCancelled">—</div><div class="l">Cancelled</div></div>
+          <div class="metric"><div class="v" id="mRevenue">—</div><div class="l">Revenue (TZS)</div></div>
+          <div class="metric"><div class="v" id="mPending">—</div><div class="l">Pending holds</div></div>
+        </div>
+        <div style="margin-top:14px; display:flex; gap:10px; align-items:center;">
+          <button class="btn btn-outline btn-sm" id="refreshMetrics">Refresh metrics</button>
+          <span id="metricsStatus" class="db-status muted" style="display:none;"></span>
+        </div>
+      </section>
+
+      <!-- Quick actions -->
+      <section class="db-section">
+        <h2>Quick actions</h2>
+        <div class="qa-grid">
+          <button class="qa-btn" onclick="window.switchTab('shipments')">
+            <div class="qa-icon">📦</div>
+            <div class="qa-title">View Shipments</div>
+            <div class="qa-desc">Search and manage cargo orders</div>
+          </button>
+          <button class="qa-btn" onclick="window.switchTab('agents')">
+            <div class="qa-icon">👥</div>
+            <div class="qa-title">Manage Agents</div>
+            <div class="qa-desc">View agents at your terminals</div>
+          </button>
+          <button class="qa-btn" onclick="window.switchTab('buses')">
+            <div class="qa-icon">🚌</div>
+            <div class="qa-title">Buses &amp; Routes</div>
+            <div class="qa-desc">Your registered buses and routes</div>
+          </button>
+          <button class="qa-btn" onclick="window.switchTab('team')">
+            <div class="qa-icon">✉️</div>
+            <div class="qa-title">Invite Team Member</div>
+            <div class="qa-desc">Add staff or admin to your account</div>
+          </button>
+          <a href="accounting.html" class="qa-btn">
+            <div class="qa-icon">📊</div>
+            <div class="qa-title">Finance &amp; Accounting</div>
+            <div class="qa-desc">Revenue, invoices, and payroll</div>
+          </a>
+          <button class="qa-btn" onclick="window.switchTab('settings')">
+            <div class="qa-icon">⚙️</div>
+            <div class="qa-title">Settings</div>
+            <div class="qa-desc">Branding and API integrations</div>
+          </button>
+        </div>
+      </section>
+
+      <!-- Recent shipments preview -->
+      <section class="db-section">
+        <h2>Recent Shipments</h2>
+        <div id="recentShipmentsWrap">
+          <div class="empty-state"><div class="es-icon">📦</div><div>Loading…</div></div>
+        </div>
+        <div style="margin-top:12px;">
+          <button class="btn btn-outline btn-sm" onclick="window.switchTab('shipments')">View all shipments →</button>
+        </div>
+      </section>
+
+    </div><!-- /tabOverview -->
+
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: Shipments
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabShipments" class="db-tab-panel" hidden>
+
+      <section class="db-section">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+          <div>
+            <h2 style="margin:0 0 4px;">Shipments</h2>
+            <p style="margin:0; color:#666; font-size:0.88rem;">All cargo shipments for your company.</p>
+          </div>
+          <span id="shipmentsCount" class="db-status muted" style="font-size:0.82rem;"></span>
+        </div>
+
+        <div class="db-filter-bar">
+          <input type="search" id="shipSearch" placeholder="Search tracking code, sender, receiver…" />
+          <select id="shipStatusFilter">
+            <option value="">All statuses</option>
+            <option value="Registered">Registered</option>
+            <option value="Picked Up">Picked Up</option>
+            <option value="In Transit">In Transit</option>
+            <option value="Arrived">Arrived</option>
+            <option value="Delivered">Delivered</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="shipSearchBtn">Search</button>
+        </div>
+
+        <div id="shipmentsTableWrap">
+          <div class="empty-state"><div class="es-icon">📦</div><div>Loading shipments…</div></div>
+        </div>
+
+        <div class="pagination">
+          <button id="shipPrevBtn" disabled>← Prev</button>
+          <span id="shipPageInfo" style="color:#666;">Page 1</span>
+          <button id="shipNextBtn" disabled>Next →</button>
+        </div>
+      </section>
+
+    </div><!-- /tabShipments -->
+
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: Agents
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabAgents" class="db-tab-panel" hidden>
+
+      <div class="section-pair">
+
+        <!-- Add Agent form -->
+        <section class="db-section">
+          <h2>Add Agent</h2>
+          <p class="lead">Register a new terminal agent directly under your company.</p>
+          <form id="addAgentForm" class="add-form">
+            <div>
+              <label>Full name</label>
+              <input id="ag_name" type="text" required maxlength="80" placeholder="John Doe" />
+            </div>
+            <div>
+              <label>Phone</label>
+              <input id="ag_phone" type="tel" required placeholder="+255…" />
+            </div>
+            <div>
+              <label>Region</label>
+              <select id="ag_region" required>
+                <option value="">— select —</option>
+              </select>
+            </div>
+            <div>
+              <label>Terminal / location</label>
+              <input id="ag_terminal" type="text" required placeholder="Ubungo Terminal" />
+            </div>
+            <div>
+              <label>Email (optional)</label>
+              <input id="ag_email" type="email" placeholder="agent@example.com" />
+            </div>
+            <div>
+              <label>Experience (years)</label>
+              <input id="ag_exp" type="number" min="1" value="1" />
+            </div>
+            <div class="full" style="display:flex; gap:10px; align-items:center; margin-top:4px;">
+              <button class="btn btn-primary" type="submit">Add Agent</button>
+              <span id="addAgentStatus" class="db-status muted" style="display:none;"></span>
+            </div>
+          </form>
+        </section>
+
+        <!-- Pending Applications -->
+        <section class="db-section">
+          <h2>Pending Applications</h2>
+          <p class="lead">People who applied to join your company as agents.</p>
+          <div id="agentAppsWrap">
+            <div class="empty-state"><div class="es-icon">📋</div><div>Loading…</div></div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Existing agents -->
+      <section class="db-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h2 style="margin:0 0 4px;">Your Agents</h2>
+            <p style="margin:0; color:#666; font-size:0.88rem;">All active terminal agents for your company.</p>
+          </div>
+          <span id="agentsCount" class="db-status muted" style="font-size:0.82rem;"></span>
+        </div>
+
+        <div class="db-filter-bar" style="margin-bottom:16px;">
+          <input type="search" id="agentSearch" placeholder="Search by name, phone, region…" />
+          <button class="btn btn-outline btn-sm" id="agentSearchBtn">Search</button>
+        </div>
+
+        <div id="agentGridWrap" class="agent-grid">
+          <div class="empty-state" style="grid-column:1/-1;"><div class="es-icon">👥</div><div>Loading agents…</div></div>
+        </div>
+      </section>
+
+    </div><!-- /tabAgents -->
+
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: Buses & Routes
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabBuses" class="db-tab-panel" hidden>
+
+      <div class="section-pair">
+
+        <!-- Add Bus form -->
+        <section class="db-section">
+          <h2>Add a Bus</h2>
+          <p class="lead">Register a new bus under your company. You can add routes to it after saving.</p>
+          <form id="addBusForm" class="add-form">
+            <div class="full">
+              <label>Bus / Company name</label>
+              <input id="bus_name" type="text" required maxlength="80" placeholder="Dar Express" />
+            </div>
+            <div>
+              <label>Contact number</label>
+              <input id="bus_contact" type="tel" required placeholder="+255…" />
+            </div>
+            <div>
+              <label>Seats (capacity)</label>
+              <input id="bus_seats" type="number" min="1" max="200" value="50" />
+            </div>
+            <div class="full">
+              <label>About (optional)</label>
+              <input id="bus_about" type="text" maxlength="200" placeholder="Luxury bus, AC, WiFi…" />
+            </div>
+            <div class="full" style="display:flex; gap:10px; align-items:center; margin-top:4px;">
+              <button class="btn btn-primary" type="submit">Save Bus</button>
+              <span id="addBusStatus" class="db-status muted" style="display:none;"></span>
+            </div>
+          </form>
+        </section>
+
+        <!-- Info / tips -->
+        <section class="db-section" style="background:#f4f8ff; border:1px solid #c8d8f0;">
+          <h2 style="color:#1e40af;">How it works</h2>
+          <p style="font-size:0.88rem; color:#444; line-height:1.6;">
+            <strong>1. Add your bus</strong> — fill the form and click Save Bus.<br><br>
+            <strong>2. Add routes</strong> — once saved, click "Add Route" on the bus card to define where it travels and at what time. Each route automatically creates a return leg.<br><br>
+            <strong>3. Add agents</strong> — go to the Agents tab to add terminal staff who handle cargo and bookings.<br><br>
+            <strong>4. Set API keys</strong> — in Settings, paste your Anthropic &amp; VAPI keys so the AI voice agent can take bookings automatically.
+          </p>
+        </section>
+
+      </div>
+
+      <!-- Buses list -->
+      <section class="db-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h2 style="margin:0 0 4px;">Your Buses &amp; Routes</h2>
+            <p style="margin:0; color:#666; font-size:0.88rem;">Click "Add Route" on a bus card to define its schedule, or "Edit Seats" to design the seat layout on a drag-and-drop canvas.</p>
+          </div>
+          <span id="busesCount" class="db-status muted" style="font-size:0.82rem;"></span>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+          <input type="search" id="busSearch" placeholder="🔎 Search buses by name, route, contact…"
+            style="flex:1;min-width:220px;padding:10px 14px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:0.95rem" />
+          <button id="busSearchClear" class="btn btn-outline btn-sm" type="button">Clear</button>
+        </div>
+
+        <div id="busListWrap">
+          <div class="empty-state"><div class="es-icon">🚌</div><div>Loading buses…</div></div>
+        </div>
+      </section>
+
+      <!-- Pending seat-layout edits awaiting approval.
+           The whole section is hidden for non-admin users by dashboard.js. -->
+      <section id="pendingLayoutSection" class="db-section" hidden
+               style="border:1px solid #ffd9b3;background:#fff8ef;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h2 style="margin:0 0 4px; color:#8a4b00;">🛡️ Seat-layout edits awaiting approval</h2>
+            <p style="margin:0; color:#7a5a00; font-size:0.88rem;">
+              Tenants can propose seat-layout changes but they don't go live until you approve here.
+              You (platform admin) write through directly without going through this queue.
+            </p>
+          </div>
+          <button id="pendingRefreshBtn" class="btn btn-outline btn-sm" type="button">Refresh</button>
+        </div>
+        <div id="pendingLayoutWrap">
+          <div class="empty-state"><div class="es-icon">⏳</div><div>Loading pending edits…</div></div>
+        </div>
+      </section>
+
+      <!-- Seat editor modal (mounted on demand) -->
+      <!-- Visibility is controlled by inline style.display in dashboard.js.
+           Relying on the `hidden` attribute here would not work because the
+           inline `display:flex` (needed when the modal is open) wins over the
+           UA `[hidden]{display:none}` rule via CSS specificity. -->
+      <div id="seatModalBackdrop"
+           style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+        <div id="seatModal" style="background:#fff;border-radius:14px;width:100%;max-width:1320px;padding:18px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.3);margin:auto">
+          <button id="seatModalClose" type="button"
+            style="position:absolute;top:10px;right:14px;background:#f1f5f9;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1.3rem;line-height:1;color:#475569">×</button>
+          <h3 id="seatModalTitle" style="margin:0 0 12px;font-size:1.05rem;color:#065f46">Seat editor</h3>
+          <div id="seatModalBody"></div>
+        </div>
+      </div>
+
+    </div><!-- /tabBuses -->
+
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: Team
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabTeam" class="db-tab-panel" hidden>
+
+      <div class="section-pair">
+
+        <!-- Team members -->
+        <section class="db-section">
+          <h2>Team Members</h2>
+          <p class="lead">Everyone with access to this company account.</p>
+          <div id="teamTableWrap">
+            <div class="empty-state"><div class="es-icon">👤</div><div>Loading…</div></div>
+          </div>
+        </section>
+
+        <!-- Invite -->
+        <section class="db-section">
+          <h2>Invite a Member</h2>
+          <p class="lead">Send an invitation link via email. Expires in 14 days.</p>
+          <form id="inviteForm">
+            <div class="invite-form-row">
+              <label>
+                <span>Email address</span>
+                <input type="email" id="inviteEmail" required placeholder="colleague@example.com" />
+              </label>
+            </div>
+            <div class="invite-form-row">
+              <label>
+                <span>Role</span>
+                <select id="inviteRole">
+                  <option value="staff">Staff (read-only)</option>
+                  <option value="agent">Agent (handle bookings/cargo)</option>
+                  <option value="admin">Admin (full settings access)</option>
+                </select>
+              </label>
+              <label style="flex:0 0 auto;">
+                <span>&nbsp;</span>
+                <button class="btn btn-primary" type="submit">Send invite</button>
+              </label>
+            </div>
+          </form>
+          <p id="inviteStatus" class="db-status muted" style="margin-top:10px; display:none;"></p>
+
+          <!-- Pending invites -->
+          <div style="margin-top:24px;">
+            <h2 style="font-size:1rem;">Pending Invites</h2>
+            <div id="pendingInvitesWrap">
+              <div class="empty-state"><div class="es-icon">✉️</div><div>Loading…</div></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div><!-- /tabTeam -->
+
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: AI Conversations
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabAiConversations" class="db-tab-panel" hidden>
+
+      <!-- KPI row -->
+      <section class="db-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div>
+            <h2 style="margin:0 0 3px;">AI Conversations</h2>
+            <p style="margin:0; font-size:0.82rem; color:#888;">Live VAPI calls · n8n messages · AI responses from Google Sheets</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="refreshAiConv">Refresh</button>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-val" id="aiKpiCallsToday">—</div><div class="kpi-lbl">Calls Today</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="aiKpiActiveCalls" style="color:#22c55e;">—</div><div class="kpi-lbl">Active Now</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="aiKpiMsgsToday">—</div><div class="kpi-lbl">Messages Today</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="aiKpiResponses">—</div><div class="kpi-lbl">AI Responses</div></div>
+          <div class="kpi-card"><div class="kpi-val" id="aiKpiAvgDur">—</div><div class="kpi-lbl">Avg Call (min)</div></div>
+        </div>
+        <span id="aiConvStatus" class="db-status muted" style="margin-top:12px; display:none;"></span>
+      </section>
+
+      <!-- Active calls (VAPI live) -->
+      <section class="db-section">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+          <h2 style="margin:0;">Active Calls</h2>
+          <span id="activeCallsBadge" class="pill-status pending">0 live</span>
+        </div>
+        <p class="lead">VAPI voice calls currently in progress. Refreshed each time you open this tab.</p>
+        <div id="activeCallsWrap">
+          <div class="empty-state"><div class="es-icon">📞</div><div>No active calls right now.</div></div>
+        </div>
+      </section>
+
+      <!-- Call history (Google Sheets via n8n) -->
+      <section class="db-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h2 style="margin:0 0 3px;">Call History</h2>
+            <p style="margin:0; font-size:0.85rem; color:#666;">Calls logged to Google Sheets by n8n.</p>
+          </div>
+          <select id="callHistoryFilter" style="padding:7px 11px; border:1px solid #ccc; border-radius:8px; font-size:0.85rem;">
+            <option value="">All calls</option>
+            <option value="ended">Ended</option>
+            <option value="missed">Missed / No-answer</option>
+            <option value="busy">Busy</option>
+          </select>
+        </div>
+        <div id="callHistoryWrap">
+          <div class="empty-state"><div class="es-icon">⏳</div><div>Loading call history…</div></div>
+        </div>
+      </section>
+
+      <!-- Messages log (Google Sheets via n8n) -->
+      <section class="db-section">
+        <h2>Messages Log</h2>
+        <p class="lead">SMS and WhatsApp messages sent and received by the AI agent.</p>
+        <div class="db-filter-bar">
+          <input type="search" id="msgSearch" placeholder="Search phone number, content…" />
+          <select id="msgDirFilter">
+            <option value="">All directions</option>
+            <option value="inbound">Inbound (customer → AI)</option>
+            <option value="outbound">Outbound (AI → customer)</option>
+          </select>
+          <select id="msgChanFilter">
+            <option value="">All channels</option>
+            <option value="sms">SMS</option>
+            <option value="whatsapp">WhatsApp</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="msgSearchBtn">Filter</button>
+        </div>
+        <div id="messagesWrap">
+          <div class="empty-state"><div class="es-icon">⏳</div><div>Loading messages…</div></div>
+        </div>
+      </section>
+
+      <!-- AI response training log (Google Sheets via n8n) -->
+      <section class="db-section" style="border:1.5px solid #c8d8f0; background:#f8faff;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+          <h2 style="margin:0; color:#1e40af;">AI Responses — Training Log</h2>
+          <span class="ai-channel-badge call">Prompting</span>
+        </div>
+        <p class="lead">Every customer input and corresponding AI response, pulled from Google Sheets. Use this to review quality and refine your prompt overrides in Settings.</p>
+        <div class="db-filter-bar">
+          <input type="search" id="aiRespSearch" placeholder="Search customer message or AI reply…" />
+          <select id="aiRespChanFilter">
+            <option value="">All channels</option>
+            <option value="call">Voice Call</option>
+            <option value="sms">SMS</option>
+            <option value="whatsapp">WhatsApp</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="aiRespSearchBtn">Filter</button>
+        </div>
+        <div id="aiResponsesWrap">
+          <div class="empty-state"><div class="es-icon">⏳</div><div>Loading AI responses…</div></div>
+        </div>
+        <div style="margin-top:14px; padding:12px; background:#eff6ff; border-radius:10px; font-size:0.82rem; color:#1e40af;">
+          <strong>Tip:</strong> If you see AI responses that are incorrect or off-brand, go to <strong>Settings → System prompt overrides</strong> to add corrective instructions.
+          <button class="btn btn-outline btn-sm" style="margin-left:10px;" onclick="window.switchTab('settings')">Open Settings →</button>
+        </div>
+      </section>
+
+    </div><!-- /tabAiConversations -->
+
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: Cancel Trip
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabCancelTrip" class="db-tab-panel" hidden>
+
+      <div class="section-pair">
+
+        <!-- Request form -->
+        <section class="db-section">
+          <h2>Request Trip Cancellation</h2>
+          <p class="lead">Submit a cancellation for a scheduled trip. Your company admin must approve it before any booking is affected.</p>
+
+          <div id="ctPermWarn" class="banner" style="display:none;background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:0.9rem">
+            You do not have trip cancellation authority. Ask your company admin to enable it for your account in the Team tab.
+          </div>
+
+          <form id="ctForm">
+            <div style="display:grid;gap:14px">
+              <label style="display:block">
+                <span style="font-size:0.82rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">Bus *</span>
+                <select id="ctBusId" required style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.92rem;background:#fff">
+                  <option value="">— select bus —</option>
+                </select>
+              </label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <label style="display:block">
+                  <span style="font-size:0.82rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">Travel Date *</span>
+                  <input type="date" id="ctDate" required style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.92rem;box-sizing:border-box" />
+                </label>
+                <label style="display:block">
+                  <span style="font-size:0.82rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">Departure Time</span>
+                  <input type="time" id="ctDeparture" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.92rem;box-sizing:border-box" />
+                </label>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <label style="display:block">
+                  <span style="font-size:0.82rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">From <em style="font-weight:400;text-transform:none">(optional)</em></span>
+                  <input type="text" id="ctFrom" placeholder="Leave blank = all routes" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.92rem;box-sizing:border-box" />
+                </label>
+                <label style="display:block">
+                  <span style="font-size:0.82rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">To <em style="font-weight:400;text-transform:none">(optional)</em></span>
+                  <input type="text" id="ctTo" placeholder="Leave blank = all routes" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.92rem;box-sizing:border-box" />
+                </label>
+              </div>
+              <label style="display:block">
+                <span style="font-size:0.82rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">Reason *</span>
+                <textarea id="ctReason" required rows="3" maxlength="500"
+                  placeholder="E.g. Vehicle breakdown, road blocked, flooding…"
+                  style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.92rem;resize:vertical;box-sizing:border-box"></textarea>
+              </label>
+              <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                <button type="submit" id="ctSubmitBtn" class="btn btn-danger">Submit for Admin Approval</button>
+                <span id="ctStatus" style="display:none;font-size:0.88rem"></span>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <!-- Security notice -->
+        <section class="db-section" style="background:#fff8f8;border:1px solid #fecaca">
+          <h2 style="color:#dc2626">Security</h2>
+          <p style="font-size:0.88rem;color:#444;line-height:1.7">
+            <strong>Two-person rule</strong><br>
+            Only team members with cancellation authority (set by admin in Team tab) can submit a request. A company admin must then approve it.<br><br>
+            <strong>What gets cancelled</strong><br>
+            All active bookings for the chosen bus, date, and route are cancelled at once.<br><br>
+            <strong>Passenger notification</strong><br>
+            After approval, n8n automatically sends SMS cancellation notices to every affected passenger.
+          </p>
+        </section>
+
+      </div>
+
+      <!-- History -->
+      <section class="db-section" style="margin-top:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h2 style="margin:0">My Cancellation Requests</h2>
+          <button class="btn btn-outline btn-sm" id="ctRefreshBtn">Refresh</button>
+        </div>
+        <div id="ctHistoryWrap">
+          <div class="empty-state"><div class="es-icon">📋</div><div>Loading…</div></div>
+        </div>
+      </section>
+
+    </div><!-- /tabCancelTrip -->
+
+
+    <!-- ════════════════════════════════════════════════════
+         TAB: Settings
+    ═════════════════════════════════════════════════════ -->
+    <div id="tabSettings" class="db-tab-panel" hidden>
+
+      <!-- Branding -->
+      <section class="db-section">
+        <h2>Branding &amp; Languages</h2>
+        <p class="lead">How your AI agent presents itself to customers. Saved to <code>tenant_settings.branding</code>.</p>
+        <form id="brandingForm" class="db-grid">
+          <div>
+            <label>Display name</label>
+            <input id="b_display" type="text" maxlength="60" />
+          </div>
+          <div>
+            <label>Agent name</label>
+            <input id="b_agent" type="text" maxlength="20" placeholder="PAWA" />
+          </div>
+          <div>
+            <label>Primary color</label>
+            <input id="b_color" type="color" />
+          </div>
+          <div>
+            <label>Logo URL</label>
+            <input id="b_logo" type="url" placeholder="https://…" />
+          </div>
+          <div class="full">
+            <label>Tagline (Swahili recommended)</label>
+            <input id="b_tagline" type="text" maxlength="120" />
+          </div>
+          <div>
+            <label>Default language</label>
+            <select id="b_default_lang">
+              <option value="sw">Swahili</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div>
+            <label>Languages enabled (comma)</label>
+            <input id="b_languages" type="text" placeholder="sw,en" />
+          </div>
+          <div class="full">
+            <label>System prompt overrides (appended to base agent prompt)</label>
+            <textarea id="b_overrides" rows="6" placeholder="Special instructions about your routes, tone, policies…"></textarea>
+          </div>
+          <div class="full db-form-actions">
+            <button class="btn btn-primary" type="submit">Save branding</button>
+            <span id="brandingStatus"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- API Keys -->
+      <section class="db-section">
+        <h2>API Keys (encrypted at rest)</h2>
+        <p class="lead">Values are encrypted server-side. Leave a field blank to keep the existing value.</p>
+        <form id="keysForm" class="db-grid">
+          <div class="full">
+            <label>Anthropic API key <span class="key-state" id="ks_anthropic">—</span></label>
+            <input id="k_anthropic" type="password" class="secret-input" placeholder="sk-ant-api03-…" autocomplete="new-password" />
+          </div>
+          <div>
+            <label>Anthropic model</label>
+            <input id="k_anthropic_model" type="text" placeholder="claude-opus-4-7" />
+          </div>
+          <div></div>
+
+          <div>
+            <label>VAPI assistant ID <span class="key-state" id="ks_vapi_assistant">—</span></label>
+            <input id="k_vapi_assistant_id" type="text" placeholder="as_…" />
+          </div>
+          <div>
+            <label>VAPI phone number ID</label>
+            <input id="k_vapi_phone_number_id" type="text" placeholder="pn_…" />
+          </div>
+          <div>
+            <label>VAPI public key</label>
+            <input id="k_vapi_public_key" type="text" placeholder="vapi_pub_…" />
+          </div>
+          <div>
+            <label>VAPI private key <span class="key-state" id="ks_vapi_private">—</span></label>
+            <input id="k_vapi_private_key" type="password" class="secret-input" placeholder="vapi_priv_…" autocomplete="new-password" />
+          </div>
+
+          <div>
+            <label>Africa's Talking API key <span class="key-state" id="ks_at">—</span></label>
+            <input id="k_at_api_key" type="password" class="secret-input" placeholder="atsk_…" autocomplete="new-password" />
+          </div>
+          <div>
+            <label>AT username</label>
+            <input id="k_at_username" type="text" placeholder="sandbox or your AT username" />
+          </div>
+          <div>
+            <label>AT sender ID</label>
+            <input id="k_at_sender_id" type="text" placeholder="BUSTPAWA" />
+          </div>
+          <div>
+            <label>AT WhatsApp number</label>
+            <input id="k_at_whatsapp_number" type="text" placeholder="+255…" />
+          </div>
+
+          <div>
+            <label>Payment gateway</label>
+            <select id="k_payment_gateway">
+              <option value="">— select —</option>
+              <option value="selcom">Selcom</option>
+              <option value="clickpesa">ClickPesa</option>
+              <option value="azampay">AzamPay</option>
+              <option value="flutterwave">Flutterwave</option>
+            </select>
+          </div>
+          <div></div>
+          <div>
+            <label>Gateway token <span class="key-state" id="ks_payment">—</span></label>
+            <input id="k_payment_gateway_token" type="password" class="secret-input" autocomplete="new-password" />
+          </div>
+          <div>
+            <label>Gateway HMAC secret</label>
+            <input id="k_payment_gateway_secret" type="password" class="secret-input" autocomplete="new-password" />
+          </div>
+
+          <div class="full db-form-actions">
+            <button class="btn btn-primary" type="submit">Save keys</button>
+            <span id="keysStatus"></span>
+          </div>
+        </form>
+      </section>
+
+    </div><!-- /tabSettings -->
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/tenant.js"></script>
+  <script src="js/seat-canvas-editor.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script>
+    window.renderNav && window.renderNav("dashboard.html");
+    window.renderFooter && window.renderFooter();
+    window.initDashboard && window.initDashboard();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

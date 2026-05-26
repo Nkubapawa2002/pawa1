@@ -1,0 +1,131 @@
+{
+  "name": "Pawa — Outbound Caller (call_requests → VAPI)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "seconds", "secondsInterval": 30 }] }
+      },
+      "id": "tick",
+      "name": "Every 30s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Pick up to 5 pending call_requests that were queued in the last 15 minutes.\n-- Anything older has been abandoned (could not reach VAPI) and is left for an admin to retry.\nSELECT id, phone, requested_at, ticket_code, purpose, context\n  FROM call_requests\n WHERE status = 'pending'\n   AND requested_at > now() - interval '15 minutes'\n ORDER BY requested_at ASC\n LIMIT 5;",
+        "options": {}
+      },
+      "id": "fetch",
+      "name": "Fetch pending",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Pawa Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": { "options": { "batchSize": 1 } },
+      "id": "batch",
+      "name": "One at a time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Atomic claim: only succeeds if the row is still 'pending'. If a peer worker\n-- grabbed it first this RETURNING set will be empty and the downstream nodes\n-- short-circuit (no VAPI call is fired). The status='pending' filter is what\n-- prevents double-dialing under concurrent execution.\nUPDATE call_requests\n   SET status = 'dialing',\n       attempt_count = COALESCE(attempt_count, 0) + 1\n WHERE id = $1\n   AND status = 'pending'\nRETURNING id, phone, ticket_code, purpose, context;",
+        "options": { "queryReplacement": "={{ $json.id }}" }
+      },
+      "id": "claim",
+      "name": "Claim row",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [900, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Pawa Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.vapi.ai/call/phone",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.VAPI_PRIVATE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phoneNumberId: $env.VAPI_PHONE_NUMBER_ID, assistantId: $env.VAPI_ASSISTANT_ID, customer: { number: $json.phone }, assistantOverrides: { variableValues: { call_request_id: $json.id, ticket_code: $json.ticket_code || '', purpose: $json.purpose || 'follow_up', context: $json.context || {} } } }) }}",
+        "options": {}
+      },
+      "id": "vapi-call",
+      "name": "VAPI start outbound call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300],
+      "onError": "continueErrorOutput",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- VAPI accepted the call. Persist the call id so callbacks can reconcile.\nUPDATE call_requests\n   SET status = 'started',\n       vapi_call_id = $1\n WHERE id = $2\n RETURNING id;",
+        "options": { "queryReplacement": "={{ $json.id || '' }},={{ $('Claim row').first().json.id }}" }
+      },
+      "id": "mark-started",
+      "name": "Mark started",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1340, 220],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Pawa Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- VAPI rejected the call (rate limit, bad credentials, unreachable phone, …).\n-- Roll the row to 'failed' with the error captured so the dashboard can show\n-- why and an admin can decide whether to retry.\nUPDATE call_requests\n   SET status = 'failed',\n       last_error = LEFT($1, 500)\n WHERE id = $2\n RETURNING id;",
+        "options": { "queryReplacement": "={{ JSON.stringify($json.error || $json) }},={{ $('Claim row').first().json.id }}" }
+      },
+      "id": "mark-failed",
+      "name": "Mark failed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1340, 380],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Pawa Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "loop",
+      "name": "Next",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Every 30s":                    { "main": [[{ "node": "Fetch pending",            "type": "main", "index": 0 }]] },
+    "Fetch pending":                { "main": [[{ "node": "One at a time",            "type": "main", "index": 0 }]] },
+    "One at a time":                { "main": [[{ "node": "Claim row",                "type": "main", "index": 0 }]] },
+    "Claim row":                    { "main": [[{ "node": "VAPI start outbound call", "type": "main", "index": 0 }]] },
+    "VAPI start outbound call": {
+      "main": [
+        [{ "node": "Mark started", "type": "main", "index": 0 }],
+        [{ "node": "Mark failed",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark started": { "main": [[{ "node": "Next", "type": "main", "index": 0 }]] },
+    "Mark failed":  { "main": [[{ "node": "Next", "type": "main", "index": 0 }]] },
+    "Next":         { "main": [[{ "node": "One at a time", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

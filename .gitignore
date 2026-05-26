@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Local env / secrets
+.env
+.env.local
+.env.*.local
+
+# Local runtime config — Mapbox token and any other client-side keys you
+# don't want in the public repo. Load it after config.js in HTML pages:
+#   <script src="js/config.js"></script>
+#   <script src="js/config.local.js"></script>
+js/config.local.js
+
+# Image backups (kept locally, not needed in the repo — ~20MB)
+data/_originals/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code local settings — contains permission allowlist with
+# captured commands (including secrets from prior sessions). NEVER commit.
+.claude/settings.local.json
+.claude/projects/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build / temp artifacts from scratch curls and tests
+headers.txt
+response.json
+*.log
+
+# Test screenshots — large binary noise, regenerated on each run
+test-screenshots/
+
+# Migration files staged for one-off application (kept out of history)
+supabase/_migration_section*.sql

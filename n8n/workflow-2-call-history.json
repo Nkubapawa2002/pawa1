@@ -1,0 +1,86 @@
+{
+  "name": "Pawa AI — Call History",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai/call-history",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "22222222-0002-0002-0002-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "pawa-ai-call-history"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Calls Log",
+          "mode": "name"
+        },
+        "filtersUI": {},
+        "options": {}
+      },
+      "id": "22222222-0002-0002-0002-000000000002",
+      "name": "Read Calls Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [440, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Tenant slug sent by the dashboard\nconst tenantSlug = $('Webhook').first().json.body?.tenant_slug || '';\n\n// All Google Sheet rows as plain objects\nconst rows = $input.all().map(i => i.json);\n\n// Filter by tenant_slug column if present\nconst filtered = rows.filter(row => {\n  if (!tenantSlug) return true;\n  const slug = (row['tenant_slug'] || row['Tenant Slug'] || row['tenant'] || '').toLowerCase();\n  return !slug || slug === tenantSlug.toLowerCase();\n});\n\n// Normalise column names (handle spaces vs underscores)\nconst result = filtered.slice(-200).reverse().map(row => ({\n  call_id:          row['call_id']          || row['Call ID']          || row['id']               || '',\n  phone_number:     row['phone_number']      || row['Phone Number']     || row['phone']            || '—',\n  direction:        row['direction']         || row['Direction']        || 'inbound',\n  status:           row['status']            || row['Status']           || row['end_reason']       || '—',\n  duration_seconds: parseInt(row['duration_seconds'] || row['Duration (s)'] || row['duration'] || 0),\n  summary:          row['summary']           || row['Summary']          || row['transcript_summary'] || '',\n  created_at:       row['created_at']        || row['Started At']       || row['timestamp']        || row['Date'] || '',\n  ended_at:         row['ended_at']          || row['Ended At']         || '',\n  tenant_slug:      row['tenant_slug']       || row['Tenant Slug']      || tenantSlug\n}));\n\nreturn [{ json: { result } }];"
+      },
+      "id": "22222222-0002-0002-0002-000000000003",
+      "name": "Filter and Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.result }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "22222222-0002-0002-0002-000000000004",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Read Calls Sheet", "type": "main", "index": 0 }]]
+    },
+    "Read Calls Sheet": {
+      "main": [[{ "node": "Filter and Format", "type": "main", "index": 0 }]]
+    },
+    "Filter and Format": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "notes": "Reads the 'Calls Log' sheet and returns the 200 most recent rows for the tenant. Expected sheet columns: call_id, phone_number, direction, status, duration_seconds, summary, created_at, ended_at, tenant_slug."
+  }
+}

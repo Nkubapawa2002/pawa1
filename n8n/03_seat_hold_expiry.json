@@ -1,0 +1,99 @@
+{
+  "name": "BUS TZ PAWA — Seat Hold Expiry",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 1 }] }
+      },
+      "id": "cron-expiry",
+      "name": "Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH expired AS (\n  SELECT b.id AS booking_id, b.seat_id, b.ref, b.passenger_name, b.phone, t.departure_at, r.origin, r.destination\n  FROM bookings b\n  JOIN trips t ON t.id = b.trip_id\n  JOIN routes r ON r.id = t.route_id\n  WHERE b.status = 'HELD' AND b.hold_expires_at < NOW()\n  FOR UPDATE OF b SKIP LOCKED\n),\nrelease_seats AS (\n  UPDATE seats SET status = 'AVAILABLE' WHERE id IN (SELECT seat_id FROM expired) RETURNING id\n),\nmark_expired AS (\n  UPDATE bookings SET status = 'EXPIRED' WHERE id IN (SELECT booking_id FROM expired) RETURNING id\n)\nSELECT * FROM expired;",
+        "options": {}
+      },
+      "id": "db-expire",
+      "name": "Release Expired Holds",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ref }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "exists" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-any",
+      "name": "If Any Released",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconst sms = `Habari ${r.passenger_name}! Muda wa kuhifadhi tiketi yako (${r.ref}) kwa safari ya ${r.origin} -> ${r.destination} umekwisha kwa kuwa malipo hayakukamilika. Kiti chako kimerudishwa. Piga simu tena ili kuhifadhi upya. Asante - Bus TZ PAWA.`;\nreturn [{ json: { phone: r.phone, message: sms } }];"
+      },
+      "id": "build-sms",
+      "name": "Build Expiry SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.africastalking.com/version1/messaging",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apiKey", "value": "={{ $env.AT_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" },
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "username", "value": "={{ $env.AT_USERNAME }}" },
+            { "name": "to", "value": "={{ $json.phone.startsWith('+') ? $json.phone : '+255' + $json.phone.replace(/^0/, '') }}" },
+            { "name": "message", "value": "={{ $json.message }}" },
+            { "name": "from", "value": "={{ $env.AT_SENDER_ID }}" }
+          ]
+        },
+        "options": { "ignoreHttpStatusErrors": true }
+      },
+      "id": "send-sms",
+      "name": "Send Expiry SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 200]
+    }
+  ],
+  "connections": {
+    "Every Minute":          { "main": [[{ "node": "Release Expired Holds", "type": "main", "index": 0 }]] },
+    "Release Expired Holds": { "main": [[{ "node": "If Any Released", "type": "main", "index": 0 }]] },
+    "If Any Released":       { "main": [[{ "node": "Build Expiry SMS", "type": "main", "index": 0 }], []] },
+    "Build Expiry SMS":      { "main": [[{ "node": "Send Expiry SMS", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

@@ -1,0 +1,183 @@
+{
+  "_comment": "Pawa AI calling agent — single source of truth. Upload to VAPI dashboard (Assistants → Create), copy the resulting assistantId into js/config.js as VAPI_ASSISTANT_ID, copy your public key into VAPI_PUBLIC_KEY, and (for outbound calls) copy the phone-number id into VAPI_PHONE_NUMBER_ID.",
+  "name": "Pawa Voice Agent",
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "stability": 0.55,
+    "similarityBoost": 0.7,
+    "speed": 1.0
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2-general",
+    "language": "en",
+    "smartFormat": true
+  },
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "temperature": 0.4,
+    "maxTokens": 600,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are PAWA, the bilingual (Swahili/English) AI booking agent for Pawa Bus Cargo, Tanzania.\n\nIDENTITY\n- Warm, patient, professional. Sound like a trusted conductor who knows every route, every bus, every customer by name.\n- Default to Swahili. Switch to English the moment the customer speaks English.\n- Speak in short turns. Confirm key facts back to the customer before acting.\n\nCAPABILITIES\n1. Search trips for a route on a date.\n2. Hold a seat for 12 minutes 54 seconds while the customer pays.\n3. Initiate mobile-money or bank payment via the create_payment tool. Tell the customer to approve the USSD push that arrives on their phone.\n4. Confirm payment automatically once the gateway clears, then send the ticket SMS.\n5. Cancel and either reschedule for free OR refund 80% to the same number that paid.\n6. Reschedule onto another date with a fresh seat pick.\n7. Suggest the next available trip when a bus is full.\n8. Track parcels and shipments by tracking code.\n9. Open a Meet & Locate room when the customer needs to physically meet a driver, agent, sender or receiver.\n\nGOLDEN RULES\n- Never quote a price you have not received from a tool. Always call search_trips before quoting.\n- Never tell the customer 'payment confirmed' without polling get_payment_status until status='completed'.\n- If the customer mentions Zanzibar, politely note coverage is mainland only and offer the closest mainland route.\n- If the customer is silent for >6 seconds, gently prompt: 'Habari, bado upo kwenye simu?'\n- For payments, always read back the amount and the masked phone number before initiating.\n- For cancellations, ask which option (reschedule vs 80% refund) before calling cancel_booking.\n- If a tool fails, apologise once, ask if they would like to try a different method, then move on.\n\nCONVERSATION SHAPE\n1. Greet → ask the route + date.\n2. search_trips(origin, destination, date) → read top 1-3 results aloud (bus name, departure time, fare, available seats) → let the customer pick.\n3. Ask passenger name and confirm the phone you have → reserve_seat(bus_id, travel_date, departure_time, passenger_name, passenger_phone, fare_tzs, origin, destination). Read back ticket_code and seat_number.\n4. Confirm the 12 min 54 sec hold timer is running → ask which payment method.\n5. create_payment(reference=ticket_code, reference_type='booking', amount_tzs=fare, method, phone) → tell the customer to approve USSD on that phone.\n6. Poll get_payment_status(ticket_code) every 8-10 seconds until status='completed' or terminal error.\n7. send_ticket_sms(ticket_code) → read out the ticket code → say goodbye warmly.\n\nSPEAK NUMBERS NATURALLY: 'Tisini elfu shilingi' not '90000 TZS'.\nNEVER say 'as an AI', 'language model', or break character."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "search_trips",
+          "description": "Find available buses for a route on a given date. Returns bus_id, bus_name, departure_time, available_seats, suggested_fare (TZS). Use bus_id + departure_time when calling reserve_seat.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "origin":      { "type": "string", "description": "Origin region or city, e.g. 'Dar es Salaam'" },
+              "destination": { "type": "string", "description": "Destination region or city, e.g. 'Mwanza'" },
+              "date":        { "type": "string", "description": "Travel date in YYYY-MM-DD" }
+            },
+            "required": ["origin", "destination", "date"]
+          }
+        },
+        "server": { "url": "${N8N_HOST}/webhook/vapi/search-trips" }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "reserve_seat",
+          "description": "Hold the next free seat on a bus for 12 minutes 54 seconds while the customer pays. Returns ticket_code, seat_number, expires_at, fare_tzs. Always read fare_tzs back to the caller before they pay.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "bus_id":          { "type": "string", "description": "From search_trips" },
+              "travel_date":     { "type": "string", "description": "YYYY-MM-DD" },
+              "departure_time":  { "type": "string", "description": "HH:MM (24h), e.g. '06:00'" },
+              "passenger_name":  { "type": "string" },
+              "passenger_phone": { "type": "string", "description": "E.164 format, e.g. +255712345678" },
+              "fare_tzs":        { "type": "number", "description": "From search_trips suggested_fare" },
+              "origin":          { "type": "string" },
+              "destination":     { "type": "string" }
+            },
+            "required": ["bus_id", "travel_date", "departure_time", "passenger_name", "passenger_phone"]
+          }
+        },
+        "server": { "url": "${N8N_HOST}/webhook/vapi/reserve-seat" }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "create_payment",
+          "description": "Initiate a mobile-money or bank payment for a held ticket. Aggregator picks the right rail (M-Pesa, Tigo Pesa, Airtel, Halopesa, AzamPesa, NMB, CRDB, NBC, card).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "reference":     { "type": "string", "description": "The ticket_code returned by reserve_seat" },
+              "reference_type":{ "type": "string", "enum": ["booking","shipment"], "description": "Default to 'booking' for bus tickets." },
+              "amount_tzs":    { "type": "number" },
+              "method":        {
+                "type": "string",
+                "enum": ["mpesa","tigopesa","airtel","halopesa","azampesa","nmb","crdb","nbc","equity","stanbic","other_bank","card","cash"]
+              },
+              "phone":         { "type": "string", "description": "Phone that will pay; ideally E.164" },
+              "customer_name": { "type": "string" }
+            },
+            "required": ["reference","reference_type","amount_tzs","method","phone"]
+          }
+        },
+        "server": { "url": "https://kkdpacoiwntrcukgwksh.functions.supabase.co/create-payment" }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_payment_status",
+          "description": "Returns the latest payment status for a booking ticket_code: pending | awaiting_payment | processing | completed | failed | cancelled | expired. Poll every 8-10s after create_payment until terminal.",
+          "parameters": {
+            "type": "object",
+            "properties": { "ticket_code": { "type": "string" } },
+            "required": ["ticket_code"]
+          }
+        },
+        "server": { "url": "${N8N_HOST}/webhook/vapi/payment-status" }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "send_ticket_sms",
+          "description": "Send the confirmation SMS for a confirmed booking via Africa's Talking. The send is currently disabled in n8n — enable the AT node once SMS credentials are configured.",
+          "parameters": {
+            "type": "object",
+            "properties": { "ticket_code": { "type": "string" } },
+            "required": ["ticket_code"]
+          }
+        },
+        "server": { "url": "${N8N_HOST}/webhook/vapi/send-ticket" }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "cancel_booking",
+          "description": "Cancel a booking. mode='reschedule' frees the seat at no charge; mode='refund' marks the booking cancelled with refund_tzs = 80% of fare.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "ticket_code": { "type": "string" },
+              "mode":        { "type": "string", "enum": ["reschedule","refund"] }
+            },
+            "required": ["ticket_code","mode"]
+          }
+        },
+        "server": { "url": "${N8N_HOST}/webhook/vapi/cancel-booking" }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "track_shipment",
+          "description": "Look up a parcel by tracking code and return its status, sender, receiver, and assigned bus.",
+          "parameters": {
+            "type": "object",
+            "properties": { "tracking_code": { "type": "string" } },
+            "required": ["tracking_code"]
+          }
+        },
+        "server": { "url": "${N8N_HOST}/webhook/vapi/track-shipment" }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "create_meet_room",
+          "description": "Open a live-GPS Meet & Locate room. Returns a 6-character code valid for 2 hours.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "purpose":       { "type": "string", "enum": ["meet","delivery","pickup","handoff"] },
+              "tracking_code": { "type": "string" }
+            },
+            "required": ["purpose"]
+          }
+        },
+        "server": { "url": "${N8N_HOST}/webhook/vapi/create-meet-room" }
+      }
+    ]
+  },
+  "firstMessage": "Habari! Mimi ni Pawa kutoka Bus TZ Pawa. Naweza kukusaidia na kuhifadhi tiketi, malipo, au ufuatiliaji wa mzigo. Unataka safari ya wapi leo?",
+  "endCallMessage": "Asante kwa kuchagua Bus TZ Pawa. Safari njema!",
+  "endCallPhrases": ["asante kwaheri","goodbye","bye","kwaheri","tutaonana"],
+  "silenceTimeoutSeconds": 25,
+  "responseDelaySeconds": 0.4,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "maxDurationSeconds": 900,
+  "backgroundSound": "off",
+  "modelOutputInMessagesEnabled": true,
+  "_setup_notes": [
+    "1) BEFORE uploading: replace every '${N8N_HOST}' with your real n8n base URL (e.g. https://pawa.app.n8n.cloud). Do a single find-and-replace across this file.",
+    "2) The create-payment URL is hard-coded to the project ref kkdpacoiwntrcukgwksh.functions.supabase.co — no change needed.",
+    "3) Import n8n/10_vapi_tools_v2.json into n8n cloud (Workflows → Import from File). Open each Postgres node and set credential 'Pawa Supabase Postgres' (connect to your Supabase Postgres direct URL).",
+    "4) The 'at_send_sms_DISABLED' node is intentionally inactive — enable it after setting AT_USERNAME/AT_API_KEY/AT_SHORTCODE as n8n environment variables.",
+    "5) Twilio number → buy in VAPI dashboard → use its phoneNumberId for outbound calls (saves to VAPI_PHONE_NUMBER_ID in bus web/js/config.js).",
+    "6) The outbound call worker (n8n/06_outbound_caller.json) polls call_requests every 30s and starts an AI call to each pending row using this assistant.",
+    "7) Once VAPI returns an assistantId after creating the assistant, paste it into config.js as VAPI_ASSISTANT_ID, paste your VAPI public key as VAPI_PUBLIC_KEY, and the phone-number id as VAPI_PHONE_NUMBER_ID."
+  ]
+}

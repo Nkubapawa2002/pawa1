@@ -1,0 +1,86 @@
+{
+  "name": "Pawa AI — AI Responses (Training Log)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai/responses",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "44444444-0004-0004-0004-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "pawa-ai-responses"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AI Responses",
+          "mode": "name"
+        },
+        "filtersUI": {},
+        "options": {}
+      },
+      "id": "44444444-0004-0004-0004-000000000002",
+      "name": "Read AI Responses Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [440, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Tenant slug sent by the dashboard\nconst tenantSlug = $('Webhook').first().json.body?.tenant_slug || '';\n\nconst rows = $input.all().map(i => i.json);\n\nconst filtered = rows.filter(row => {\n  if (!tenantSlug) return true;\n  const slug = (row['tenant_slug'] || row['Tenant Slug'] || row['tenant'] || '').toLowerCase();\n  return !slug || slug === tenantSlug.toLowerCase();\n});\n\n// Return most recent 100 turns for the training log\nconst result = filtered.slice(-100).reverse().map(row => ({\n  session_id:    row['session_id']    || row['Session ID']    || row['call_id']       || '',\n  phone_number:  row['phone_number']  || row['Phone']         || row['caller']        || '—',\n  channel:       (row['channel']      || row['Channel']       || row['type']          || 'call').toLowerCase(),\n  user_message:  row['user_message']  || row['User Message']  || row['customer_input']|| row['transcript'] || row['question'] || '',\n  ai_response:   row['ai_response']   || row['AI Response']   || row['response']      || row['reply']      || row['answer']   || '',\n  intent:        row['intent']        || row['Intent']        || row['detected_intent']|| '',\n  model:         row['model']         || row['Model']         || 'Claude',\n  timestamp:     row['timestamp']     || row['Timestamp']     || row['created_at']    || row['Date']       || '',\n  tenant_slug:   row['tenant_slug']   || row['Tenant Slug']   || tenantSlug\n}));\n\nreturn [{ json: { result } }];"
+      },
+      "id": "44444444-0004-0004-0004-000000000003",
+      "name": "Filter and Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.result }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "44444444-0004-0004-0004-000000000004",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Read AI Responses Sheet", "type": "main", "index": 0 }]]
+    },
+    "Read AI Responses Sheet": {
+      "main": [[{ "node": "Filter and Format", "type": "main", "index": 0 }]]
+    },
+    "Filter and Format": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "notes": "Reads the 'AI Responses' sheet and returns the 100 most recent AI conversation turns. This is the training log used to review and improve prompts. Expected columns: session_id, phone_number, channel, user_message, ai_response, intent, model, timestamp, tenant_slug."
+  }
+}

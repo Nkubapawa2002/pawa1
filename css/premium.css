@@ -1,0 +1,553 @@
+/* ════════════════════════════════════════════════════════════════════════
+   PAWA — PREMIUM LAYER
+   Loaded AFTER css/styles.css and css/mobile.css so it cleanly overlays
+   the existing design. Pure visual upgrade: nothing structural changes,
+   so existing JS and layouts keep working.
+
+   What this does:
+     • Animated mesh-gradient page background
+     • Glassmorphism cards + nav (backdrop-blur, translucent)
+     • Layered 3D shadow system (--shadow-3d-{sm,md,lg,xl})
+     • Glowing gradient buttons with depth
+     • Subtle hover-tilt / press-depth interactions
+     • Reveal-on-scroll for cards (works with js/premium.js)
+     • Mobile-perfect responsive type and spacing
+     • Respects prefers-reduced-motion
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Brand & gradient tokens ── */
+  --brand-1:        #065f46;   /* deep emerald */
+  --brand-2:        #0a6f4d;
+  --brand-3:        #059669;
+  --brand-4:        #34d399;
+  --accent-gold:    #fbbf24;
+  --accent-warm:    #f97316;
+
+  --grad-brand:     linear-gradient(135deg, #064e3b 0%, #065f46 35%, #059669 70%, #10b981 100%);
+  --grad-brand-soft: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  --grad-glow:      radial-gradient(circle at 30% 20%, rgba(52,211,153,.35) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 60%, rgba(251,191,36,.18) 0%, transparent 50%),
+                    radial-gradient(circle at 60% 90%, rgba(6,95,70,.30)   0%, transparent 55%);
+  --grad-card:      linear-gradient(160deg, rgba(255,255,255,.85), rgba(255,255,255,.55));
+  --grad-dark:      linear-gradient(135deg, #042f1e 0%, #064e3b 50%, #065f46 100%);
+  --grad-hero-glow: radial-gradient(60% 50% at 20% 0%, rgba(255,255,255,.35) 0%, transparent 60%),
+                    radial-gradient(40% 40% at 80% 100%, rgba(251,191,36,.20) 0%, transparent 60%);
+
+  /* ── 3D shadow stack (layered, soft) ── */
+  --shadow-3d-sm:
+    0 1px 1px rgba(15,23,42,.06),
+    0 2px 4px rgba(15,23,42,.04),
+    0 4px 8px rgba(15,23,42,.04);
+  --shadow-3d-md:
+    0 1px 2px rgba(15,23,42,.06),
+    0 4px 8px rgba(15,23,42,.06),
+    0 12px 24px rgba(15,23,42,.08);
+  --shadow-3d-lg:
+    0 2px 4px rgba(15,23,42,.06),
+    0 8px 16px rgba(15,23,42,.10),
+    0 24px 48px rgba(15,23,42,.14);
+  --shadow-3d-xl:
+    0 4px 8px rgba(15,23,42,.08),
+    0 16px 32px rgba(15,23,42,.12),
+    0 40px 80px rgba(15,23,42,.20);
+  --shadow-brand:
+    0 8px 24px rgba(10,111,77,.30),
+    0 2px 6px rgba(10,111,77,.20);
+  --shadow-brand-lg:
+    0 12px 36px rgba(10,111,77,.40),
+    0 4px 10px rgba(10,111,77,.25);
+  --shadow-inner:
+    inset 0 1px 2px rgba(255,255,255,.5),
+    inset 0 -1px 2px rgba(15,23,42,.06);
+
+  /* ── Glass tokens ── */
+  --glass-bg:        rgba(255, 255, 255, .72);
+  --glass-bg-dark:   rgba(15, 23, 42, .55);
+  --glass-border:    rgba(255, 255, 255, .55);
+  --glass-blur:      20px;
+
+  /* ── Geometry ── */
+  --radius-sm: 10px;
+  --radius:    14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* ── Motion ── */
+  --ease-out:  cubic-bezier(.21, .84, .34, 1);
+  --ease-soft: cubic-bezier(.4, 0, .2, 1);
+  --dur-fast:  .15s;
+  --dur:       .25s;
+  --dur-slow:  .45s;
+}
+
+/* ── Animated mesh gradient background ─────────────────────────────────── */
+html, body { min-height: 100%; }
+body {
+  position: relative;
+  background:
+    var(--grad-glow),
+    linear-gradient(180deg, #f8fafc 0%, #f0fdf4 50%, #ecfdf5 100%);
+  background-attachment: fixed, fixed;
+  background-size: 200% 200%, 100% 100%;
+  animation: bgShift 18s linear infinite;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+@keyframes bgShift {
+  0%   { background-position: 0% 0%, center; }
+  50%  { background-position: 100% 50%, center; }
+  100% { background-position: 0% 0%, center; }
+}
+
+/* Floating particles overlay (subtle, cheap) */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(2px 2px at 18% 22%,  rgba(52,211,153,.35),  transparent 50%),
+    radial-gradient(2px 2px at 72% 35%,  rgba(251,191,36,.25),  transparent 50%),
+    radial-gradient(2px 2px at 38% 78%,  rgba(16,185,129,.30),  transparent 50%),
+    radial-gradient(2px 2px at 85% 80%,  rgba(6,95,70,.30),     transparent 50%),
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(52,211,153,.25), transparent 50%);
+  background-size: 600px 600px;
+  animation: drift 30s linear infinite;
+  opacity: .55;
+}
+@keyframes drift {
+  from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; }
+  to   { background-position: 600px 600px, -600px 600px, 600px -600px, -600px -600px, 0 0; }
+}
+
+/* Make sure all real content sits above the background overlay */
+main, header, nav, footer, .container, [data-page], .modal { position: relative; z-index: 1; }
+
+/* ── Headings: bold, gradient-tinted ───────────────────────────────────── */
+h1, h2, h3 { font-weight: 800; letter-spacing: -.015em; line-height: 1.15; }
+h1 { font-size: clamp(1.8rem, 5.5vw, 2.8rem); }
+h2 { font-size: clamp(1.4rem, 4vw, 1.95rem); }
+h3 { font-size: clamp(1.05rem, 3vw, 1.3rem); }
+
+/* Hero gradient text helper — opt-in via class */
+.hero h1, .saas-hero h1, .page-title, .gradient-text {
+  background: linear-gradient(135deg, #064e3b 0%, #047857 40%, #059669 70%, #10b981 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 2px 12px rgba(6, 95, 70, .15));
+}
+
+/* ── Glassmorphism cards (auto-applied to existing card classes) ───────── */
+.card, .bf-card, .ticket-card, .agent-card, .bus-card,
+.db-section, .signup-wrap, .sa-section, .stat-card, .feat-card,
+.pawa-sheet, .support-contact-card, .sePop {
+  background: var(--grad-card) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-3d-md) !important;
+  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+  will-change: transform;
+}
+.card:hover, .bf-card:hover, .bus-card:hover, .agent-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-3d-lg) !important;
+}
+
+/* Hover-tilt enhancement set up by JS (.tilt) */
+.tilt {
+  transform-style: preserve-3d;
+  transition: transform .12s var(--ease-soft);
+}
+.tilt > * { transform: translateZ(0); }
+
+/* Reveal-on-scroll (JS toggles .revealed) */
+.reveal {
+  opacity: 0; transform: translateY(24px) scale(.98);
+  transition: opacity .6s var(--ease-out), transform .6s var(--ease-out);
+}
+.reveal.revealed { opacity: 1; transform: none; }
+
+/* ── Glass nav bar ─────────────────────────────────────────────────────── */
+.navbar {
+  background: rgba(255, 255, 255, .72) !important;
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid rgba(15, 23, 42, .06) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 4px 16px rgba(15, 23, 42, .04) !important;
+}
+.bottom-nav {
+  background: rgba(255, 255, 255, .78) !important;
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, .5) inset, 0 -6px 20px rgba(15, 23, 42, .08) !important;
+}
+.bottom-nav a, .mnav-more-btn { transition: color .18s var(--ease-out), transform .18s var(--ease-out); }
+.bottom-nav a:active, .mnav-more-btn:active { transform: scale(.95); }
+.bottom-nav a.active::before {
+  height: 4px; border-radius: 0 0 6px 6px;
+  background: linear-gradient(90deg, #10b981, #34d399, #fbbf24);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, .45);
+}
+
+/* ── Buttons — gradient, depth, glow ───────────────────────────────────── */
+.btn, .btn-primary, .vn-call-btn, .proceed-btn,
+button[type="submit"], #callAgentBtn {
+  position: relative;
+  border-radius: var(--radius) !important;
+  font-weight: 800 !important;
+  letter-spacing: .2px;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow  var(--dur)     var(--ease-out),
+              filter      var(--dur)     var(--ease-out);
+}
+.btn-primary, .vn-call-btn, .proceed-btn, button[type="submit"]:not(.btn-outline):not(.btn-danger) {
+  background: linear-gradient(180deg, #10b981 0%, #059669 50%, #047857 100%) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.4) inset,
+    0 -1px 0 rgba(0,0,0,.18) inset,
+    0 8px 22px rgba(10,111,77,.35),
+    0 2px 6px rgba(10,111,77,.30) !important;
+}
+.btn-primary:hover, .vn-call-btn:hover, .proceed-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.4) inset,
+    0 -1px 0 rgba(0,0,0,.18) inset,
+    0 14px 36px rgba(10,111,77,.45),
+    0 4px 10px rgba(10,111,77,.30) !important;
+}
+.btn-primary:active, .vn-call-btn:active, .proceed-btn:active {
+  transform: translateY(0) scale(.98);
+}
+.btn-outline {
+  background: rgba(255, 255, 255, .8) !important;
+  border: 1.5px solid rgba(10, 111, 77, .35) !important;
+  color: var(--brand-1) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.btn-outline:hover {
+  background: var(--grad-brand) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: var(--shadow-brand);
+}
+
+/* Tap ripple (added by JS) */
+.btn .ripple, button .ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .55);
+  transform: scale(0);
+  animation: ripple .55s ease-out;
+  pointer-events: none;
+}
+@keyframes ripple {
+  to { transform: scale(8); opacity: 0; }
+}
+
+/* ── Hero section: deep gradient bg, parallax glow, 3D card stack ──────── */
+.hero, .saas-hero, .page-hero {
+  position: relative;
+  background:
+    var(--grad-hero-glow),
+    var(--grad-dark) !important;
+  color: #fff !important;
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  box-shadow: var(--shadow-3d-xl);
+}
+.hero::after, .saas-hero::after {
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.4) 0%, transparent 50%),
+    radial-gradient(1px 1px at 70% 60%, rgba(255,255,255,.3) 0%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 40% 80%, rgba(251,191,36,.3) 0%, transparent 50%);
+  background-size: 300px 300px;
+  pointer-events: none;
+  animation: starfield 40s linear infinite;
+  opacity: .5;
+}
+@keyframes starfield {
+  to { background-position: 300px 300px, -300px 300px, 300px -300px; }
+}
+.hero h1, .saas-hero h1, .page-title {
+  /* Override the gradient-clip in hero context with bright white + glow */
+  background: linear-gradient(180deg, #ffffff 0%, #d1fae5 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: 0 4px 30px rgba(0,0,0,.25);
+  filter: drop-shadow(0 6px 20px rgba(16, 185, 129, .35));
+}
+.hero p, .saas-hero p, .page-subtitle { color: rgba(255, 255, 255, .82) !important; }
+
+/* Stats strip / pitch grid — give each tile a slight 3D float */
+.stats-strip > *, .stat-card,
+.hero-feature-grid > *, .pitch-grid > *,
+.feat-card, .feature-card {
+  background: var(--grad-card) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-3d-md) !important;
+  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+.stats-strip > *:hover, .stat-card:hover,
+.hero-feature-grid > *:hover, .pitch-grid > *:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: var(--shadow-3d-lg) !important;
+}
+
+/* ── Floating chat / call FAB — bigger, glowing, 3D ────────────────────── */
+.pawa-fab, .pcw-fab {
+  background: var(--grad-brand) !important;
+  box-shadow:
+    0 8px 24px rgba(10, 111, 77, .45),
+    0 0 0 1px rgba(255,255,255,.18) inset,
+    0 -2px 6px rgba(0,0,0,.20) inset !important;
+  animation: fabFloat 4s ease-in-out infinite;
+}
+@keyframes fabFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+.pawa-fab:hover, .pcw-fab:hover {
+  transform: scale(1.10) translateY(-2px) !important;
+  box-shadow:
+    0 16px 40px rgba(10, 111, 77, .60),
+    0 0 0 1px rgba(255,255,255,.25) inset,
+    0 -2px 6px rgba(0,0,0,.25) inset !important;
+}
+.pcw-pulse {
+  position: absolute; inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(52,211,153,.45);
+  animation: fabPulse 2s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes fabPulse {
+  0%   { transform: scale(.95); opacity: .9; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* ── Inputs / selects — pill-soft glass ────────────────────────────────── */
+input[type="text"], input[type="tel"], input[type="email"], input[type="search"],
+input[type="number"], input[type="date"], input[type="password"], select, textarea {
+  background: rgba(255, 255, 255, .78) !important;
+  border: 1.5px solid rgba(15, 23, 42, .10) !important;
+  border-radius: var(--radius) !important;
+  padding: 11px 14px !important;
+  font-size: 16px;
+  transition: border-color var(--dur) var(--ease-out),
+              box-shadow var(--dur) var(--ease-out),
+              background var(--dur) var(--ease-out);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--brand-3) !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, .15) !important;
+}
+
+/* ── Seat-map polish (book-fast) ───────────────────────────────────────── */
+.seat-bus-wrap {
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 60%, #f8fafc 100%) !important;
+  border: 1.5px solid rgba(16, 185, 129, .20) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-3d-md), inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+.seat {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .10), inset 0 1px 0 rgba(255, 255, 255, .6);
+  transition: transform .15s var(--ease-out), box-shadow .15s var(--ease-out);
+}
+.seat-available { box-shadow: 0 3px 10px rgba(22, 163, 74, .25), inset 0 1px 0 rgba(255, 255, 255, .7); }
+.seat-mine {
+  animation: minePulse 1.5s ease-in-out infinite, mineFloat 3s ease-in-out infinite;
+}
+@keyframes minePulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(217,119,6,.25), 0 4px 12px rgba(217,119,6,.3); }
+  50%      { box-shadow: 0 0 0 8px rgba(217,119,6,.10), 0 8px 20px rgba(217,119,6,.4); }
+}
+@keyframes mineFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+/* ── Hold-countdown banner: more dramatic ──────────────────────────────── */
+.hold-countdown {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 8px 24px rgba(245, 158, 11, .25), inset 0 1px 0 rgba(255,255,255,.5) !important;
+  backdrop-filter: blur(8px);
+}
+.hold-countdown.expiring {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 8px 24px rgba(220, 38, 38, .35), inset 0 1px 0 rgba(255,255,255,.5) !important;
+}
+
+/* ── Bus picker cards (book-fast) ──────────────────────────────────────── */
+.bus-card {
+  background: var(--grad-card) !important;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.bus-card.selected {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important;
+  border-color: var(--brand-3) !important;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, .25), var(--shadow-3d-lg) !important;
+}
+.bus-card-photo-placeholder {
+  background: var(--grad-brand-soft) !important;
+}
+
+/* ── Ticket card / confirmation: golden glow ───────────────────────────── */
+.ticket-card {
+  background: linear-gradient(160deg, #ffffff 0%, #fffbeb 100%) !important;
+  border: 2px solid #fbbf24 !important;
+  box-shadow:
+    0 0 0 4px rgba(251, 191, 36, .18),
+    var(--shadow-3d-lg),
+    inset 0 1px 0 rgba(255, 255, 255, .8) !important;
+}
+
+/* ── Badges / pills ────────────────────────────────────────────────────── */
+.pill, .pill-status, .verified-badge, .badge, .route-pill {
+  background: var(--grad-brand-soft) !important;
+  border: 1px solid rgba(16, 185, 129, .25) !important;
+  color: var(--brand-1) !important;
+  font-weight: 700;
+  letter-spacing: .2px;
+  border-radius: var(--radius-pill) !important;
+}
+.online-pill {
+  background: linear-gradient(90deg, #10b981, #34d399) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, .35);
+  font-weight: 800;
+}
+.bf-hero-badge {
+  background: linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.08)) !important;
+  border: 1px solid rgba(255,255,255,.25);
+  backdrop-filter: blur(10px);
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .15), inset 0 1px 0 rgba(255,255,255,.25);
+}
+
+/* ── Tabs (chat, dashboard) ────────────────────────────────────────────── */
+.chat-tab, .db-tab, .tab-btn {
+  transition: all var(--dur) var(--ease-out);
+}
+.chat-tab.active, .db-tab.active, .tab-btn.active {
+  background: var(--grad-brand) !important;
+  color: #fff !important;
+  box-shadow: var(--shadow-brand);
+}
+
+/* ── Modal overlays — premium scrim + lift ─────────────────────────────── */
+#seatModalBackdrop, .pawa-sheet-backdrop, .mnav-backdrop {
+  background: rgba(15, 23, 42, .60) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#seatModal, .pawa-sheet, .mnav-drawer {
+  box-shadow: var(--shadow-3d-xl) !important;
+  border-radius: var(--radius-xl) !important;
+}
+
+/* ── More-drawer rows ──────────────────────────────────────────────────── */
+.mnav-row {
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.mnav-row:active {
+  background: var(--grad-brand-soft) !important;
+  transform: scale(.98);
+}
+
+/* ══════════════════════════════════════════════════════════════════════ */
+/* Mobile-specific polish                                                  */
+/* ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  body { font-size: 15px; }
+  .container { padding-left: 16px; padding-right: 16px; }
+
+  /* Pull hero content above the floating background overlay */
+  .hero, .saas-hero, .page-hero {
+    margin: 0 -16px 24px;
+    padding: 64px 20px 44px !important;
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  }
+  .hero-actions .btn,
+  .btn-block, .proceed-btn { width: 100%; }
+
+  /* Cards: a bit more breathing room on small screens */
+  .card, .bf-card, .agent-card, .bus-card,
+  .db-section, .sa-section { padding: 16px !important; }
+
+  /* Bigger tap targets on bottom-nav icons */
+  .bottom-nav svg { width: 24px; height: 24px; }
+  .bottom-nav a { font-size: .72rem; }
+}
+
+/* ── Very small phones ─────────────────────────────────────────────────── */
+@media (max-width: 380px) {
+  h1 { font-size: 1.55rem; }
+  .vn-number { font-size: 1.45rem !important; }
+}
+
+/* ── Tablets in portrait — preserve some desktop feel ──────────────────── */
+@media (min-width: 701px) and (max-width: 1024px) {
+  .container { max-width: 720px; }
+}
+
+/* ── Large phones / foldables ──────────────────────────────────────────── */
+@media (min-width: 420px) and (max-width: 700px) {
+  .hero h1 { font-size: 2.1rem; }
+}
+
+/* ── Dark mode tokens (auto if user OS prefers dark) ───────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg: rgba(15, 23, 42, .60);
+    --glass-border: rgba(255, 255, 255, .08);
+    --grad-card: linear-gradient(160deg, rgba(30,41,59,.85), rgba(15,23,42,.65));
+  }
+  body {
+    background:
+      var(--grad-glow),
+      linear-gradient(180deg, #0b1220 0%, #0f172a 50%, #064e3b 100%);
+    color: #e2e8f0;
+  }
+  .card, .bf-card, .agent-card, .bus-card,
+  .db-section, .signup-wrap, .sa-section, .stat-card { color: #e2e8f0; }
+  .navbar { background: rgba(15, 23, 42, .65) !important; }
+  .bottom-nav { background: rgba(15, 23, 42, .75) !important; }
+  input, select, textarea {
+    background: rgba(15, 23, 42, .55) !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255, 255, 255, .12) !important;
+  }
+  .hero, .saas-hero { background: var(--grad-dark) !important; }
+}
+
+/* ── Reduced-motion users: kill the splashy animations ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  body, body::before { animation: none !important; }
+  .pawa-fab, .pcw-fab { animation: none !important; }
+  .seat-mine { animation: none !important; }
+  .hero::after, .saas-hero::after { animation: none !important; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}

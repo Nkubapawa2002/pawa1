@@ -1,0 +1,85 @@
+{
+  "name": "Pawa AI — Active Calls",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai/active-calls",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "11111111-0001-0001-0001-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "pawa-ai-active-calls"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.vapi.ai/call",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "status", "value": "in-progress" },
+            { "name": "limit",  "value": "50" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "11111111-0001-0001-0001-000000000002",
+      "name": "VAPI Get Active Calls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REPLACE_WITH_YOUR_VAPI_CREDENTIAL_ID",
+          "name": "VAPI Bearer Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Tenant slug sent by the dashboard\nconst tenantSlug = $('Webhook').first().json.body?.tenant_slug || '';\n\n// VAPI returns { data: [...] } or a plain array\nconst vapiRaw = $input.first().json;\nconst calls   = Array.isArray(vapiRaw) ? vapiRaw : (vapiRaw.data || vapiRaw.calls || []);\n\nconst result = calls\n  .filter(c => c.status === 'in-progress' || !c.endedAt)\n  .map(c => ({\n    call_id:      c.id,\n    phone_number: c.customer?.number || c.phoneNumber || '—',\n    direction:    c.type === 'outboundPhoneCall' ? 'outbound' : 'inbound',\n    status:       'active',\n    started_at:   c.startedAt || c.createdAt,\n    assistant_id: c.assistantId,\n    active:       true\n  }));\n\nreturn [{ json: { result } }];"
+      },
+      "id": "11111111-0001-0001-0001-000000000003",
+      "name": "Format Active Calls",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.result }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "11111111-0001-0001-0001-000000000004",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "VAPI Get Active Calls", "type": "main", "index": 0 }]]
+    },
+    "VAPI Get Active Calls": {
+      "main": [[{ "node": "Format Active Calls", "type": "main", "index": 0 }]]
+    },
+    "Format Active Calls": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "notes": "Calls https://api.vapi.ai/call?status=in-progress and returns active calls. Credential: create an HTTP Bearer Auth credential in n8n using your VAPI private key."
+  }
+}

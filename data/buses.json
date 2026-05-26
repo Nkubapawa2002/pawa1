@@ -1,0 +1,100 @@
+[
+  {
+    "id": "BUS001",
+    "name": "Simba Coach",
+    "contact": "+255 712 111 111",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Mwanza", "departure": "06:00", "duration_hours": 18 },
+      { "from": "Mwanza", "to": "Dar es Salaam", "departure": "06:00", "duration_hours": 18 }
+    ]
+  },
+  {
+    "id": "BUS002",
+    "name": "Dar Express",
+    "contact": "+255 712 222 222",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Arusha", "departure": "07:00", "duration_hours": 10 },
+      { "from": "Dar es Salaam", "to": "Dodoma", "departure": "08:30", "duration_hours": 6 },
+      { "from": "Dar es Salaam", "to": "Mtwara", "departure": "06:30", "duration_hours": 8 },
+      { "from": "Dar es Salaam", "to": "Tanga", "departure": "09:00", "duration_hours": 5 },
+      { "from": "Dar es Salaam", "to": "Morogoro", "departure": "10:00", "duration_hours": 3 }
+    ]
+  },
+  {
+    "id": "BUS003",
+    "name": "Kilimanjaro Express",
+    "contact": "+255 754 333 333",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Kilimanjaro", "departure": "06:00", "duration_hours": 9 },
+      { "from": "Dar es Salaam", "to": "Arusha", "departure": "06:30", "duration_hours": 10 },
+      { "from": "Arusha", "to": "Dar es Salaam", "departure": "07:00", "duration_hours": 10 }
+    ]
+  },
+  {
+    "id": "BUS004",
+    "name": "Tahmeed",
+    "contact": "+255 765 444 444",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Arusha", "departure": "07:30", "duration_hours": 10 },
+      { "from": "Tanga", "to": "Arusha", "departure": "08:00", "duration_hours": 6 },
+      { "from": "Arusha", "to": "Manyara", "departure": "09:00", "duration_hours": 3 }
+    ]
+  },
+  {
+    "id": "BUS005",
+    "name": "Shabiby Line",
+    "contact": "+255 786 555 555",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Dodoma", "departure": "07:00", "duration_hours": 6 },
+      { "from": "Dodoma", "to": "Singida", "departure": "13:00", "duration_hours": 4 },
+      { "from": "Dodoma", "to": "Tabora", "departure": "06:00", "duration_hours": 8 }
+    ]
+  },
+  {
+    "id": "BUS006",
+    "name": "Sumry High Class",
+    "contact": "+255 712 666 666",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Mbeya", "departure": "05:30", "duration_hours": 14 },
+      { "from": "Dar es Salaam", "to": "Iringa", "departure": "07:00", "duration_hours": 9 },
+      { "from": "Mbeya", "to": "Dar es Salaam", "departure": "06:00", "duration_hours": 14 }
+    ]
+  },
+  {
+    "id": "BUS007",
+    "name": "Mwanza Bus",
+    "contact": "+255 754 777 777",
+    "routes": [
+      { "from": "Mwanza", "to": "Tabora", "departure": "07:00", "duration_hours": 7 },
+      { "from": "Mwanza", "to": "Kagera", "departure": "08:00", "duration_hours": 6 },
+      { "from": "Mwanza", "to": "Kigoma", "departure": "06:00", "duration_hours": 12 }
+    ]
+  },
+  {
+    "id": "BUS008",
+    "name": "Mohamed Trans",
+    "contact": "+255 765 888 888",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Mbeya", "departure": "06:30", "duration_hours": 14 },
+      { "from": "Mbeya", "to": "Iringa", "departure": "08:00", "duration_hours": 4 }
+    ]
+  },
+  {
+    "id": "BUS009",
+    "name": "Mtwara Express",
+    "contact": "+255 786 999 999",
+    "routes": [
+      { "from": "Dar es Salaam", "to": "Mtwara", "departure": "07:00", "duration_hours": 8 },
+      { "from": "Mtwara", "to": "Lindi", "departure": "13:00", "duration_hours": 2 }
+    ]
+  },
+  {
+    "id": "BUS010",
+    "name": "Adventure Connection",
+    "contact": "+255 712 010 101",
+    "routes": [
+      { "from": "Mwanza", "to": "Kigoma", "departure": "07:00", "duration_hours": 12 },
+      { "from": "Kigoma", "to": "Kagera", "departure": "08:00", "duration_hours": 10 }
+    ]
+  }
+]

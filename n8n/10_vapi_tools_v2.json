@@ -1,0 +1,951 @@
+{
+  "name": "Pawa VAPI Tools v2 (live-schema)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/search-trips",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_search_trips",
+      "name": "wh_search_trips",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ],
+      "webhookId": "wh_search_trips"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nconst toolCallId = tc.id || 'manual';\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {\n  tenant_slug: tenantSlug,\n  toolCallId,\n  origin:      args.origin,\n  destination: args.destination,\n  date:        args.date,\n} }];"
+      },
+      "id": "parse_search_trips",
+      "name": "parse_search_trips",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH route_buses AS (\n  SELECT b.id AS bus_id, b.name AS bus_name, b.seats_total, b.fare_per_km,\n         r->>'from' AS origin, r->>'to' AS destination,\n         r->>'departure' AS departure_time,\n         COALESCE((r->>'duration_hours')::numeric, 0) AS duration_hours\n  FROM buses b, jsonb_array_elements(b.routes) r\n  WHERE LOWER(r->>'from') = LOWER($1)\n    AND LOWER(r->>'to')   = LOWER($2)\n    AND (b.tenant_slug = $4 OR $4 IS NULL OR $4 = '')\n), recent_fare AS (\n  SELECT bk.bus_id, bk.origin, bk.destination, bk.departure_time,\n         PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY bk.fare_tzs) AS median_fare\n  FROM bookings bk\n  WHERE bk.status IN ('confirmed','pending','rescheduled')\n    AND bk.fare_tzs IS NOT NULL AND bk.fare_tzs > 0\n  GROUP BY 1,2,3,4\n)\nSELECT rb.bus_id, rb.bus_name, rb.origin, rb.destination,\n       rb.departure_time, rb.duration_hours, rb.seats_total,\n       COALESCE(rf.median_fare, GREATEST(rb.fare_per_km * 200, 15000)) AS suggested_fare,\n       (rb.seats_total - COALESCE((\n         SELECT COUNT(*) FROM bookings bk\n         WHERE bk.bus_id = rb.bus_id\n           AND bk.travel_date = $3::date\n           AND bk.departure_time = rb.departure_time\n           AND bk.status IN ('pending','confirmed','rescheduled')\n       ), 0)) AS available_seats\nFROM route_buses rb\nLEFT JOIN recent_fare rf\n  ON rf.bus_id = rb.bus_id\n AND rf.origin = rb.origin\n AND rf.destination = rb.destination\n AND rf.departure_time = rb.departure_time\nORDER BY rb.departure_time;",
+        "options": {
+          "queryReplacement": "={{ $json.origin }},={{ $json.destination }},={{ $json.date }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db_search_trips",
+      "name": "db_search_trips",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Pawa Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst toolCallId = $('parse_search_trips').first().json.toolCallId;\nlet result;\nif (!rows.length) {\n  result = 'Samahani, hakuna basi linaloendesha kati ya hizo mbili. Je, ungependa kuangalia mji mwingine?';\n} else {\n  result = 'Mabasi yanayopatikana:\\n' + rows.map((r,i) => {\n    const fare = Number(r.suggested_fare).toLocaleString();\n    return `${i+1}. ${r.bus_name} (${r.bus_id}) | kuondoka ${r.departure_time} | viti vinavyobaki: ${r.available_seats} | bei takriban TZS ${fare}`;\n  }).join('\\n');\n}\nreturn [{ json: { results: [{ toolCallId, result }] } }];"
+      },
+      "id": "fmt_search_trips",
+      "name": "fmt_search_trips",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_search_trips",
+      "name": "resp_search_trips",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/reserve-seat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_reserve_seat",
+      "name": "wh_reserve_seat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "wh_reserve_seat"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nconst toolCallId = tc.id || 'manual';\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {\n  tenant_slug: tenantSlug,\n  toolCallId,\n  bus_id:          args.bus_id,\n  travel_date:     args.travel_date || args.date,\n  departure_time:  args.departure_time || args.departure,\n  passenger_name:  args.passenger_name,\n  passenger_phone: args.passenger_phone,\n  fare_tzs:        args.fare_tzs || 0,\n  origin:          args.origin || '',\n  destination:     args.destination || '',\n} }];"
+      },
+      "id": "parse_reserve_seat",
+      "name": "parse_reserve_seat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH bus AS (\n  SELECT id, name, seats_total, tenant_id, tenant_slug,\n         COALESCE(ticket_prefix, 'BK') AS prefix\n  FROM buses WHERE id = $1\n), taken AS (\n  SELECT seat_number FROM bookings\n  WHERE bus_id = $1\n    AND travel_date = $2::date\n    AND departure_time = $3\n    AND status IN ('pending','confirmed','rescheduled')\n), free_seat AS (\n  SELECT s.n AS seat_number\n  FROM bus, generate_series(1, bus.seats_total) AS s(n)\n  WHERE s.n NOT IN (SELECT seat_number FROM taken)\n  ORDER BY s.n LIMIT 1\n), code AS (\n  SELECT (SELECT prefix FROM bus)\n         || to_char(now(),'YYMMDDHH24MI')\n         || lpad((floor(random()*1000))::text, 3, '0') AS tc\n), ins AS (\n  INSERT INTO bookings (\n    ticket_code, bus_id, bus_name, origin, destination,\n    travel_date, departure_time, seat_number,\n    passenger_name, passenger_phone, fare_tzs,\n    status, expires_at, tenant_id, tenant_slug\n  )\n  SELECT\n    (SELECT tc FROM code),\n    bus.id, bus.name, $7, $8,\n    $2::date, $3, (SELECT seat_number FROM free_seat),\n    $4, $5, $6::numeric,\n    'pending', now() + interval '12 minutes 54 seconds',\n    bus.tenant_id, bus.tenant_slug\n  FROM bus\n  WHERE EXISTS (SELECT 1 FROM free_seat)\n  RETURNING ticket_code, seat_number, expires_at, fare_tzs, bus_name\n)\nSELECT ticket_code, seat_number, expires_at, fare_tzs, bus_name FROM ins;",
+        "options": {
+          "queryReplacement": "={{ $json.bus_id }},={{ $json.travel_date }},={{ $json.departure_time }},={{ $json.passenger_name }},={{ $json.passenger_phone }},={{ $json.fare_tzs }},={{ $json.origin }},={{ $json.destination }}"
+        }
+      },
+      "id": "db_reserve_seat",
+      "name": "db_reserve_seat",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        320
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Pawa Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.first()?.json;\nconst toolCallId = $('parse_reserve_seat').first().json.toolCallId;\nlet result;\nif (!row || !row.ticket_code) {\n  result = 'Samahani, viti vyote vimeshachukuliwa kwa safari hii. Je, ungependa siku au saa nyingine?';\n} else {\n  const expMs = new Date(row.expires_at).getTime() - Date.now();\n  const mins  = Math.max(0, Math.floor(expMs / 60000));\n  const fare  = Number(row.fare_tzs || 0).toLocaleString();\n  result = `Nzuri! Nimekuhifadhia kiti namba ${row.seat_number} kwenye ${row.bus_name}. Tiketi yako ni ${row.ticket_code}. Una dakika ${mins} kulipa TZS ${fare} kabla kushusha kiti.`;\n}\nreturn [{ json: { results: [{ toolCallId, result, ticket_code: row?.ticket_code }] } }];"
+      },
+      "id": "fmt_reserve_seat",
+      "name": "fmt_reserve_seat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_reserve_seat",
+      "name": "resp_reserve_seat",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/payment-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_get_payment_status",
+      "name": "wh_get_payment_status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        540
+      ],
+      "webhookId": "wh_get_payment_status"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nconst toolCallId = tc.id || 'manual';\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: { tenant_slug: tenantSlug, toolCallId, ticket_code: args.ticket_code } }];"
+      },
+      "id": "parse_get_payment_status",
+      "name": "parse_get_payment_status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.status, p.amount_tzs, p.method, p.paid_at, p.error_message,\n       b.passenger_name, b.seat_number, b.bus_name, b.status AS booking_status\nFROM bookings b\nLEFT JOIN payments p\n  ON p.reference = b.ticket_code\nWHERE b.ticket_code = $1\nORDER BY p.created_at DESC NULLS LAST\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.ticket_code }}"
+        }
+      },
+      "id": "db_get_payment_status",
+      "name": "db_get_payment_status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        540
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Pawa Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.first()?.json;\nconst toolCallId = $('parse_get_payment_status').first().json.toolCallId;\nlet result;\nif (!row) {\n  result = 'Samahani, hakuna tiketi yenye hiyo namba.';\n} else if (row.status === 'completed' || row.booking_status === 'confirmed') {\n  result = `Malipo yamekamilika. Kiti namba ${row.seat_number}, basi ${row.bus_name}. Asante!`;\n} else if (row.status === 'pending' || row.status === 'processing' || row.status === 'awaiting_payment') {\n  result = 'Malipo bado yanasubiri. Tafadhali thibitisha USSD kwenye simu yako.';\n} else if (row.status === 'failed' || row.status === 'cancelled' || row.status === 'expired') {\n  result = `Malipo hayakukamilika (${row.status}). Tunaweza kujaribu njia nyingine?`;\n} else {\n  result = 'Bado tunasubiri malipo. Tafadhali ngoja sekunde chache.';\n}\nreturn [{ json: { results: [{ toolCallId, result, payment_status: row?.status, booking_status: row?.booking_status }] } }];"
+      },
+      "id": "fmt_get_payment_status",
+      "name": "fmt_get_payment_status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_get_payment_status",
+      "name": "resp_get_payment_status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/send-ticket",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_send_ticket_sms",
+      "name": "wh_send_ticket_sms",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        760
+      ],
+      "webhookId": "wh_send_ticket_sms"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nconst toolCallId = tc.id || 'manual';\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: { tenant_slug: tenantSlug, toolCallId, ticket_code: args.ticket_code } }];"
+      },
+      "id": "parse_send_ticket_sms",
+      "name": "parse_send_ticket_sms",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ticket_code, passenger_name, passenger_phone,\n       bus_name, origin, destination, travel_date, departure_time,\n       seat_number, fare_tzs, status\nFROM bookings WHERE ticket_code = $1\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.ticket_code }}"
+        }
+      },
+      "id": "db_send_ticket_sms",
+      "name": "db_send_ticket_sms",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        760
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Pawa Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the SMS body, log it to message_log via the next Postgres node will\n// do (see workflow connections). The actual AT send is via the disabled\n// HTTP node below; enable after configuring credentials.\nconst row = $input.first()?.json;\nconst toolCallId = $('parse_send_ticket_sms').first().json.toolCallId;\nif (!row) {\n  return [{ json: { results: [{ toolCallId, result: 'Samahani, tiketi haijapatikana.' }] } }];\n}\nconst date = String(row.travel_date).slice(0,10);\nconst body = `PAWA BUS TICKET\\nCode: ${row.ticket_code}\\n${row.passenger_name}\\nSeat ${row.seat_number} on ${row.bus_name}\\n${row.origin} -> ${row.destination}\\n${date} ${row.departure_time}\\nFare TZS ${Number(row.fare_tzs).toLocaleString()}`;\nreturn [{ json: { results: [{ toolCallId, result: 'SMS ya tiketi imetumwa.', sms_body: body, to_phone: row.passenger_phone, ticket_code: row.ticket_code } ], _sms: { to: row.passenger_phone, body, ref: row.ticket_code } } }];"
+      },
+      "id": "fmt_send_ticket_sms",
+      "name": "fmt_send_ticket_sms",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_send_ticket_sms",
+      "name": "resp_send_ticket_sms",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/cancel-booking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_cancel_booking",
+      "name": "wh_cancel_booking",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        980
+      ],
+      "webhookId": "wh_cancel_booking"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nconst toolCallId = tc.id || 'manual';\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {\n  tenant_slug: tenantSlug, toolCallId,\n  ticket_code: args.ticket_code,\n  mode:        args.mode || 'refund',\n} }];"
+      },
+      "id": "parse_cancel_booking",
+      "name": "parse_cancel_booking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH src AS (\n  SELECT ticket_code, status, fare_tzs FROM bookings WHERE ticket_code = $1\n)\nUPDATE bookings b\n   SET status      = 'cancelled',\n       cancelled_at = now(),\n       refund_tzs   = CASE WHEN $2 = 'refund' THEN ROUND(b.fare_tzs * 0.80) ELSE 0 END\n  FROM src\n WHERE b.ticket_code = src.ticket_code\n   AND b.status IN ('pending','confirmed','rescheduled')\nRETURNING b.ticket_code, b.status, b.refund_tzs, b.passenger_name, b.seat_number, b.bus_name;",
+        "options": {
+          "queryReplacement": "={{ $json.ticket_code }},={{ $json.mode }}"
+        }
+      },
+      "id": "db_cancel_booking",
+      "name": "db_cancel_booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        980
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Pawa Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.first()?.json;\nconst toolCallId = $('parse_cancel_booking').first().json.toolCallId;\nlet result;\nif (!row) {\n  result = 'Samahani, tiketi hiyo haijapatikana au tayari imeshafutwa.';\n} else if (Number(row.refund_tzs) > 0) {\n  result = `Sawa, tiketi ${row.ticket_code} imefutwa. Utarudishiwa TZS ${Number(row.refund_tzs).toLocaleString()} kwa namba uliyolipa nayo.`;\n} else {\n  result = `Sawa, tiketi ${row.ticket_code} imefutwa. Tuanze kuhifadhi safari mpya?`;\n}\nreturn [{ json: { results: [{ toolCallId, result, ticket_code: row?.ticket_code }] } }];"
+      },
+      "id": "fmt_cancel_booking",
+      "name": "fmt_cancel_booking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_cancel_booking",
+      "name": "resp_cancel_booking",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/create-meet-room",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_create_meet_room",
+      "name": "wh_create_meet_room",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1200
+      ],
+      "webhookId": "wh_create_meet_room"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nconst toolCallId = tc.id || 'manual';\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {\n  tenant_slug: tenantSlug, toolCallId,\n  purpose:        args.purpose || 'meet',\n  tracking_code:  args.tracking_code || null,\n} }];"
+      },
+      "id": "parse_create_meet_room",
+      "name": "parse_create_meet_room",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO meet_rooms (code, purpose, tracking_code, created_by, expires_at, status)\nSELECT upper(substring(md5(random()::text) for 6)),\n       $1::text, NULLIF($2,''),\n       'vapi', now() + interval '2 hours', 'active'\nRETURNING code, purpose, expires_at;",
+        "options": {
+          "queryReplacement": "={{ $json.purpose }},={{ $json.tracking_code }}"
+        }
+      },
+      "id": "db_create_meet_room",
+      "name": "db_create_meet_room",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        1200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Pawa Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.first()?.json;\nconst toolCallId = $('parse_create_meet_room').first().json.toolCallId;\nconst result = row\n  ? `Chumba cha kukutana kimefunguliwa. Code: ${row.code}. Itakuwa wazi kwa masaa mawili.`\n  : 'Samahani, sikuweza kufungua chumba sasa hivi.';\nreturn [{ json: { results: [{ toolCallId, result, room_code: row?.code }] } }];"
+      },
+      "id": "fmt_create_meet_room",
+      "name": "fmt_create_meet_room",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_create_meet_room",
+      "name": "resp_create_meet_room",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/track-shipment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_track_shipment",
+      "name": "wh_track_shipment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1420
+      ],
+      "webhookId": "wh_track_shipment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nconst toolCallId = tc.id || 'manual';\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: { tenant_slug: tenantSlug, toolCallId, tracking_code: args.tracking_code } }];"
+      },
+      "id": "parse_track_shipment",
+      "name": "parse_track_shipment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT tracking_code, status, sender_name, receiver_name,\n       sender_region, receiver_region,\n       bus_name, bus_route, bus_departure,\n       product_description, product_value_tzs\nFROM shipments\nWHERE tracking_code = $1\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.tracking_code }}"
+        }
+      },
+      "id": "db_track_shipment",
+      "name": "db_track_shipment",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        1420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Pawa Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.first()?.json;\nconst toolCallId = $('parse_track_shipment').first().json.toolCallId;\nlet result;\nif (!row) {\n  result = 'Samahani, hakuna mzigo wenye namba hiyo.';\n} else {\n  result = `Mzigo ${row.tracking_code}: ${row.status}. Mtumaji ${row.sender_name} (${row.sender_region}) → mpokeaji ${row.receiver_name} (${row.receiver_region}). Basi: ${row.bus_name || 'haijawekwa'}.`;\n}\nreturn [{ json: { results: [{ toolCallId, result, status: row?.status }] } }];"
+      },
+      "id": "fmt_track_shipment",
+      "name": "fmt_track_shipment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_track_shipment",
+      "name": "resp_track_shipment",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.africastalking.com/version1/messaging",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apiKey",
+              "value": "={{ $env.AT_API_KEY }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "username",
+              "value": "={{ $env.AT_USERNAME }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json._sms.to }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json._sms.body }}"
+            },
+            {
+              "name": "from",
+              "value": "={{ $env.AT_SHORTCODE }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "at_send_sms_DISABLED",
+      "name": "at_send_sms_DISABLED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        760
+      ],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "wh_search_trips": {
+      "main": [
+        [
+          {
+            "node": "parse_search_trips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_search_trips": {
+      "main": [
+        [
+          {
+            "node": "db_search_trips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db_search_trips": {
+      "main": [
+        [
+          {
+            "node": "fmt_search_trips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fmt_search_trips": {
+      "main": [
+        [
+          {
+            "node": "resp_search_trips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wh_reserve_seat": {
+      "main": [
+        [
+          {
+            "node": "parse_reserve_seat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_reserve_seat": {
+      "main": [
+        [
+          {
+            "node": "db_reserve_seat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db_reserve_seat": {
+      "main": [
+        [
+          {
+            "node": "fmt_reserve_seat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fmt_reserve_seat": {
+      "main": [
+        [
+          {
+            "node": "resp_reserve_seat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wh_get_payment_status": {
+      "main": [
+        [
+          {
+            "node": "parse_get_payment_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_get_payment_status": {
+      "main": [
+        [
+          {
+            "node": "db_get_payment_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db_get_payment_status": {
+      "main": [
+        [
+          {
+            "node": "fmt_get_payment_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fmt_get_payment_status": {
+      "main": [
+        [
+          {
+            "node": "resp_get_payment_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wh_send_ticket_sms": {
+      "main": [
+        [
+          {
+            "node": "parse_send_ticket_sms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_send_ticket_sms": {
+      "main": [
+        [
+          {
+            "node": "db_send_ticket_sms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db_send_ticket_sms": {
+      "main": [
+        [
+          {
+            "node": "fmt_send_ticket_sms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fmt_send_ticket_sms": {
+      "main": [
+        [
+          {
+            "node": "resp_send_ticket_sms",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "at_send_sms_DISABLED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wh_cancel_booking": {
+      "main": [
+        [
+          {
+            "node": "parse_cancel_booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_cancel_booking": {
+      "main": [
+        [
+          {
+            "node": "db_cancel_booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db_cancel_booking": {
+      "main": [
+        [
+          {
+            "node": "fmt_cancel_booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fmt_cancel_booking": {
+      "main": [
+        [
+          {
+            "node": "resp_cancel_booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wh_create_meet_room": {
+      "main": [
+        [
+          {
+            "node": "parse_create_meet_room",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_create_meet_room": {
+      "main": [
+        [
+          {
+            "node": "db_create_meet_room",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db_create_meet_room": {
+      "main": [
+        [
+          {
+            "node": "fmt_create_meet_room",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fmt_create_meet_room": {
+      "main": [
+        [
+          {
+            "node": "resp_create_meet_room",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wh_track_shipment": {
+      "main": [
+        [
+          {
+            "node": "parse_track_shipment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_track_shipment": {
+      "main": [
+        [
+          {
+            "node": "db_track_shipment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db_track_shipment": {
+      "main": [
+        [
+          {
+            "node": "fmt_track_shipment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fmt_track_shipment": {
+      "main": [
+        [
+          {
+            "node": "resp_track_shipment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "pawa-vapi-tools-v2",
+  "meta": {
+    "instanceId": "pawa-bus-cargo"
+  },
+  "tags": []
+}

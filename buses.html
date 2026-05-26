@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Buses — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')" data-page="buses">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="buses_title">Bus Companies & Routes</h1>
+      <p class="page-subtitle" data-i18n="buses_sub">All registered bus companies and their routes.</p>
+    </div>
+  </section>
+
+  <main class="container">
+
+    <div class="filter-bar">
+      <select id="fromFilter">
+        <option value="" data-i18n="filter_from">From: any region</option>
+      </select>
+      <select id="toFilter">
+        <option value="" data-i18n="filter_to">To: any region</option>
+      </select>
+      <input type="text" id="searchInput" data-i18n-placeholder="filter_search_buses" placeholder="Search bus name..." />
+    </div>
+
+    <div id="busesGrid" class="card-grid"></div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/buses.js"></script>
+  <script>
+    window.renderNav("buses.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initBusesPage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

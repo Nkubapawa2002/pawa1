@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Ride — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')" data-page="ride">
+  <div id="nav-slot"></div>
+
+  <main class="container ride-container">
+
+    <!-- Compact hero — keeps the map dominant -->
+    <div class="ride-hero">
+      <div>
+        <span class="fast-hero-badge">★ LIVE · TANZANIA</span>
+        <h1 data-i18n="ride_title">Ride across Tanzania — like Uber</h1>
+      </div>
+      <p class="muted" data-i18n="ride_sub_short">Car · Bajaj · Bodaboda · Van · Pickup. Pay with M-Pesa, Tigo, Airtel, Halopesa, AzamPesa or any bank.</p>
+    </div>
+
+    <!-- Mode tabs: Map (default) / Rider / Driver / Friend -->
+    <div class="ride-tabs" role="tablist">
+      <button class="ride-tab active" data-mode="map" role="tab" aria-selected="true">
+        <span class="rt-emoji">🗺</span>
+        <span data-i18n="ride_tab_map">Live map</span>
+      </button>
+      <button class="ride-tab" data-mode="rider"  role="tab" aria-selected="false">
+        <span class="rt-emoji">🧍</span>
+        <span data-i18n="ride_tab_rider">I need a ride</span>
+      </button>
+      <button class="ride-tab" data-mode="driver" role="tab" aria-selected="false">
+        <span class="rt-emoji">🚗</span>
+        <span data-i18n="ride_tab_driver">I'm a driver</span>
+      </button>
+      <button class="ride-tab" data-mode="friend" role="tab" aria-selected="false">
+        <span class="rt-emoji">👯</span>
+        <span data-i18n="ride_tab_friend">Find a friend</span>
+      </button>
+    </div>
+
+    <!-- Stage: map + side panel (side panel hidden in map-only mode) -->
+    <div class="ride-stage ride-stage--map-only" id="rideStage">
+      <div class="ride-map-wrap">
+        <div id="rideMap" class="ride-map"></div>
+        <!-- Realtime overlay shown above the map -->
+        <div class="ride-map-overlay" id="mapOverlay">
+          <div class="rmo-pill">
+            <span class="rmo-dot"></span>
+            <strong id="rmoDriverCount">0</strong>
+            <span data-i18n="ride_map_drivers_online">drivers online</span>
+          </div>
+          <div class="rmo-pill rmo-pill-light">
+            <span data-i18n="ride_map_live">Live · refreshes every 5 s</span>
+          </div>
+          <div class="rmo-legend">
+            <span class="rml-item"><span class="rml-swatch s-car"></span>🚗 Car</span>
+            <span class="rml-item"><span class="rml-swatch s-bajaj"></span>🛺 Bajaj</span>
+            <span class="rml-item"><span class="rml-swatch s-boda"></span>🏍 Bodaboda</span>
+            <span class="rml-item"><span class="rml-swatch s-van"></span>🚐 Van</span>
+            <span class="rml-item"><span class="rml-swatch s-pickup"></span>🛻 Pickup</span>
+            <button id="toggleUniBtn" type="button" class="rml-toggle active" title="Universities & colleges">
+              🎓 <span data-i18n="ride_map_unis">Universities</span>
+            </button>
+          </div>
+          <div class="rmo-route-legend">
+            <span class="rrl-item"><span class="rrl-swatch s-best"></span><span data-i18n="ride_best_route">Best route</span></span>
+            <span class="rrl-item"><span class="rrl-swatch s-alt"></span><span data-i18n="ride_alt_route">Alternative</span></span>
+            <span class="rrl-item"><span class="rrl-swatch s-tap"></span><span data-i18n="ride_tap_driver">Tap a driver to route to them</span></span>
+          </div>
+          <button id="mapRequestRideBtn" class="btn btn-primary btn-block rmo-cta" data-i18n="ride_map_request_btn">
+            Request a ride
+          </button>
+
+          <!-- Live event stream — drivers going online, ride requests, accepts -->
+          <details class="ride-live-stream" id="liveStream">
+            <summary class="rls-header">
+              <span class="rls-dot"></span>
+              <strong data-i18n="ride_live_feed">Live feed</strong>
+              <small class="muted rls-toggle-hint" data-i18n="ride_live_tap">tap to expand</small>
+            </summary>
+            <div class="ride-live-ticker" id="liveTicker">
+              <div class="rlt-empty muted" data-i18n="ride_live_empty">Watching for live events…</div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Zoom-in hint: shown only at low zoom; auto-hides past z=14 -->
+        <div id="zoomHint" class="ride-zoom-hint">
+          <span>🔍</span>
+          <span data-i18n="ride_zoom_hint">Zoom in to see street names &amp; campuses</span>
+        </div>
+      </div>
+
+      <aside class="ride-side">
+
+        <!-- ============ RIDER PANEL ============ -->
+        <section class="ride-card ride-panel" data-panel="rider">
+
+          <!-- Step 1: pick pickup + dropoff -->
+          <div data-step="pick">
+            <h3 data-i18n="ride_pick_title">Where to?</h3>
+            <p class="muted" data-i18n="ride_pick_sub">Tap the map or type a place. Pickup defaults to your current location.</p>
+
+            <label class="meet-label">
+              <span data-i18n="ride_pickup">Pickup</span>
+              <div class="addr-row">
+                <input id="pickupAddr" type="text" placeholder="My current location" />
+                <button id="pickupGpsBtn" class="btn btn-outline btn-xs" title="Use GPS">📍</button>
+              </div>
+            </label>
+
+            <label class="meet-label">
+              <span data-i18n="ride_dropoff">Dropoff</span>
+              <input id="dropoffAddr" type="text" placeholder="e.g. Mwenge, Ubungo, Kariakoo" />
+              <div id="searchHits" class="ride-hits" hidden></div>
+            </label>
+
+            <label class="meet-label">
+              <span data-i18n="ride_vehicle">Vehicle type</span>
+              <div class="ride-vehicle-grid">
+                <button type="button" class="ride-veh active" data-veh="car">
+                  <span class="rv-emoji">🚗</span>
+                  <span class="rv-label" data-i18n="ride_veh_car">Car</span>
+                  <span class="rv-fare" data-base="2500" data-perkm="1100">—</span>
+                </button>
+                <button type="button" class="ride-veh" data-veh="bajaj">
+                  <span class="rv-emoji">🛺</span>
+                  <span class="rv-label" data-i18n="ride_veh_bajaj">Bajaj</span>
+                  <span class="rv-fare" data-base="1500" data-perkm="700">—</span>
+                </button>
+                <button type="button" class="ride-veh" data-veh="bodaboda">
+                  <span class="rv-emoji">🏍</span>
+                  <span class="rv-label" data-i18n="ride_veh_bodaboda">Bodaboda</span>
+                  <span class="rv-fare" data-base="1000" data-perkm="500">—</span>
+                </button>
+                <button type="button" class="ride-veh" data-veh="van">
+                  <span class="rv-emoji">🚐</span>
+                  <span class="rv-label" data-i18n="ride_veh_van">Van</span>
+                  <span class="rv-fare" data-base="4000" data-perkm="1500">—</span>
+                </button>
+                <button type="button" class="ride-veh" data-veh="pickup">
+                  <span class="rv-emoji">🛻</span>
+                  <span class="rv-label" data-i18n="ride_veh_pickup">Pickup</span>
+                  <span class="rv-fare" data-base="3500" data-perkm="1400">—</span>
+                </button>
+              </div>
+            </label>
+
+            <label class="meet-label">
+              <span data-i18n="ride_your_name">Your name</span>
+              <input id="riderName" type="text" placeholder="e.g. Asha" />
+            </label>
+            <label class="meet-label">
+              <span data-i18n="ride_your_phone">Your phone (for the driver and payment)</span>
+              <input id="riderPhone" type="tel" placeholder="+255 712 000 000" />
+            </label>
+            <label class="meet-label">
+              <span data-i18n="ride_notes">Notes for the driver (optional)</span>
+              <input id="rideNotes" type="text" data-i18n-placeholder="ride_notes_ph" placeholder="Number of passengers, luggage…" />
+            </label>
+
+            <div class="ride-fare-summary" id="fareSummary" hidden>
+              <div class="rfs-row"><span data-i18n="ride_distance">Distance</span><strong id="fareDistance">—</strong></div>
+              <div class="rfs-row"><span data-i18n="ride_eta_pickup">Pickup ETA</span><strong id="farePickupEta">—</strong></div>
+              <div class="rfs-row total"><span data-i18n="ride_fare">Estimated fare</span><strong id="fareTotal">—</strong></div>
+            </div>
+
+            <button id="requestRideBtn" class="btn btn-primary btn-block" disabled data-i18n="ride_request_btn">
+              Request ride
+            </button>
+
+            <div id="riderErr" class="banner error" style="display:none;margin-top:8px"></div>
+          </div>
+
+          <!-- Step 2: searching -->
+          <div data-step="searching" hidden>
+            <div class="ride-searching">
+              <div class="ride-radar"><span></span></div>
+              <h3 data-i18n="ride_searching_title">Looking for a driver…</h3>
+              <p class="muted" id="searchingSub" data-i18n="ride_searching_sub">We're notifying drivers near your pickup. Average match time: under 90 s.</p>
+            </div>
+            <div class="ride-fare-summary">
+              <div class="rfs-row"><span data-i18n="ride_distance">Distance</span><strong id="searchingDistance">—</strong></div>
+              <div class="rfs-row total"><span data-i18n="ride_fare">Estimated fare</span><strong id="searchingFare">—</strong></div>
+            </div>
+            <button id="cancelSearchBtn" class="btn btn-outline btn-block" data-i18n="ride_cancel">Cancel request</button>
+          </div>
+
+          <!-- Step 3: matched / en-route / on-trip -->
+          <div data-step="trip" hidden>
+            <div class="ride-driver-card">
+              <div class="rdc-avatar" id="driverAvatar">🚗</div>
+              <div class="rdc-meta">
+                <strong id="driverName">—</strong>
+                <small class="muted" id="driverVehicle">—</small>
+                <small class="rating">⭐ <span id="driverRating">4.9</span> · <span id="driverTrips">0</span> <span data-i18n="ride_trips">trips</span></small>
+              </div>
+              <a id="callDriverBtn" class="btn btn-primary btn-xs" href="#" data-i18n="ride_call">Call</a>
+            </div>
+
+            <div class="ride-comm-row">
+              <button id="riderChatBtn"  class="btn btn-outline btn-sm" data-i18n="ride_chat_open">💬 Chat</button>
+              <button id="riderVideoBtn" class="btn btn-outline btn-sm" data-i18n="ride_video_call">🎥 Video call</button>
+            </div>
+
+            <div class="ride-trip-status" id="tripStatus">
+              <div class="rts-step active" data-state="accepted"><span></span><small data-i18n="ride_step_accepted">Accepted</small></div>
+              <div class="rts-step" data-state="en_route_pickup"><span></span><small data-i18n="ride_step_en_route">En route</small></div>
+              <div class="rts-step" data-state="arrived"><span></span><small data-i18n="ride_step_arrived">Arrived</small></div>
+              <div class="rts-step" data-state="on_trip"><span></span><small data-i18n="ride_step_on_trip">On trip</small></div>
+              <div class="rts-step" data-state="completed"><span></span><small data-i18n="ride_step_done">Done</small></div>
+            </div>
+
+            <div class="ride-trip-info">
+              <div class="rti-row"><span data-i18n="ride_eta">ETA</span><strong id="tripEta">—</strong></div>
+              <div class="rti-row"><span data-i18n="ride_fare">Fare</span><strong id="tripFare">—</strong></div>
+            </div>
+
+            <div class="ride-share-row">
+              <button id="shareTripBtn" class="btn btn-outline btn-block" data-i18n="ride_share_trip">
+                Share live trip with a friend
+              </button>
+            </div>
+
+            <div class="ride-trip-actions">
+              <button id="cancelTripBtn" class="btn btn-outline" data-i18n="ride_cancel">Cancel</button>
+              <button id="payTripBtn" class="btn btn-primary" hidden data-i18n="ride_pay_now">Pay now</button>
+            </div>
+
+            <div id="tripBanner" class="banner" style="display:none;margin-top:10px"></div>
+          </div>
+
+        </section>
+
+        <!-- ============ DRIVER PANEL ============ -->
+        <section class="ride-card ride-panel" data-panel="driver" hidden>
+
+          <div data-step="register">
+            <h3 data-i18n="drv_register_title">Drive with Pawa</h3>
+            <p class="muted" data-i18n="drv_register_sub">
+              Bodaboda, bajaj, taxi, van or pickup — register live with your phone's camera. Riders only see verified drivers.
+            </p>
+
+            <div class="drv-trust-row">
+              <span class="drv-trust-pill">📡 <span data-i18n="drv_trust_live">Live capture</span></span>
+              <span class="drv-trust-pill">🛡 <span data-i18n="drv_trust_kyc">KYC verified</span></span>
+              <span class="drv-trust-pill">📍 <span data-i18n="drv_trust_geo">Geo-stamped</span></span>
+            </div>
+
+            <label class="meet-label">
+              <span data-i18n="drv_name">Your name</span>
+              <input id="drvName" type="text" placeholder="e.g. Juma Mohamed" autocomplete="name" />
+            </label>
+            <label class="meet-label">
+              <span data-i18n="drv_phone">Phone</span>
+              <input id="drvPhone" type="tel" placeholder="+255 712 000 000" autocomplete="tel" />
+            </label>
+            <label class="meet-label">
+              <span data-i18n="drv_vehicle_type">Vehicle</span>
+              <select id="drvVehicleType">
+                <option value="bodaboda">🏍 Bodaboda</option>
+                <option value="bajaj">🛺 Bajaj</option>
+                <option value="car">🚗 Car (taxi)</option>
+                <option value="van">🚐 Van</option>
+                <option value="pickup">🛻 Pickup</option>
+              </select>
+            </label>
+            <label class="meet-label">
+              <span data-i18n="drv_vehicle_model">Make &amp; model / colour</span>
+              <input id="drvVehicleLabel" type="text" placeholder="TVS HLX 150, red" />
+            </label>
+            <label class="meet-label">
+              <span data-i18n="drv_plate">Number plate</span>
+              <input id="drvPlate" type="text" placeholder="T 123 ABC" style="text-transform:uppercase" />
+            </label>
+
+            <div class="drv-row-2">
+              <label class="meet-label">
+                <span data-i18n="drv_license_no">Driving licence #</span>
+                <input id="drvLicenseNo" type="text" placeholder="A1234567" />
+              </label>
+              <label class="meet-label">
+                <span data-i18n="drv_national_id">National ID (NIDA)</span>
+                <input id="drvNationalId" type="text" placeholder="19900101-12345-…" />
+              </label>
+            </div>
+            <label class="meet-label">
+              <span data-i18n="drv_experience">Years driving</span>
+              <input id="drvExperience" type="number" min="0" max="60" value="2" />
+            </label>
+
+            <!-- ============ LIVE CAPTURE ============ -->
+            <h4 class="drv-cap-title" data-i18n="drv_capture_title">📸 Live capture</h4>
+            <p class="muted small" data-i18n="drv_capture_sub">
+              Allow camera access. Take all four photos right now — riders won't see you online until every shot is captured.
+            </p>
+
+            <div id="drvCameraWrap" class="drv-camera-wrap" hidden>
+              <video id="drvCameraVideo" autoplay playsinline muted></video>
+              <div class="drv-camera-bar">
+                <button type="button" id="drvCamSwitchBtn" class="btn btn-outline btn-xs" title="Switch front/back camera">🔄</button>
+                <button type="button" id="drvCamShutterBtn" class="btn btn-primary">📷 <span data-i18n="drv_capture_shoot">Capture</span></button>
+                <button type="button" id="drvCamCloseBtn" class="btn btn-outline btn-xs" title="Close camera">✕</button>
+              </div>
+              <div class="drv-camera-hint" id="drvCamHint" data-i18n="drv_capture_aim_self">Frame your face. Good lighting helps.</div>
+            </div>
+
+            <div class="drv-cap-grid">
+              <div class="drv-cap-card" data-cap="selfie">
+                <div class="drv-cap-thumb"><span class="drv-cap-emoji">🤳</span></div>
+                <div class="drv-cap-meta">
+                  <strong data-i18n="drv_cap_selfie">Selfie</strong>
+                  <small class="muted" data-i18n="drv_cap_selfie_sub">Face clearly visible</small>
+                </div>
+                <button type="button" class="btn btn-outline btn-xs drv-cap-btn" data-cap="selfie" data-facing="user" data-i18n="drv_capture_open">Open camera</button>
+              </div>
+              <div class="drv-cap-card" data-cap="vehicle">
+                <div class="drv-cap-thumb"><span class="drv-cap-emoji">🏍</span></div>
+                <div class="drv-cap-meta">
+                  <strong data-i18n="drv_cap_vehicle">Vehicle</strong>
+                  <small class="muted" data-i18n="drv_cap_vehicle_sub">Whole boda/bajaj/car visible</small>
+                </div>
+                <button type="button" class="btn btn-outline btn-xs drv-cap-btn" data-cap="vehicle" data-facing="environment" data-i18n="drv_capture_open">Open camera</button>
+              </div>
+              <div class="drv-cap-card" data-cap="plate">
+                <div class="drv-cap-thumb"><span class="drv-cap-emoji">🔢</span></div>
+                <div class="drv-cap-meta">
+                  <strong data-i18n="drv_cap_plate">Plate close-up</strong>
+                  <small class="muted" data-i18n="drv_cap_plate_sub">Numbers must be readable</small>
+                </div>
+                <button type="button" class="btn btn-outline btn-xs drv-cap-btn" data-cap="plate" data-facing="environment" data-i18n="drv_capture_open">Open camera</button>
+              </div>
+              <div class="drv-cap-card" data-cap="license">
+                <div class="drv-cap-thumb"><span class="drv-cap-emoji">🪪</span></div>
+                <div class="drv-cap-meta">
+                  <strong data-i18n="drv_cap_license">Licence</strong>
+                  <small class="muted" data-i18n="drv_cap_license_sub">Optional but speeds verification</small>
+                </div>
+                <button type="button" class="btn btn-outline btn-xs drv-cap-btn" data-cap="license" data-facing="environment" data-i18n="drv_capture_open">Open camera</button>
+              </div>
+            </div>
+
+            <div id="drvRegErr" class="banner error" style="display:none;margin:10px 0"></div>
+            <div id="drvRegOk"  class="banner success" style="display:none;margin:10px 0"></div>
+
+            <button id="goOnlineBtn" class="btn btn-primary btn-block" data-i18n="drv_register_submit">
+              Submit &amp; go online
+            </button>
+            <p class="muted small drv-fineprint" data-i18n="drv_fineprint">
+              By submitting, you confirm the photos are of you and your vehicle, taken right now.
+              False registration leads to a permanent ban.
+            </p>
+          </div>
+
+          <div data-step="online" hidden>
+            <div class="drv-status-row">
+              <div>
+                <strong id="drvOnlineName">—</strong>
+                <small class="muted" id="drvOnlineVehicle">—</small>
+              </div>
+              <label class="drv-toggle">
+                <input type="checkbox" id="drvOnlineToggle" checked>
+                <span></span>
+                <em data-i18n="drv_online">Online</em>
+              </label>
+            </div>
+
+            <div class="drv-stats">
+              <div><strong id="drvStatTrips">0</strong><small data-i18n="drv_stat_today">Today</small></div>
+              <div><strong id="drvStatEarn">TZS 0</strong><small data-i18n="drv_stat_earn">Earned</small></div>
+              <div><strong id="drvStatRating">4.9</strong><small data-i18n="drv_stat_rating">Rating</small></div>
+            </div>
+
+            <h4 data-i18n="drv_incoming_title">Incoming requests</h4>
+            <ul id="drvRequests" class="drv-requests">
+              <li class="drv-empty muted" data-i18n="drv_no_requests">No requests yet — stay near busy areas.</li>
+            </ul>
+
+            <div id="drvActiveTrip" class="drv-active-trip" hidden>
+              <h4 data-i18n="drv_active_trip">Current trip</h4>
+              <div class="drv-trip-meta">
+                <strong id="drvTripRider">—</strong>
+                <small id="drvTripAddr" class="muted">—</small>
+              </div>
+              <div class="drv-trip-actions">
+                <a id="drvNavBtn" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="#" data-i18n="drv_navigate">Navigate</a>
+                <a id="drvCallRiderBtn" class="btn btn-outline btn-sm" href="#" data-i18n="drv_call_rider">Call rider</a>
+              </div>
+              <div class="drv-trip-buttons">
+                <button id="drvArrivedBtn"  class="btn btn-secondary btn-sm" data-i18n="drv_arrived">I've arrived</button>
+                <button id="drvStartBtn"    class="btn btn-primary btn-sm"   hidden data-i18n="drv_start_trip">Start trip</button>
+                <button id="drvCompleteBtn" class="btn btn-primary btn-sm"   hidden data-i18n="drv_complete">Complete</button>
+                <button id="drvCancelBtn"   class="btn btn-danger btn-sm"           data-i18n="drv_cancel">Cancel</button>
+              </div>
+              <div class="ride-comm-row">
+                <button id="drvChatBtn"  class="btn btn-outline btn-sm" data-i18n="ride_chat_open">💬 Chat</button>
+                <button id="drvVideoBtn" class="btn btn-outline btn-sm" data-i18n="ride_video_call">🎥 Video call</button>
+              </div>
+            </div>
+
+            <button id="goOfflineBtn" class="btn btn-outline btn-block btn-sm" style="margin-top:14px" data-i18n="drv_go_offline">
+              Go offline &amp; close
+            </button>
+          </div>
+        </section>
+
+        <!-- ============ FRIEND PANEL (uses meet rooms) ============ -->
+        <section class="ride-card ride-panel" data-panel="friend" hidden>
+          <h3 data-i18n="frd_title">Just meet a friend</h3>
+          <p class="muted" data-i18n="frd_sub">No driver involved. Share a 6-character code; both of you watch each other on the Tanzania map.</p>
+          <a class="btn btn-primary btn-block" href="meet.html" data-i18n="frd_open_meet">Open Meet &amp; Locate</a>
+          <div class="frd-tips">
+            <p class="muted" data-i18n="frd_tip_1">• Up to 8 people in one room</p>
+            <p class="muted" data-i18n="frd_tip_2">• Realtime GPS · weather · ETA · navigate</p>
+            <p class="muted" data-i18n="frd_tip_3">• Auto-stops if your battery is low</p>
+          </div>
+        </section>
+
+      </aside>
+    </div>
+
+    <!-- Trust strip -->
+    <div class="ride-trust">
+      <div class="rt-item"><span class="rt-icon">🇹🇿</span><span data-i18n="ride_trust_tz">Tanzania-only map &amp; routing</span></div>
+      <div class="rt-item"><span class="rt-icon">📡</span><span data-i18n="ride_trust_live">Live GPS — refreshes every 5 s</span></div>
+      <div class="rt-item"><span class="rt-icon">📱</span><span data-i18n="ride_trust_pay">Pay with M-Pesa, Tigo, Airtel, Halo, AzamPesa, or any bank</span></div>
+      <div class="rt-item"><span class="rt-icon">🛡</span><span data-i18n="ride_trust_share">Share your live trip with a friend in one tap</span></div>
+    </div>
+
+  </main>
+
+  <!-- ============ LIVE COMMUNICATION OVERLAY (chat + WebRTC video) ============ -->
+  <div id="commOverlay" class="comm-overlay" hidden role="dialog" aria-modal="true">
+    <div class="comm-card">
+      <header class="comm-header">
+        <div class="comm-peer">
+          <span class="comm-status-dot" id="commStatusDot"></span>
+          <strong id="commPeerName">—</strong>
+          <small class="muted" id="commPeerSub">—</small>
+        </div>
+        <div class="comm-tabs" role="tablist">
+          <button id="commTabChat"  class="comm-tab active" role="tab" aria-selected="true">💬 <span data-i18n="ride_tab_chat">Chat</span></button>
+          <button id="commTabVideo" class="comm-tab"        role="tab" aria-selected="false">🎥 <span data-i18n="ride_tab_video">Video</span></button>
+        </div>
+        <button id="commCloseBtn" class="comm-close" title="Close" aria-label="Close">✕</button>
+      </header>
+
+      <!-- Chat panel -->
+      <section id="commChatPane" class="comm-pane comm-pane-chat">
+        <div id="commThread" class="comm-thread"></div>
+        <form id="commChatForm" class="comm-chat-form" autocomplete="off">
+          <input id="commChatInput" type="text" maxlength="500" data-i18n-placeholder="ride_chat_ph" placeholder="Type a message…" required />
+          <button class="btn btn-primary" type="submit" data-i18n="ride_chat_send">Send</button>
+        </form>
+      </section>
+
+      <!-- Video panel -->
+      <section id="commVideoPane" class="comm-pane comm-pane-video" hidden>
+        <div class="comm-video-tiles">
+          <div class="comm-tile comm-tile-remote">
+            <video id="commRemoteVideo" autoplay playsinline></video>
+            <div id="commCallStatus" class="comm-call-status" data-i18n="ride_video_idle">Tap "Start call" to begin a live video.</div>
+          </div>
+          <div class="comm-tile comm-tile-local">
+            <video id="commLocalVideo" autoplay playsinline muted></video>
+            <small data-i18n="ride_video_you">You</small>
+          </div>
+        </div>
+        <div class="comm-call-bar">
+          <button id="commStartCallBtn"  class="btn btn-primary btn-sm" data-i18n="ride_video_start">📞 Start call</button>
+          <button id="commToggleMicBtn"  class="btn btn-outline btn-sm" hidden title="Mute mic">🎙</button>
+          <button id="commToggleCamBtn"  class="btn btn-outline btn-sm" hidden title="Camera off">📷</button>
+          <button id="commHangupBtn"     class="btn btn-danger  btn-sm" hidden data-i18n="ride_video_end">End</button>
+        </div>
+        <small class="muted comm-fineprint" data-i18n="ride_video_p2p">Peer-to-peer (WebRTC). Video does not pass through our servers.</small>
+      </section>
+    </div>
+  </div>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/payments.js"></script>
+  <script src="js/ride.js"></script>
+  <script>
+    window.renderNav("ride.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initRidePage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

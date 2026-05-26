@@ -1,0 +1,819 @@
+/* ============================================================
+   Pawa Bus Cargo — Accounting Dashboard Styles
+   ============================================================ */
+
+/* ── Login Page ──────────────────────────────────────────── */
+.fin-login-page {
+  display: flex;
+  min-height: 100vh;
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+
+/* Left branding panel */
+.fin-login-left {
+  flex: 1;
+  background: linear-gradient(145deg, #022c22 0%, #064e3b 45%, #065f46 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 52px 44px;
+  min-width: 300px;
+}
+.fin-login-logo-wrap {
+  width: 64px; height: 64px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+  margin-bottom: 20px;
+  backdrop-filter: blur(8px);
+}
+.fin-login-left h1 {
+  font-size: 2.1rem; font-weight: 800;
+  letter-spacing: -0.5px; margin: 0 0 10px;
+}
+.fin-login-tagline { opacity: 0.75; font-size: 1rem; margin: 0; }
+.fin-login-features {
+  list-style: none; padding: 0; margin: 40px 0;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.fin-login-features li {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 0.95rem; opacity: 0.88;
+}
+.fin-login-features li span { font-size: 1.25rem; width: 30px; text-align: center; }
+.fin-login-secure { font-size: 0.78rem; opacity: 0.5; margin: 0; }
+
+/* Right form panel */
+.fin-login-right {
+  width: 460px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9;
+  padding: 40px 36px;
+}
+.fin-login-card { width: 100%; max-width: 390px; }
+
+.fin-login-badge {
+  display: inline-block;
+  background: #dcfce7; color: #14532d;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.6px; text-transform: uppercase;
+  padding: 4px 13px; border-radius: 999px;
+  margin-bottom: 20px;
+}
+.fin-login-heading { font-size: 1.85rem; font-weight: 800; color: #0f172a; margin: 0 0 6px; }
+.fin-login-sub { color: #64748b; font-size: 0.9rem; margin: 0 0 28px; }
+
+.fin-login-form { display: flex; flex-direction: column; gap: 18px; }
+
+.fin-field { display: flex; flex-direction: column; gap: 7px; }
+.fin-field label { font-size: 0.85rem; font-weight: 600; color: #334155; }
+
+.fin-field-wrap { position: relative; display: flex; align-items: center; }
+.fin-field-icon {
+  position: absolute; left: 13px;
+  width: 17px; height: 17px;
+  color: #94a3b8; pointer-events: none; flex-shrink: 0;
+}
+.fin-field-wrap input {
+  width: 100%; padding: 12px 44px 12px 40px;
+  border: 1.5px solid #cbd5e1; border-radius: 11px;
+  font-size: 0.95rem; background: #fff; color: #0f172a;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  outline: none;
+}
+.fin-field-wrap input:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22,163,74,0.14);
+}
+.fin-field-wrap input::placeholder { color: #94a3b8; }
+
+.fin-eye-btn {
+  position: absolute; right: 11px;
+  background: none; border: none; cursor: pointer;
+  padding: 5px; color: #94a3b8;
+  display: flex; align-items: center;
+  transition: color 0.15s;
+}
+.fin-eye-btn:hover { color: #475569; }
+.fin-eye-btn svg { width: 18px; height: 18px; }
+
+.fin-login-btn {
+  width: 100%; padding: 13px;
+  font-size: 1rem; font-weight: 700;
+  border-radius: 11px; margin-top: 2px;
+  letter-spacing: 0.2px;
+}
+
+.fin-login-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 22px 0 0; color: #94a3b8; font-size: 0.83rem;
+}
+.fin-login-divider::before,
+.fin-login-divider::after { content:''; flex:1; height:1px; background:#e2e8f0; }
+
+.fin-signup-btn {
+  width: 100%; margin-top: 12px;
+  padding: 12px; font-size: 0.9rem; font-weight: 600;
+  border: 1.5px solid #e2e8f0; border-radius: 11px;
+  background: #fff; color: #334155; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.fin-signup-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+.fin-login-msg {
+  margin-top: 18px; padding: 13px 15px;
+  border-radius: 11px; font-size: 0.875rem; line-height: 1.55;
+}
+.fin-msg-error   { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+.fin-msg-success { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+
+.fin-offline-box {
+  margin-top: 18px; padding: 16px;
+  background: #fffbeb; border: 1.5px solid #fcd34d;
+  border-radius: 12px;
+}
+.fin-offline-title { font-weight: 700; color: #92400e; font-size: 0.9rem; margin: 0 0 5px; }
+.fin-offline-sub   { font-size: 0.82rem; color: #78350f; margin: 0; line-height: 1.5; }
+
+.fin-offline-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #fef3c7; color: #92400e;
+  font-size: 0.72rem; font-weight: 700;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid #fcd34d;
+}
+
+@media (max-width: 840px) {
+  .fin-login-page { flex-direction: column; }
+  .fin-login-left {
+    padding: 32px 28px;
+    min-width: unset;
+  }
+  .fin-login-features { display: none; }
+  .fin-login-right {
+    width: 100%; background: #fff;
+    padding: 32px 24px;
+  }
+}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+.fin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--green-dark);
+  color: #fff;
+  padding: 10px 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.fin-topbar-left { display: flex; align-items: center; gap: 14px; }
+.fin-topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fin-brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.3px; }
+.fin-user { font-size: 0.85rem; opacity: 0.85; }
+
+.fin-role-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+}
+.fin-role-badge.role-admin       { background: #dc2626; }
+.fin-role-badge.role-accountant  { background: #2563eb; }
+.fin-role-badge.role-auditor     { background: #7c3aed; }
+
+/* ── Layout ──────────────────────────────────────────────── */
+.fin-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: calc(100vh - 52px);
+}
+
+/* Mobile menu button (hidden on desktop) */
+.fin-menu-btn {
+  display: none;
+  background: rgba(255,255,255,0.14);
+  border: none; border-radius: 8px;
+  width: 38px; height: 38px;
+  color: #fff; cursor: pointer;
+  align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.fin-menu-btn:active { background: rgba(255,255,255,0.28); }
+
+/* Sidebar overlay (hidden on desktop) */
+.fin-sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 35;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+body.fin-sidebar-open .fin-sidebar-overlay {
+  opacity: 1;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.fin-sidebar {
+  background: #f8fafc;
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+  overflow-y: auto;
+}
+.fin-nav { display: flex; flex-direction: column; padding: 0 12px; gap: 2px; }
+.fin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--black);
+  text-align: left;
+  transition: background 0.15s;
+}
+.fin-nav-item:hover  { background: var(--green-light); }
+.fin-nav-item.active { background: var(--green); color: #fff; font-weight: 600; }
+
+.fin-filters {
+  padding: 20px 16px 16px;
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+}
+.fin-filter-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: 6px;
+}
+.fin-period-btns {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.fin-period-btn {
+  padding: 6px 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--white);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.fin-period-btn:hover  { border-color: var(--green); color: var(--green); }
+.fin-period-btn.active { background: var(--green); color: #fff; border-color: var(--green); }
+.fin-date-input, .fin-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: var(--white);
+}
+
+/* ── Main ────────────────────────────────────────────────── */
+.fin-main { padding: 24px; overflow-y: auto; }
+
+.fin-section { display: none; }
+.fin-section.active { display: block; }
+
+.fin-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.fin-section-header h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.fin-period-pill {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 12px;
+  background: var(--green-light);
+  color: var(--green-dark);
+  border-radius: 999px;
+}
+.fin-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.fin-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--green-dark);
+}
+.fin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.fin-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px;
+}
+.fin-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--green-light);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Auth card ───────────────────────────────────────────── */
+.fin-logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.fin-logo-icon { font-size: 2.4rem; }
+.fin-logo h2   { font-size: 1.2rem; font-weight: 800; margin: 0; }
+.fin-logo p    { font-size: 0.85rem; color: var(--gray); margin: 2px 0 0; }
+
+/* ── KPI Cards ───────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.kpi-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  border-top: 4px solid var(--gray-mid);
+}
+.kpi-card.kpi-green  { border-top-color: var(--green); }
+.kpi-card.kpi-blue   { border-top-color: #2563eb; }
+.kpi-card.kpi-teal   { border-top-color: #0891b2; }
+.kpi-card.kpi-gold   { border-top-color: var(--gold-dark); }
+.kpi-card.kpi-purple { border-top-color: #7c3aed; }
+.kpi-card.kpi-profit { border-top-color: var(--success); }
+.kpi-card.kpi-loss   { border-top-color: var(--danger); }
+
+.kpi-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--gray); margin-bottom: 8px; }
+.kpi-value { font-size: 1.35rem; font-weight: 800; color: var(--black); margin-bottom: 6px; }
+.kpi-sub   { font-size: 0.78rem; color: var(--gray); }
+
+/* ── Payment status strip ────────────────────────────────── */
+.pay-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 10px 0;
+}
+.pay-stat-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.pay-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pay-dot.pay-confirmed { background: var(--success); }
+.pay-dot.pay-pending   { background: var(--warn); }
+.pay-dot.pay-failed    { background: var(--danger); }
+.pay-dot.pay-refunded  { background: #7c3aed; }
+
+/* ── Revenue bar chart ───────────────────────────────────── */
+.rev-chart { display: flex; flex-direction: column; gap: 10px; }
+.chart-row { display: flex; align-items: center; gap: 12px; }
+.chart-label {
+  width: 160px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.chart-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gray-light);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.chart-bar {
+  height: 28px;
+  background: linear-gradient(90deg, var(--green), var(--green-dark));
+  border-radius: 0 4px 4px 0;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+.chart-val { font-size: 0.8rem; font-weight: 600; white-space: nowrap; color: var(--black); }
+
+/* ── P&L Table ───────────────────────────────────────────── */
+.pl-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--green-dark);
+  border-bottom: 2px solid var(--green);
+  padding-bottom: 10px;
+  margin-bottom: 8px;
+}
+.pl-table { width: 100%; border-collapse: collapse; }
+.pl-table td { padding: 7px 10px; font-size: 0.9rem; }
+.pl-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+tr.pl-item td { color: var(--black); }
+tr.pl-deduct td { color: var(--danger); }
+tr.pl-subtotal td { font-weight: 700; border-top: 1px solid var(--border); }
+tr.pl-total td {
+  font-weight: 800;
+  font-size: 1rem;
+  border-top: 2px solid var(--green);
+  border-bottom: 2px solid var(--green);
+  background: var(--green-light);
+}
+tr.pl-section td {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--gray);
+  padding-top: 18px;
+}
+tr.pl-space td { height: 6px; }
+td.pos { color: var(--success); }
+td.neg { color: var(--danger); }
+
+/* ── Tax tables ──────────────────────────────────────────── */
+.tax-table { width: 100%; border-collapse: collapse; }
+.tax-table td { padding: 8px 12px; font-size: 0.9rem; border-bottom: 1px solid var(--gray-light); }
+.tax-table .tax-val { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tax-table tr.tax-divider td { height: 8px; border: none; background: transparent; }
+.tax-note {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: var(--gray);
+  line-height: 1.5;
+  border-left: 3px solid var(--green-light);
+  padding-left: 10px;
+}
+
+/* ── Tax calendar ────────────────────────────────────────── */
+.tax-calendar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.tcal-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: var(--white);
+}
+.tcal-item.tcal-past { opacity: 0.45; background: var(--gray-light); }
+.tcal-item.tcal-soon { border-color: var(--warn); background: #fffbeb; }
+.tcal-date { font-weight: 700; font-size: 0.82rem; min-width: 52px; color: var(--green-dark); }
+.tcal-tax  { font-weight: 600; font-size: 0.8rem; min-width: 80px; }
+.tcal-desc { font-size: 0.78rem; color: var(--gray); }
+
+/* ── Data tables ─────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 700px; }
+.data-table th {
+  background: var(--gray-light);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+.data-table th.num, .data-table td.num { text-align: right; }
+.data-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--gray-light);
+  vertical-align: middle;
+}
+.data-table tr:hover td { background: var(--green-light); }
+.empty-row { text-align: center !important; color: var(--gray); padding: 32px !important; }
+.status-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+code { font-family: monospace; font-size: 0.82rem; background: var(--gray-light); padding: 2px 6px; border-radius: 4px; }
+
+/* ── Expense form ────────────────────────────────────────── */
+.exp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.exp-form label { display: flex; flex-direction: column; gap: 5px; font-size: 0.85rem; font-weight: 600; }
+.exp-form input, .exp-form select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+.exp-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.exp-chip {
+  font-size: 0.8rem;
+  background: var(--green-light);
+  color: var(--green-dark);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.fin-inline-msg { font-size: 0.85rem; align-self: center; }
+.fin-inline-msg.success { color: var(--success); }
+.fin-inline-msg.error   { color: var(--danger); }
+.btn-icon { background: none; border: none; cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px; }
+.btn-icon:hover { background: var(--gray-light); }
+
+/* ── Booking funnel ──────────────────────────────────────── */
+.funnel { display: flex; flex-direction: column; gap: 10px; }
+.funnel-row { display: flex; align-items: center; gap: 12px; }
+.funnel-label { width: 170px; font-size: .82rem; font-weight: 500; text-align: right; flex-shrink: 0; }
+.funnel-bar-wrap { flex: 1; background: var(--gray-light); border-radius: 6px; overflow: hidden; height: 28px; }
+.funnel-bar { height: 100%; border-radius: 0 4px 4px 0; display: block; transition: width .4s ease; }
+.funnel-val { font-size: .82rem; font-weight: 600; min-width: 80px; }
+
+/* ── Payroll ─────────────────────────────────────────────── */
+.paye-calc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.paye-label {
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: .85rem; font-weight: 600;
+}
+.paye-label input, .paye-label select {
+  padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: .9rem; font-weight: 400;
+}
+.paye-quick-result {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px; margin-top: 16px;
+  padding: 16px; border-radius: 10px;
+  background: var(--green-light);
+  border-left: 4px solid var(--green);
+}
+.paye-r-lbl { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--gray); }
+.paye-r-val { font-size: 1.1rem; font-weight: 800; color: var(--green-dark); margin-top: 3px; }
+
+/* ── Balance Sheet inputs ────────────────────────────────── */
+.bs-input-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+.bs-sec-hdr {
+  font-size: .72rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--gray);
+}
+
+/* ── Budget inputs ───────────────────────────────────────── */
+.budget-input-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.budget-input-item { display: flex; flex-direction: column; gap: 4px; }
+.budget-input-label { font-size: .85rem; font-weight: 600; display: flex; flex-direction: column; gap: 2px; }
+.budget-input-item input {
+  padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: .9rem;
+}
+
+/* ── Financial Ratios ────────────────────────────────────── */
+.ratios-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px; margin-bottom: 8px;
+}
+.ratio-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.ratio-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--gray); margin-bottom: 6px; }
+.ratio-value { font-size: 1.55rem; font-weight: 800; color: var(--green-dark); margin-bottom: 4px; }
+.ratio-desc  { font-size: .75rem; color: var(--gray); line-height: 1.4; margin-bottom: 8px; }
+.ratio-bench { display: inline-block; font-size: .72rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.ratio-good  { background: #dcfce7; color: #166534; }
+.ratio-warn  { background: #fef9c3; color: #854d0e; }
+.ratio-bad   { background: #fee2e2; color: #991b1b; }
+
+/* ── Invoice ─────────────────────────────────────────────── */
+.invoice-doc { max-width: 720px; margin: 0 auto; }
+.inv-header  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+.inv-logo    { font-size: 1.35rem; font-weight: 900; color: var(--green-dark); }
+.inv-meta    { text-align: right; font-size: .85rem; line-height: 1.6; }
+.inv-meta strong { font-size: 1.3rem; font-weight: 800; color: var(--green-dark); display: block; }
+.inv-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.inv-party-lbl  { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--gray); margin-bottom: 4px; }
+.inv-party-name { font-size: 1rem; font-weight: 700; }
+.inv-party-sub  { font-size: .85rem; color: var(--gray); }
+.inv-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+.inv-table th { background: var(--green-dark); color: #fff; padding: 10px 12px; font-size: .82rem; text-align: left; }
+.inv-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: .9rem; }
+.inv-totals  { margin-left: auto; max-width: 320px; }
+.inv-tot-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: .9rem; }
+.inv-grand   { font-weight: 800; font-size: 1.1rem; border-top: 2px solid var(--green-dark); padding-top: 10px; color: var(--green-dark); }
+.inv-footer  { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 14px; font-size: .76rem; color: var(--gray); text-align: center; line-height: 1.8; }
+.inv-line-row input { width: 100%; box-sizing: border-box; }
+
+/* ── Chart extras ────────────────────────────────────────── */
+.chart-share { font-size: .7rem; color: var(--gray); margin-left: 4px; }
+.share-pill  { font-size: .75rem; font-weight: 600; background: var(--green-light); color: var(--green-dark); padding: 2px 8px; border-radius: 999px; }
+
+/* ── Print ───────────────────────────────────────────────── */
+@media print {
+  .fin-topbar, .fin-sidebar, .fin-actions, #loadDataBtn, #logoutBtn, #addExpenseCard,
+  .fin-menu-btn, .fin-sidebar-overlay, [onclick], button { display: none !important; }
+  .fin-layout { grid-template-columns: 1fr; }
+  .fin-section { display: block !important; }
+  .fin-section + .fin-section { page-break-before: always; }
+  .fin-card { box-shadow: none; border: 1px solid #ccc; }
+  body { font-size: 12px; }
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE — phones & small tablets
+   ============================================================ */
+@media (max-width: 900px) {
+
+  /* Topbar: compact, show menu button */
+  .fin-topbar {
+    padding: 9px 14px;
+    gap: 10px;
+  }
+  .fin-menu-btn { display: flex; }
+  .fin-topbar-left { gap: 10px; flex: 1; min-width: 0; }
+  .fin-topbar-right { gap: 6px; }
+  .fin-brand { font-size: 1rem; }
+  .fin-brand-text { display: none; }   /* show only the emoji on mobile */
+  .fin-user { display: none; }
+  .fin-print-btn { display: none; }
+  .fin-role-badge { font-size: 0.65rem; padding: 2px 7px; }
+
+  /* Layout: single column, sidebar becomes a slide-in drawer */
+  .fin-layout { grid-template-columns: 1fr; }
+
+  .fin-sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 270px;
+    z-index: 50;
+    background: #fff;
+    border-right: 1px solid var(--border);
+    box-shadow: 6px 0 24px rgba(0,0,0,0.18);
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-top: 60px;
+  }
+  body.fin-sidebar-open .fin-sidebar { transform: translateX(0); }
+  body.fin-sidebar-open .fin-sidebar-overlay { display: block; }
+  .fin-sidebar-overlay { display: none; }
+
+  /* Main content padding */
+  .fin-main { padding: 14px 12px 80px; }
+
+  /* Section headers */
+  .fin-section-header { margin-bottom: 14px; gap: 8px; }
+  .fin-section-header h2 { font-size: 1.1rem; }
+  .fin-period-pill { font-size: 0.7rem; padding: 3px 9px; }
+
+  /* KPI cards: 2 columns on mobile, single column on small phones */
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .kpi-card {
+    padding: 14px 12px !important;
+    border-radius: 12px !important;
+  }
+  .kpi-label { font-size: 0.68rem !important; }
+  .kpi-value { font-size: 1.05rem !important; line-height: 1.2 !important; word-break: break-word; }
+  .kpi-sub   { font-size: 0.66rem !important; line-height: 1.35 !important; }
+
+  /* Cards: tighter padding, smaller titles */
+  .fin-card {
+    padding: 14px 12px !important;
+    border-radius: 12px !important;
+    margin-top: 14px !important;
+  }
+  .fin-card-title { font-size: 0.95rem !important; }
+
+  /* Tables: horizontal scroll */
+  .fin-card { overflow-x: auto; }
+  .data-table, .pl-table {
+    font-size: 0.78rem;
+    min-width: 540px;
+  }
+  .data-table th, .data-table td,
+  .pl-table th, .pl-table td {
+    padding: 7px 8px !important;
+  }
+
+  /* Payment status grid: 2 columns */
+  .pay-status-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .pay-stat-item { font-size: 0.78rem; }
+
+  /* Funnel & charts */
+  .funnel-row { font-size: 0.8rem; }
+  .funnel-lbl { min-width: 90px !important; }
+  .funnel-val { min-width: 60px !important; font-size: 0.74rem; }
+  .rev-chart  { font-size: 0.78rem; }
+
+  /* Forms: stack inputs */
+  .form-grid, .paye-calc-grid, .bs-input-grid, .budget-input-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Filters in sidebar */
+  .fin-filters { padding: 16px 14px; }
+  .fin-period-btn { padding: 8px 0; font-size: 0.78rem; }
+
+  /* Ratio cards: stack tighter */
+  .ratios-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .ratio-card { padding: 12px !important; }
+  .ratio-label { font-size: 0.7rem !important; }
+  .ratio-value { font-size: 1.2rem !important; }
+
+  /* Buttons: better touch targets */
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 34px; font-size: 0.82rem; padding: 6px 12px; }
+  .btn-xs { min-height: 28px; font-size: 0.75rem; padding: 4px 10px; }
+
+  /* Section headers actions */
+  .fin-actions { flex-wrap: wrap; gap: 8px; }
+  .fin-actions .btn { flex: 1 1 auto; }
+
+  /* Tax computation calendar */
+  .tcal-row { flex-wrap: wrap; gap: 6px; }
+  .tcal-date { min-width: 44px !important; font-size: 0.74rem !important; }
+  .tcal-tax  { min-width: 60px !important; font-size: 0.72rem !important; }
+}
+
+/* Extra small phones */
+@media (max-width: 420px) {
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .pay-status-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .ratios-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .fin-brand { display: none; }
+  .fin-topbar { padding: 8px 10px; gap: 8px; }
+  #logoutBtn { font-size: 0.75rem; padding: 5px 10px; }
+}
+
+/* Make sure body never scrolls horizontally on mobile */
+@media (max-width: 900px) {
+  body { overflow-x: hidden; }
+  body.fin-sidebar-open { overflow: hidden; }   /* lock scroll while drawer open */
+}

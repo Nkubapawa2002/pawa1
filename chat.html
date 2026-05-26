@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Chat — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg')" data-page="chat">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="chat_title">Chat with Pawa Assistant</h1>
+      <p class="page-subtitle" data-i18n="chat_sub">Ask about sending, tracking, agents, or buses.</p>
+    </div>
+  </section>
+
+  <main class="container" style="padding-top:8px;padding-bottom:8px">
+    <div class="chat-container">
+
+      <!-- Tab bar -->
+      <div class="chat-tab-bar">
+        <button class="chat-tab active" id="tabAi" onclick="window.switchChatTab('ai')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span data-i18n="chat_tab_ai">AI Assistant</span>
+        </button>
+        <button class="chat-tab" id="tabSupport" onclick="window.switchChatTab('support')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.35 2 2 0 0 1 3.6 1.13h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.73a16 16 0 0 0 6 6l.96-.96a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16z"/>
+          </svg>
+          <span data-i18n="chat_tab_support">Contact Support</span>
+        </button>
+      </div>
+
+      <!-- AI Chat panel -->
+      <div id="panelAi" class="chat-panel active">
+        <div class="chat-header">
+          <div class="avatar">P</div>
+          <div>
+            <div style="font-weight:700" data-i18n="chat_title">Chat with Pawa Assistant</div>
+            <small style="opacity:0.85" data-i18n="chat_sub">Ask about sending, tracking, agents, or buses.</small>
+          </div>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="suggestions" id="suggestions"></div>
+        <form class="chat-input-bar" id="chatForm">
+          <input type="text" id="chatInput" data-i18n-placeholder="chat_placeholder" placeholder="Type your question..." autocomplete="off" />
+          <button type="submit" data-i18n="chat_send">Send</button>
+        </form>
+      </div>
+
+      <!-- Support Contacts panel -->
+      <div id="panelSupport" class="chat-panel">
+        <div class="chat-header">
+          <div class="avatar" style="font-size:1.2rem">📞</div>
+          <div>
+            <div style="font-weight:700" data-i18n="support_title">Support Contacts</div>
+            <small style="opacity:0.85" data-i18n="support_sub">Reach our team directly for any inconvenience.</small>
+          </div>
+        </div>
+        <div class="support-body">
+          <p class="support-intro" data-i18n="support_sub">Reach our team directly for any inconvenience during your trip or shipment.</p>
+          <div id="supportContactsList"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/tenant.js"></script>
+  <script src="js/chat.js"></script>
+  <script>
+    window.renderNav("chat.html");
+    window.renderFooter();
+    window.applyTranslations();
+    (async () => {
+      await (window.loadTenantContext && window.loadTenantContext());
+      window.initChatPage();
+      window.renderSupportContacts();
+    })();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

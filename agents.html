@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Agents — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/rafael-atantya-zK49QNwv8ow-unsplash.jpg')" data-page="agents">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/rafael-atantya-zK49QNwv8ow-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="agents_title">Bus Agents Directory</h1>
+      <p class="page-subtitle" data-i18n="agents_sub">All agents across mainland Tanzania.</p>
+    </div>
+  </section>
+
+  <main class="container">
+
+    <div class="filter-bar">
+      <select id="regionFilter">
+        <option value="" data-i18n="filter_region">All regions</option>
+      </select>
+      <input type="text" id="searchInput" data-i18n-placeholder="filter_search_agents" placeholder="Search..." />
+    </div>
+
+    <div id="agentsGrid" class="card-grid"></div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/agents.js"></script>
+  <script>
+    window.renderNav("agents.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initAgentsPage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

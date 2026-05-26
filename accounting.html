@@ -1,0 +1,1070 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Finance &amp; Accounting — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/accounting.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-page="accounting">
+  <div id="nav-slot"></div>
+
+  <!-- ═══ LOGIN GATE ═══════════════════════════════════════════════════ -->
+  <main id="loginGate" class="fin-login-page">
+
+    <!-- Left brand panel -->
+    <div class="fin-login-left">
+      <div class="fin-login-brand">
+        <div class="fin-login-logo-wrap">
+          <span class="fin-login-logo-icon">📊</span>
+        </div>
+        <h1>Pawa Finance</h1>
+        <p class="fin-login-tagline">Complete financial management for Pawa Bus Cargo</p>
+      </div>
+      <ul class="fin-login-features">
+        <li><span>📈</span> Revenue &amp; Income Statements</li>
+        <li><span>💧</span> Cash Flow &amp; Balance Sheet</li>
+        <li><span>👥</span> Payroll &amp; Tanzania PAYE</li>
+        <li><span>🎯</span> Budget vs Actual Analysis</li>
+        <li><span>🧾</span> Tax Computation &amp; Invoices</li>
+        <li><span>📐</span> Key Financial Ratios</li>
+      </ul>
+      <p class="fin-login-secure">🔒 Encrypted connection · Authorized staff only</p>
+    </div>
+
+    <!-- Right form panel -->
+    <div class="fin-login-right">
+      <div class="fin-login-card">
+        <span class="fin-login-badge">Finance Portal</span>
+        <h2 class="fin-login-heading">Welcome back</h2>
+        <p class="fin-login-sub">Sign in to access financial reports and tools</p>
+
+        <form id="loginForm" class="fin-login-form" novalidate>
+          <div class="fin-field">
+            <label for="loginEmail">Email address</label>
+            <div class="fin-field-wrap">
+              <svg class="fin-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+              <input type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com" required />
+            </div>
+          </div>
+          <div class="fin-field">
+            <label for="loginPassword">Password</label>
+            <div class="fin-field-wrap">
+              <svg class="fin-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" required minlength="6" />
+              <button type="button" id="togglePass" class="fin-eye-btn" title="Show / hide">
+                <svg id="eyeOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg id="eyeClosed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="btn btn-primary fin-login-btn" type="submit" id="loginBtn">Sign in</button>
+        </form>
+
+        <div class="fin-login-divider"><span>or</span></div>
+        <button class="fin-signup-btn" type="button" id="signUpBtn">Create account (first time)</button>
+
+        <div id="loginError"   class="fin-login-msg fin-msg-error"   hidden></div>
+        <div id="loginSuccess" class="fin-login-msg fin-msg-success" hidden></div>
+
+        <!-- Connection status (auto-hidden when OK) -->
+        <div id="sbStatus" style="margin-top:14px;padding:8px 12px;border-radius:8px;font-size:0.8rem;background:#f1f5f9;color:#64748b;display:none">
+          ⏳ Checking connection…
+        </div>
+
+        <!-- Offline bypass (shown only when Supabase blocks an authorized email) -->
+        <div id="offlineBypass" class="fin-offline-box" hidden>
+          <p class="fin-offline-title">Your email is pre-authorized</p>
+          <p class="fin-offline-sub">Supabase email confirmation is blocking you. You can access the portal in offline mode while you fix the Supabase setting.</p>
+          <button id="offlineAccessBtn" class="btn btn-primary fin-login-btn" style="margin-top:10px">Continue in offline mode</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══ FORBIDDEN ════════════════════════════════════════════════════ -->
+  <main class="container" id="forbidden" hidden>
+    <div class="banner error" style="max-width:560px;margin:60px auto">
+      <strong>Access Denied</strong><br>
+      Signed in as <strong id="whoami"></strong>.<br><br>
+      <span id="forbiddenReason">Your account does not have Finance access.</span>
+    </div>
+    <div style="max-width:560px;margin:12px auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;font-size:0.85rem;color:#374151">
+      <strong>How to fix:</strong>
+      <ol style="margin:8px 0 0 18px;line-height:1.8">
+        <li>Open your <a href="https://supabase.com/dashboard" target="_blank" style="color:#1a472a">Supabase Dashboard</a></li>
+        <li>Go to <strong>Table Editor → admins</strong></li>
+        <li>Insert a row: <code>email</code> = your email, <code>role</code> = <code>admin</code></li>
+        <li>Sign out and log in again</li>
+      </ol>
+    </div>
+    <div style="text-align:center;margin-top:16px">
+      <button id="signOutBtn" class="btn btn-outline">Sign out &amp; try again</button>
+    </div>
+  </main>
+
+  <!-- ═══ FINANCE PANEL ════════════════════════════════════════════════ -->
+  <div id="financePanel" hidden>
+
+    <!-- Top bar -->
+    <div class="fin-topbar">
+      <div class="fin-topbar-left">
+        <button id="mobileMenuBtn" class="fin-menu-btn" title="Menu" aria-label="Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span class="fin-brand">📊 <span class="fin-brand-text">Pawa Finance</span></span>
+        <span class="fin-role-badge" id="roleBadge">—</span>
+      </div>
+      <div class="fin-topbar-right">
+        <span id="finEmail" class="fin-user"></span>
+        <button id="logoutBtn" class="btn btn-outline btn-sm">Sign out</button>
+        <button class="btn btn-sm fin-print-btn" onclick="window.printReport()" style="background:var(--green);color:#fff">🖨 Print</button>
+      </div>
+    </div>
+
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebarOverlay" class="fin-sidebar-overlay"></div>
+
+    <div class="fin-layout">
+      <!-- ── Sidebar ────────────────────────────────────────────── -->
+      <aside class="fin-sidebar" id="finSidebar">
+        <nav class="fin-nav">
+          <button class="fin-nav-item active" data-section="overview">📈 Overview</button>
+          <button class="fin-nav-item" data-section="income">💰 Income Statement</button>
+          <button class="fin-nav-item" data-section="tax">🧾 Tax Computation</button>
+          <button class="fin-nav-item" data-section="buses">🚌 Per Bus Company</button>
+          <button class="fin-nav-item" data-section="ledger">🔒 Actuals Ledger</button>
+          <button class="fin-nav-item" data-section="expenses" id="expensesNavBtn">📤 Expenses</button>
+          <button class="fin-nav-item" data-section="adjustments" id="adjNavBtn">⚖️ Adjustments</button>
+          <div style="margin:8px 12px;border-top:1px solid var(--border)"></div>
+          <button class="fin-nav-item" data-section="cashflow">💧 Cash Flow</button>
+          <button class="fin-nav-item" data-section="balance">⚖️ Balance Sheet</button>
+          <button class="fin-nav-item" data-section="payroll">👥 Payroll &amp; PAYE</button>
+          <button class="fin-nav-item" data-section="budget">🎯 Budget vs Actual</button>
+          <button class="fin-nav-item" data-section="ratios">📐 Financial Ratios</button>
+          <button class="fin-nav-item" data-section="forecast">🔭 Revenue Forecast</button>
+          <button class="fin-nav-item" data-section="invoices">🧾 Invoices</button>
+        </nav>
+
+        <div class="fin-filters">
+          <label class="fin-filter-label">Period</label>
+          <div class="fin-period-btns">
+            <button class="fin-period-btn active" data-period="day">Day</button>
+            <button class="fin-period-btn" data-period="week">Week</button>
+            <button class="fin-period-btn" data-period="month">Month</button>
+            <button class="fin-period-btn" data-period="year">Year</button>
+          </div>
+          <label class="fin-filter-label" style="margin-top:12px">Date</label>
+          <input type="date" id="periodDate" class="fin-date-input" />
+
+          <label class="fin-filter-label" style="margin-top:12px">Bus Company</label>
+          <select id="busFilter" class="fin-select">
+            <option value="all">All Companies</option>
+          </select>
+
+          <button id="loadDataBtn" class="btn btn-primary" style="width:100%;margin-top:16px">Load Report</button>
+          <button onclick="window.exportCSV()" class="btn btn-outline" style="width:100%;margin-top:8px">⬇ Export CSV</button>
+        </div>
+      </aside>
+
+      <!-- ── Main content ──────────────────────────────────────── -->
+      <main class="fin-main" id="finMain">
+
+        <!-- Loading -->
+        <div id="finLoading" class="fin-loading" hidden>
+          <div class="fin-spinner"></div>
+          <p>Loading financial data…</p>
+        </div>
+
+        <!-- ── OVERVIEW ─────────────────────────────────────── -->
+        <section class="fin-section active" id="sec-overview">
+          <div class="fin-section-header">
+            <h2>Financial Overview</h2>
+            <span id="overviewPeriodLabel" class="fin-period-pill"></span>
+          </div>
+
+          <!-- KPI cards -->
+          <div class="kpi-grid">
+            <div class="kpi-card kpi-green">
+              <div class="kpi-label">Gross Revenue</div>
+              <div class="kpi-value" id="kpiGrossRevenue">TZS —</div>
+              <div class="kpi-sub" id="kpiGrossRevSub"></div>
+            </div>
+            <div class="kpi-card kpi-blue">
+              <div class="kpi-label">Ticket Sales</div>
+              <div class="kpi-value" id="kpiTickets">TZS —</div>
+              <div class="kpi-sub" id="kpiTicketsSub"></div>
+            </div>
+            <div class="kpi-card kpi-teal">
+              <div class="kpi-label">Cargo Revenue</div>
+              <div class="kpi-value" id="kpiCargo">TZS —</div>
+              <div class="kpi-sub" id="kpiCargoSub"></div>
+            </div>
+            <div class="kpi-card kpi-gold">
+              <div class="kpi-label">VAT Collected</div>
+              <div class="kpi-value" id="kpiVat">TZS —</div>
+              <div class="kpi-sub">18% — payable to TRA</div>
+            </div>
+            <div class="kpi-card kpi-purple">
+              <div class="kpi-label">Total Expenses</div>
+              <div class="kpi-value" id="kpiExpenses">TZS —</div>
+              <div class="kpi-sub" id="kpiExpensesSub"></div>
+            </div>
+            <div class="kpi-card" id="kpiProfitCard">
+              <div class="kpi-label">Net Profit (est.)</div>
+              <div class="kpi-value" id="kpiProfit">TZS —</div>
+              <div class="kpi-sub" id="kpiProfitSub"></div>
+            </div>
+          </div>
+
+          <!-- Payment status breakdown -->
+          <div class="fin-card" style="margin-top:24px">
+            <h3 class="fin-card-title">Payment Status Breakdown</h3>
+            <div class="pay-status-grid" id="payStatusGrid">
+              <div class="pay-stat-item"><span class="pay-dot pay-confirmed"></span><span id="psSConfirmed">—</span> Confirmed</div>
+              <div class="pay-stat-item"><span class="pay-dot pay-pending"></span><span id="psSPending">—</span> Pending</div>
+              <div class="pay-stat-item"><span class="pay-dot pay-failed"></span><span id="pssFailed">—</span> Failed/Cancelled</div>
+              <div class="pay-stat-item"><span class="pay-dot pay-refunded"></span><span id="psSRefunded">—</span> Refunded</div>
+            </div>
+          </div>
+
+          <!-- Booking conversion funnel -->
+          <div class="fin-card" style="margin-top:24px">
+            <h3 class="fin-card-title">Booking Conversion Funnel</h3>
+            <div id="bookingFunnel" class="funnel"></div>
+          </div>
+
+          <!-- Revenue bar chart (CSS-only) -->
+          <div class="fin-card" style="margin-top:24px">
+            <h3 class="fin-card-title">Revenue by Bus Company</h3>
+            <div id="revenueChart" class="rev-chart"></div>
+          </div>
+        </section>
+
+        <!-- ── INCOME STATEMENT ─────────────────────────────── -->
+        <section class="fin-section" id="sec-income">
+          <div class="fin-section-header">
+            <h2>Income Statement (P&amp;L)</h2>
+            <span id="incomePeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <div class="fin-card">
+            <div class="pl-header">
+              <span>PAWA BUS CARGO — INCOME STATEMENT</span>
+              <span id="plDateRange"></span>
+            </div>
+            <table class="pl-table" id="plTable">
+              <tbody>
+                <!-- injected by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="fin-actions" style="margin-top:16px">
+            <button onclick="window.printReport()" class="btn btn-outline btn-sm">🖨 Print Statement</button>
+            <button onclick="window.exportCSV('income')" class="btn btn-outline btn-sm">⬇ Export CSV</button>
+          </div>
+        </section>
+
+        <!-- ── TAX COMPUTATION ──────────────────────────────── -->
+        <section class="fin-section" id="sec-tax">
+          <div class="fin-section-header">
+            <h2>Tax Computation</h2>
+            <span id="taxPeriodLabel" class="fin-period-pill"></span>
+          </div>
+
+          <!-- VAT -->
+          <div class="fin-card">
+            <h3 class="fin-card-title">🧾 Value Added Tax (VAT) — 18%</h3>
+            <table class="tax-table" id="vatTable">
+              <tbody><!-- injected --></tbody>
+            </table>
+            <div class="tax-note">
+              VAT returns filed monthly with TRA. Output tax must be remitted by the
+              20th of the following month.
+            </div>
+          </div>
+
+          <!-- PAYE -->
+          <div class="fin-card" style="margin-top:20px">
+            <h3 class="fin-card-title">👤 PAYE &amp; SDL (Salary Tax)</h3>
+            <table class="tax-table" id="payeTable">
+              <tbody><!-- injected --></tbody>
+            </table>
+            <div class="tax-note">
+              PAYE remitted to TRA by the 7th of the following month.
+              Skills &amp; Development Levy (SDL) is 4% of gross payroll.
+            </div>
+          </div>
+
+          <!-- Corporate Tax -->
+          <div class="fin-card" style="margin-top:20px">
+            <h3 class="fin-card-title">🏢 Corporate Income Tax (CIT) — 30%</h3>
+            <table class="tax-table" id="citTable">
+              <tbody><!-- injected --></tbody>
+            </table>
+            <div class="tax-note">
+              CIT is an annual tax. This is an estimate based on the selected period.
+              Final CIT return due 6 months after year-end. Quarterly installments apply
+              when annual estimated tax exceeds TZS 3,000,000.
+            </div>
+          </div>
+
+          <!-- WHT -->
+          <div class="fin-card" style="margin-top:20px">
+            <h3 class="fin-card-title">✂ Withholding Tax (WHT)</h3>
+            <table class="tax-table" id="whtTable">
+              <tbody><!-- injected --></tbody>
+            </table>
+            <div class="tax-note">
+              WHT remitted to TRA within 7 days of payment (resident payee)
+              or 30 days (non-resident).
+            </div>
+          </div>
+
+          <!-- Tax calendar -->
+          <div class="fin-card" style="margin-top:20px">
+            <h3 class="fin-card-title">📅 TRA Filing Calendar</h3>
+            <div id="taxCalendar" class="tax-calendar"></div>
+          </div>
+        </section>
+
+        <!-- ── PER BUS COMPANY ──────────────────────────────── -->
+        <section class="fin-section" id="sec-buses">
+          <div class="fin-section-header">
+            <h2>Per Bus Company Revenue</h2>
+            <span id="busesPeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <div class="fin-card">
+            <div class="table-wrap">
+              <table class="data-table" id="busRevenueTable">
+                <thead>
+                  <tr>
+                    <th>Bus Company</th>
+                    <th class="num">Bookings</th>
+                    <th class="num">Ticket Revenue</th>
+                    <th class="num">Cargo Shipments</th>
+                    <th class="num">Cargo Revenue</th>
+                    <th class="num">Total Revenue</th>
+                    <th class="num">VAT (18%)</th>
+                    <th class="num">Net Revenue</th>
+                    <th class="num">Expenses</th>
+                    <th class="num">Profit</th>
+                  </tr>
+                </thead>
+                <tbody id="busRevenueBody">
+                  <tr><td colspan="10" class="empty-row">Load a report to see data.</td></tr>
+                </tbody>
+                <tfoot id="busRevenueFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── TRANSACTION LEDGER (read-only actuals) ──────── -->
+        <section class="fin-section" id="sec-ledger">
+          <div class="fin-section-header">
+            <h2>Actuals Ledger <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;font-weight:700;color:#6b7280;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:2px 9px;margin-left:8px;vertical-align:middle;letter-spacing:0.5px">🔒 READ-ONLY</span></h2>
+            <span id="ledgerPeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <p style="font-size:0.82rem;color:#6b7280;margin:0 0 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px">
+            These records reflect exact transactions from the system — bookings, shipments, and payments as they occurred. They cannot be edited. Use the <strong>Adjustments</strong> section for bonuses, deductions, corrections, and other company-level entries.
+          </p>
+
+          <div class="tabs" style="margin-bottom:16px">
+            <button class="tab-btn active" data-ledger="bookings">🎫 Ticket Bookings</button>
+            <button class="tab-btn" data-ledger="shipments">📦 Cargo Shipments</button>
+            <button class="tab-btn" data-ledger="payments">💳 Payments</button>
+          </div>
+
+          <!-- Bookings ledger -->
+          <div class="fin-card" id="ledger-bookings">
+            <div class="table-wrap">
+              <table class="data-table" id="bookingsLedger">
+                <thead>
+                  <tr>
+                    <th>Ticket Code</th>
+                    <th>Date</th>
+                    <th>Bus</th>
+                    <th>Route</th>
+                    <th>Passenger</th>
+                    <th>Seat</th>
+                    <th class="num">Fare (TZS)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="bookingsLedgerBody">
+                  <tr><td colspan="8" class="empty-row">Load a report to see data.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Shipments ledger -->
+          <div class="fin-card" id="ledger-shipments" hidden>
+            <div class="table-wrap">
+              <table class="data-table" id="shipmentsLedger">
+                <thead>
+                  <tr>
+                    <th>Tracking Code</th>
+                    <th>Date</th>
+                    <th>Bus</th>
+                    <th>Route</th>
+                    <th>Sender</th>
+                    <th>Receiver</th>
+                    <th>Weight (kg)</th>
+                    <th class="num">Freight (TZS)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="shipmentsLedgerBody">
+                  <tr><td colspan="9" class="empty-row">Load a report to see data.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Payments ledger -->
+          <div class="fin-card" id="ledger-payments" hidden>
+            <div class="table-wrap">
+              <table class="data-table" id="paymentsLedger">
+                <thead>
+                  <tr>
+                    <th>Reference</th>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Method</th>
+                    <th>Provider</th>
+                    <th class="num">Amount (TZS)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="paymentsLedgerBody">
+                  <tr><td colspan="8" class="empty-row">Load a report to see data.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── EXPENSES ─────────────────────────────────────── -->
+        <section class="fin-section" id="sec-expenses">
+          <div class="fin-section-header">
+            <h2>Expense Ledger</h2>
+            <span id="expensesPeriodLabel" class="fin-period-pill"></span>
+          </div>
+
+          <!-- Add expense form (accountant/admin only) -->
+          <div class="fin-card" id="addExpenseCard">
+            <h3 class="fin-card-title">Record New Expense</h3>
+            <form id="expenseForm" class="exp-form">
+              <div class="exp-form-grid">
+                <label>Date
+                  <input type="date" id="expDate" required />
+                </label>
+                <label>Bus Company
+                  <select id="expBus">
+                    <option value="">Organisation-wide</option>
+                  </select>
+                </label>
+                <label>Category
+                  <select id="expCategory" required>
+                    <option value="">Select…</option>
+                    <option value="fuel">Fuel &amp; Operations</option>
+                    <option value="salaries">Salaries &amp; PAYE</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="insurance">Insurance</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="office">Office &amp; Admin</option>
+                    <option value="tax_payment">Tax Payment (TRA)</option>
+                    <option value="licensing">Licensing &amp; Permits</option>
+                    <option value="repairs">Repairs</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label>Amount (TZS)
+                  <input type="number" id="expAmount" required min="1" placeholder="0" />
+                </label>
+                <label style="grid-column:span 2">Description
+                  <input type="text" id="expDesc" required placeholder="e.g. Monthly fuel for Dar–Mbeya fleet" />
+                </label>
+                <label>Receipt Ref
+                  <input type="text" id="expReceipt" placeholder="INV-2026-001" />
+                </label>
+                <label>Notes
+                  <input type="text" id="expNotes" placeholder="Optional" />
+                </label>
+              </div>
+              <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+                <button type="submit" class="btn btn-primary" id="expSubmitBtn">Record Expense</button>
+                <span id="expMsg" class="fin-inline-msg"></span>
+              </div>
+            </form>
+          </div>
+
+          <!-- Expenses table -->
+          <div class="fin-card" style="margin-top:20px">
+            <h3 class="fin-card-title">Expense Records</h3>
+            <div class="exp-summary" id="expSummary"></div>
+            <div class="table-wrap">
+              <table class="data-table" id="expensesTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Bus Company</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th class="num">Amount (TZS)</th>
+                    <th>Receipt</th>
+                    <th>Recorded By</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="expensesBody">
+                  <tr><td colspan="8" class="empty-row">No expenses recorded for this period.</td></tr>
+                </tbody>
+                <tfoot>
+                  <tr class="pl-total">
+                    <td colspan="4">TOTAL EXPENSES</td>
+                    <td class="num" id="expTotal">TZS 0</td>
+                    <td colspan="3"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── ADJUSTMENTS LEDGER ──────────────────────────── -->
+        <section class="fin-section" id="sec-adjustments">
+          <div class="fin-section-header">
+            <h2>Adjustments Ledger</h2>
+            <span id="adjPeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <p style="font-size:0.82rem;color:#6b7280;margin:0 0 18px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:8px 14px">
+            Record all company-level adjustments here — staff bonuses, deductions, allowances, commissions, penalties, and manual corrections. These feed directly into the financial calculations.
+          </p>
+
+          <!-- Summary chips -->
+          <div class="adj-summary fin-card" id="adjSummary" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;min-height:0"></div>
+
+          <!-- Add Adjustment form -->
+          <div class="fin-card" id="addAdjCard">
+            <h3 class="fin-card-title">Record New Adjustment</h3>
+            <form id="adjForm" class="exp-form">
+              <div class="exp-form-grid">
+                <label>Date
+                  <input type="date" id="adjDate" required />
+                </label>
+                <label>Bus Company
+                  <select id="adjBus">
+                    <option value="">Organisation-wide</option>
+                  </select>
+                </label>
+                <label>Type
+                  <select id="adjType" required>
+                    <option value="">Select type…</option>
+                    <option value="bonus">Bonus</option>
+                    <option value="allowance">Allowance</option>
+                    <option value="commission">Commission</option>
+                    <option value="overtime">Overtime</option>
+                    <option value="deduction">Deduction</option>
+                    <option value="penalty">Penalty / Fine</option>
+                    <option value="correction">Manual Correction</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label>Direction
+                  <select id="adjDirection" required>
+                    <option value="debit">Debit (cost / reduces profit)</option>
+                    <option value="credit">Credit (income / adds to revenue)</option>
+                  </select>
+                </label>
+                <label>Amount (TZS)
+                  <input type="number" id="adjAmount" required min="1" placeholder="0" />
+                </label>
+                <label>Staff Name <small style="font-weight:400;color:#9ca3af">(if applicable)</small>
+                  <input type="text" id="adjStaff" placeholder="e.g. John Msalaba" />
+                </label>
+                <label style="grid-column:span 2">Description *
+                  <input type="text" id="adjDesc" required placeholder="e.g. Q1 performance bonus for Dar es Salaam team" />
+                </label>
+                <label>Reference No.
+                  <input type="text" id="adjRef" placeholder="ADJ-2026-001" />
+                </label>
+                <label>Approved By
+                  <input type="text" id="adjApproved" placeholder="e.g. CEO / Finance Manager" />
+                </label>
+                <label style="grid-column:span 2">Notes
+                  <input type="text" id="adjNotes" placeholder="Optional internal note" />
+                </label>
+              </div>
+              <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                <button type="submit" class="btn btn-primary" id="adjSubmitBtn">Record Adjustment</button>
+                <span id="adjMsg" class="fin-inline-msg"></span>
+              </div>
+            </form>
+          </div>
+
+          <!-- Adjustments table -->
+          <div class="fin-card" style="margin-top:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+              <h3 class="fin-card-title" style="margin:0">Adjustment Records</h3>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label style="font-size:0.8rem;color:#6b7280;display:flex;align-items:center;gap:6px">
+                  Filter:
+                  <select id="adjFilter" style="border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:0.8rem">
+                    <option value="all">All types</option>
+                    <option value="bonus">Bonus</option>
+                    <option value="allowance">Allowance</option>
+                    <option value="commission">Commission</option>
+                    <option value="overtime">Overtime</option>
+                    <option value="deduction">Deduction</option>
+                    <option value="penalty">Penalty</option>
+                    <option value="correction">Correction</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="adjTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Direction</th>
+                    <th>Bus Company</th>
+                    <th>Staff</th>
+                    <th>Description</th>
+                    <th class="num">Amount (TZS)</th>
+                    <th>Ref</th>
+                    <th>Approved By</th>
+                    <th>Recorded By</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adjBody">
+                  <tr><td colspan="11" class="empty-row">No adjustments for this period.</td></tr>
+                </tbody>
+                <tfoot>
+                  <tr class="pl-total">
+                    <td colspan="6">TOTAL DEBITS</td>
+                    <td class="num neg" id="adjTotalDebit">TZS 0</td>
+                    <td colspan="4"></td>
+                  </tr>
+                  <tr class="pl-total">
+                    <td colspan="6">TOTAL CREDITS</td>
+                    <td class="num pos" id="adjTotalCredit">TZS 0</td>
+                    <td colspan="4"></td>
+                  </tr>
+                  <tr class="pl-total" style="background:#f0fdf4">
+                    <td colspan="6">NET ADJUSTMENT</td>
+                    <td class="num" id="adjNet">TZS 0</td>
+                    <td colspan="4"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── CASH FLOW STATEMENT ─────────────────────────── -->
+        <section class="fin-section" id="sec-cashflow">
+          <div class="fin-section-header">
+            <h2>Cash Flow Statement</h2>
+            <span id="cashflowPeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <div class="fin-card">
+            <div class="pl-header"><span>PAWA BUS CARGO — CASH FLOW STATEMENT</span><span id="cfDateRange"></span></div>
+            <table class="pl-table" id="cfTable"><tbody></tbody></table>
+          </div>
+          <div class="fin-actions" style="margin-top:16px">
+            <button onclick="window.printReport()" class="btn btn-outline btn-sm">🖨 Print</button>
+            <button onclick="window.exportCSV('cashflow')" class="btn btn-outline btn-sm">⬇ Export CSV</button>
+          </div>
+        </section>
+
+        <!-- ── BALANCE SHEET ────────────────────────────────── -->
+        <section class="fin-section" id="sec-balance">
+          <div class="fin-section-header">
+            <h2>Balance Sheet</h2>
+            <span id="balancePeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <div class="fin-card">
+            <h3 class="fin-card-title">Asset &amp; Liability Inputs</h3>
+            <p style="font-size:.85rem;color:var(--gray);margin-bottom:14px">Enter current account balances — saved locally and used to build the balance sheet below.</p>
+            <div class="bs-input-grid" id="balanceInputGrid"></div>
+            <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+              <button id="saveBalanceBtn" class="btn btn-primary">Save &amp; Refresh</button>
+              <span id="balanceSavedMsg" class="fin-inline-msg success" hidden>✓ Saved</span>
+            </div>
+          </div>
+          <div class="fin-card" style="margin-top:20px">
+            <div class="pl-header"><span>PAWA BUS CARGO — BALANCE SHEET</span><span id="bsDateLabel"></span></div>
+            <table class="pl-table" id="bsTable"><tbody></tbody></table>
+          </div>
+          <div class="fin-actions" style="margin-top:16px">
+            <button onclick="window.printReport()" class="btn btn-outline btn-sm">🖨 Print</button>
+          </div>
+        </section>
+
+        <!-- ── PAYROLL & PAYE ───────────────────────────────── -->
+        <section class="fin-section" id="sec-payroll">
+          <div class="fin-section-header">
+            <h2>Payroll &amp; PAYE Calculator</h2>
+            <span class="fin-period-pill">Tanzania TRA 2025</span>
+          </div>
+          <div class="fin-card">
+            <h3 class="fin-card-title">Add Employee / Quick Calculate</h3>
+            <div class="paye-calc-grid">
+              <label class="paye-label">Employee Name<input type="text" id="payeEmpName" placeholder="e.g. Amina Hassan" /></label>
+              <label class="paye-label">Gross Monthly Salary (TZS)<input type="number" id="payeGross" placeholder="0" min="0" /></label>
+              <label class="paye-label">Employment Type
+                <select id="payeEmpType"><option>Permanent</option><option>Contract</option><option>Casual</option></select>
+              </label>
+              <label class="paye-label">Department
+                <select id="payeDept">
+                  <option>Operations</option><option>Administration</option><option>Finance</option>
+                  <option>Sales &amp; Agents</option><option>Drivers</option><option>Other</option>
+                </select>
+              </label>
+            </div>
+            <div id="payeQuickResult" class="paye-quick-result" hidden></div>
+            <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+              <button id="calcPayeBtn" class="btn btn-outline">Quick Calculate</button>
+              <button id="addEmployeeBtn" class="btn btn-primary">Add to Payroll Register</button>
+            </div>
+          </div>
+          <div class="fin-card" style="margin-top:20px">
+            <h3 class="fin-card-title">Tanzania PAYE Bands (Monthly) — TRA 2025</h3>
+            <table class="tax-table">
+              <thead><tr><th>Income Band (TZS/month)</th><th class="num">Rate</th><th class="num">Cumulative Tax at Upper Limit</th></tr></thead>
+              <tbody>
+                <tr><td>0 – 270,000</td><td class="num tax-val">0%</td><td class="num tax-val">TZS 0</td></tr>
+                <tr><td>270,001 – 520,000</td><td class="num tax-val">8%</td><td class="num tax-val">TZS 20,000</td></tr>
+                <tr><td>520,001 – 760,000</td><td class="num tax-val">20%</td><td class="num tax-val">TZS 68,000</td></tr>
+                <tr><td>760,001 – 1,000,000</td><td class="num tax-val">25%</td><td class="num tax-val">TZS 128,000</td></tr>
+                <tr><td>Above 1,000,000</td><td class="num tax-val">30%</td><td class="num tax-val">Unlimited</td></tr>
+              </tbody>
+            </table>
+            <div class="tax-note">SDL (Skills Development Levy) = 4% of gross payroll, paid by the employer on top. PAYE remitted to TRA by 7th of following month.</div>
+          </div>
+          <div class="fin-card" style="margin-top:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+              <h3 class="fin-card-title" style="margin:0">Payroll Register</h3>
+              <div style="display:flex;gap:8px">
+                <button id="clearPayrollBtn" class="btn btn-outline btn-sm">Clear All</button>
+                <button onclick="window.exportCSV('payroll')" class="btn btn-outline btn-sm">⬇ Export CSV</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="payrollTable">
+                <thead><tr>
+                  <th>Employee</th><th>Type</th><th>Department</th>
+                  <th class="num">Gross (TZS)</th><th class="num">PAYE (TZS)</th>
+                  <th class="num">SDL 4% (TZS)</th><th class="num">Net Pay (TZS)</th>
+                  <th class="num">Employer Cost</th><th></th>
+                </tr></thead>
+                <tbody id="payrollBody"><tr><td colspan="9" class="empty-row">No employees added yet.</td></tr></tbody>
+                <tfoot id="payrollFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── BUDGET vs ACTUAL ─────────────────────────────── -->
+        <section class="fin-section" id="sec-budget">
+          <div class="fin-section-header">
+            <h2>Budget vs Actual</h2>
+            <span id="budgetPeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <div class="fin-card">
+            <h3 class="fin-card-title">Set Budget Targets</h3>
+            <p style="font-size:.85rem;color:var(--gray);margin-bottom:14px">Enter planned amounts — saved locally. Load a report to compare against actuals.</p>
+            <div class="budget-input-grid" id="budgetInputGrid"></div>
+            <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+              <button id="saveBudgetBtn" class="btn btn-primary">Save Budget</button>
+              <button id="resetBudgetBtn" class="btn btn-outline">Reset to Zero</button>
+              <span id="budgetSavedMsg" class="fin-inline-msg success" hidden>✓ Budget saved</span>
+            </div>
+          </div>
+          <div class="fin-card" style="margin-top:20px">
+            <h3 class="fin-card-title">Variance Analysis</h3>
+            <div class="table-wrap">
+              <table class="data-table" id="budgetTable">
+                <thead><tr>
+                  <th>Category</th><th>Type</th>
+                  <th class="num">Budget (TZS)</th><th class="num">Actual (TZS)</th>
+                  <th class="num">Variance</th><th class="num">Var %</th><th>Status</th>
+                </tr></thead>
+                <tbody id="budgetBody"><tr><td colspan="7" class="empty-row">Save a budget and load a report to see variance.</td></tr></tbody>
+                <tfoot id="budgetFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── FINANCIAL RATIOS ─────────────────────────────── -->
+        <section class="fin-section" id="sec-ratios">
+          <div class="fin-section-header">
+            <h2>Financial Ratios &amp; KPIs</h2>
+            <span id="ratiosPeriodLabel" class="fin-period-pill"></span>
+          </div>
+          <div id="ratiosContent">
+            <p class="empty-row" style="text-align:center;padding:48px">Load a report first to calculate financial ratios.</p>
+          </div>
+        </section>
+
+        <!-- ── REVENUE FORECAST ─────────────────────────────── -->
+        <section class="fin-section" id="sec-forecast">
+          <div class="fin-section-header">
+            <h2>Revenue Forecast</h2>
+            <span style="font-size:0.78rem;color:#6b7280;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:3px 10px">Trend-based projection</span>
+          </div>
+          <p style="font-size:0.82rem;color:#6b7280;margin:0 0 20px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 14px">
+            Projections are calculated from historical monthly trends detected in your data. Growth rates are auto-detected and can be overridden. All figures are estimates — actual results will vary.
+          </p>
+
+          <!-- Controls -->
+          <div class="fin-card" id="forecastControls">
+            <h3 class="fin-card-title">Forecast Assumptions</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:0.83rem;font-weight:600;color:#374151">
+                Projection Horizon
+                <select id="fcYears" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem">
+                  <option value="1">1 Year</option>
+                  <option value="3">3 Years</option>
+                  <option value="5" selected>5 Years</option>
+                  <option value="10">10 Years</option>
+                  <option value="custom">Custom…</option>
+                </select>
+              </label>
+              <label id="fcCustomWrap" style="display:none;flex-direction:column;gap:4px;font-size:0.83rem;font-weight:600;color:#374151">
+                Custom Years
+                <input type="number" id="fcCustomYears" min="1" max="50" value="7"
+                  style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem" />
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:0.83rem;font-weight:600;color:#374151">
+                Revenue Growth / yr
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="number" id="fcRevGrowth" min="-50" max="200" step="0.1" value="12"
+                    style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem;flex:1" />
+                  <span style="font-size:0.9rem;color:#6b7280">%</span>
+                </div>
+                <span id="fcRevGrowthNote" style="font-size:0.72rem;color:#9ca3af">Loading trend…</span>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:0.83rem;font-weight:600;color:#374151">
+                Expense Growth / yr
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="number" id="fcExpGrowth" min="-50" max="200" step="0.1" value="7"
+                    style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem;flex:1" />
+                  <span style="font-size:0.9rem;color:#6b7280">%</span>
+                </div>
+                <span id="fcExpGrowthNote" style="font-size:0.72rem;color:#9ca3af">Loading trend…</span>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:0.83rem;font-weight:600;color:#374151">
+                Adjustment Growth / yr
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="number" id="fcAdjGrowth" min="-50" max="200" step="0.1" value="5"
+                    style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem;flex:1" />
+                  <span style="font-size:0.9rem;color:#6b7280">%</span>
+                </div>
+                <span style="font-size:0.72rem;color:#9ca3af">Net adjustments compounded annually</span>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:0.83rem;font-weight:600;color:#374151">
+                Sensitivity Band
+                <select id="fcSensitivity" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem">
+                  <option value="10">±10%</option>
+                  <option value="20" selected>±20%</option>
+                  <option value="30">±30%</option>
+                  <option value="50">±50%</option>
+                </select>
+              </label>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <button class="btn btn-primary" id="fcRunBtn">Calculate Forecast</button>
+              <button class="btn btn-outline btn-sm" id="fcDetectBtn">Auto-detect from data</button>
+              <span id="fcStatus" style="font-size:0.8rem;color:#6b7280"></span>
+            </div>
+          </div>
+
+          <!-- Scenario Summary Cards -->
+          <div id="fcScenarioCards" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:20px">
+            <div class="fin-card" style="border-color:#fca5a5;background:#fff5f5;text-align:center;padding:20px">
+              <div style="font-size:0.72rem;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Pessimistic</div>
+              <div id="fcPessRev" style="font-size:1.25rem;font-weight:800;color:#dc2626"></div>
+              <div style="font-size:0.78rem;color:#6b7280;margin-top:4px">Revenue in final year</div>
+              <div id="fcPessProfit" style="font-size:0.95rem;font-weight:700;color:#dc2626;margin-top:6px"></div>
+              <div style="font-size:0.72rem;color:#9ca3af">Net profit in final year</div>
+            </div>
+            <div class="fin-card" style="border-color:#86efac;background:#f0fdf4;text-align:center;padding:20px;border-width:2px">
+              <div style="font-size:0.72rem;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Base Case</div>
+              <div id="fcBaseRev" style="font-size:1.4rem;font-weight:800;color:#0a6f4d"></div>
+              <div style="font-size:0.78rem;color:#6b7280;margin-top:4px">Revenue in final year</div>
+              <div id="fcBaseProfit" style="font-size:1.05rem;font-weight:700;color:#0a6f4d;margin-top:6px"></div>
+              <div style="font-size:0.72rem;color:#9ca3af">Net profit in final year</div>
+            </div>
+            <div class="fin-card" style="border-color:#93c5fd;background:#eff6ff;text-align:center;padding:20px">
+              <div style="font-size:0.72rem;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Optimistic</div>
+              <div id="fcOptRev" style="font-size:1.25rem;font-weight:800;color:#2563eb"></div>
+              <div style="font-size:0.78rem;color:#6b7280;margin-top:4px">Revenue in final year</div>
+              <div id="fcOptProfit" style="font-size:0.95rem;font-weight:700;color:#2563eb;margin-top:6px"></div>
+              <div style="font-size:0.72rem;color:#9ca3af">Net profit in final year</div>
+            </div>
+          </div>
+
+          <!-- CAGR Summary -->
+          <div id="fcCagrBar" style="display:none;margin-top:16px" class="fin-card">
+            <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center">
+              <div><span style="font-size:0.72rem;font-weight:700;color:#6b7280;text-transform:uppercase">Revenue CAGR</span><div id="fcCagrRev" style="font-size:1.3rem;font-weight:800;color:#0a6f4d"></div></div>
+              <div><span style="font-size:0.72rem;font-weight:700;color:#6b7280;text-transform:uppercase">Expense CAGR</span><div id="fcCagrExp" style="font-size:1.3rem;font-weight:800;color:#dc2626"></div></div>
+              <div><span style="font-size:0.72rem;font-weight:700;color:#6b7280;text-transform:uppercase">Profit CAGR</span><div id="fcCagrProfit" style="font-size:1.3rem;font-weight:800;color:#2563eb"></div></div>
+              <div><span style="font-size:0.72rem;font-weight:700;color:#6b7280;text-transform:uppercase">Breakeven Year</span><div id="fcBreakeven" style="font-size:1.3rem;font-weight:800;color:#92400e"></div></div>
+            </div>
+          </div>
+
+          <!-- Year-by-year table -->
+          <div id="fcTableWrap" style="display:none;margin-top:20px" class="fin-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+              <h3 class="fin-card-title" style="margin:0">Year-by-Year Projection — Base Case</h3>
+              <button onclick="window.exportForecastCSV()" class="btn btn-outline btn-sm">⬇ Export CSV</button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="fcTable">
+                <thead>
+                  <tr>
+                    <th>Year</th>
+                    <th class="num">Ticket Revenue</th>
+                    <th class="num">Cargo Revenue</th>
+                    <th class="num">Total Revenue</th>
+                    <th class="num">Expenses</th>
+                    <th class="num">Adj Net</th>
+                    <th class="num">Op Profit</th>
+                    <th class="num">Est. Tax</th>
+                    <th class="num">Net Profit</th>
+                    <th class="num">YoY Rev %</th>
+                  </tr>
+                </thead>
+                <tbody id="fcBody"></tbody>
+                <tfoot><tr id="fcFoot"></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Sensitivity table -->
+          <div id="fcSensWrap" style="display:none;margin-top:20px" class="fin-card">
+            <h3 class="fin-card-title">Sensitivity Analysis — Net Profit by Year &amp; Scenario</h3>
+            <div class="table-wrap">
+              <table class="data-table" id="fcSensTable">
+                <thead><tr id="fcSensHead"></tr></thead>
+                <tbody id="fcSensBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── INVOICE GENERATOR ────────────────────────────── -->
+        <section class="fin-section" id="sec-invoices">
+          <div class="fin-section-header"><h2>Invoice Generator</h2></div>
+          <div class="fin-card">
+            <h3 class="fin-card-title">Generate Invoice</h3>
+            <div class="paye-calc-grid">
+              <label class="paye-label">Invoice Type
+                <select id="invType">
+                  <option value="booking">Ticket Booking</option>
+                  <option value="shipment">Cargo Shipment</option>
+                  <option value="manual">Manual / Custom</option>
+                </select>
+              </label>
+              <label class="paye-label">Reference / Ticket Code<input type="text" id="invRef" placeholder="PWA-... or TZ-DAR-..." /></label>
+              <label class="paye-label">Bill To (Name)<input type="text" id="invBillName" placeholder="Customer or Company" /></label>
+              <label class="paye-label">Bill To (Phone / Email)<input type="text" id="invBillContact" placeholder="+255..." /></label>
+            </div>
+            <div id="invManualArea" hidden style="margin-top:16px">
+              <h4 style="font-size:.88rem;font-weight:700;margin-bottom:10px">Line Items</h4>
+              <div id="invLineItems"></div>
+              <button id="addInvLineBtn" class="btn btn-outline btn-sm" style="margin-top:8px">+ Add Line</button>
+            </div>
+            <div style="margin-top:14px"><button id="generateInvBtn" class="btn btn-primary">Generate Invoice</button></div>
+          </div>
+          <div id="invoicePreview" hidden style="margin-top:20px">
+            <div class="fin-card invoice-doc" id="invoiceDoc"></div>
+            <div class="fin-actions" style="margin-top:12px">
+              <button onclick="window.printInvoice()" class="btn btn-primary">🖨 Print / Save PDF</button>
+              <button onclick="document.getElementById('invoicePreview').hidden=true" class="btn btn-outline">Close</button>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══ SCRIPTS ══════════════════════════════════════════════════════ -->
+  <script src="js/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+  <script>
+    try {
+      window.SB = window.supabase.createClient(
+        window.APP_CONFIG.SUPABASE_URL,
+        window.APP_CONFIG.SUPABASE_ANON_KEY
+      );
+    } catch(e) {
+      // Will surface in the error handler as "Supabase not configured"
+      console.error('[Finance] Supabase init failed:', e);
+    }
+  </script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/accounting.js"></script>
+  <script>
+    // Catch any crash from initAccountingPage and show it on screen
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = (e.reason && e.reason.message) ? e.reason.message : String(e.reason);
+      var el = document.getElementById('loginError');
+      if (el) { el.innerHTML = '<strong>Page error:</strong> ' + msg; el.hidden = false; }
+      console.error('[Finance] unhandled rejection:', e.reason);
+    });
+
+    function _bootFinance() {
+      try {
+        if (window.applyTranslations) window.applyTranslations();
+        if (window.renderNav) window.renderNav('accounting.html');
+      } catch(e) { console.warn('[Finance] nav/i18n error:', e); }
+      window.initAccountingPage().catch(function(err) {
+        var msg = err && err.message ? err.message : String(err);
+        var el = document.getElementById('loginError');
+        if (el) { el.innerHTML = '<strong>Init error:</strong> ' + msg; el.hidden = false; }
+        console.error('[Finance] initAccountingPage failed:', err);
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', _bootFinance);
+    } else {
+      _bootFinance();
+    }
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

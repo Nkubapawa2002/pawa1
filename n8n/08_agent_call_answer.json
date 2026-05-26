@@ -1,0 +1,64 @@
+{
+  "name": "Pawa — Agent Call Answer (AT Voice Callback)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "agent-call-answer",
+        "responseMode": "responseNode",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "id": "webhook-answer",
+      "name": "AT Call Answer Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "pawa-agent-call-answer"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE call_requests SET status = 'handled' WHERE at_session_id = $1 AND status = 'started';",
+        "options": {
+          "queryReplacement": "={{ $json.body.sessionId || $json.body.callSessionState || '' }}"
+        }
+      },
+      "id": "db-mark",
+      "name": "Mark handled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"woman\">Habari! You are being connected to a Pawa booking agent. Tafadhali subiri kidogo.</Say>\n  <Dial record=\"false\" sequential=\"true\">\n    <Number phoneNumber=\"{{ $env.AT_AGENT_PHONE }}\" />\n  </Dial>\n  <Say>Samahani, agent yetu hana upatikanaji kwa sasa. Tafadhali jaribu tena baadaye, au tembelea tovuti yetu.</Say>\n</Response>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/xml" }
+            ]
+          }
+        }
+      },
+      "id": "respond-xml",
+      "name": "Return AT Voice XML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "AT Call Answer Webhook": {
+      "main": [[{ "node": "Mark handled", "type": "main", "index": 0 }]]
+    },
+    "Mark handled": {
+      "main": [[{ "node": "Return AT Voice XML", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

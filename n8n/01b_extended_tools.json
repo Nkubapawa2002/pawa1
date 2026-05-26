@@ -1,0 +1,2004 @@
+{
+  "name": "BUS TZ PAWA — Extended Agent Tools (cargo + proactive + manager)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/find-buses-for-route",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-fbus",
+      "name": "WH /find-buses-for-route",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ],
+      "webhookId": "wh-find-buses-for-route"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',origin:a.origin,destination:a.destination}}];"
+      },
+      "id": "parse-fbus",
+      "name": "Parse FindBuses Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT b.id, b.name, b.contact,\n  (SELECT jsonb_agg(r) FROM jsonb_array_elements(b.routes) r\n     WHERE LOWER(r->>'from') = LOWER($1) AND LOWER(r->>'to') = LOWER($2)) AS matching\nFROM buses b\nWHERE EXISTS (\n  SELECT 1 FROM jsonb_array_elements(b.routes) r\n  WHERE LOWER(r->>'from') = LOWER($1) AND LOWER(r->>'to') = LOWER($2)\n)\n  AND tenant_slug = $3\nLIMIT 6;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.origin }},={{ $json.destination }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-fbus",
+      "name": "DB Find Buses",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_WEBSITE_CREDENTIAL_ID",
+          "name": "Postgres Pawa Website"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$input.all().map(i=>i.json);\nconst toolCallId=$('Parse FindBuses Args').first().json.toolCallId;\nlet result;\nif(rows.length===0){result='Samahani, hakuna basi linaloendesha njia hiyo kwa sasa.';}\nelse{result='Mabasi yanayoendesha njia hiyo:\\n'+rows.map((b,i)=>{const m=(b.matching||[])[0]||{};return `${i+1}. ${b.name} | kuondoka ${m.departure||'—'} | ~${m.duration_hours||'?'}h | mawasiliano ${b.contact}`;}).join('\\n');}\nreturn [{json:{results:[{toolCallId,result}]}}];"
+      },
+      "id": "fmt-fbus",
+      "name": "Format Find Buses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-fbus",
+      "name": "Respond Find Buses",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/find-agents",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-fag",
+      "name": "WH /find-agents",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "wh-find-agents"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',region:a.region,terminal:a.terminal||null}}];"
+      },
+      "id": "parse-fag",
+      "name": "Parse FindAgents Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, phone, region, terminal\nFROM agents\nWHERE region ILIKE $1\n  AND ($2::text IS NULL OR terminal ILIKE '%' || $2 || '%')\n  AND tenant_slug = $3\nORDER BY name LIMIT 10;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.region }},={{ $json.terminal }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-fag",
+      "name": "DB Find Agents",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        320
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_WEBSITE_CREDENTIAL_ID",
+          "name": "Postgres Pawa Website"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$input.all().map(i=>i.json);\nconst toolCallId=$('Parse FindAgents Args').first().json.toolCallId;\nlet result;\nif(rows.length===0){result='Hakuna mawakala katika eneo hilo kwa sasa.';}\nelse{result='Mawakala wetu:\\n'+rows.map((a,i)=>`${i+1}. ${a.name} (${a.terminal||a.region}) - ${a.phone}`).join('\\n');}\nreturn [{json:{results:[{toolCallId,result}]}}];"
+      },
+      "id": "fmt-fag",
+      "name": "Format Find Agents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-fag",
+      "name": "Respond Find Agents",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/track-shipment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-trk",
+      "name": "WH /track-shipment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        540
+      ],
+      "webhookId": "wh-track-shipment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nlet phone=a.phone||'';if(phone)phone=phone.replace(/^\\+255/,'0').replace(/\\s+/g,'');\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',code:a.tracking_code||null,phone:phone||null}}];"
+      },
+      "id": "parse-trk",
+      "name": "Parse Track Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT tracking_code, status, sender_name, sender_phone, receiver_name, receiver_phone, bus_name, bus_route, bus_departure, product_description, product_value_tzs\nFROM shipments\nWHERE ($1::text IS NOT NULL AND tracking_code = $1)\n   OR ($2::text IS NOT NULL AND (sender_phone = $2 OR receiver_phone = $2))\n  AND tenant_slug = $3\nORDER BY tracking_code DESC LIMIT 5;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.code }},={{ $json.phone }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-trk",
+      "name": "DB Track Shipment",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        540
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_WEBSITE_CREDENTIAL_ID",
+          "name": "Postgres Pawa Website"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$input.all().map(i=>i.json);\nconst toolCallId=$('Parse Track Args').first().json.toolCallId;\nlet result;\nif(rows.length===0){result='Samahani, hakuna mzigo unaolingana na taarifa hiyo.';}\nelse{result='Mzigo wako:\\n'+rows.map((s,i)=>{const ins=Math.round((s.product_value_tzs||0)*0.8);return `${i+1}. ${s.tracking_code} | hali: ${s.status} | ${s.bus_route} (${s.bus_name}, kuondoka ${s.bus_departure}) | mtumaji ${s.sender_name} (${s.sender_phone}) | mpokeaji ${s.receiver_name} (${s.receiver_phone}) | bima TZS ${ins.toLocaleString()}`;}).join('\\n');}\nreturn [{json:{results:[{toolCallId,result}]}}];"
+      },
+      "id": "fmt-trk",
+      "name": "Format Track",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-trk",
+      "name": "Respond Track",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/compute-freight-quote",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-fq",
+      "name": "WH /compute-freight-quote",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        760
+      ],
+      "webhookId": "wh-compute-freight-quote"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nconst size=(a.size||'medium').toLowerCase();\nif(!['small','medium','large'].includes(size))throw new Error('size must be small|medium|large');\nlet phone=a.sender_phone||'';if(phone)phone=phone.replace(/^\\+255/,'0').replace(/\\s+/g,'');\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',weight_kg:Number(a.weight_kg||0),value_tzs:Number(a.declared_value_tzs||0),size,sender_phone:phone||null,origin:a.origin_region||null,destination:a.destination_region||null}}];"
+      },
+      "id": "parse-fq",
+      "name": "Parse Quote Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH q AS (\n  SELECT mint_quote_ref() AS quote_ref,\n         $1::numeric AS weight_kg,\n         $2::numeric AS declared_value,\n         $3::text   AS size_class,\n         2000::numeric AS base,\n         500::numeric  AS per_kg,\n         10::numeric   AS maint_pct,\n         CASE $3 WHEN 'small' THEN 1.0 WHEN 'medium' THEN 1.5 WHEN 'large' THEN 2.5 ELSE 1.0 END::numeric AS size_mult\n), c AS (\n  SELECT q.*,\n    ROUND(((q.base + q.per_kg * q.weight_kg) * q.size_mult) * (1 + q.maint_pct/100)) AS total,\n    ROUND(q.declared_value * 0.8) AS insurance\n  FROM q\n)\nINSERT INTO parcel_quotes (quote_ref, sender_phone, origin_region, destination_region, weight_kg, declared_value_tzs, size_class, base_tzs, per_kg_tzs, maintenance_pct, total_tzs, insurance_tzs, tenant_slug)\nSELECT quote_ref, $4, $5, $6, weight_kg, declared_value, size_class, base, per_kg, maint_pct, total, insurance, $7 FROM c\nRETURNING quote_ref, total_tzs, insurance_tzs, weight_kg, size_class;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.weight_kg }},={{ $json.value_tzs }},={{ $json.size }},={{ $json.sender_phone }},={{ $json.origin }},={{ $json.destination }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-fq",
+      "name": "DB Mint Quote",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        760
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json;\nconst toolCallId=$('Parse Quote Args').first().json.toolCallId;\nconst result=`Nukuu yako ya mzigo: ${r.quote_ref}\\nUzito ${r.weight_kg} kg, ukubwa ${r.size_class}.\\nGharama jumla: TZS ${Number(r.total_tzs).toLocaleString()}\\nBima (80%): TZS ${Number(r.insurance_tzs).toLocaleString()}\\nNukuu hii inafanya kazi kwa saa 24. Niambie ukiwa tayari kusajili mzigo.`;\nreturn [{json:{results:[{toolCallId,result}]}}];"
+      },
+      "id": "fmt-fq",
+      "name": "Format Quote",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-fq",
+      "name": "Respond Quote",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/register-shipment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-rs",
+      "name": "WH /register-shipment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        980
+      ],
+      "webhookId": "wh-register-shipment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nconst req=['sender_name','sender_phone','sender_region','receiver_name','receiver_phone','receiver_region','product_description','weight_kg','bus_name','bus_route','bus_departure'];\nconst missing=req.filter(k=>!a[k]&&a[k]!==0);\nif(missing.length)throw new Error('Missing: '+missing.join(','));\nconst norm=p=>String(p||'').replace(/^\\+255/,'0').replace(/\\s+/g,'');\nconst yyyymmdd=new Date().toISOString().slice(0,10).replace(/-/g,'');\nconst code3=s=>String(s||'XXX').replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase().padEnd(3,'X');\nconst seq=String(Math.floor(100+Math.random()*899));\nconst tracking=`TZ-${code3(a.sender_region)}-${code3(a.receiver_region)}-${yyyymmdd}-${seq}`;\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',tracking,sender_name:a.sender_name,sender_phone:norm(a.sender_phone),sender_region:a.sender_region,receiver_name:a.receiver_name,receiver_phone:norm(a.receiver_phone),receiver_region:a.receiver_region,product_description:a.product_description,weight_kg:Number(a.weight_kg),value_tzs:Number(a.declared_value_tzs||a.product_value_tzs||0),bus_name:a.bus_name,bus_route:a.bus_route,bus_departure:a.bus_departure,agent_origin_name:a.agent_origin_name||null,agent_origin_phone:a.agent_origin_phone||null,agent_destination_name:a.agent_destination_name||null,agent_destination_phone:a.agent_destination_phone||null}}];"
+      },
+      "id": "parse-rs",
+      "name": "Parse Register Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO shipments (tracking_code, sender_name, sender_phone, sender_region, receiver_name, receiver_phone, receiver_region, product_description, product_weight_kg, product_value_tzs, insured, bus_name, bus_route, bus_departure, agent_origin_name, agent_origin_phone, agent_destination_name, agent_destination_phone, status, tenant_slug) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE,$11,$12,$13,$14,$15,$16,$17,'pending', $18)\nRETURNING tracking_code, product_value_tzs, status;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.tracking }},={{ $json.sender_name }},={{ $json.sender_phone }},={{ $json.sender_region }},={{ $json.receiver_name }},={{ $json.receiver_phone }},={{ $json.receiver_region }},={{ $json.product_description }},={{ $json.weight_kg }},={{ $json.value_tzs }},={{ $json.bus_name }},={{ $json.bus_route }},={{ $json.bus_departure }},={{ $json.agent_origin_name }},={{ $json.agent_origin_phone }},={{ $json.agent_destination_name }},={{ $json.agent_destination_phone }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-rs",
+      "name": "DB Insert Shipment",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        980
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_WEBSITE_CREDENTIAL_ID",
+          "name": "Postgres Pawa Website"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json;\nconst p=$('Parse Register Args').first().json;\nconst toolCallId=p.toolCallId;\nconst ins=Math.round((r.product_value_tzs||0)*0.8);\nconst result=`Mzigo umesajiliwa! Nambari ya kufuatilia: ${r.tracking_code}\\nMtumaji: ${p.sender_name} (${p.sender_phone})\\nMpokeaji: ${p.receiver_name} (${p.receiver_phone})\\nNjia: ${p.bus_route} - basi ${p.bus_name}, kuondoka ${p.bus_departure}\\nThamani iliyotangazwa: TZS ${Number(r.product_value_tzs||0).toLocaleString()} (bima 80% = TZS ${ins.toLocaleString()})\\nTuma SMS yenye nambari hii kwa mtumaji na mpokeaji.`;\nreturn [{json:{results:[{toolCallId,result}]}}];"
+      },
+      "id": "fmt-rs",
+      "name": "Format Register",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-rs",
+      "name": "Respond Register",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/send-sms",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-sms",
+      "name": "WH /send-sms",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1200
+      ],
+      "webhookId": "wh-send-sms"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nlet to=String(a.to||'').replace(/\\s+/g,'');\nif(/^0\\d{9}$/.test(to))to='+255'+to.slice(1);\nelse if(/^255\\d{9}$/.test(to))to='+'+to;\nelse if(!to.startsWith('+'))throw new Error('Invalid phone: '+a.to);\nif(!a.message||!String(a.message).trim())throw new Error('Empty message');\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',to,message:String(a.message).slice(0,640),related_ref:a.related_ref||null}}];"
+      },
+      "id": "parse-sms",
+      "name": "Parse SMS Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.africastalking.com/version1/messaging",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apiKey",
+              "value": "={{ $env.AT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "form",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "username",
+              "value": "={{ $env.AT_USERNAME }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.to }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "name": "from",
+              "value": "={{ $env.AT_SENDER_ID }}"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "at-sms",
+      "name": "AT Send SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO message_log (channel, to_phone, body, provider, provider_ref, status, related_ref, raw_response, tenant_slug) VALUES ('sms', $1, $2, 'africastalking', NULL, 'sent', $3, $4::jsonb, $5)\nRETURNING id;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $('Parse SMS Args').first().json.to }},={{ $('Parse SMS Args').first().json.message }},={{ $('Parse SMS Args').first().json.related_ref }},={{ JSON.stringify($json) }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "log-sms",
+      "name": "Log SMS",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        900,
+        1200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$('Parse SMS Args').first().json;const toolCallId=p.toolCallId;return [{json:{results:[{toolCallId,result:`SMS imetumwa kwa ${p.to}.`}]}}];"
+      },
+      "id": "fmt-sms",
+      "name": "Format SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-sms",
+      "name": "Respond SMS",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/send-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-wa",
+      "name": "WH /send-whatsapp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1420
+      ],
+      "webhookId": "wh-send-whatsapp"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nlet to=String(a.to||'').replace(/\\s+/g,'');\nif(/^0\\d{9}$/.test(to))to='+255'+to.slice(1);\nelse if(/^255\\d{9}$/.test(to))to='+'+to;\nelse if(!to.startsWith('+'))throw new Error('Invalid phone: '+a.to);\nif(!a.message||!String(a.message).trim())throw new Error('Empty message');\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',to,message:String(a.message).slice(0,1500),related_ref:a.related_ref||null}}];"
+      },
+      "id": "parse-wa",
+      "name": "Parse WA Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://chat.africastalking.com/whatsapp/message/send",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apiKey",
+              "value": "={{ $env.AT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"{{ $env.AT_USERNAME }}\", \"waNumber\": \"{{ $env.AT_WHATSAPP_NUMBER }}\", \"phoneNumber\": \"{{ $json.to }}\", \"body\": { \"text\": {{ JSON.stringify($json.message) }} } }",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "at-wa",
+      "name": "AT Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO message_log (channel, to_phone, body, provider, status, related_ref, raw_response, tenant_slug) VALUES ('whatsapp', $1, $2, 'africastalking', 'sent', $3, $4::jsonb, $5)\nRETURNING id;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $('Parse WA Args').first().json.to }},={{ $('Parse WA Args').first().json.message }},={{ $('Parse WA Args').first().json.related_ref }},={{ JSON.stringify($json) }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "log-wa",
+      "name": "Log WA",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        900,
+        1420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$('Parse WA Args').first().json;return [{json:{results:[{toolCallId:p.toolCallId,result:`Ujumbe wa WhatsApp umetumwa kwa ${p.to}.`}]}}];"
+      },
+      "id": "fmt-wa",
+      "name": "Format WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-wa",
+      "name": "Respond WA",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/trigger-outbound-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-toc",
+      "name": "WH /trigger-outbound-call",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1640
+      ],
+      "webhookId": "wh-trigger-outbound-call"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nlet to=String(a.to||'').replace(/\\s+/g,'');\nif(/^0\\d{9}$/.test(to))to='+255'+to.slice(1);\nelse if(/^255\\d{9}$/.test(to))to='+'+to;\nelse if(!to.startsWith('+'))throw new Error('Invalid phone: '+a.to);\nconst purpose=(a.purpose||'follow_up').slice(0,40);\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',to,purpose,ticket_code:a.ticket_code||null,context:a.context||{}}}];"
+      },
+      "id": "parse-toc",
+      "name": "Parse TriggerCall Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO call_requests (phone, status, purpose, ticket_code, context, created_by, tenant_slug) VALUES ($1,'pending',$2,$3,$4::jsonb,'agent', $5)\nRETURNING id, requested_at;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.to }},={{ $json.purpose }},={{ $json.ticket_code }},={{ JSON.stringify($json.context) }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-toc",
+      "name": "DB Queue Call",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        1640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json;const p=$('Parse TriggerCall Args').first().json;return [{json:{results:[{toolCallId:p.toolCallId,result:`Simu imepangwa kwa ${p.to} (kusudi: ${p.purpose}). Mteja atapigiwa ndani ya dakika moja.`}]}}];"
+      },
+      "id": "fmt-toc",
+      "name": "Format TriggerCall",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        1640
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-toc",
+      "name": "Respond TriggerCall",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        1640
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/schedule-reminder",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-rem",
+      "name": "WH /schedule-reminder",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1860
+      ],
+      "webhookId": "wh-schedule-reminder"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nlet to=String(a.phone||'').replace(/\\s+/g,'');\nif(/^0\\d{9}$/.test(to))to='+255'+to.slice(1);\nelse if(/^255\\d{9}$/.test(to))to='+'+to;\nconst channel=(a.channel||'sms').toLowerCase();\nif(!['sms','whatsapp','call'].includes(channel))throw new Error('channel must be sms|whatsapp|call');\nif(!a.message&&channel!=='call')throw new Error('message required');\nlet fire=a.fire_at;if(!fire)throw new Error('fire_at required (ISO timestamp)');\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',phone:to,channel,message:a.message||'',fire_at:fire,booking_ref:a.booking_ref||null,tracking_code:a.tracking_code||null}}];"
+      },
+      "id": "parse-rem",
+      "name": "Parse Reminder Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1860
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO scheduled_reminders (booking_ref, tracking_code, phone, channel, message, fire_at, created_by, tenant_slug) VALUES ($1,$2,$3,$4,$5,$6::timestamptz,'agent', $7)\nRETURNING id, fire_at;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.booking_ref }},={{ $json.tracking_code }},={{ $json.phone }},={{ $json.channel }},={{ $json.message }},={{ $json.fire_at }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-rem",
+      "name": "DB Schedule Reminder",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        1860
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json;const p=$('Parse Reminder Args').first().json;return [{json:{results:[{toolCallId:p.toolCallId,result:`Ukumbusho umepangwa kwa ${p.phone} kupitia ${p.channel}, utatumwa ${r.fire_at}.`}]}}];"
+      },
+      "id": "fmt-rem",
+      "name": "Format Reminder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        1860
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-rem",
+      "name": "Respond Reminder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        1860
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/get-bus-photo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-bp",
+      "name": "WH /get-bus-photo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2080
+      ],
+      "webhookId": "wh-get-bus-photo"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',plate:a.plate||null,bus_id:a.bus_id||null,trip_id:a.trip_id||null}}];"
+      },
+      "id": "parse-bp",
+      "name": "Parse Photo Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT b.plate, b.class, b.photo_urls\nFROM buses b\nLEFT JOIN trips t ON t.bus_id = b.id\nWHERE ($1::text IS NOT NULL AND b.plate ILIKE $1)\n   OR ($2::int IS NOT NULL AND b.id = $2)\n   OR ($3::int IS NOT NULL AND t.id = $3)\n  AND tenant_slug = $4\nLIMIT 1;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.plate }},={{ $json.bus_id }},={{ $json.trip_id }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-bp",
+      "name": "DB Lookup Bus",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        2080
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first()?.json;const p=$('Parse Photo Args').first().json;let result;if(!r){result='Samahani, sijafahamu basi hilo.';}else{const photos=Array.isArray(r.photo_urls)?r.photo_urls:[];if(!photos.length){result=`Basi ${r.plate} (${r.class}) — picha hazipo bado.`;}else{result=`Basi ${r.plate} (${r.class}). Picha:\\n${photos.slice(0,3).join('\\n')}\\nNitatuma kwa WhatsApp ukipenda.`;}}return [{json:{results:[{toolCallId:p.toolCallId,result}]}}];"
+      },
+      "id": "fmt-bp",
+      "name": "Format Photo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-bp",
+      "name": "Respond Photo",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/today-bookings-summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-tbs",
+      "name": "WH /today-bookings-summary",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2300
+      ],
+      "webhookId": "wh-today-bookings-summary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual'}}];"
+      },
+      "id": "parse-tbs",
+      "name": "Parse TBS Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  COUNT(*) FILTER (WHERE status='HELD')      AS held_count,\n  COUNT(*) FILTER (WHERE status='CONFIRMED') AS confirmed_count,\n  COUNT(*) FILTER (WHERE status='CANCELLED') AS cancelled_count,\n  COALESCE(SUM(amount) FILTER (WHERE status='CONFIRMED'),0)::bigint AS revenue_today\nFROM bookings\nWHERE created_at::date = CURRENT_DATE;\n  AND tenant_slug = $1\n\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-tbs",
+      "name": "DB Today Summary",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        2300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json;const p=$('Parse TBS Args').first().json;const result=`Muhtasari wa leo:\\nUmehifadhiwa: ${r.held_count}\\nIliyothibitishwa: ${r.confirmed_count}\\nIliyofutwa: ${r.cancelled_count}\\nMapato: TZS ${Number(r.revenue_today).toLocaleString()}`;return [{json:{results:[{toolCallId:p.toolCallId,result}]}}];"
+      },
+      "id": "fmt-tbs",
+      "name": "Format TBS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-tbs",
+      "name": "Respond TBS",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/revenue-summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-rev",
+      "name": "WH /revenue-summary",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2520
+      ],
+      "webhookId": "wh-revenue-summary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nconst start=a.start_date||new Date(Date.now()-7*86400000).toISOString().slice(0,10);\nconst end=a.end_date||new Date().toISOString().slice(0,10);\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',start,end}}];"
+      },
+      "id": "parse-rev",
+      "name": "Parse Revenue Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  COUNT(*)::int AS bookings,\n  COALESCE(SUM(amount),0)::bigint AS revenue,\n  $1::date AS start_date,\n  $2::date AS end_date\nFROM bookings\nWHERE status='CONFIRMED'\n  AND paid_at::date BETWEEN $1::date AND $2::date;\n  AND tenant_slug = $3\n\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.start }},={{ $json.end }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-rev",
+      "name": "DB Revenue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        2520
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json;const p=$('Parse Revenue Args').first().json;const result=`Mapato kati ya ${p.start} na ${p.end}:\\nBuki zilizothibitishwa: ${r.bookings}\\nJumla ya mapato: TZS ${Number(r.revenue).toLocaleString()}`;return [{json:{results:[{toolCallId:p.toolCallId,result}]}}];"
+      },
+      "id": "fmt-rev",
+      "name": "Format Revenue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-rev",
+      "name": "Respond Revenue",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/pending-holds",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-ph",
+      "name": "WH /pending-holds",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2740
+      ],
+      "webhookId": "wh-pending-holds"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual'}}];"
+      },
+      "id": "parse-ph",
+      "name": "Parse PH Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        2740
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ref, passenger_name, phone, amount, hold_expires_at\nFROM bookings\nWHERE status='HELD' AND hold_expires_at > NOW()\n  AND tenant_slug = $1\nORDER BY hold_expires_at ASC LIMIT 20;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-ph",
+      "name": "DB Pending Holds",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        2740
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$input.all().map(i=>i.json);const p=$('Parse PH Args').first().json;let result;if(!rows.length){result='Hakuna hifadhi inayosubiri kwa sasa.';}else{result='Hifadhi zinazosubiri malipo:\\n'+rows.map((r,i)=>{const m=Math.round((new Date(r.hold_expires_at)-new Date())/60000);return `${i+1}. ${r.ref} | ${r.passenger_name} (${r.phone}) | TZS ${Number(r.amount).toLocaleString()} | dakika ${m} zimebakia`;}).join('\\n');}return [{json:{results:[{toolCallId:p.toolCallId,result}]}}];"
+      },
+      "id": "fmt-ph",
+      "name": "Format PH",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        2740
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-ph",
+      "name": "Respond PH",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        2740
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/service-gap-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-sgr",
+      "name": "WH /service-gap-report",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2960
+      ],
+      "webhookId": "wh-service-gap-report"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual'}}];"
+      },
+      "id": "parse-sgr",
+      "name": "Parse SGR Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT district, region, request_count, last_requested\nFROM service_gaps\nWHERE tenant_slug = $1\nORDER BY request_count DESC, last_requested DESC\nLIMIT 10;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-sgr",
+      "name": "DB Service Gaps",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        2960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$input.all().map(i=>i.json);const p=$('Parse SGR Args').first().json;let result;if(!rows.length){result='Hakuna maeneo yasiyohudumiwa yaliyoombwa hivi karibuni.';}else{result='Maeneo yaliyoombwa lakini hatuna huduma:\\n'+rows.map((r,i)=>`${i+1}. ${r.district}${r.region?', '+r.region:''} — maombi ${r.request_count}`).join('\\n');}return [{json:{results:[{toolCallId:p.toolCallId,result}]}}];"
+      },
+      "id": "fmt-sgr",
+      "name": "Format SGR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-sgr",
+      "name": "Respond SGR",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/customer-history",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-ch",
+      "name": "WH /customer-history",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        3180
+      ],
+      "webhookId": "wh-customer-history"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body||$input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc=(body.message?.toolCalls||body.message?.toolCallList||[{}])[0]||{};\nlet a=tc.function?.arguments??body.arguments??body;\nif(typeof a==='string'){try{a=JSON.parse(a)}catch(e){a={}}}\nlet to=String(a.phone||'').replace(/\\s+/g,'');\nif(/^\\+255\\d{9}$/.test(to))to='0'+to.slice(4);\nelse if(/^255\\d{9}$/.test(to))to='0'+to.slice(3);\nif(!/^0\\d{9}$/.test(to))throw new Error('Invalid phone: '+a.phone);\nreturn [{json:{tenant_slug: tenantSlug, toolCallId:tc.id||'manual',phone:to}}];"
+      },
+      "id": "parse-ch",
+      "name": "Parse CH Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        3180
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT phone, passenger_name, bookings_count, confirmed_count, cancelled_count, last_booking_at, total_spend, recent_refs\nFROM customer_history_v\nWHERE phone = $1;\n  AND tenant_slug = $2\n\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.phone }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-ch",
+      "name": "DB Customer History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        3180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first()?.json;const p=$('Parse CH Args').first().json;let result;if(!r){result=`Hakuna kumbukumbu ya mteja mwenye nambari ${p.phone}. Mteja mpya — karibu sana!`;}else{const refs=(r.recent_refs||[]).slice(0,3).join(', ')||'—';result=`Mteja: ${r.passenger_name||'—'} (${r.phone})\\nBuki jumla: ${r.bookings_count} (zilizokamilika ${r.confirmed_count}, zilizofutwa ${r.cancelled_count})\\nJumla ya matumizi: TZS ${Number(r.total_spend||0).toLocaleString()}\\nBuki za karibuni: ${refs}\\nMteja wa mwisho: ${r.last_booking_at||'—'}`;}return [{json:{results:[{toolCallId:p.toolCallId,result}]}}];"
+      },
+      "id": "fmt-ch",
+      "name": "Format CH",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        3180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-ch",
+      "name": "Respond CH",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        3180
+      ]
+    }
+  ],
+  "connections": {
+    "WH /find-buses-for-route": {
+      "main": [
+        [
+          {
+            "node": "Parse FindBuses Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse FindBuses Args": {
+      "main": [
+        [
+          {
+            "node": "DB Find Buses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Find Buses": {
+      "main": [
+        [
+          {
+            "node": "Format Find Buses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Find Buses": {
+      "main": [
+        [
+          {
+            "node": "Respond Find Buses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /find-agents": {
+      "main": [
+        [
+          {
+            "node": "Parse FindAgents Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse FindAgents Args": {
+      "main": [
+        [
+          {
+            "node": "DB Find Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Find Agents": {
+      "main": [
+        [
+          {
+            "node": "Format Find Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Find Agents": {
+      "main": [
+        [
+          {
+            "node": "Respond Find Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /track-shipment": {
+      "main": [
+        [
+          {
+            "node": "Parse Track Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Track Args": {
+      "main": [
+        [
+          {
+            "node": "DB Track Shipment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Track Shipment": {
+      "main": [
+        [
+          {
+            "node": "Format Track",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Track": {
+      "main": [
+        [
+          {
+            "node": "Respond Track",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /compute-freight-quote": {
+      "main": [
+        [
+          {
+            "node": "Parse Quote Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Quote Args": {
+      "main": [
+        [
+          {
+            "node": "DB Mint Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Mint Quote": {
+      "main": [
+        [
+          {
+            "node": "Format Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Quote": {
+      "main": [
+        [
+          {
+            "node": "Respond Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /register-shipment": {
+      "main": [
+        [
+          {
+            "node": "Parse Register Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Register Args": {
+      "main": [
+        [
+          {
+            "node": "DB Insert Shipment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Insert Shipment": {
+      "main": [
+        [
+          {
+            "node": "Format Register",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Register": {
+      "main": [
+        [
+          {
+            "node": "Respond Register",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /send-sms": {
+      "main": [
+        [
+          {
+            "node": "Parse SMS Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SMS Args": {
+      "main": [
+        [
+          {
+            "node": "AT Send SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AT Send SMS": {
+      "main": [
+        [
+          {
+            "node": "Log SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log SMS": {
+      "main": [
+        [
+          {
+            "node": "Format SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format SMS": {
+      "main": [
+        [
+          {
+            "node": "Respond SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /send-whatsapp": {
+      "main": [
+        [
+          {
+            "node": "Parse WA Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse WA Args": {
+      "main": [
+        [
+          {
+            "node": "AT Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AT Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Log WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log WA": {
+      "main": [
+        [
+          {
+            "node": "Format WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format WA": {
+      "main": [
+        [
+          {
+            "node": "Respond WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /trigger-outbound-call": {
+      "main": [
+        [
+          {
+            "node": "Parse TriggerCall Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse TriggerCall Args": {
+      "main": [
+        [
+          {
+            "node": "DB Queue Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Queue Call": {
+      "main": [
+        [
+          {
+            "node": "Format TriggerCall",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format TriggerCall": {
+      "main": [
+        [
+          {
+            "node": "Respond TriggerCall",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /schedule-reminder": {
+      "main": [
+        [
+          {
+            "node": "Parse Reminder Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Reminder Args": {
+      "main": [
+        [
+          {
+            "node": "DB Schedule Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Schedule Reminder": {
+      "main": [
+        [
+          {
+            "node": "Format Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Reminder": {
+      "main": [
+        [
+          {
+            "node": "Respond Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /get-bus-photo": {
+      "main": [
+        [
+          {
+            "node": "Parse Photo Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Photo Args": {
+      "main": [
+        [
+          {
+            "node": "DB Lookup Bus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Lookup Bus": {
+      "main": [
+        [
+          {
+            "node": "Format Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Photo": {
+      "main": [
+        [
+          {
+            "node": "Respond Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /today-bookings-summary": {
+      "main": [
+        [
+          {
+            "node": "Parse TBS Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse TBS Args": {
+      "main": [
+        [
+          {
+            "node": "DB Today Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Today Summary": {
+      "main": [
+        [
+          {
+            "node": "Format TBS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format TBS": {
+      "main": [
+        [
+          {
+            "node": "Respond TBS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /revenue-summary": {
+      "main": [
+        [
+          {
+            "node": "Parse Revenue Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Revenue Args": {
+      "main": [
+        [
+          {
+            "node": "DB Revenue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Revenue": {
+      "main": [
+        [
+          {
+            "node": "Format Revenue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Revenue": {
+      "main": [
+        [
+          {
+            "node": "Respond Revenue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /pending-holds": {
+      "main": [
+        [
+          {
+            "node": "Parse PH Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse PH Args": {
+      "main": [
+        [
+          {
+            "node": "DB Pending Holds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Pending Holds": {
+      "main": [
+        [
+          {
+            "node": "Format PH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format PH": {
+      "main": [
+        [
+          {
+            "node": "Respond PH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /service-gap-report": {
+      "main": [
+        [
+          {
+            "node": "Parse SGR Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SGR Args": {
+      "main": [
+        [
+          {
+            "node": "DB Service Gaps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Service Gaps": {
+      "main": [
+        [
+          {
+            "node": "Format SGR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format SGR": {
+      "main": [
+        [
+          {
+            "node": "Respond SGR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /customer-history": {
+      "main": [
+        [
+          {
+            "node": "Parse CH Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CH Args": {
+      "main": [
+        [
+          {
+            "node": "DB Customer History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Customer History": {
+      "main": [
+        [
+          {
+            "node": "Format CH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format CH": {
+      "main": [
+        [
+          {
+            "node": "Respond CH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

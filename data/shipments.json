@@ -1,0 +1,35 @@
+[
+  {
+    "tracking_code": "TZ-DAR-MWZ-20260428-001",
+    "sender": { "name": "Asha Mwakalinga", "phone": "+255 712 000 001", "region": "Dar es Salaam" },
+    "receiver": { "name": "Peter Mushi", "phone": "+255 712 000 002", "region": "Mwanza" },
+    "product": { "description": "Clothing parcel", "weight_kg": 15 },
+    "bus": { "name": "Simba Coach", "route": "Dar es Salaam → Mwanza", "departure": "2026-04-28 06:00" },
+    "agent_origin": { "name": "Juma Hassan", "phone": "+255 712 345 678" },
+    "agent_destination": { "name": "Grace Kileo", "phone": "+255 754 111 222" },
+    "status": "Delivered",
+    "created_at": "2026-04-27"
+  },
+  {
+    "tracking_code": "TZ-DAR-ARU-20260429-002",
+    "sender": { "name": "Hassan Mfaume", "phone": "+255 712 000 003", "region": "Dar es Salaam" },
+    "receiver": { "name": "Lucy Mollel", "phone": "+255 712 000 004", "region": "Arusha" },
+    "product": { "description": "Electronics box", "weight_kg": 8 },
+    "bus": { "name": "Kilimanjaro Express", "route": "Dar es Salaam → Arusha", "departure": "2026-04-29 06:30" },
+    "agent_origin": { "name": "Juma Hassan", "phone": "+255 712 345 678" },
+    "agent_destination": { "name": "Salim Mohamed", "phone": "+255 765 333 444" },
+    "status": "In Transit",
+    "created_at": "2026-04-28"
+  },
+  {
+    "tracking_code": "TZ-MBE-DAR-20260429-003",
+    "sender": { "name": "Joyce Mwakasege", "phone": "+255 754 999 000", "region": "Mbeya" },
+    "receiver": { "name": "Mariam Hassan", "phone": "+255 712 000 005", "region": "Dar es Salaam" },
+    "product": { "description": "Avocado crate (50kg)", "weight_kg": 50 },
+    "bus": { "name": "Sumry High Class", "route": "Mbeya → Dar es Salaam", "departure": "2026-04-29 06:00" },
+    "agent_origin": { "name": "Joyce Mwakasege", "phone": "+255 754 999 000" },
+    "agent_destination": { "name": "Juma Hassan", "phone": "+255 712 345 678" },
+    "status": "Picked Up",
+    "created_at": "2026-04-29"
+  }
+]

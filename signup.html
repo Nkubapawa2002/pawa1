@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Sign up your company — Pawa</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .signup-wrap {
+      max-width: 560px; margin: 64px auto; padding: 32px;
+      background: #fff; border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+    }
+    .signup-wrap h1 { margin: 0 0 6px; color: #0B6E4F; }
+    .signup-wrap p.lead { color: #555; margin: 0 0 24px; }
+    .signup-form label { display: block; margin-top: 14px; font-weight: 600; color: #333; }
+    .signup-form input, .signup-form textarea, .signup-form select {
+      width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px;
+      font-size: 1rem; box-sizing: border-box; margin-top: 4px;
+    }
+    .signup-form .hint { display: block; color: #777; font-size: 0.85rem; margin-top: 4px; }
+    .signup-form .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .signup-form button { width: 100%; padding: 12px; margin-top: 22px; font-size: 1.05rem; }
+    .signup-status { padding: 12px 14px; border-radius: 8px; margin-top: 18px; font-size: 0.95rem; }
+    .signup-status.err { background: #ffe6e6; color: #8a1a1a; border: 1px solid #f5b3b3; }
+    .signup-status.ok  { background: #e8f7ee; color: #1a5a30; border: 1px solid #a8d9b8; }
+    .signup-success    { display: none; }
+    .signup-success.show { display: block; }
+    .terms { font-size: 0.85rem; color: #666; margin-top: 14px; }
+  </style>
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-page="signup">
+  <div id="nav-slot"></div>
+
+  <main class="signup-wrap" id="signupCard">
+    <h1>Sign up your company</h1>
+    <p class="lead">Fill in the basics. We review every application by hand and activate within 24 hours. After approval, you'll set your Claude API key, VAPI assistant, and routes from the dashboard.</p>
+
+    <form class="signup-form" id="signupForm" autocomplete="off">
+      <label for="display_name">Company display name *</label>
+      <input id="display_name" name="display_name" required maxlength="60" placeholder="e.g. Sunrise Coaches" />
+
+      <label for="legal_name">Legal name (optional)</label>
+      <input id="legal_name" name="legal_name" maxlength="120" placeholder="Sunrise Coaches Limited" />
+
+      <label for="slug">Tenant slug (URL handle) *</label>
+      <input id="slug" name="slug" required pattern="^[a-z0-9]([a-z0-9-]{1,30}[a-z0-9])?$" placeholder="sunrise-coaches" />
+      <span class="hint">Lowercase letters, digits, dashes. 3–32 chars. This becomes the URL prefix for your tenant.</span>
+
+      <div class="row2">
+        <div>
+          <label for="contact_email">Owner email *</label>
+          <input id="contact_email" name="contact_email" type="email" required placeholder="ceo@sunrise.co.tz" />
+        </div>
+        <div>
+          <label for="contact_phone">Phone</label>
+          <input id="contact_phone" name="contact_phone" type="tel" placeholder="+255 7XX XXX XXX" />
+        </div>
+      </div>
+
+      <label for="password">Password *</label>
+      <input id="password" name="password" type="password" required minlength="8" placeholder="At least 8 characters" />
+      <span class="hint">This is your owner login. Don't reuse another password.</span>
+
+      <label for="country">Country</label>
+      <select id="country" name="country">
+        <option value="TZ" selected>Tanzania</option>
+        <option value="KE">Kenya</option>
+        <option value="UG">Uganda</option>
+        <option value="RW">Rwanda</option>
+        <option value="OTHER">Other</option>
+      </select>
+
+      <label for="notes">Anything we should know? (optional)</label>
+      <textarea id="notes" name="notes" rows="3" placeholder="Routes you serve, fleet size, why you're interested..."></textarea>
+
+      <button type="submit" class="btn btn-primary" id="submitBtn">Submit application</button>
+
+      <div class="terms">By submitting, you agree to be reviewed manually before access is granted. We'll email you the outcome.</div>
+
+      <div class="signup-status" id="signupStatus" style="display:none"></div>
+    </form>
+  </main>
+
+  <main class="signup-wrap signup-success" id="signupDone">
+    <h1>Application received ✓</h1>
+    <p class="lead">Thank you. We've created your account in <code>pending_approval</code> status. A real human at Pawa will review and approve, usually within 24 hours. You'll get an email when it's live.</p>
+    <p>While you wait, you can read about the agent's capabilities on the <a href="saas.html">SaaS overview page</a>.</p>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/signup.js"></script>
+  <script>
+    window.renderNav && window.renderNav("signup.html");
+    window.renderFooter && window.renderFooter();
+    window.initSignupPage && window.initSignupPage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

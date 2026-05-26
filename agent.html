@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Agent Dashboard — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')" data-page="agent">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title">Agent Dashboard</h1>
+      <p class="page-subtitle">Enter your registered phone number to see all shipments assigned to you.</p>
+    </div>
+  </section>
+
+  <main class="container">
+
+    <section id="loginCard" class="auth-card">
+      <h3 data-i18n="agent_dash_title" style="margin-bottom:4px">Agent Dashboard</h3>
+      <p style="color:var(--gray);font-size:0.9rem;margin-bottom:16px" data-i18n="agent_dash_sub">
+        Search by your registered phone number or your name.
+      </p>
+
+      <!-- Search type tabs -->
+      <div class="login-type-tabs">
+        <button type="button" class="login-tab active" id="tabPhone" data-i18n="agent_dash_tab_phone">Phone Number</button>
+        <button type="button" class="login-tab" id="tabName"  data-i18n="agent_dash_tab_name">Agent Name</button>
+      </div>
+
+      <form id="phoneForm" class="form-grid" style="margin-top:14px">
+        <label id="searchLabel">
+          <span id="searchLabelText" data-i18n="agent_dash_tab_phone">Phone Number</span>
+          <input type="text" id="agentPhone" required
+            data-i18n-placeholder="agent_dash_phone_ph"
+            placeholder="+255 712 345 678" />
+        </label>
+        <button class="btn btn-primary" type="submit" data-i18n="agent_dash_open">Open my dashboard</button>
+      </form>
+
+      <!-- Name search results picker -->
+      <div id="agentPicker" hidden style="margin-top:14px">
+        <p style="font-weight:600;margin-bottom:10px" data-i18n="agent_dash_pick_title">Select your account:</p>
+        <div id="agentPickList" class="agent-pick-list"></div>
+      </div>
+
+      <p id="agentMsg" class="banner error" style="margin-top:12px" hidden></p>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="agent-banner" id="agentBanner"></div>
+
+      <!-- Profile card: details + photo upload -->
+      <div class="card profile-section" id="agentProfileSection" style="margin-bottom:18px">
+        <div id="agentProfileDetails"></div>
+        <div id="agentRoutesSection" style="margin-top:12px"></div>
+        <div class="profile-photo-row">
+          <label class="btn btn-outline btn-sm" for="photoInput" data-i18n="dash_upload_photo">Change photo</label>
+          <input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" style="display:none">
+          <small class="photo-hint" data-i18n="dash_upload_hint">JPG or PNG · max 5 MB</small>
+          <span id="photoMsg" hidden></span>
+        </div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span id="kpiTotal">0</span><small>Assigned shipments</small></div>
+        <div class="kpi"><span id="kpiActive">0</span><small>Active right now</small></div>
+        <div class="kpi"><span id="kpiDone">0</span><small>Delivered</small></div>
+        <div class="kpi"><span id="kpiRating">—</span><small>★ Avg rating</small></div>
+      </div>
+
+      <!-- Collect Payment card -->
+      <div class="card" id="collectPayCard" style="margin-bottom:18px">
+        <h4 style="margin:0 0 14px;display:flex;align-items:center;gap:8px;font-size:1rem">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Collect Payment
+        </h4>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <label style="flex:1;min-width:180px;margin:0">
+            <span style="font-size:0.8rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">Ticket Code</span>
+            <input type="text" id="cpCode" placeholder="TK-…" autocomplete="off"
+                   style="text-transform:uppercase;width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;box-sizing:border-box" />
+          </label>
+          <button class="btn btn-outline btn-sm" id="cpSearchBtn" style="height:40px;padding:0 18px">Search</button>
+        </div>
+        <div id="cpResult" style="margin-top:14px"></div>
+      </div>
+
+      <!-- Pending confirmation alert banner -->
+      <div id="confirmAlert" class="banner warn" hidden style="margin-bottom:16px"></div>
+
+      <!-- Cash retargeting alert + record form -->
+      <div id="retargetAlert" class="retarget-alert" hidden></div>
+      <div id="retargetFormWrap" hidden></div>
+
+      <div class="filter-bar">
+        <select id="dashStatusFilter">
+          <option value="">All statuses</option>
+          <option value="Awaiting Price">Awaiting Price</option>
+          <option value="Needs Revision">Needs Revision</option>
+          <option value="Registered">Registered</option>
+          <option value="Collected">Collected</option>
+          <option value="In Transit">In Transit</option>
+          <option value="Arrived">Arrived</option>
+          <option value="Delivered">Delivered</option>
+        </select>
+        <button class="btn btn-outline btn-sm" id="signOutAgent">Switch agent</button>
+      </div>
+
+      <div id="agentShipments"></div>
+    </section>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/agent-dashboard.js"></script>
+  <script>
+    window.renderNav("agent.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initAgentDashboard();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

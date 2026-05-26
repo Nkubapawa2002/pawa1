@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pawa for Companies — AI Booking & Cargo Platform</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .saas-hero {
+      min-height: 60vh; display: flex; align-items: center; justify-content: center;
+      padding: 96px 24px 64px; text-align: center;
+      background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.75)),
+                  url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg') center/cover;
+      color: #fff;
+    }
+    .saas-hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); margin: 0 0 16px; max-width: 900px; }
+    .saas-hero p { font-size: 1.15rem; max-width: 720px; margin: 0 auto 28px; opacity: 0.9; }
+    .saas-hero .gold { color: #f5c531; }
+
+    .pitch-grid {
+      max-width: 1100px; margin: 64px auto; padding: 0 24px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;
+    }
+    .pitch-card { background: #fff; border-radius: 14px; padding: 28px;
+                  box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
+    .pitch-card h3 { margin: 0 0 10px; color: #0B6E4F; }
+    .pitch-card p { margin: 0; color: #444; line-height: 1.55; }
+    .pitch-card .ico { font-size: 1.8rem; margin-bottom: 8px; display:block; }
+
+    .stack {
+      max-width: 980px; margin: 64px auto; padding: 36px 24px;
+      background: #0B6E4F; color: #fff; border-radius: 18px;
+    }
+    .stack h2 { margin-top: 0; }
+    .stack ul { list-style: none; padding: 0; columns: 2; column-gap: 32px; }
+    .stack li { padding: 6px 0 6px 24px; position: relative; line-height: 1.5; break-inside: avoid; }
+    .stack li::before { content: "✓"; position: absolute; left: 0; color: #f5c531; font-weight: 700; }
+
+    .how { max-width: 1000px; margin: 64px auto; padding: 0 24px; }
+    .how h2 { text-align: center; margin-bottom: 32px; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+    .step { background: #fff; border: 1px solid #e6e6e6; border-radius: 14px; padding: 22px;
+            position: relative; }
+    .step b { display:block; color: #0B6E4F; margin-bottom: 6px; }
+    .step .n { position: absolute; top: -16px; left: 22px; width: 32px; height: 32px;
+               background: #f5c531; color: #222; border-radius: 50%; display:flex;
+               align-items:center; justify-content:center; font-weight: 800; }
+
+    .cta-bar { background: #111; color: #fff; padding: 56px 24px; text-align: center; }
+    .cta-bar h2 { margin: 0 0 14px; }
+    .cta-bar p { opacity: 0.8; margin: 0 0 22px; }
+    .cta-bar .btn { padding: 14px 28px; font-size: 1.05rem; }
+
+    .pricing { max-width: 980px; margin: 64px auto; padding: 0 24px; text-align: center; }
+    .pricing .pill { display: inline-block; background: #f5c531; color: #222;
+                     padding: 6px 14px; border-radius: 999px; font-weight: 700;
+                     font-size: 0.9rem; margin-bottom: 12px; }
+    .pricing-card { background: #fff; border: 2px solid #0B6E4F; border-radius: 16px;
+                    padding: 32px; max-width: 480px; margin: 24px auto; text-align: left; }
+    .pricing-card h3 { margin: 0 0 6px; color: #0B6E4F; }
+    .pricing-card .price { font-size: 2.2rem; font-weight: 800; margin: 6px 0 14px; }
+    .pricing-card ul { list-style: none; padding: 0; margin: 0 0 18px; }
+    .pricing-card li { padding: 6px 0 6px 22px; position: relative; }
+    .pricing-card li::before { content: "✓"; position: absolute; left: 0; color: #0B6E4F; font-weight: 700; }
+  </style>
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-page="saas">
+  <div id="nav-slot"></div>
+
+  <section class="saas-hero">
+    <div>
+      <h1>Run your bus &amp; cargo company on a <span class="gold">Claude-powered AI agent</span></h1>
+      <p>Pawa gives transport companies a voice + chat agent that books seats, registers parcels, sends tickets, follows up on payments, and calls customers back — all with your branding, your routes, and your Claude API key.</p>
+      <div class="hero-actions">
+        <a href="signup.html" class="btn btn-primary">Sign up your company</a>
+        <a href="#how" class="btn btn-outline" style="background:rgba(255,255,255,0.1);color:#fff;border-color:#fff">How it works</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="pitch-grid">
+    <div class="pitch-card">
+      <span class="ico">🎙️</span>
+      <h3>Voice agent that actually does the work</h3>
+      <p>Customers call a number, the agent searches trips, holds a seat, takes USSD payment, and SMSes the ticket. No human has to pick up.</p>
+    </div>
+    <div class="pitch-card">
+      <span class="ico">📦</span>
+      <h3>Cargo + ticketing in one agent</h3>
+      <p>Same brain handles parcel quotes, registrations, tracking, and 80% loss insurance — and the seat side of the operation.</p>
+    </div>
+    <div class="pitch-card">
+      <span class="ico">🔑</span>
+      <h3>Bring your own Claude key</h3>
+      <p>You pay Anthropic directly for inference. We never charge a markup on tokens. Set or rotate your key from the company dashboard.</p>
+    </div>
+    <div class="pitch-card">
+      <span class="ico">🇹🇿</span>
+      <h3>Built for Tanzania</h3>
+      <p>Native Swahili, M-Pesa / Tigo Pesa / Airtel / Halopesa / AzamPesa. Africa's Talking SMS &amp; WhatsApp wired in.</p>
+    </div>
+    <div class="pitch-card">
+      <span class="ico">📞</span>
+      <h3>The agent calls people</h3>
+      <p>If a customer abandons payment, the agent triggers a callback through VAPI within 30 seconds. No follow-up dropped.</p>
+    </div>
+    <div class="pitch-card">
+      <span class="ico">📊</span>
+      <h3>Manager-level audit</h3>
+      <p>Every tool the agent invokes is logged. Replay a call, audit a refund, see today's revenue and pending holds in one query.</p>
+    </div>
+  </div>
+
+  <section class="stack">
+    <h2>What's in the box</h2>
+    <ul>
+      <li>Voice + chat agent (Claude / Anthropic)</li>
+      <li>Search trips &amp; check seats</li>
+      <li>Hold + confirm seats with USSD push</li>
+      <li>Cargo quotes &amp; shipment registration</li>
+      <li>Tracking codes via SMS &amp; WhatsApp</li>
+      <li>Outbound proactive callbacks</li>
+      <li>Scheduled reminders (SMS / call)</li>
+      <li>Photo of bus on demand</li>
+      <li>Cancellation &amp; reschedule policy enforced</li>
+      <li>Manager escalation with audit trail</li>
+      <li>Customer history &amp; returning-caller recognition</li>
+      <li>Daily revenue + pending-holds dashboard</li>
+    </ul>
+  </section>
+
+  <section class="how" id="how">
+    <h2>How signup works</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><b>Submit your company</b>Fill the form on the next page. Takes about 2 minutes.</div>
+      <div class="step"><span class="n">2</span><b>We approve manually</b>A human at Pawa reviews and activates your tenant within 24 hours.</div>
+      <div class="step"><span class="n">3</span><b>Configure</b>Add your routes, buses, agents, and paste your Claude + VAPI keys in the dashboard.</div>
+      <div class="step"><span class="n">4</span><b>Go live</b>Customers call your number, the agent runs the operation. You watch the dashboard.</div>
+    </div>
+  </section>
+
+  <section class="pricing">
+    <span class="pill">Pricing</span>
+    <h2>Free during launch — bring your own keys</h2>
+    <div class="pricing-card">
+      <h3>Founder Plan</h3>
+      <div class="price">TZS 0 / month</div>
+      <p style="margin: 0 0 18px; color: #555;">Pay Anthropic, VAPI, Africa's Talking, and your payment gateway directly. We don't take a cut. We'll roll out paid plans later — early sign-ups stay free for 6 months after that.</p>
+      <ul>
+        <li>Unlimited tenants per founder</li>
+        <li>Full voice + chat agent</li>
+        <li>All 24 agent tools</li>
+        <li>Audit logs &amp; manager dashboard</li>
+        <li>Manual approval, real human review</li>
+      </ul>
+      <a href="signup.html" class="btn btn-primary" style="width:100%; text-align:center; box-sizing:border-box;">Apply for a tenant</a>
+    </div>
+  </section>
+
+  <section class="cta-bar">
+    <h2>Ready to put Claude on the phones?</h2>
+    <p>One form. We'll review and activate within a day.</p>
+    <a href="signup.html" class="btn btn-primary">Start signup</a>
+  </section>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    window.renderNav("saas.html");
+    window.renderFooter();
+    window.applyTranslations && window.applyTranslations();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

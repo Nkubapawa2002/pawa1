@@ -1,0 +1,199 @@
+{
+  "name": "BUS TZ PAWA — Trip Lifecycle Messages",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 5 }] }
+      },
+      "id": "cron-pre",
+      "name": "Cron / Pre-Trip",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH due AS (\n  SELECT b.id, b.ref, b.passenger_name, b.phone, t.departure_at, r.origin, r.destination,\n         s.seat_number, COALESCE(bs.plate, 'TBD') AS plate\n  FROM bookings b\n  JOIN trips t ON t.id = b.trip_id\n  JOIN routes r ON r.id = t.route_id\n  JOIN seats s ON s.id = b.seat_id\n  LEFT JOIN buses bs ON bs.id = t.bus_id\n  WHERE b.status = 'CONFIRMED'\n    AND b.reminder_sent = FALSE\n    AND t.departure_at BETWEEN NOW() + INTERVAL '28 minute' AND NOW() + INTERVAL '32 minute'\n),\nupd AS (\n  UPDATE bookings SET reminder_sent = TRUE WHERE id IN (SELECT id FROM due) RETURNING id\n)\nSELECT * FROM due;",
+        "options": {}
+      },
+      "id": "db-pre",
+      "name": "Find Pre-Trip Due",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 100],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.filter(i => i.json && i.json.ref).map(i => {\n  const r = i.json;\n  const dep = new Date(r.departure_at);\n  const hh = String(dep.getHours()).padStart(2,'0');\n  const mm = String(dep.getMinutes()).padStart(2,'0');\n  const msg = `Habari ${r.passenger_name}! Ukumbusho: Safari yako ya Bus TZ PAWA kwenda ${r.destination} inaanza saa ${hh}:${mm} leo. Kiti: ${r.seat_number} | Basi: ${r.plate}. Eneo la kupanda: ${r.origin}. Tafadhali fika mapema. Safari njema!`;\n  return { json: { phone: r.phone, message: msg } };\n});"
+      },
+      "id": "build-pre",
+      "name": "Build Pre-Trip SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 100]
+    },
+
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 10 }] }
+      },
+      "id": "cron-mid",
+      "name": "Cron / Mid-Trip",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 320]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH due AS (\n  SELECT b.id, b.ref, b.passenger_name, b.phone\n  FROM bookings b\n  JOIN trips t ON t.id = b.trip_id\n  WHERE b.status = 'CONFIRMED'\n    AND b.midtrip_sent = FALSE\n    AND t.departure_at BETWEEN NOW() - INTERVAL '70 minute' AND NOW() - INTERVAL '50 minute'\n),\nupd AS (\n  UPDATE bookings SET midtrip_sent = TRUE WHERE id IN (SELECT id FROM due) RETURNING id\n)\nSELECT * FROM due;",
+        "options": {}
+      },
+      "id": "db-mid",
+      "name": "Find Mid-Trip Due",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 320],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.filter(i => i.json && i.json.ref).map(i => {\n  const r = i.json;\n  const msg = `Habari za safari ${r.passenger_name}! Tunakutakia safari salama na yenye starehe. Bus TZ PAWA iko nawe. Ukihitaji msaada, piga simu yetu. Asante kwa kutuchagua!`;\n  return { json: { phone: r.phone, message: msg } };\n});"
+      },
+      "id": "build-mid",
+      "name": "Build Mid-Trip SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 320]
+    },
+
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 10 }] }
+      },
+      "id": "cron-fb",
+      "name": "Cron / Feedback",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH due AS (\n  SELECT b.id, b.ref, b.passenger_name, b.phone, r.destination\n  FROM bookings b\n  JOIN trips t ON t.id = b.trip_id\n  JOIN routes r ON r.id = t.route_id\n  WHERE b.status = 'CONFIRMED'\n    AND b.feedback_sent = FALSE\n    AND (t.departure_at + (r.duration_hrs * INTERVAL '1 hour'))\n        BETWEEN NOW() - INTERVAL '15 minute' AND NOW() + INTERVAL '5 minute'\n),\nupd AS (\n  UPDATE bookings SET feedback_sent = TRUE WHERE id IN (SELECT id FROM due) RETURNING id\n)\nSELECT * FROM due;",
+        "options": {}
+      },
+      "id": "db-fb",
+      "name": "Find Feedback Due",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 540],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.filter(i => i.json && i.json.ref).map(i => {\n  const r = i.json;\n  const msg = `Habari ${r.passenger_name}! Tunatarajia umefika salama ${r.destination}. Tunaomba maoni yako: piga 1-5 (1=Mbaya, 5=Bora sana) na uitumie hapa. Maoni yako yanasaidia kuboresha huduma. Asante!`;\n  return { json: { phone: r.phone, message: msg } };\n});"
+      },
+      "id": "build-fb",
+      "name": "Build Feedback SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 540]
+    },
+
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 10 }] }
+      },
+      "id": "cron-wb",
+      "name": "Cron / Welcome Back",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 760]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH due AS (\n  SELECT b.id, b.ref, b.passenger_name, b.phone\n  FROM bookings b\n  JOIN trips t ON t.id = b.trip_id\n  JOIN routes r ON r.id = t.route_id\n  WHERE b.status = 'CONFIRMED'\n    AND b.welcome_sent = FALSE\n    AND (t.departure_at + (r.duration_hrs * INTERVAL '1 hour') + INTERVAL '30 minute')\n        BETWEEN NOW() - INTERVAL '15 minute' AND NOW() + INTERVAL '5 minute'\n),\nupd AS (\n  UPDATE bookings SET welcome_sent = TRUE, status = 'COMPLETED' WHERE id IN (SELECT id FROM due) RETURNING id\n)\nSELECT * FROM due;",
+        "options": {}
+      },
+      "id": "db-wb",
+      "name": "Find Welcome Due",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 760],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.filter(i => i.json && i.json.ref).map(i => {\n  const r = i.json;\n  const url = $env.WEBSITE_URL || 'https://bustzpawa.co.tz';\n  const phone = $env.SUPPORT_PHONE || '0800 000 000';\n  const msg = `Habari ${r.passenger_name}! Asante kwa kusafiri na Bus TZ PAWA! Wakati wowote unapotaka kusafiri tena, tembelea ${url} au piga ${phone}. Karibu tena - safari yako ijayo inakungoja!`;\n  return { json: { phone: r.phone, message: msg } };\n});"
+      },
+      "id": "build-wb",
+      "name": "Build Welcome SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 760]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.africastalking.com/version1/messaging",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apiKey", "value": "={{ $env.AT_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" },
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "username", "value": "={{ $env.AT_USERNAME }}" },
+            { "name": "to", "value": "={{ $json.phone.startsWith('+') ? $json.phone : '+255' + $json.phone.replace(/^0/, '') }}" },
+            { "name": "message", "value": "={{ $json.message }}" },
+            { "name": "from", "value": "={{ $env.AT_SENDER_ID }}" }
+          ]
+        },
+        "options": { "ignoreHttpStatusErrors": true, "batching": { "batch": { "batchSize": 1, "batchInterval": 200 } } }
+      },
+      "id": "send-sms",
+      "name": "Send SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 430]
+    }
+  ],
+  "connections": {
+    "Cron / Pre-Trip":     { "main": [[{ "node": "Find Pre-Trip Due", "type": "main", "index": 0 }]] },
+    "Find Pre-Trip Due":   { "main": [[{ "node": "Build Pre-Trip SMS", "type": "main", "index": 0 }]] },
+    "Build Pre-Trip SMS":  { "main": [[{ "node": "Send SMS", "type": "main", "index": 0 }]] },
+
+    "Cron / Mid-Trip":     { "main": [[{ "node": "Find Mid-Trip Due", "type": "main", "index": 0 }]] },
+    "Find Mid-Trip Due":   { "main": [[{ "node": "Build Mid-Trip SMS", "type": "main", "index": 0 }]] },
+    "Build Mid-Trip SMS":  { "main": [[{ "node": "Send SMS", "type": "main", "index": 0 }]] },
+
+    "Cron / Feedback":     { "main": [[{ "node": "Find Feedback Due", "type": "main", "index": 0 }]] },
+    "Find Feedback Due":   { "main": [[{ "node": "Build Feedback SMS", "type": "main", "index": 0 }]] },
+    "Build Feedback SMS":  { "main": [[{ "node": "Send SMS", "type": "main", "index": 0 }]] },
+
+    "Cron / Welcome Back": { "main": [[{ "node": "Find Welcome Due", "type": "main", "index": 0 }]] },
+    "Find Welcome Due":    { "main": [[{ "node": "Build Welcome SMS", "type": "main", "index": 0 }]] },
+    "Build Welcome SMS":   { "main": [[{ "node": "Send SMS", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pawa Bus Cargo — Tanzania</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/juan-encalada-6mcVaoGNz1w-unsplash.jpg')" data-page="index">
+  <div id="nav-slot"></div>
+
+  <section class="hero" id="hero">
+    <h1>
+      <span data-i18n="hero_title">Send parcels and travel yourself</span>
+      <span class="gold" data-i18n="hero_title_2">— the best way</span>
+    </h1>
+    <p data-i18n="hero_sub">Book your seat or send a parcel across all 26 mainland regions. Voice agent, verified bus partners, instant tickets, 80% loss insurance.</p>
+    <div class="hero-actions">
+      <a href="book-fast.html" class="btn btn-primary" data-i18n="hero_btn_book_fast">Book Seat Fast</a>
+      <a href="send.html" class="btn btn-secondary" data-i18n="hero_btn_send">Send a Parcel</a>
+      <a href="track.html" class="btn btn-outline" style="background:rgba(255,255,255,0.12);color:#fff;border-color:#fff" data-i18n="hero_btn_track">Track Order</a>
+    </div>
+  </section>
+
+  <!-- Stats strip with count-up animation -->
+  <div class="stats-strip">
+    <div class="stat">
+      <span class="stat-value" data-count-to="26">0</span>
+      <span class="stat-label" data-i18n="stat_regions">Mainland regions</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" data-count-to="10" data-suffix="+">0</span>
+      <span class="stat-label" data-i18n="stat_buses">Bus partners</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" data-count-to="15" data-suffix="+">0</span>
+      <span class="stat-label" data-i18n="stat_agents">Verified agents</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" data-count-to="80" data-suffix="%">0</span>
+      <span class="stat-label" data-i18n="stat_insurance">Loss coverage</span>
+    </div>
+  </div>
+
+  <main class="container">
+
+    <!-- Image-driven feature tiles -->
+    <div class="hero-feature-grid">
+      <a href="book-fast.html" class="hero-feature" style="--feat-img:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
+        <div class="hf-overlay">
+          <span class="hf-tag" data-i18n="feat_tag_flagship">★ FLAGSHIP</span>
+          <h3 data-i18n="feat_book_fast_title">Book Seat Fast</h3>
+          <p data-i18n="feat_book_fast_desc">AI agent calls, holds your seat, takes payment, sends ticket — automatically.</p>
+        </div>
+      </a>
+      <a href="ride.html" class="hero-feature" style="--feat-img:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
+        <div class="hf-overlay">
+          <span class="hf-tag gold" data-i18n="feat_tag_new">★ NEW</span>
+          <h3 data-i18n="feat_ride_title">Ride (Uber-style)</h3>
+          <p data-i18n="feat_ride_desc">Hail a car, bajaj, or bodaboda anywhere in Tanzania. Pay with mobile money. Live driver tracking.</p>
+        </div>
+      </a>
+      <a href="meet.html" class="hero-feature" style="--feat-img:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')">
+        <div class="hf-overlay">
+          <span class="hf-tag gold" data-i18n="feat_tag_new">★ NEW</span>
+          <h3 data-i18n="feat_meet_title">Meet & Locate (live GPS)</h3>
+          <p data-i18n="feat_meet_desc">Share your real-time location like Uber — find each other for parcel handoffs across Tanzania.</p>
+        </div>
+      </a>
+      <a href="send.html" class="hero-feature" style="--feat-img:url('data/rafael-atantya-zK49QNwv8ow-unsplash.jpg')">
+        <div class="hf-overlay">
+          <h3 data-i18n="feat_send_title">Send Parcel</h3>
+          <p data-i18n="feat_send_desc">Drop at one terminal, receiver collects at the other. 80% loss insurance built in.</p>
+        </div>
+      </a>
+      <a href="track.html" class="hero-feature" style="--feat-img:url('data/xt7-core-U5jCcT1ZSHs-unsplash.jpg')">
+        <div class="hf-overlay">
+          <h3 data-i18n="feat_track_title">Live Tracking</h3>
+          <p data-i18n="feat_track_desc">By code, sender, or receiver — see exactly where your parcel is, in real time.</p>
+        </div>
+      </a>
+    </div>
+
+    <!-- Popular routes strip -->
+    <section class="section">
+      <h2 class="section-title" data-i18n="popular_routes_title">Popular routes</h2>
+      <div class="route-strip">
+        <a href="book-fast.html?from=Dar%20es%20Salaam&to=Mwanza" class="route-card" style="--route-img:url('data/habib-ilmi-nTwn_5qYWgw-unsplash.jpg')">
+          <div class="rc-overlay">
+            <div class="rc-from">Dar es Salaam</div>
+            <div class="rc-arrow">→</div>
+            <div class="rc-to">Mwanza</div>
+            <div class="rc-meta">~14 hr · from TZS 45,000</div>
+          </div>
+        </a>
+        <a href="book-fast.html?from=Dar%20es%20Salaam&to=Mbeya" class="route-card" style="--route-img:url('data/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg')">
+          <div class="rc-overlay">
+            <div class="rc-from">Dar es Salaam</div>
+            <div class="rc-arrow">→</div>
+            <div class="rc-to">Mbeya</div>
+            <div class="rc-meta">~12 hr · from TZS 35,000</div>
+          </div>
+        </a>
+        <a href="book-fast.html?from=Arusha&to=Dodoma" class="route-card" style="--route-img:url('data/jalal-kelink-ugzSzSG7CFA-unsplash.jpg')">
+          <div class="rc-overlay">
+            <div class="rc-from">Arusha</div>
+            <div class="rc-arrow">→</div>
+            <div class="rc-to">Dodoma</div>
+            <div class="rc-meta">~9 hr · from TZS 28,000</div>
+          </div>
+        </a>
+        <a href="book-fast.html?from=Mwanza&to=Kigoma" class="route-card" style="--route-img:url('data/hardial-aujla-rJ4tFb4F-DE-unsplash.jpg')">
+          <div class="rc-overlay">
+            <div class="rc-from">Mwanza</div>
+            <div class="rc-arrow">→</div>
+            <div class="rc-to">Kigoma</div>
+            <div class="rc-meta">~10 hr · from TZS 32,000</div>
+          </div>
+        </a>
+        <a href="book-fast.html?from=Dodoma&to=Iringa" class="route-card" style="--route-img:url('data/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
+          <div class="rc-overlay">
+            <div class="rc-from">Dodoma</div>
+            <div class="rc-arrow">→</div>
+            <div class="rc-to">Iringa</div>
+            <div class="rc-meta">~6 hr · from TZS 22,000</div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section">
+      <h2 class="section-title" data-i18n="testi_title">What our riders say</h2>
+      <div class="testi-grid">
+        <article class="testi-card">
+          <div class="testi-stars">★★★★★</div>
+          <p data-i18n="testi_1_text">"The voice agent booked my Mbeya trip in two minutes — in Swahili. SMS arrived before I hung up."</p>
+          <footer><strong>Asha M.</strong> · Dar es Salaam</footer>
+        </article>
+        <article class="testi-card">
+          <div class="testi-stars">★★★★★</div>
+          <p data-i18n="testi_2_text">"I sent a parcel to Mwanza and watched it move on the map. Insurance saved me when one box got damaged."</p>
+          <footer><strong>Juma K.</strong> · Arusha</footer>
+        </article>
+        <article class="testi-card">
+          <div class="testi-stars">★★★★★</div>
+          <p data-i18n="testi_3_text">"Meet & Locate let my driver and I find each other at Ubungo terminal in 30 seconds. Game-changer."</p>
+          <footer><strong>Fatuma S.</strong> · Mwanza</footer>
+        </article>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section">
+      <h2 class="section-title" data-i18n="faq_title">Frequently asked</h2>
+      <div class="faq-list">
+        <details>
+          <summary data-i18n="faq_q1">How fast does the AI agent book me a seat?</summary>
+          <p data-i18n="faq_a1">Under three minutes from "hello" to ticket SMS, including USSD payment.</p>
+        </details>
+        <details>
+          <summary data-i18n="faq_q2">Which payment methods are supported?</summary>
+          <p data-i18n="faq_a2">Vodacom M-Pesa, Tigo Pesa (Mixx by Yas), Airtel Money, Halopesa, AzamPesa, NMB, CRDB, NBC, plus Visa/Mastercard. Cash at the terminal also works.</p>
+        </details>
+        <details>
+          <summary data-i18n="faq_q3">What if I miss the bus?</summary>
+          <p data-i18n="faq_a3">You'll receive an automatic call 30 minutes before departure. If you cancel before boarding, choose a free reschedule on the next trip OR an 80% refund.</p>
+        </details>
+        <details>
+          <summary data-i18n="faq_q4">Is my parcel insured?</summary>
+          <p data-i18n="faq_a4">Yes. Every parcel is automatically insured. If lost, you recover up to 80% of the declared value.</p>
+        </details>
+        <details>
+          <summary data-i18n="faq_q5">How does Meet & Locate work?</summary>
+          <p data-i18n="faq_a5">Open meet.html, create a 6-character room and share it. Both phones drop pins on a Tanzania map and see each other move in real time, with weather, distance, and one-tap navigation.</p>
+        </details>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- How it works -->
+  <section class="section alt">
+    <h2 class="section-title" data-i18n="how_title">How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <h3 data-i18n="how_step_1_title">1. Register</h3>
+        <p data-i18n="how_step_1_desc">Fill the send form and we assign a bus, agents, and a tracking code.</p>
+      </div>
+      <div class="step">
+        <h3 data-i18n="how_step_2_title">2. Hand over to agent</h3>
+        <p data-i18n="how_step_2_desc">Drop the parcel at the origin agent.</p>
+      </div>
+      <div class="step">
+        <h3 data-i18n="how_step_3_title">3. Track & receive</h3>
+        <p data-i18n="how_step_3_desc">Track live. Chat with the destination agent.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Insurance banner -->
+  <section class="section">
+    <div class="insurance-banner">
+      <div class="insurance-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <h3 data-i18n="insurance_title">Loss insurance included</h3>
+        <p data-i18n="insurance_desc">Every parcel is automatically insured.</p>
+        <small data-i18n="insurance_example">Example: declare TZS 500,000 → recover up to TZS 400,000 if lost.</small>
+      </div>
+    </div>
+  </section>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    window.renderNav("index.html");
+    window.renderFooter();
+    window.applyTranslations();
+
+    // Hero crossfade — slowly cycle through bus photos.
+    (function () {
+      const PHOTOS = [
+        "juan-encalada-6mcVaoGNz1w-unsplash.jpg",
+        "rafael-atantya-zK49QNwv8ow-unsplash.jpg",
+        "xt7-core-U5jCcT1ZSHs-unsplash.jpg",
+        "jonathan-borba-EwoyDPlT_H0-unsplash.jpg",
+        "habib-ilmi-nTwn_5qYWgw-unsplash.jpg",
+        "elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg",
+        "aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg",
+        "jalal-kelink-ugzSzSG7CFA-unsplash.jpg",
+        "hardial-aujla-rJ4tFb4F-DE-unsplash.jpg",
+        "patrick-tomasso-5hvn-2WW6rY-unsplash.jpg"
+      ];
+      const cfg = window.APP_CONFIG || {};
+      const base = (cfg.SUPABASE_URL && cfg.BUS_PHOTOS_BUCKET)
+        ? `${cfg.SUPABASE_URL}/storage/v1/object/public/${cfg.BUS_PHOTOS_BUCKET}/`
+        : "data/";
+
+      const hero = document.getElementById("hero");
+      if (!hero) return;
+
+      // Shuffle photos so each visit starts differently
+      const shuffled = PHOTOS.slice().sort(() => Math.random() - 0.5);
+
+      // Create two div layers (a = front, b = back)
+      let layerA = document.createElement("div");
+      let layerB = document.createElement("div");
+      layerA.className = "hero-bg a";
+      layerB.className = "hero-bg b";
+      hero.prepend(layerB);
+      hero.prepend(layerA);
+
+      let idx = 0;
+      layerA.style.backgroundImage = `url("${base}${shuffled[0]}")`;
+      layerA.style.opacity = "1";
+      layerB.style.opacity = "0";
+
+      setInterval(() => {
+        idx = (idx + 1) % shuffled.length;
+        // Load new photo into the back layer
+        layerB.style.backgroundImage = `url("${base}${shuffled[idx]}")`;
+        layerB.style.opacity = "1";
+        layerA.style.opacity = "0";
+        // Swap references after transition
+        setTimeout(() => { [layerA, layerB] = [layerB, layerA]; }, 1900);
+      }, 7000);
+    })();
+
+    // Load bus photos from DB for popular routes and feature tiles
+    (async function () {
+      let buses = [];
+      try { buses = await window.DataStore.getBuses(); } catch (e) { return; }
+      const withPhoto = buses.filter(b => b.photo_path);
+
+      // ── Popular route cards ──────────────────────────────────────────
+      const ROUTES = [
+        { from: "Dar es Salaam", to: "Mwanza",  hrs: 14, fare: 45000, fb: "data/habib-ilmi-nTwn_5qYWgw-unsplash.jpg" },
+        { from: "Dar es Salaam", to: "Mbeya",   hrs: 12, fare: 35000, fb: "data/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg" },
+        { from: "Arusha",        to: "Dodoma",  hrs: 9,  fare: 28000, fb: "data/jalal-kelink-ugzSzSG7CFA-unsplash.jpg" },
+        { from: "Mwanza",        to: "Kigoma",  hrs: 10, fare: 32000, fb: "data/hardial-aujla-rJ4tFb4F-DE-unsplash.jpg" },
+        { from: "Dodoma",        to: "Iringa",  hrs: 6,  fare: 22000, fb: "data/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg" }
+      ];
+      const strip = document.querySelector(".route-strip");
+      if (strip) {
+        const cards = ROUTES.map((route, i) => {
+          const bus = buses.find(b => b.photo_path &&
+            (b.routes || []).some(r =>
+              r.from?.toLowerCase() === route.from.toLowerCase() &&
+              r.to?.toLowerCase() === route.to.toLowerCase()
+            )
+          ) || (withPhoto.length ? withPhoto[i % withPhoto.length] : null);
+
+          const imgUrl = bus?.photo_path
+            ? window.DataStore.busPhotoUrl(bus.photo_path)
+            : route.fb;
+          const busTag = bus?.name
+            ? `<div class="rc-bus">${bus.name}</div>` : "";
+          return `<a href="book-fast.html?from=${encodeURIComponent(route.from)}&to=${encodeURIComponent(route.to)}"
+               class="route-card" style="--route-img:url('${imgUrl}')">
+            <div class="rc-overlay">
+              <div class="rc-from">${route.from}</div>
+              <div class="rc-arrow">→</div>
+              <div class="rc-to">${route.to}</div>
+              <div class="rc-meta">~${route.hrs} hr · from TZS ${route.fare.toLocaleString()}</div>
+              ${busTag}
+            </div>
+          </a>`;
+        });
+        strip.innerHTML = cards.join("");
+      }
+
+      // ── Feature tiles (Book Seat Fast, Ride, etc.) ───────────────────
+      if (withPhoto.length) {
+        document.querySelectorAll(".hero-feature").forEach((tile, i) => {
+          const bus = withPhoto[i % withPhoto.length];
+          tile.style.setProperty("--feat-img",
+            `url('${window.DataStore.busPhotoUrl(bus.photo_path)}')`);
+        });
+      }
+    })();
+
+    // Animated stat counters — fire when the strip scrolls into view
+    (function () {
+      const els = document.querySelectorAll(".stat-value[data-count-to]");
+      const animate = (el) => {
+        const target = Number(el.dataset.countTo) || 0;
+        const suffix = el.dataset.suffix || "";
+        const start = performance.now();
+        const dur = 1400;
+        const tick = (t) => {
+          const k = Math.min(1, (t - start) / dur);
+          const eased = 1 - Math.pow(1 - k, 3);
+          el.textContent = Math.round(target * eased) + suffix;
+          if (k < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      };
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) { animate(e.target); io.unobserve(e.target); }
+        });
+      }, { threshold: 0.4 });
+      els.forEach(el => io.observe(el));
+    })();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

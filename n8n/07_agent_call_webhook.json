@@ -1,0 +1,118 @@
+{
+  "name": "Pawa — Agent Call Webhook (Real Phone Call)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "agent-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Agent Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "pawa-agent-call"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "{\"ok\":true}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/json" }
+            ]
+          }
+        }
+      },
+      "id": "respond",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [460, 140]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO call_requests (phone, requested_at, status, ticket_code, context, attempt_count)\nVALUES ($1, COALESCE($2::timestamptz, now()), 'dialing', $3, $4::jsonb, 1)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $json.body.phone }},={{ $json.body.requested_at || null }},={{ $json.body.ticket_code || null }},={{ JSON.stringify($json.body.context || {}) }}"
+        }
+      },
+      "id": "db-insert",
+      "name": "Insert call_request",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://voice.africastalking.com/call",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apiKey",        "value": "={{ $env.AT_API_KEY }}" },
+            { "name": "Content-Type",  "value": "application/x-www-form-urlencoded" },
+            { "name": "Accept",        "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "username",    "value": "={{ $env.AT_USERNAME }}" },
+            { "name": "from",        "value": "={{ $env.AT_CALLER_ID }}" },
+            { "name": "to",          "value": "={{ $('Agent Call Webhook').first().json.body.phone }}" },
+            { "name": "callbackUrl", "value": "={{ $env.N8N_WEBHOOK_BASE }}/webhook/agent-call-answer" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "at-call",
+      "name": "AT Voice: Call customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE call_requests SET status = 'started', at_session_id = $1 WHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ ($json.entries && $json.entries[0] && $json.entries[0].sessionId) || '' }},={{ $('Insert call_request').first().json.id }}"
+        }
+      },
+      "id": "db-update",
+      "name": "Mark started",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [900, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    }
+  ],
+  "connections": {
+    "Agent Call Webhook": {
+      "main": [
+        [
+          { "node": "Respond 200",        "type": "main", "index": 0 },
+          { "node": "Insert call_request", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert call_request": {
+      "main": [[{ "node": "AT Voice: Call customer", "type": "main", "index": 0 }]]
+    },
+    "AT Voice: Call customer": {
+      "main": [[{ "node": "Mark started", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

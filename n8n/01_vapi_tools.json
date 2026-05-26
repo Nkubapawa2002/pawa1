@@ -1,0 +1,1225 @@
+{
+  "name": "BUS TZ PAWA — VAPI Tools",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/search-trips",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-search",
+      "name": "WH /search-trips",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ],
+      "webhookId": "wh-search-trips"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', origin: args.origin, destination: args.destination, date: args.date } }];"
+      },
+      "id": "parse-search",
+      "name": "Parse Search Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT t.id AS trip_id, r.origin, r.destination, t.departure_at, t.price,\n  (SELECT COUNT(*) FROM seats s WHERE s.trip_id = t.id AND s.status = 'AVAILABLE') AS available_seats\nFROM trips t\nJOIN routes r ON r.id = t.route_id\nWHERE LOWER(r.origin) = LOWER($1)\n  AND LOWER(r.destination) = LOWER($2)\n  AND t.departure_at::date = $3::date\n  AND t.status = 'SCHEDULED'\n  AND tenant_slug = $4\nORDER BY t.departure_at;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.origin }},={{ $json.destination }},={{ $json.date }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-search",
+      "name": "DB Search Trips",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst toolCallId = $('Parse Search Args').first().json.toolCallId;\nlet result;\nif (rows.length === 0) {\n  result = 'Samahani, hakuna safari iliyopatikana kwa siku uliyochagua. Je, ungependa kuangalia siku nyingine?';\n} else {\n  result = 'Safari zinazopatikana:\\n' + rows.map((r, i) => {\n    const dep = new Date(r.departure_at);\n    const hh = String(dep.getHours()).padStart(2,'0');\n    const mm = String(dep.getMinutes()).padStart(2,'0');\n    return `${i+1}. Trip ID ${r.trip_id} | ${r.origin} → ${r.destination} | kuondoka ${hh}:${mm} | bei TZS ${Number(r.price).toLocaleString()} | viti vinavyopatikana: ${r.available_seats}`;\n  }).join('\\n');\n}\nreturn [{ json: { results: [{ toolCallId, result }] } }];"
+      },
+      "id": "fmt-search",
+      "name": "Format Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-search",
+      "name": "Respond Search",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/check-seats",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-seats",
+      "name": "WH /check-seats",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "wh-check-seats"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', trip_id: args.trip_id, prefer_window: !!args.prefer_window } }];"
+      },
+      "id": "parse-seats",
+      "name": "Parse Seats Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT seat_number, is_window FROM seats\nWHERE trip_id = $1 AND status = 'AVAILABLE'\n  AND tenant_slug = $3\nORDER BY (CASE WHEN $2::boolean THEN is_window END) DESC NULLS LAST, seat_number\nLIMIT 20;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.trip_id }},={{ $json.prefer_window }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-seats",
+      "name": "DB Available Seats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        320
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst toolCallId = $('Parse Seats Args').first().json.toolCallId;\nif (rows.length === 0) return [{ json: { results: [{ toolCallId, result: 'Samahani, hakuna kiti kinachopatikana kwa safari hiyo.' }] } }];\nconst windows = rows.filter(r => r.is_window).map(r => r.seat_number);\nconst normals = rows.filter(r => !r.is_window).map(r => r.seat_number);\nconst result = `Viti vya dirishani vinavyopatikana: ${windows.slice(0,8).join(', ') || 'hakuna'}\\nViti vya kawaida vinavyopatikana: ${normals.slice(0,8).join(', ') || 'hakuna'}`;\nreturn [{ json: { results: [{ toolCallId, result }] } }];"
+      },
+      "id": "fmt-seats",
+      "name": "Format Seats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-seats",
+      "name": "Respond Seats",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/hold-seat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-hold",
+      "name": "WH /hold-seat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        540
+      ],
+      "webhookId": "wh-hold-seat"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nif (!args.trip_id || !args.seat_number || !args.passenger_name || !args.phone) {\n  throw new Error('Missing required field: trip_id, seat_number, passenger_name, phone');\n}\nconst phone = String(args.phone).replace(/\\D/g,'').replace(/^255/, '0');\nconst ref = 'PAWA-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2,8).toUpperCase();\nconst payment_method = (args.payment_method || 'mpesa').toLowerCase();\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', ref, trip_id: args.trip_id, seat_number: args.seat_number, passenger_name: args.passenger_name, phone, id_type: args.id_type || null, id_number: args.id_number || null, payment_method } }];"
+      },
+      "id": "parse-hold",
+      "name": "Parse Hold Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH locked_seat AS (\n  SELECT s.id AS seat_id, t.price\n  FROM seats s JOIN trips t ON t.id = s.trip_id\n  WHERE s.trip_id = $1 AND s.seat_number = $2 AND s.status = 'AVAILABLE'\n  FOR UPDATE OF s SKIP LOCKED\n  LIMIT 1\n),\nupd AS (\n  UPDATE seats SET status = 'HELD'\n  WHERE id = (SELECT seat_id FROM locked_seat)\n  AND tenant_slug = $9\nRETURNING id\n),\nhold_minutes AS ( SELECT CASE WHEN $8 = 'cash' THEN 30 ELSE 10 END AS m )\nINSERT INTO bookings (ref, trip_id, seat_id, passenger_name, phone, id_type, id_number, amount, payment_method, status, hold_expires_at)\nSELECT $3, $1, ls.seat_id, $4, $5, $6, $7, ls.price,\n       $8,\n       'HELD',\n       NOW() + (SELECT m FROM hold_minutes) * INTERVAL '1 minute'\nFROM locked_seat ls\nRETURNING ref, amount, hold_expires_at, payment_method;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.trip_id }},={{ $json.seat_number }},={{ $json.ref }},={{ $json.passenger_name }},={{ $json.phone }},={{ $json.id_type }},={{ $json.id_number }},={{ $json.payment_method }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-hold",
+      "name": "DB Create Hold",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        540
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst toolCallId = $('Parse Hold Args').first().json.toolCallId;\nconst phone = $('Parse Hold Args').first().json.phone;\nif (rows.length === 0) {\n  return [{ json: { results: [{ toolCallId, result: 'Samahani, kiti hicho kimeshahifadhiwa na mteja mwingine. Tafadhali chagua kiti kingine.' }] } }];\n}\nconst r = rows[0];\nconst expiresMins = r.payment_method === 'cash' ? 30 : 10;\nconst result = `Kiti chako kimehifadhiwa! Nambari ya kumbukumbu: ${r.ref}. Bei: TZS ${Number(r.amount).toLocaleString()}. Una dakika ${expiresMins} kukamilisha malipo. Nitaendelea kutuma ombi la malipo kwenye nambari ${phone}.`;\nreturn [{ json: { results: [{ toolCallId, result, booking_ref: r.ref, amount: r.amount, payment_method: r.payment_method }] } }];"
+      },
+      "id": "fmt-hold",
+      "name": "Format Hold",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-hold",
+      "name": "Respond Hold",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/initiate-payment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-pay",
+      "name": "WH /initiate-payment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        760
+      ],
+      "webhookId": "wh-initiate-payment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nconst pushPhone = String(args.alt_payment_phone || args.phone || '').replace(/\\D/g,'').replace(/^255/, '0');\n// Detect provider from prefix per spec\nconst prefix = pushPhone.slice(0,3);\nconst providerMap = {\n  '071':'mpesa','074':'mpesa','075':'mpesa','076':'mpesa',\n  '065':'tigopesa','067':'tigopesa','077':'tigopesa',\n  '068':'airtel','069':'airtel','078':'airtel',\n  '062':'halopesa','061':'halopesa',\n  '066':'azampesa'\n};\nconst provider = args.payment_method || providerMap[prefix] || 'manual';\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', booking_ref: args.booking_ref, push_phone: pushPhone, provider } }];"
+      },
+      "id": "parse-pay",
+      "name": "Parse Payment Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE bookings SET payment_method = $2, alt_payment_phone = CASE WHEN $3 <> phone THEN $3 ELSE alt_payment_phone END\nWHERE ref = $1 AND status = 'HELD'\n  AND tenant_slug = $4\nRETURNING ref, amount, phone, hold_expires_at;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.booking_ref }},={{ $json.provider }},={{ $json.push_phone }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-pay",
+      "name": "DB Tag Booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        760
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PAYMENT_GATEWAY_URL }}/ussd-push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PAYMENT_GATEWAY_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"{{ $('Parse Payment Args').first().json.push_phone }}\",\n  \"amount\": {{ $json.amount }},\n  \"reference\": \"{{ $json.ref }}\",\n  \"provider\": \"{{ $('Parse Payment Args').first().json.provider }}\",\n  \"callback_url\": \"{{ $env.N8N_WEBHOOK_BASE }}/webhook/vapi/payment-callback\"\n}",
+        "options": {
+          "ignoreHttpStatusErrors": true
+        }
+      },
+      "id": "http-pay",
+      "name": "Send USSD Push",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const callId = $('Parse Payment Args').first().json.toolCallId;\nconst pushPhone = $('Parse Payment Args').first().json.push_phone;\nconst booking = $('DB Tag Booking').first().json;\nif (!booking || !booking.ref) {\n  return [{ json: { results: [{ toolCallId: callId, result: 'Samahani, sikuweza kupata kumbukumbu yako. Tafadhali angalia nambari ya tiketi.' }] } }];\n}\nconst result = `Ombi la malipo limetumwa kwa nambari ${pushPhone}. Tafadhali ingiza PIN yako ndani ya dakika 10 kukamilisha malipo ya TZS ${Number(booking.amount).toLocaleString()}. Nitakujulisha mara malipo yatakapokamilika.`;\nreturn [{ json: { results: [{ toolCallId: callId, result }] } }];"
+      },
+      "id": "fmt-pay",
+      "name": "Format Payment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-pay",
+      "name": "Respond Payment",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/cancel-booking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-cancel",
+      "name": "WH /cancel-booking",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        980
+      ],
+      "webhookId": "wh-cancel-booking"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', booking_ref: args.booking_ref, choice: (args.choice || 'refund').toLowerCase() } }];"
+      },
+      "id": "parse-cancel",
+      "name": "Parse Cancel Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH b AS (\n  SELECT b.id, b.amount, b.status, b.seat_id, t.departure_at\n  FROM bookings b JOIN trips t ON t.id = b.trip_id\n  WHERE b.ref = $1\n),\nelig AS (\n  SELECT id, amount, status, seat_id,\n    CASE WHEN departure_at - NOW() > INTERVAL '2 hour' THEN 'OK'\n         WHEN departure_at < NOW() THEN 'NO_SHOW'\n         ELSE 'LATE' END AS eligibility\n  FROM b\n),\nupd_book AS (\n  UPDATE bookings SET status = 'CANCELLED', cancelled_at = NOW()\n  WHERE id IN (SELECT id FROM elig WHERE eligibility IN ('OK','LATE') AND status IN ('CONFIRMED','HELD'))\n  RETURNING id, seat_id, amount\n),\nupd_seat AS (\n  UPDATE seats SET status = 'AVAILABLE' WHERE id IN (SELECT seat_id FROM upd_book)\n  AND tenant_slug = $2\nRETURNING id\n)\nSELECT (SELECT eligibility FROM elig) AS eligibility,\n       (SELECT amount FROM elig) AS amount,\n       (SELECT COUNT(*) FROM upd_book) AS cancelled;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.booking_ref }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-cancel",
+      "name": "DB Cancel Booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        980
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconst args = $('Parse Cancel Args').first().json;\nconst toolCallId = args.toolCallId;\nlet result;\nif (!r || r.cancelled === 0 || r.cancelled === '0') {\n  if (r && r.eligibility === 'NO_SHOW') {\n    result = 'Samahani, safari yako tayari imeshapita. Sera yetu hairuhusu marejesho kwa wasiotokea.';\n  } else {\n    result = 'Samahani, sikuweza kupata tiketi hiyo au tayari imeshafutwa.';\n  }\n} else if (args.choice === 'reschedule') {\n  result = 'Tiketi yako imeghairiwa na unaweza kubadilisha safari bila malipo. Tafadhali nipe tarehe na safari mpya.';\n} else {\n  const refund = r.eligibility === 'LATE' ? 0 : Math.round(Number(r.amount) * 0.75);\n  if (refund > 0) result = `Tiketi yako imefutwa. Marejesho ya TZS ${refund.toLocaleString()} (asilimia 75) yatatumwa kwenye akaunti yako ndani ya saa 24-48.`;\n  else result = 'Tiketi yako imefutwa. Kwa kuwa muda wa safari uko karibu, marejesho hayatatolewa lakini unaweza kuhamisha safari yako bila malipo.';\n}\nreturn [{ json: { results: [{ toolCallId, result }] } }];"
+      },
+      "id": "fmt-cancel",
+      "name": "Format Cancel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-cancel",
+      "name": "Respond Cancel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/nearest-hub",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-hub",
+      "name": "WH /nearest-hub",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1200
+      ],
+      "webhookId": "wh-nearest-hub"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', district: args.district, region: args.region || null } }];"
+      },
+      "id": "parse-hub",
+      "name": "Parse Hub Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH lookup AS (\n  SELECT hub, alt_hub, notes FROM nearest_hubs WHERE LOWER(district) = LOWER($1)\n),\ngap AS (\n  INSERT INTO service_gaps (district, region, tenant_slug) VALUES ($1, $2, $3)\n  ON CONFLICT (district) DO UPDATE SET request_count = service_gaps.request_count + 1, last_requested = NOW()\n  RETURNING 1\n)\nSELECT * FROM lookup;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.district }},={{ $json.region }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-hub",
+      "name": "DB Lookup Hub",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        1200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst args = $('Parse Hub Args').first().json;\nconst toolCallId = args.toolCallId;\nlet result;\nif (rows.length === 0 || !rows[0].hub) {\n  result = `Kwa sasa basi zetu haziendi moja kwa moja ${args.district}. Tafadhali nipe mji wa karibu nawe ili nikuelekeze, au piga simu yetu kwa msaada wa moja kwa moja.`;\n} else {\n  const r = rows[0];\n  const altPart = r.alt_hub ? ` au ${r.alt_hub}` : '';\n  const notes = r.notes ? ` (${r.notes})` : '';\n  result = `Kituo chetu cha karibu na ${args.district} ni ${r.hub}${altPart}${notes}. Ukifika huko, tunaweza kukupeleka popote unapotaka. Je, ningesaidie kuhifadhi tiketi kutoka ${r.hub}?`;\n}\nreturn [{ json: { results: [{ toolCallId, result }] } }];"
+      },
+      "id": "fmt-hub",
+      "name": "Format Hub",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-hub",
+      "name": "Respond Hub",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/escalate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-esc",
+      "name": "WH /escalate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1420
+      ],
+      "webhookId": "wh-escalate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', booking_ref: args.booking_ref || null, phone: args.phone || null, summary: args.summary || 'Customer requested manager' } }];"
+      },
+      "id": "parse-esc",
+      "name": "Parse Escalate Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO complaints (booking_ref, phone, summary, tenant_slug) VALUES ($1, $2, $3, $4) RETURNING id;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.booking_ref }},={{ $json.phone }},={{ $json.summary }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-esc",
+      "name": "DB Log Complaint",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        1420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MANAGER_NOTIFY_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANAGER_NOTIFY_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"booking_ref\": \"{{ $('Parse Escalate Args').first().json.booking_ref }}\",\n  \"phone\": \"{{ $('Parse Escalate Args').first().json.phone }}\",\n  \"summary\": \"{{ $('Parse Escalate Args').first().json.summary }}\",\n  \"complaint_id\": {{ $json.id }}\n}",
+        "options": {
+          "ignoreHttpStatusErrors": true
+        }
+      },
+      "id": "http-esc",
+      "name": "Notify Manager",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const callId = $('Parse Escalate Args').first().json.toolCallId;\nconst result = 'Nimekuelewa. Nimemjulisha Meneja wetu sasa hivi atakupigia simu ndani ya saa moja. Tafadhali subiri kidogo, tunakuthamini sana.';\nreturn [{ json: { results: [{ toolCallId: callId, result }] } }];"
+      },
+      "id": "fmt-esc",
+      "name": "Format Escalate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-esc",
+      "name": "Respond Escalate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/find-next-available",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-next",
+      "name": "WH /find-next-available",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1640
+      ],
+      "webhookId": "wh-find-next-available"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\n// from_datetime: ISO timestamp OR a date (YYYY-MM-DD). Default = NOW.\nlet from = args.from_datetime || args.date || null;\nif (from && /^\\d{4}-\\d{2}-\\d{2}$/.test(from)) from = from + 'T00:00:00';\nif (!from) from = new Date().toISOString();\nconst limit = Math.min(Math.max(parseInt(args.limit || 5, 10) || 5, 1), 10);\nconst seatsNeeded = Math.max(parseInt(args.seats_needed || 1, 10) || 1, 1);\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', origin: args.origin, destination: args.destination, from_datetime: from, limit, seats_needed: seatsNeeded } }];"
+      },
+      "id": "parse-next",
+      "name": "Parse NextAvail Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM (\n  SELECT t.id AS trip_id, r.origin, r.destination, t.departure_at, t.price,\n    (SELECT COUNT(*) FROM seats s WHERE s.trip_id = t.id AND s.status = 'AVAILABLE') AS available_seats,\n    (SELECT COUNT(*) FROM seats s WHERE s.trip_id = t.id AND s.status = 'AVAILABLE' AND s.is_window = TRUE) AS window_seats\n  FROM trips t\n  JOIN routes r ON r.id = t.route_id\n  WHERE LOWER(r.origin) = LOWER($1)\n    AND LOWER(r.destination) = LOWER($2)\n    AND t.departure_at >= $3::timestamptz\n    AND t.status = 'SCHEDULED'\n  ORDER BY t.departure_at\n) sub\nWHERE sub.available_seats >= $5::int\n  AND tenant_slug = $6\nLIMIT $4::int;\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.origin }},={{ $json.destination }},={{ $json.from_datetime }},={{ $json.limit }},={{ $json.seats_needed }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-next",
+      "name": "DB Next Available",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        1640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json).filter(r => r && r.trip_id);\nconst args = $('Parse NextAvail Args').first().json;\nconst toolCallId = args.toolCallId;\nlet result;\nif (rows.length === 0) {\n  result = `Samahani, kwa sasa hakuna safari ya ${args.origin} kwenda ${args.destination} yenye viti vinavyopatikana baada ya muda uliouliza. Tafadhali jaribu siku nyingine au piga simu kwa msaada zaidi.`;\n} else {\n  const dayNames = ['Jumapili','Jumatatu','Jumanne','Jumatano','Alhamisi','Ijumaa','Jumamosi'];\n  const monthNames = ['Januari','Februari','Machi','Aprili','Mei','Juni','Julai','Agosti','Septemba','Oktoba','Novemba','Desemba'];\n  const lines = rows.map((r, i) => {\n    const d = new Date(r.departure_at);\n    const dayLabel = `${dayNames[d.getDay()]} ${d.getDate()} ${monthNames[d.getMonth()]}`;\n    const hh = String(d.getHours()).padStart(2,'0');\n    const mm = String(d.getMinutes()).padStart(2,'0');\n    return `${i+1}. Trip ID ${r.trip_id} | ${dayLabel} saa ${hh}:${mm} | TZS ${Number(r.price).toLocaleString()} | viti ${r.available_seats} (vya dirishani: ${r.window_seats})`;\n  });\n  const header = rows.length === 1\n    ? `Nimepata safari moja inayofuata yenye viti:\\n`\n    : `Nimepata safari ${rows.length} zinazofuata zenye viti, kwa mpangilio:\\n`;\n  result = header + lines.join('\\n') + '\\n\\nUnataka kuhifadhi safari ipi?';\n}\nreturn [{ json: { results: [{ toolCallId, result }] } }];"
+      },
+      "id": "fmt-next",
+      "name": "Format NextAvail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        1640
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-next",
+      "name": "Respond NextAvail",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        1640
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/hold-next-available",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-holdnext",
+      "name": "WH /hold-next-available",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1860
+      ],
+      "webhookId": "wh-hold-next-available"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug = /* tenancy:patched */ (body.message?.assistantOverrides?.variableValues?.tenant_slug) || (body.message?.variableValues?.tenant_slug) || (body.tenant_slug) || (typeof a==='object' ? a.tenant_slug : null) || (body.message?.toolCalls?.[0]?.function?.tenant_slug) || 'bus-tz-pawa';\n\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nlet args = tc.function?.arguments ?? body.arguments ?? body;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch(e) { args = {}; } }\nif (!args.origin || !args.destination || !args.passenger_name || !args.phone) {\n  throw new Error('Missing required field: origin, destination, passenger_name, phone');\n}\nlet from = args.from_datetime || args.date || null;\nif (from && /^\\d{4}-\\d{2}-\\d{2}$/.test(from)) from = from + 'T00:00:00';\nif (!from) from = new Date().toISOString();\nconst phone = String(args.phone).replace(/\\D/g,'').replace(/^255/, '0');\nconst ref = 'PAWA-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2,8).toUpperCase();\nconst payment_method = (args.payment_method || 'mpesa').toLowerCase();\nconst max_lookahead = Math.min(Math.max(parseInt(args.max_lookahead || 5, 10) || 5, 1), 10);\nreturn [{ json: {tenant_slug: tenantSlug,  toolCallId: tc.id || 'manual', ref, origin: args.origin, destination: args.destination, from_datetime: from, prefer_window: !!args.prefer_window, passenger_name: args.passenger_name, phone, id_type: args.id_type || null, id_number: args.id_number || null, payment_method, max_lookahead } }];"
+      },
+      "id": "parse-holdnext",
+      "name": "Parse HoldNext Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1860
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH candidate_trips AS (\n  SELECT t.id, t.price, t.departure_at\n  FROM trips t\n  JOIN routes r ON r.id = t.route_id\n  WHERE LOWER(r.origin) = LOWER($1)\n    AND LOWER(r.destination) = LOWER($2)\n    AND t.departure_at >= $3::timestamptz\n    AND t.status = 'SCHEDULED'\n  ORDER BY t.departure_at\n  LIMIT $11::int\n),\nlocked_seat AS (\n  SELECT s.id AS seat_id, s.trip_id, ct.price, ct.departure_at, s.seat_number, s.is_window\n  FROM candidate_trips ct\n  JOIN seats s ON s.trip_id = ct.id\n  WHERE s.status = 'AVAILABLE'\n  ORDER BY ct.departure_at, (CASE WHEN $12::boolean THEN s.is_window END) DESC NULLS LAST, s.seat_number\n  FOR UPDATE OF s SKIP LOCKED\n  LIMIT 1\n),\nupd AS (\n  UPDATE seats SET status = 'HELD' WHERE id = (SELECT seat_id FROM locked_seat) RETURNING id\n),\nhold_minutes AS ( SELECT CASE WHEN $10 = 'cash' THEN 30 ELSE 10 END AS m ),\nins AS (\n  INSERT INTO bookings (ref, trip_id, seat_id, passenger_name, phone, id_type, id_number, amount, payment_method, status, hold_expires_at)\n  SELECT $4, ls.trip_id, ls.seat_id, $5, $6, $7, $8, ls.price, $10, 'HELD',\n         NOW() + (SELECT m FROM hold_minutes) * INTERVAL '1 minute'\n  FROM locked_seat ls\n  RETURNING ref, trip_id, seat_id, amount, hold_expires_at, payment_method\n)\nSELECT ins.ref, ins.amount, ins.hold_expires_at, ins.payment_method,\n       ls.trip_id, ls.seat_number, ls.is_window, ls.departure_at,\n       (SELECT origin FROM routes r JOIN trips t ON t.route_id = r.id WHERE t.id = ls.trip_id) AS origin,\n       (SELECT destination FROM routes r JOIN trips t ON t.route_id = r.id WHERE t.id = ls.trip_id) AS destination\nFROM ins, locked_seat ls;\n  AND tenant_slug = $13\n\n-- /* tenancy:patched */",
+        "options": {
+          "queryReplacement": "={{ $json.origin }},={{ $json.destination }},={{ $json.from_datetime }},={{ $json.ref }},={{ $json.passenger_name }},={{ $json.phone }},={{ $json.id_type }},={{ $json.id_number }},={{ $json.passenger_name }},={{ $json.payment_method }},={{ $json.max_lookahead }},={{ $json.prefer_window }},={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db-holdnext",
+      "name": "DB Hold Next",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        680,
+        1860
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_PG_CREDENTIAL_ID",
+          "name": "Postgres BUS TZ PAWA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json).filter(r => r && r.ref);\nconst args = $('Parse HoldNext Args').first().json;\nconst toolCallId = args.toolCallId;\nif (rows.length === 0) {\n  return [{ json: { results: [{ toolCallId, result: `Samahani, hakuna kiti kinachopatikana katika safari ${args.max_lookahead} zinazofuata za ${args.origin} -> ${args.destination}. Tafadhali jaribu siku nyingine.` }] } }];\n}\nconst r = rows[0];\nconst d = new Date(r.departure_at);\nconst dayNames = ['Jumapili','Jumatatu','Jumanne','Jumatano','Alhamisi','Ijumaa','Jumamosi'];\nconst monthNames = ['Januari','Februari','Machi','Aprili','Mei','Juni','Julai','Agosti','Septemba','Oktoba','Novemba','Desemba'];\nconst dayLabel = `${dayNames[d.getDay()]} ${d.getDate()} ${monthNames[d.getMonth()]}`;\nconst hh = String(d.getHours()).padStart(2,'0');\nconst mm = String(d.getMinutes()).padStart(2,'0');\nconst seatType = r.is_window ? 'cha dirishani' : 'cha kawaida';\nconst expiresMins = r.payment_method === 'cash' ? 30 : 10;\nconst result = `Nimekuhifadhia safari inayofuata yenye kiti! Tarehe: ${dayLabel} saa ${hh}:${mm}. Kiti nambari ${r.seat_number} (${seatType}). Bei: TZS ${Number(r.amount).toLocaleString()}. Nambari ya kumbukumbu: ${r.ref}. Una dakika ${expiresMins} kukamilisha malipo.`;\nreturn [{ json: { results: [{ toolCallId, result, booking_ref: r.ref, amount: r.amount, payment_method: r.payment_method, trip_id: r.trip_id, seat_number: r.seat_number, departure_at: r.departure_at }] } }];"
+      },
+      "id": "fmt-holdnext",
+      "name": "Format HoldNext",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        1860
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp-holdnext",
+      "name": "Respond HoldNext",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        1860
+      ]
+    }
+  ],
+  "connections": {
+    "WH /search-trips": {
+      "main": [
+        [
+          {
+            "node": "Parse Search Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Search Args": {
+      "main": [
+        [
+          {
+            "node": "DB Search Trips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Search Trips": {
+      "main": [
+        [
+          {
+            "node": "Format Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Search": {
+      "main": [
+        [
+          {
+            "node": "Respond Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /check-seats": {
+      "main": [
+        [
+          {
+            "node": "Parse Seats Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Seats Args": {
+      "main": [
+        [
+          {
+            "node": "DB Available Seats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Available Seats": {
+      "main": [
+        [
+          {
+            "node": "Format Seats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Seats": {
+      "main": [
+        [
+          {
+            "node": "Respond Seats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /hold-seat": {
+      "main": [
+        [
+          {
+            "node": "Parse Hold Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Hold Args": {
+      "main": [
+        [
+          {
+            "node": "DB Create Hold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Create Hold": {
+      "main": [
+        [
+          {
+            "node": "Format Hold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Hold": {
+      "main": [
+        [
+          {
+            "node": "Respond Hold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /initiate-payment": {
+      "main": [
+        [
+          {
+            "node": "Parse Payment Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Payment Args": {
+      "main": [
+        [
+          {
+            "node": "DB Tag Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Tag Booking": {
+      "main": [
+        [
+          {
+            "node": "Send USSD Push",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send USSD Push": {
+      "main": [
+        [
+          {
+            "node": "Format Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Payment": {
+      "main": [
+        [
+          {
+            "node": "Respond Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /cancel-booking": {
+      "main": [
+        [
+          {
+            "node": "Parse Cancel Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Cancel Args": {
+      "main": [
+        [
+          {
+            "node": "DB Cancel Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Cancel Booking": {
+      "main": [
+        [
+          {
+            "node": "Format Cancel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Cancel": {
+      "main": [
+        [
+          {
+            "node": "Respond Cancel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /nearest-hub": {
+      "main": [
+        [
+          {
+            "node": "Parse Hub Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Hub Args": {
+      "main": [
+        [
+          {
+            "node": "DB Lookup Hub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Lookup Hub": {
+      "main": [
+        [
+          {
+            "node": "Format Hub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Hub": {
+      "main": [
+        [
+          {
+            "node": "Respond Hub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /escalate": {
+      "main": [
+        [
+          {
+            "node": "Parse Escalate Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Escalate Args": {
+      "main": [
+        [
+          {
+            "node": "DB Log Complaint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Log Complaint": {
+      "main": [
+        [
+          {
+            "node": "Notify Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Manager": {
+      "main": [
+        [
+          {
+            "node": "Format Escalate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Escalate": {
+      "main": [
+        [
+          {
+            "node": "Respond Escalate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /find-next-available": {
+      "main": [
+        [
+          {
+            "node": "Parse NextAvail Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse NextAvail Args": {
+      "main": [
+        [
+          {
+            "node": "DB Next Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Next Available": {
+      "main": [
+        [
+          {
+            "node": "Format NextAvail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format NextAvail": {
+      "main": [
+        [
+          {
+            "node": "Respond NextAvail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WH /hold-next-available": {
+      "main": [
+        [
+          {
+            "node": "Parse HoldNext Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse HoldNext Args": {
+      "main": [
+        [
+          {
+            "node": "DB Hold Next",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Hold Next": {
+      "main": [
+        [
+          {
+            "node": "Format HoldNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format HoldNext": {
+      "main": [
+        [
+          {
+            "node": "Respond HoldNext",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

@@ -1,0 +1,156 @@
+{
+  "name": "09 · Inbound Call Handler — Virtual Number",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inbound-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-inbound",
+      "name": "Inbound Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "notes": "Africa's Talking / Twilio posts here when someone dials the virtual number.\n\nAT: set Action URL in your AT Voice number to: YOUR_N8N_BASE/webhook/inbound-call\nTwilio: set Voice URL (POST) to the same endpoint."
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\" language=\"sw-TZ\">Karibu Pawa Bus. Subiri kidogo tunaelekeza simu yako kwa wakala wa AI.</Say>\n  <Say voice=\"alice\" language=\"en-US\">Welcome to Pawa Bus. Please hold while we connect you to the AI booking agent.</Say>\n</Response>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/xml" }
+            ]
+          }
+        }
+      },
+      "id": "respond-hold",
+      "name": "Respond — Hold Music (AT/Twilio XML)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 160],
+      "notes": "Return XML immediately so AT/Twilio doesn't time out while we trigger VAPI."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse caller details from AT or Twilio payload\nconst body = $input.first().json.body || $input.first().json;\n\n// Africa's Talking fields\nconst callerPhone = body.callerNumber || body.From || body.caller || '';\nconst sessionId   = body.sessionId   || body.CallSid || '';\nconst isIncoming  = true;\n\nreturn [{\n  json: {\n    caller_phone: callerPhone,\n    session_id:   sessionId,\n    provider:     body.callerNumber ? 'africas_talking' : 'twilio',\n    received_at:  new Date().toISOString(),\n  }\n}];"
+      },
+      "id": "parse-caller",
+      "name": "Parse Caller Details",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 340]
+    },
+    {
+      "parameters": {
+        "url": "https://kkdpacoiwntrcukgwksh.supabase.co/rest/v1/call_requests",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "phone",          "value": "={{ $json.caller_phone }}" },
+            { "name": "status",         "value": "dialing" },
+            { "name": "at_session_id",  "value": "={{ $json.session_id }}" },
+            { "name": "requested_at",   "value": "={{ $json.received_at }}" }
+          ]
+        }
+      },
+      "id": "log-call",
+      "name": "Log to call_requests",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 340],
+      "notes": "Record the inbound call for audit and ticket subscription."
+    },
+    {
+      "parameters": {
+        "url": "https://api.vapi.ai/call/phone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.VAPI_PRIVATE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phoneNumberId\": \"{{ $env.VAPI_PHONE_NUMBER_ID }}\",\n  \"assistantId\":   \"{{ $env.VAPI_ASSISTANT_ID }}\",\n  \"customer\": {\n    \"number\": \"{{ $('Parse Caller Details').item.json.caller_phone }}\"\n  },\n  \"assistantOverrides\": {\n    \"variableValues\": {\n      \"phone\": \"{{ $('Parse Caller Details').item.json.caller_phone }}\",\n      \"inbound\": true\n    }\n  }\n}"
+      },
+      "id": "trigger-vapi",
+      "name": "Trigger VAPI Outbound to Caller",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 340],
+      "notes": "VAPI calls the customer back immediately so they're connected to the AI agent.\n\nRequired n8n credentials (store as env vars):\n  VAPI_PRIVATE_KEY      — from app.vapi.ai → Account\n  VAPI_PHONE_NUMBER_ID  — from app.vapi.ai → Phone Numbers\n  VAPI_ASSISTANT_ID     — from app.vapi.ai → Assistants\n  SUPABASE_SERVICE_KEY  — Supabase project settings → API"
+    },
+    {
+      "parameters": {
+        "url": "https://kkdpacoiwntrcukgwksh.supabase.co/rest/v1/call_requests?at_session_id=eq.={{ encodeURIComponent($('Parse Caller Details').item.json.session_id) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "status",      "value": "handled" },
+            { "name": "vapi_call_id","value": "={{ $json.id || '' }}" }
+          ]
+        },
+        "requestMethod": "PATCH"
+      },
+      "id": "update-call-status",
+      "name": "Update call_requests status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 340]
+    }
+  ],
+  "connections": {
+    "Inbound Call Webhook": {
+      "main": [
+        [
+          { "node": "Respond — Hold Music (AT/Twilio XML)", "type": "main", "index": 0 },
+          { "node": "Parse Caller Details", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Caller Details": {
+      "main": [[{ "node": "Log to call_requests", "type": "main", "index": 0 }]]
+    },
+    "Log to call_requests": {
+      "main": [[{ "node": "Trigger VAPI Outbound to Caller", "type": "main", "index": 0 }]]
+    },
+    "Trigger VAPI Outbound to Caller": {
+      "main": [[{ "node": "Update call_requests status", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "_meta": {
+    "notes": [
+      "SETUP CHECKLIST:",
+      "1. Africa's Talking: Dashboard → Voice → Phone Numbers → set Action URL = YOUR_N8N_BASE/webhook/inbound-call (POST)",
+      "   Twilio alternative: Phone Numbers → Active Numbers → Voice → A call comes in → Webhook = same URL",
+      "2. n8n env vars to configure:",
+      "   VAPI_PRIVATE_KEY, VAPI_PHONE_NUMBER_ID, VAPI_ASSISTANT_ID, SUPABASE_SERVICE_KEY",
+      "3. config.js: set VIRTUAL_PHONE_NUMBER (the AT/Twilio number), VIRTUAL_PHONE_DISPLAY, SMS_PROVIDER",
+      "4. SMS tickets are sent by the VAPI assistant tools workflow (01_vapi_tools.json) via AT/Twilio credentials"
+    ]
+  }
+}

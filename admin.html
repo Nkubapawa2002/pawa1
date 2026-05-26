@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Admin — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="admin">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title">Admin Panel</h1>
+      <p class="page-subtitle">Pawa Bus Cargo — Authorized access only.</p>
+    </div>
+  </section>
+
+  <main class="container">
+    <!-- Login gate -->
+    <section id="loginGate" class="auth-card" hidden>
+      <h1 class="page-title">Admin Login</h1>
+      <p class="page-subtitle">This area is restricted to authorized administrators.</p>
+      <form id="loginForm" class="form-grid">
+        <label>Email
+          <input type="email" id="loginEmail" required autocomplete="username" />
+        </label>
+        <label>Password
+          <input type="password" id="loginPassword" required autocomplete="current-password" minlength="6" />
+        </label>
+        <button class="btn btn-primary" type="submit">Sign in</button>
+      </form>
+      <p id="loginError" class="banner error" hidden></p>
+      <p style="margin-top:14px;font-size:0.9rem;color:var(--gray)">
+        First time? Use the same authorized email
+        and click <a href="#" id="signupLink">create admin account</a>
+        to set a password.
+      </p>
+    </section>
+
+    <!-- Forbidden -->
+    <section id="forbidden" hidden>
+      <div class="banner error">
+        You are signed in as <strong id="whoami"></strong> but this account is not authorized as an admin.
+      </div>
+      <button id="signOutBtn" class="btn btn-outline">Sign out</button>
+    </section>
+
+    <!-- Admin panel -->
+    <section id="adminPanel" hidden>
+      <div class="admin-header">
+        <div>
+          <h1 class="page-title">Admin Panel</h1>
+          <p class="page-subtitle">Signed in as <strong id="adminEmail"></strong></p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <a href="accounting.html" class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">
+            📊 Finance &amp; Accounting
+          </a>
+          <button id="logoutBtn" class="btn btn-outline btn-sm">Sign out</button>
+        </div>
+      </div>
+
+      <!-- Finance shortcut banner -->
+      <div style="background:linear-gradient(90deg,var(--green-dark),#0e7a56);color:#fff;border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <strong style="font-size:1rem">📊 Finance &amp; Accounting Dashboard</strong>
+          <p style="font-size:0.82rem;opacity:0.85;margin:3px 0 0">
+            View income statements, tax computations, per-bus-company revenue, and the full transaction ledger.
+          </p>
+        </div>
+        <a href="accounting.html" class="btn btn-sm" style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);white-space:nowrap;text-decoration:none">
+          Open Finance Portal →
+        </a>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="shipments">Shipments</button>
+        <button class="tab-btn" data-tab="pending">Approvals <span id="pendingBadge" class="badge"></span></button>
+        <button class="tab-btn" data-tab="applications">Agent applications <span id="appBadge" class="badge"></span></button>
+        <button class="tab-btn" data-tab="agents">Agents</button>
+        <button class="tab-btn" data-tab="routes">Routes</button>
+        <button class="tab-btn" data-tab="manual">Manual Booking</button>
+        <button class="tab-btn" data-tab="collect">Collect Payment</button>
+        <button class="tab-btn" data-tab="cancellations">Trip Cancellations <span id="cancelBadge" class="badge"></span></button>
+      </div>
+
+      <!-- Shipments tab -->
+      <div class="tab-panel" id="tab-shipments">
+        <div class="filter-bar">
+          <input type="text" id="searchInput" placeholder="Search..." />
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="Registered">Registered</option>
+            <option value="Picked Up">Picked Up</option>
+            <option value="In Transit">In Transit</option>
+            <option value="Arrived">Arrived</option>
+            <option value="Delivered">Delivered</option>
+          </select>
+        </div>
+        <div id="shipmentsTable"></div>
+      </div>
+
+      <!-- Pending Approvals tab -->
+      <div class="tab-panel" id="tab-pending" hidden>
+        <div id="pendingList"></div>
+      </div>
+
+      <!-- Applications tab -->
+      <div class="tab-panel" id="tab-applications" hidden>
+        <div id="applicationsList"></div>
+      </div>
+
+      <!-- Agents tab -->
+      <div class="tab-panel" id="tab-agents" hidden>
+        <div id="agentsAdminList"></div>
+      </div>
+
+      <!-- Routes tab -->
+      <div class="tab-panel" id="tab-routes" hidden>
+        <h3>Register a new bus</h3>
+        <p class="hint">Add a bus company to the system so you can assign routes to it.</p>
+        <form id="newBusForm" class="form-grid">
+          <label>Bus name
+            <input type="text" id="newBusName" required placeholder="e.g. Kilimanjaro Express" />
+          </label>
+          <label>Contact phone (cargo)
+            <input type="tel" id="newBusContact" required placeholder="e.g. +255 712 000 000" />
+          </label>
+          <label>Ticket prefix
+            <input type="text" id="newBusPrefix" maxlength="5" autocomplete="off"
+              placeholder="e.g. KILI"
+              style="text-transform:uppercase;letter-spacing:2px;font-family:monospace;font-weight:700" />
+            <span style="font-size:0.78rem;color:var(--gray)">2–5 letters · unique per company · appears on every ticket (e.g. KILI-260508-00001)</span>
+          </label>
+          <label>Bus profile photo
+            <input type="file" id="newBusPhoto" accept="image/*" />
+            <span style="font-size:0.8rem;color:var(--gray)">Optional — will appear on the buses directory</span>
+          </label>
+          <div id="newBusPhotoPreviewWrap" style="display:none;margin-bottom:8px">
+            <img id="newBusPhotoPreview" src="" alt="Preview"
+              style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:2px solid var(--green)" />
+          </div>
+          <button class="btn btn-primary" type="submit">Register bus</button>
+        </form>
+        <p id="newBusMsg" class="banner" hidden></p>
+        <hr style="margin:24px 0;opacity:0.2"/>
+
+        <h3>Add a new route</h3>
+        <p class="hint">A return leg from destination → origin is created automatically.</p>
+        <form id="routeForm" class="form-grid">
+          <label>Bus
+            <select id="routeBus" required></select>
+          </label>
+          <label>From (origin region)
+            <input type="text" id="routeFrom" list="routeRegionList" required
+              placeholder="e.g. Dar es Salaam" autocomplete="off" />
+          </label>
+          <label>To (destination region)
+            <input type="text" id="routeTo" list="routeRegionList" required
+              placeholder="e.g. Mwanza" autocomplete="off" />
+          </label>
+          <datalist id="routeRegionList"></datalist>
+          <label>Departure (forward)
+            <input type="time" id="routeDep" required value="06:00" />
+          </label>
+          <label>Departure (return)
+            <input type="time" id="routeRet" required value="06:00" />
+          </label>
+          <label>Duration hours
+            <input type="number" id="routeDur" min="1" max="48" step="0.5" value="6" required />
+          </label>
+          <button class="btn btn-primary" type="submit">Add route + return leg</button>
+        </form>
+        <p id="routeMsg" class="banner success" hidden></p>
+        <hr style="margin:24px 0;opacity:0.2"/>
+        <h3>Existing routes</h3>
+        <div id="existingRoutes"></div>
+
+        <hr style="margin:24px 0;opacity:0.2"/>
+        <h3>Edit Bus Seat Structure</h3>
+        <p class="hint">Change total seats or rename individual seats for any bus.</p>
+        <div class="form-grid" style="max-width:480px;">
+          <label>Bus
+            <select id="seBus"><option value="">— select bus —</option></select>
+          </label>
+          <div style="display:flex;align-items:flex-end;">
+            <button type="button" class="btn btn-outline" id="seLoadBtn">Load seat editor</button>
+          </div>
+        </div>
+        <div id="seatEditorWrap" hidden style="margin-top:16px;"></div>
+      </div>
+
+      <!-- Manual Booking tab -->
+      <div class="tab-panel" id="tab-manual" hidden>
+        <h3>Manual Booking</h3>
+        <p class="hint">Book a seat on behalf of a customer. SMS ticket is sent to their phone automatically. WhatsApp is optional — used to send bus service images.</p>
+
+        <div class="form-grid" style="max-width:700px;">
+          <label>Bus
+            <select id="mbBus"><option value="">— select bus —</option></select>
+          </label>
+          <label>Route
+            <select id="mbRoute" disabled><option value="">— select route —</option></select>
+          </label>
+          <label>Travel date
+            <input type="date" id="mbDate" />
+          </label>
+          <div style="display:flex;align-items:flex-end;">
+            <button type="button" class="btn btn-outline" id="mbLoadSeats">Load seat map</button>
+          </div>
+        </div>
+
+        <div id="mbSeatSection" hidden style="margin-top:20px;">
+          <h4 style="margin:0 0 10px;">Select a seat</h4>
+          <div id="mbSeatMap" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;max-width:400px;"></div>
+
+          <div class="form-grid" style="max-width:700px;">
+            <label>Passenger name *
+              <input type="text" id="mbName" placeholder="Full name" />
+            </label>
+            <label>Phone (SMS ticket) *
+              <input type="tel" id="mbPhone" placeholder="+255 7XX XXX XXX" />
+            </label>
+            <label>WhatsApp (optional)
+              <input type="tel" id="mbWhatsApp" placeholder="+255 7XX XXX XXX" />
+            </label>
+            <label>Fare (TZS) *
+              <input type="number" id="mbFare" min="0" placeholder="e.g. 25000" />
+            </label>
+            <label>ID / Passport (optional)
+              <input type="text" id="mbIdNo" placeholder="NIDA or passport" />
+            </label>
+          </div>
+
+          <button type="button" class="btn btn-primary" id="mbSubmit" style="margin-top:8px;">
+            Confirm &amp; send SMS ticket
+          </button>
+          <p id="mbMsg" class="banner" hidden style="margin-top:12px;"></p>
+          <div id="mbPostBooking" hidden style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"></div>
+        </div>
+      </div>
+
+      <!-- Collect Payment tab -->
+      <div class="tab-panel" id="tab-collect" hidden>
+        <h3>Collect Payment</h3>
+        <p class="hint">Authorize a payment for any pending booking — cash, mobile money, or bank transfer. The booking is confirmed and an SMS ticket is sent instantly.</p>
+
+        <div style="max-width:680px">
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:4px">
+            <label style="flex:1;min-width:200px;margin:0">
+              <span style="font-size:0.8rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">Ticket Code</span>
+              <input type="text" id="cpAdminCode" placeholder="TK-…" autocomplete="off"
+                     style="text-transform:uppercase;width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;box-sizing:border-box" />
+            </label>
+            <button class="btn btn-outline" id="cpAdminSearchBtn" style="height:40px;padding:0 20px">Search</button>
+          </div>
+          <div id="cpAdminResult" style="margin-top:16px"></div>
+        </div>
+      </div>
+
+      <!-- Trip Cancellations tab -->
+      <div class="tab-panel" id="tab-cancellations" hidden>
+        <h3>Trip Cancellation Requests</h3>
+        <p class="hint">Review and approve or reject cancellation requests submitted by company operators. Approving a request immediately cancels all active bookings for that trip.</p>
+
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+          <select id="cancelStatusFilter" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem">
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="">All</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="cancelRefreshBtn">Refresh</button>
+        </div>
+
+        <div id="cancelRequestsWrap">
+          <div class="empty-state"><div class="es-icon">⏳</div><div>Loading…</div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/seat-canvas-editor.js"></script>
+  <script src="js/admin.js"></script>
+  <script>
+    window.renderNav("admin.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initAdminPage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

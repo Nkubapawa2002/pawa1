@@ -1,0 +1,78 @@
+{
+  "name": "BUS TZ PAWA — 7-Day Retargeting",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 9 * * *" }] }
+      },
+      "id": "cron-rt",
+      "name": "Daily 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH due AS (\n  SELECT b.id, b.passenger_name, b.phone, r.origin, r.destination, t.departure_at\n  FROM bookings b\n  JOIN trips t ON t.id = b.trip_id\n  JOIN routes r ON r.id = t.route_id\n  WHERE b.status = 'COMPLETED'\n    AND b.retarget_sent = FALSE\n    AND t.departure_at::date = (NOW() - INTERVAL '7 day')::date\n),\nupd AS (\n  UPDATE bookings SET retarget_sent = TRUE WHERE id IN (SELECT id FROM due) RETURNING id\n)\nSELECT * FROM due;",
+        "options": {}
+      },
+      "id": "db-rt",
+      "name": "Find Retarget Due",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Postgres BUS TZ PAWA" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst url = $env.WEBSITE_URL || 'https://bustzpawa.co.tz';\nconst phone = $env.SUPPORT_PHONE || '0800 000 000';\nconst promo = $env.RETARGET_OFFER || 'Tuna ofa mpya kwa wateja wetu wa kawaida!';\nreturn items.filter(i => i.json && i.json.passenger_name).map(i => {\n  const r = i.json;\n  const msg = `Habari ${r.passenger_name}! Wiki moja imepita tangu ulisafiri na Bus TZ PAWA kuelekea ${r.destination}. Tunatumaini ulifurahia. ${promo} Piga: ${phone} au tembelea: ${url}. Karibu tena!`;\n  return { json: { phone: r.phone, message: msg } };\n});"
+      },
+      "id": "build-rt",
+      "name": "Build Retarget SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.africastalking.com/version1/messaging",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apiKey", "value": "={{ $env.AT_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" },
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "username", "value": "={{ $env.AT_USERNAME }}" },
+            { "name": "to", "value": "={{ $json.phone.startsWith('+') ? $json.phone : '+255' + $json.phone.replace(/^0/, '') }}" },
+            { "name": "message", "value": "={{ $json.message }}" },
+            { "name": "from", "value": "={{ $env.AT_SENDER_ID }}" }
+          ]
+        },
+        "options": { "ignoreHttpStatusErrors": true, "batching": { "batch": { "batchSize": 1, "batchInterval": 300 } } }
+      },
+      "id": "send-rt",
+      "name": "Send Retarget SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Daily 09:00":        { "main": [[{ "node": "Find Retarget Due", "type": "main", "index": 0 }]] },
+    "Find Retarget Due":  { "main": [[{ "node": "Build Retarget SMS", "type": "main", "index": 0 }]] },
+    "Build Retarget SMS": { "main": [[{ "node": "Send Retarget SMS", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

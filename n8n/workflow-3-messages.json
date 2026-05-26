@@ -1,0 +1,86 @@
+{
+  "name": "Pawa AI — Messages Log",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai/messages",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "33333333-0003-0003-0003-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "pawa-ai-messages"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Messages Log",
+          "mode": "name"
+        },
+        "filtersUI": {},
+        "options": {}
+      },
+      "id": "33333333-0003-0003-0003-000000000002",
+      "name": "Read Messages Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [440, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Tenant slug sent by the dashboard\nconst tenantSlug = $('Webhook').first().json.body?.tenant_slug || '';\n\nconst rows = $input.all().map(i => i.json);\n\nconst filtered = rows.filter(row => {\n  if (!tenantSlug) return true;\n  const slug = (row['tenant_slug'] || row['Tenant Slug'] || row['tenant'] || '').toLowerCase();\n  return !slug || slug === tenantSlug.toLowerCase();\n});\n\nconst result = filtered.slice(-200).reverse().map(row => ({\n  message_id:   row['message_id']   || row['Message ID'] || row['id']          || '',\n  phone_number: row['phone_number'] || row['Phone']      || row['from']        || row['to']      || '—',\n  channel:      (row['channel']     || row['Channel']    || row['type']        || 'sms').toLowerCase(),\n  direction:    (row['direction']   || row['Direction']  || 'inbound').toLowerCase(),\n  content:      row['content']      || row['Content']    || row['message']     || row['body']    || row['text'] || '',\n  ai_reply:     row['ai_reply']     || row['AI Reply']   || row['response']    || row['ai_response'] || '',\n  status:       row['status']       || row['Status']     || 'delivered',\n  sent_at:      row['sent_at']      || row['Sent At']    || row['timestamp']   || row['created_at'] || row['Date'] || '',\n  tenant_slug:  row['tenant_slug']  || row['Tenant Slug']|| tenantSlug\n}));\n\nreturn [{ json: { result } }];"
+      },
+      "id": "33333333-0003-0003-0003-000000000003",
+      "name": "Filter and Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.result }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "33333333-0003-0003-0003-000000000004",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Read Messages Sheet", "type": "main", "index": 0 }]]
+    },
+    "Read Messages Sheet": {
+      "main": [[{ "node": "Filter and Format", "type": "main", "index": 0 }]]
+    },
+    "Filter and Format": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "notes": "Reads the 'Messages Log' sheet (populated by AT SMS/WhatsApp n8n workflows) and returns the 200 most recent messages. Expected columns: message_id, phone_number, channel (sms/whatsapp), direction (inbound/outbound), content, ai_reply, sent_at, tenant_slug."
+  }
+}

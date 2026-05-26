@@ -1,0 +1,48 @@
+{
+  "name": "Pawa Bus Cargo",
+  "short_name": "Pawa",
+  "description": "Tanzania bus seat booking, parcel cargo, and AI agent — all on one phone.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a6f4d",
+  "theme_color": "#0a6f4d",
+  "lang": "sw",
+  "dir": "ltr",
+  "categories": ["travel", "business"],
+  "icons": [
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Book seat fast",
+      "short_name": "Book",
+      "url": "./book-fast.html",
+      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Send a parcel",
+      "short_name": "Send",
+      "url": "./send.html",
+      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Talk to PAWA",
+      "short_name": "Chat",
+      "url": "./chat.html",
+      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Track shipment",
+      "short_name": "Track",
+      "url": "./track.html",
+      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}

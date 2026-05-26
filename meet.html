@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Meet & Locate — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
+  <style>
+    /* Bolt/Uber-style live map markers */
+    .pawa-pulse-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 3px solid; opacity: .45;
+      animation: pawa-pulse 2s ease-out infinite;
+    }
+    .pawa-me-dot {
+      position: absolute; inset: 8px; border-radius: 50%;
+      border: 3px solid white; display: flex; align-items: center;
+      justify-content: center; box-shadow: 0 2px 12px rgba(0,0,0,.35);
+    }
+    .pawa-peer-dot {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid white; display: flex; align-items: center;
+      justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,.3);
+    }
+    .pawa-arrow {
+      position: absolute; top: -12px; left: 50%;
+      transform: translateX(-50%); font-size: 13px; line-height: 1;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.4));
+    }
+    .pawa-name-tag {
+      position: absolute; bottom: -18px; left: 50%;
+      transform: translateX(-50%);
+      color: white; font-size: 9px; font-weight: 700;
+      padding: 2px 6px; border-radius: 8px; white-space: nowrap;
+      max-width: 70px; overflow: hidden; text-overflow: ellipsis;
+      box-shadow: 0 1px 4px rgba(0,0,0,.25); pointer-events: none;
+    }
+    @keyframes pawa-pulse {
+      0%   { transform: scale(1);   opacity: .5; }
+      70%  { transform: scale(2.1); opacity: 0; }
+      100% { transform: scale(2.1); opacity: 0; }
+    }
+    /* Road route line */
+    .pawa-route { stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ---- Room chat ---- */
+    .meet-chat-card { display:flex; flex-direction:column; }
+    .chat-messages { height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding:4px 0; scroll-behavior:smooth; }
+    .chat-bubble { max-width:82%; padding:6px 10px; border-radius:12px; font-size:.82rem; line-height:1.4; word-break:break-word; }
+    .chat-bubble.mine { align-self:flex-end; background:#0a6f4d; color:white; border-bottom-right-radius:3px; }
+    .chat-bubble.theirs { align-self:flex-start; background:#f1f5f9; color:#111; border-bottom-left-radius:3px; }
+    .chat-bubble-name { font-size:.67rem; font-weight:700; margin-bottom:2px; opacity:.75; }
+    .chat-bubble-time { font-size:.63rem; opacity:.55; margin-top:2px; text-align:right; }
+    .chat-empty { font-size:.78rem; color:#9ca3af; text-align:center; padding:16px 0; margin:0; }
+    .chat-input-row { display:flex; gap:6px; margin-top:8px; align-items:center; }
+    .chat-input { flex:1; min-width:0; border:1.5px solid #e5e7eb; border-radius:20px; padding:7px 12px; font-size:.84rem; font-family:inherit; outline:none; }
+    .chat-input:focus { border-color:#0a6f4d; }
+    .chat-send-btn { flex-shrink:0; width:34px; height:34px; border-radius:50%; background:#0a6f4d; color:white; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .chat-send-btn:active { opacity:.75; }
+    .chat-unread-badge { background:#ef4444; color:white; border-radius:999px; font-size:.65rem; font-weight:700; padding:0 5px; vertical-align:middle; margin-left:4px; }
+    .side-pull { position:relative; }
+    #sideUnreadDot { position:absolute; top:3px; right:10px; width:9px; height:9px; background:#ef4444; border-radius:50%; border:2px solid white; }
+
+    /* Street address in popups */
+    .peer-street { font-size: .75rem; color: #555; margin: 3px 0; }
+
+    /* Back button in topbar */
+    .map-back-btn {
+      flex-shrink: 0;
+      width: 36px; height: 36px; border-radius: 50%;
+      border: none; background: #f3f4f6;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #111;
+    }
+    .map-back-btn:active { background: #e5e7eb; }
+
+    /* ---- Map overlay cards (weather + roster) ---- */
+    .map-card-weather {
+      position: absolute; top: 12px; left: 12px; z-index: 12;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-radius: 14px; padding: 8px 12px;
+      display: flex; align-items: center; gap: 9px;
+      box-shadow: 0 2px 14px rgba(0,0,0,.14);
+      pointer-events: none; max-width: 170px;
+    }
+    .map-card-weather > span:first-child { font-size: 1.4rem; line-height: 1; }
+    .map-weather-temp { font-weight: 700; font-size: .95rem; color: #111; line-height: 1.2; }
+    .map-weather-city { font-size: .75rem; font-weight: 600; color: #444; margin-top: 1px; }
+    .map-weather-desc { font-size: .68rem; color: #888; margin-top: 1px; }
+
+    .map-card-roster {
+      position: absolute; top: 12px; right: 12px; z-index: 12;
+      display: flex; flex-direction: column; gap: 6px;
+      max-width: 175px;
+    }
+    .map-roster-chip {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-radius: 12px; padding: 7px 10px;
+      display: flex; align-items: center; gap: 7px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.13);
+      border-left: 3px solid var(--chip-color, #6b7280);
+      cursor: pointer;
+    }
+    .map-roster-chip:active { opacity: .75; }
+    .chip-emoji { font-size: .95rem; line-height: 1; }
+    .chip-name  { font-weight: 600; font-size: .78rem; color: #111; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip-dist  { font-size: .7rem; color: #666; white-space: nowrap; }
+  </style>
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-bg style="--page-bg:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')" data-page="meet">
+  <div id="nav-slot"></div>
+
+  <main class="container meet-container">
+
+    <!-- Hero -->
+    <div class="fast-hero-card">
+      <span class="fast-hero-badge">★ NEW · LIVE GPS</span>
+      <h1 data-i18n="meet_title">Meet &amp; Locate</h1>
+      <p data-i18n="meet_sub">Share your live location with your sender, receiver, or bus driver. See each other on a real-time map of Tanzania — like Uber, but for parcel handoffs.</p>
+    </div>
+
+    <!-- Lobby (create or join a room) -->
+    <div id="meetLobby" class="card meet-lobby">
+      <div class="meet-lobby-grid">
+
+        <div class="meet-lobby-card">
+          <div class="ml-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
+          <h3 data-i18n="meet_create_title">Start a meet-up</h3>
+          <p class="muted" data-i18n="meet_create_sub">Create a room and share the 6-character code with the other person.</p>
+          <label class="meet-label">
+            <span data-i18n="meet_your_name">Your name</span>
+            <input id="createName" type="text" placeholder="e.g. Asha" />
+          </label>
+          <label class="meet-label">
+            <span data-i18n="meet_your_role">Your role</span>
+            <select id="createRole">
+              <option value="sender" data-i18n="meet_role_sender">Sender</option>
+              <option value="receiver" data-i18n="meet_role_receiver">Receiver</option>
+              <option value="driver" data-i18n="meet_role_driver">Driver</option>
+              <option value="agent" data-i18n="meet_role_agent">Agent</option>
+              <option value="guest" data-i18n="meet_role_guest" selected>Other</option>
+            </select>
+          </label>
+          <label class="meet-label">
+            <span data-i18n="meet_purpose">Purpose</span>
+            <select id="createPurpose">
+              <option value="meet" data-i18n="meet_purpose_meet" selected>Meeting up</option>
+              <option value="delivery" data-i18n="meet_purpose_delivery">Delivering a parcel</option>
+              <option value="pickup" data-i18n="meet_purpose_pickup">Picking up a parcel</option>
+              <option value="handoff" data-i18n="meet_purpose_handoff">Handoff at terminal</option>
+            </select>
+          </label>
+          <label class="meet-label">
+            <span data-i18n="meet_optional_tracking">Tracking code (optional)</span>
+            <input id="createTracking" type="text" placeholder="TZ-DAR-MWZ-..." />
+          </label>
+          <button id="createRoomBtn" class="btn btn-primary btn-block" data-i18n="meet_create_btn">Create room</button>
+        </div>
+
+        <div class="meet-lobby-card">
+          <div class="ml-icon" style="background:var(--gold);color:var(--green-dark)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <h3 data-i18n="meet_join_title">Join an existing room</h3>
+          <p class="muted" data-i18n="meet_join_sub">Got a 6-character code from someone? Type it here.</p>
+          <label class="meet-label">
+            <span data-i18n="meet_your_name">Your name</span>
+            <input id="joinName" type="text" placeholder="e.g. Juma" />
+          </label>
+          <label class="meet-label">
+            <span data-i18n="meet_room_code">Room code</span>
+            <input id="joinCode" type="text" maxlength="8" placeholder="ABC123" style="text-transform:uppercase;font-family:var(--font-mono);letter-spacing:3px;font-size:1.1rem;text-align:center" />
+          </label>
+          <label class="meet-label">
+            <span data-i18n="meet_your_role">Your role</span>
+            <select id="joinRole">
+              <option value="sender" data-i18n="meet_role_sender">Sender</option>
+              <option value="receiver" data-i18n="meet_role_receiver">Receiver</option>
+              <option value="driver" data-i18n="meet_role_driver">Driver</option>
+              <option value="agent" data-i18n="meet_role_agent">Agent</option>
+              <option value="guest" data-i18n="meet_role_guest" selected>Other</option>
+            </select>
+          </label>
+          <button id="joinRoomBtn" class="btn btn-secondary btn-block" data-i18n="meet_join_btn">Join room</button>
+          <div id="joinErr" class="banner error" style="display:none;margin-top:8px"></div>
+        </div>
+
+      </div>
+
+      <div class="meet-features">
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_realtime">Realtime GPS — refreshes every 5 s</span></div>
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_weather">Weather where you and your contact stand</span></div>
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_eta">Distance &amp; ETA between everyone in the room</span></div>
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_secure">Code-protected — only people you share the code with can see you</span></div>
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_battery">Auto-stops if your battery is low</span></div>
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_navigate">One-tap navigation in Google Maps</span></div>
+      </div>
+    </div>
+
+    <!-- Active room (map + roster) -->
+    <div id="meetRoom" hidden>
+      <div class="meet-topbar">
+        <button id="backRoomBtn" class="map-back-btn" title="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="meet-room-info">
+          <div class="meet-room-code">
+            <strong id="roomCodeDisplay">—</strong>
+            <button id="copyCodeBtn" class="btn btn-outline btn-xs" data-i18n="action_copy">Copy</button>
+            <button id="shareCodeBtn" class="btn btn-outline btn-xs" data-i18n="meet_share">Share</button>
+          </div>
+          <div class="meet-room-meta">
+            <span id="roomPurpose">—</span> · <span id="roomMembers">0</span> <span data-i18n="meet_members">people</span>
+          </div>
+        </div>
+        <div class="meet-room-actions">
+          <button id="recenterBtn" class="btn btn-outline btn-sm" data-i18n="meet_recenter">Recenter on me</button>
+          <button id="leaveRoomBtn" class="btn btn-danger btn-sm" data-i18n="meet_leave">Leave</button>
+        </div>
+      </div>
+
+      <div class="meet-stage">
+        <div id="map" class="meet-map"></div>
+
+        <!-- Floating map control stack (right side) -->
+        <div class="map-fab-stack">
+          <button class="map-fab" id="fabFitAll" title="Show everyone in the room">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg>
+          </button>
+          <button class="map-fab" id="fabStyle" title="Change map style">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          </button>
+          <button class="map-fab map-fab-recenter" id="mapRecenterBtn" title="Recenter on me">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          </button>
+        </div>
+
+        <!-- Live trip stats widget (bottom-left) -->
+        <div class="map-trip-card" id="mapTripCard" hidden>
+          <div class="trip-row">
+            <div class="trip-stat">
+              <div class="trip-stat-val" id="tripSpeed">0</div>
+              <div class="trip-stat-lbl">km/h</div>
+            </div>
+            <div class="trip-divider"></div>
+            <div class="trip-stat">
+              <div class="trip-stat-val" id="tripDist">0.0</div>
+              <div class="trip-stat-lbl">km traveled</div>
+            </div>
+            <div class="trip-divider" id="tripEtaDivider" hidden></div>
+            <div class="trip-stat" id="tripEtaWrap" hidden>
+              <div class="trip-stat-val" id="tripEta">—</div>
+              <div class="trip-stat-lbl" id="tripEtaLbl">to nearest</div>
+            </div>
+          </div>
+          <div class="trip-follow-row" id="tripFollowRow" hidden>
+            <span class="trip-follow-dot"></span>
+            <span class="trip-follow-text">Following <strong id="followingName">—</strong></span>
+            <button class="trip-follow-stop" id="stopFollowBtn">✕</button>
+          </div>
+        </div>
+
+        <!-- Arrival toast (slides in when a peer arrives) -->
+        <div class="arrival-toast" id="arrivalToast" hidden>
+          <div class="arrival-toast-icon">🎯</div>
+          <div class="arrival-toast-body">
+            <strong id="arrivalName">Someone</strong> has arrived
+            <small id="arrivalDist">within 50 m</small>
+          </div>
+        </div>
+
+        <!-- Map overlay: weather chip -->
+        <div class="map-card-weather" id="mapWeatherCard" hidden>
+          <span id="mapWeatherIcon">🌤</span>
+          <div>
+            <div id="mapWeatherTemp" class="map-weather-temp">—</div>
+            <div id="mapWeatherCity" class="map-weather-city">—</div>
+            <div id="mapWeatherDesc" class="map-weather-desc">—</div>
+          </div>
+        </div>
+
+        <!-- Map overlay: roster chips (one per person in room) -->
+        <div class="map-card-roster" id="mapRosterCard"></div>
+
+        <aside class="meet-side" id="meetSide">
+          <!-- Drag handle -->
+          <div class="side-pull" id="sidePull"><div class="side-pull-bar"></div><span id="sideUnreadDot" hidden></span></div>
+
+          <!-- Weather card -->
+          <div class="meet-card weather-card">
+            <h4 data-i18n="meet_weather_title">Weather where you are</h4>
+            <div id="weatherBody" class="weather-body">
+              <span class="muted" data-i18n="meet_weather_loading">Locating…</span>
+            </div>
+          </div>
+
+          <!-- Closest person -->
+          <div class="meet-card closest-card" id="closestCard" hidden>
+            <h4 data-i18n="meet_closest_title">Closest to you</h4>
+            <div id="closestBody"></div>
+          </div>
+
+          <!-- Roster -->
+          <div class="meet-card roster-card">
+            <h4 data-i18n="meet_roster_title">Everyone in this room</h4>
+            <ul id="roster" class="roster"></ul>
+          </div>
+
+          <!-- Status broadcast -->
+          <div class="meet-card status-card">
+            <h4 data-i18n="meet_status_title">Tell everyone what you're doing</h4>
+            <div class="status-quick">
+              <button class="quick-status" data-status="meet_status_arrived">I've arrived</button>
+              <button class="quick-status" data-status="meet_status_5min">5 min away</button>
+              <button class="quick-status" data-status="meet_status_10min">10 min away</button>
+              <button class="quick-status" data-status="meet_status_held_up">Slightly held up</button>
+            </div>
+            <input id="customStatus" type="text" data-i18n-placeholder="meet_status_custom_ph" placeholder="Or type a custom message..." />
+          </div>
+
+          <!-- Room Chat -->
+          <div class="meet-card meet-chat-card">
+            <h4>Room Chat <span id="chatUnreadBadge" class="chat-unread-badge" hidden></span></h4>
+            <div id="chatMessages" class="chat-messages">
+              <p class="chat-empty">No messages yet — say hi!</p>
+            </div>
+            <div class="chat-input-row">
+              <input id="chatInput" class="chat-input" type="text" placeholder="Type a message…" maxlength="280" />
+              <button id="chatSendBtn" class="chat-send-btn" title="Send">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+
+        </aside>
+      </div>
+
+    </div>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/tracking-id.js"></script>
+  <script src="js/meet.js"></script>
+  <script>
+    window.renderNav("meet.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initMeetPage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

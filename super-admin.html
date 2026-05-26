@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Super Admin — Pawa SaaS</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .sa-wrap { max-width: 1100px; margin: 32px auto; padding: 0 24px; }
+    .sa-section { background: #fff; border-radius: 14px; padding: 24px; margin-bottom: 24px;
+                  box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+    .sa-section h2 { margin: 0 0 16px; color: #0B6E4F; }
+    .sa-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    .sa-table th, .sa-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; vertical-align: top; }
+    .sa-table th { background: #f6f8f6; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #555; }
+    .sa-status { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+    .sa-status.pending  { background: #fff7d6; color: #7a5a00; }
+    .sa-status.active   { background: #e0f5e7; color: #1a5a30; }
+    .sa-status.suspended{ background: #ffe1d6; color: #802b00; }
+    .sa-status.rejected { background: #ffd6d6; color: #6e1818; }
+    .sa-actions { display: flex; gap: 6px; }
+    .sa-btn { padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; border: none; cursor: pointer; }
+    .sa-btn.approve { background: #0B6E4F; color: #fff; }
+    .sa-btn.reject  { background: #b22222; color: #fff; }
+    .sa-btn.suspend { background: #888; color: #fff; }
+    .sa-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .sa-empty { padding: 18px; text-align: center; color: #888; }
+    .sa-banner { padding: 12px 14px; border-radius: 8px; margin-bottom: 14px; }
+    .sa-banner.err { background: #ffe6e6; color: #8a1a1a; border: 1px solid #f5b3b3; }
+    .sa-banner.ok  { background: #e8f7ee; color: #1a5a30; border: 1px solid #a8d9b8; }
+    .sa-counts { display: flex; gap: 18px; margin-bottom: 18px; }
+    .sa-count { background: #fff; padding: 14px 18px; border-radius: 12px;
+                box-shadow: 0 3px 10px rgba(0,0,0,0.06); flex: 1; }
+    .sa-count .n { font-size: 1.6rem; font-weight: 800; color: #0B6E4F; }
+    .sa-count .l { font-size: 0.85rem; color: #666; text-transform: uppercase; letter-spacing: 0.4px; }
+  </style>
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+</head>
+<body data-page="super-admin">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title">Super Admin</h1>
+      <p class="page-subtitle">Pawa SaaS — tenant approvals &amp; oversight.</p>
+    </div>
+  </section>
+
+  <main class="sa-wrap">
+    <section id="saLoginGate" class="sa-section" hidden>
+      <h2>Sign in</h2>
+      <form id="saLoginForm" class="form-grid">
+        <label>Email <input type="email" id="saEmail" required autocomplete="username" /></label>
+        <label>Password <input type="password" id="saPassword" required minlength="6" autocomplete="current-password" /></label>
+        <button class="btn btn-primary" type="submit">Sign in</button>
+      </form>
+      <p id="saLoginError" class="sa-banner err" hidden></p>
+    </section>
+
+    <section id="saForbidden" class="sa-section" hidden>
+      <div class="sa-banner err">
+        Signed in as <strong id="saWhoami"></strong> but this account is not in <code>ADMIN_EMAILS</code>.
+      </div>
+      <button id="saSignOut" class="btn btn-outline">Sign out</button>
+    </section>
+
+    <section id="saPanel" hidden>
+      <div class="sa-counts">
+        <div class="sa-count"><div class="n" id="cntPending">0</div><div class="l">Pending</div></div>
+        <div class="sa-count"><div class="n" id="cntActive">0</div><div class="l">Active</div></div>
+        <div class="sa-count"><div class="n" id="cntSuspended">0</div><div class="l">Suspended</div></div>
+        <div class="sa-count"><div class="n" id="cntRejected">0</div><div class="l">Rejected</div></div>
+      </div>
+
+      <div id="saStatus"></div>
+
+      <section class="sa-section">
+        <h2>Pending approvals</h2>
+        <table class="sa-table" id="pendingTable">
+          <thead>
+            <tr>
+              <th>Slug</th><th>Company</th><th>Owner</th><th>Submitted</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="sa-empty" id="pendingEmpty" hidden>No pending applications.</div>
+      </section>
+
+      <section class="sa-section">
+        <h2>All tenants</h2>
+        <table class="sa-table" id="allTable">
+          <thead>
+            <tr>
+              <th>Slug</th><th>Company</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="sa-empty" id="allEmpty" hidden>No tenants yet.</div>
+      </section>
+    </section>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/super-admin.js"></script>
+  <script>
+    window.renderNav && window.renderNav("super-admin.html");
+    window.renderFooter && window.renderFooter();
+    window.initSuperAdmin && window.initSuperAdmin();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>
