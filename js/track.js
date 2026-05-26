@@ -26,10 +26,18 @@ function initShipmentMap(shipment) {
   const center = o && d ? [(o[0]+d[0])/2, (o[1]+d[1])/2] : (o || d);
   _trackMap = L.map(el, { zoomControl: true, scrollWheelZoom: false }).setView(center, 6);
 
-  L.tileLayer(
-    `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${window.APP_CONFIG?.MAPBOX_TOKEN || ""}`,
-    { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" }
-  ).addTo(_trackMap);
+  const _mbToken = window.APP_CONFIG?.MAPBOX_TOKEN || "";
+  if (_mbToken) {
+    L.tileLayer(
+      `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${_mbToken}`,
+      { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" }
+    ).addTo(_trackMap);
+  } else {
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
+    }).addTo(_trackMap);
+  }
 
   const pinIcon = (label, color) => L.divIcon({
     className: "",

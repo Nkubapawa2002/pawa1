@@ -151,10 +151,18 @@ window.initRidePage = () => {
       .setView(TZ_CENTER, 6)
       .setMaxBounds(TZ_BOUNDS);
 
-    L.tileLayer(
-      `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${window.APP_CONFIG?.MAPBOX_TOKEN || ""}`,
-      { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" }
-    ).addTo(map);
+    const _mbToken = window.APP_CONFIG?.MAPBOX_TOKEN || "";
+    if (_mbToken) {
+      L.tileLayer(
+        `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${_mbToken}`,
+        { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" }
+      ).addTo(map);
+    } else {
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
+      }).addTo(map);
+    }
 
     // Major Tanzania cities for context at low zoom — bright against satellite
     TZ_CITIES.forEach(c => {

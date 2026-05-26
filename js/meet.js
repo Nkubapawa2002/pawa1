@@ -307,23 +307,43 @@ window.initMeetPage = () => {
   // ====================================================================
   function initMap() {
     const _mbToken = window.APP_CONFIG?.MAPBOX_TOKEN || "";
+    // Use Mapbox satellite when a token is set; fall back to free OSM raster tiles
+    // when it isn't, so the map still renders on deployments without a Mapbox key.
+    const style = _mbToken
+      ? {
+          version: 8,
+          glyphs: `https://api.mapbox.com/fonts/v1/mapbox/{fontstack}/{range}.pbf?access_token=${_mbToken}`,
+          sprite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/sprite?access_token=${_mbToken}`,
+          sources: {
+            satellite: {
+              type: "raster",
+              tiles: [`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${_mbToken}`],
+              tileSize: 512,
+              attribution: "© <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> © <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+            }
+          },
+          layers: [{ id: "satellite", type: "raster", source: "satellite" }]
+        }
+      : {
+          version: 8,
+          sources: {
+            osm: {
+              type: "raster",
+              tiles: [
+                "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              ],
+              tileSize: 256,
+              maxzoom: 19,
+              attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
+            }
+          },
+          layers: [{ id: "osm", type: "raster", source: "osm" }]
+        };
     map = new maplibregl.Map({
       container: "map",
-      style: {
-        version: 8,
-        glyphs: `https://api.mapbox.com/fonts/v1/mapbox/{fontstack}/{range}.pbf?access_token=${_mbToken}`,
-        sprite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/sprite?access_token=${_mbToken}`,
-        sources: {
-          satellite: {
-            type: "raster",
-            // Mapbox satellite-streets-v12: real satellite imagery + road/city labels baked in
-            tiles: [`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${_mbToken}`],
-            tileSize: 512,
-            attribution: "© <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> © <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
-          }
-        },
-        layers: [{ id: "satellite", type: "raster", source: "satellite" }]
-      },
+      style,
       center: [TANZANIA_CENTER[1], TANZANIA_CENTER[0]], // MapLibre: [lng, lat]
       zoom: 6,
       maxBounds: [[29.34, -11.75], [40.45, -0.99]],
