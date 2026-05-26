@@ -99,14 +99,17 @@ input, select, textarea {
 .pawa-fab:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 
 @media (max-width: 700px) {
-  /* Move chat FAB to left side, well above the bottom nav so it never blocks tabs */
+  /* Chat FAB pinned to the bottom-right corner just above the bottom nav.
+     Previously sat ~154px up which floated over the middle of map pages
+     (meet / ride / track) and blocked tiles. */
   .pawa-fab {
-    left: calc(16px + var(--safe-left));
-    right: auto;
-    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 90px);
+    right: calc(16px + var(--safe-right));
+    left: auto;
+    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 16px);
   }
 
-  /* Move voice call widget above the bottom nav, also left side */
+  /* Voice call widget stays on the left at the same height — they don't
+     collide because they're on opposite sides. */
   .pawa-call-widget {
     left: calc(16px + var(--safe-left));
     right: auto;
@@ -116,6 +119,14 @@ input, select, textarea {
   .pcw-panel {
     left: 0;
     right: auto;
+  }
+
+  /* On map-heavy pages also nudge the FAB a touch farther from the edge
+     so the round button doesn't visually crowd the map controls. */
+  body[data-page="meet"]  .pawa-fab,
+  body[data-page="ride"]  .pawa-fab,
+  body[data-page="track"] .pawa-fab {
+    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 8px);
   }
 }
 
