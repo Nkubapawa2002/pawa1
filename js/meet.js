@@ -333,7 +333,10 @@ window.initMeetPage = () => {
           layers: [{ id: "satellite", type: "raster", source: "satellite" }]
         }
       : {
-          // Free Esri World Imagery satellite tiles — no token required.
+          // Esri World Imagery (satellite) + Esri reference overlays for
+          // roads/transportation and place/country labels — gives a "hybrid"
+          // satellite-with-streets view like Google Maps Hybrid. All free,
+          // no token required.
           version: 8,
           sources: {
             esri: {
@@ -344,9 +347,29 @@ window.initMeetPage = () => {
               tileSize: 256,
               maxzoom: 19,
               attribution: "Tiles © <a href='https://www.esri.com/'>Esri</a>, Maxar, Earthstar Geographics, and the GIS User Community"
+            },
+            esri_transport: {
+              type: "raster",
+              tiles: [
+                "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+              ],
+              tileSize: 256,
+              maxzoom: 19
+            },
+            esri_labels: {
+              type: "raster",
+              tiles: [
+                "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+              ],
+              tileSize: 256,
+              maxzoom: 19
             }
           },
-          layers: [{ id: "esri", type: "raster", source: "esri" }]
+          layers: [
+            { id: "esri",           type: "raster", source: "esri" },
+            { id: "esri_transport", type: "raster", source: "esri_transport" },
+            { id: "esri_labels",    type: "raster", source: "esri_labels" }
+          ]
         };
     map = new maplibregl.Map({
       container: "map",

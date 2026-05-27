@@ -158,13 +158,18 @@ window.initRidePage = () => {
         { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" }
       ).addTo(map);
     } else {
-      // Free Esri World Imagery satellite — no token required.
+      // Free Esri satellite + transport + labels overlay = hybrid view.
       L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        {
-          maxZoom: 19,
-          attribution: "Tiles © Esri, Maxar, Earthstar Geographics"
-        }
+        { maxZoom: 19, attribution: "Tiles © Esri, Maxar, Earthstar Geographics" }
+      ).addTo(map);
+      L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, pane: "overlayPane" }
+      ).addTo(map);
+      L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, pane: "overlayPane" }
       ).addTo(map);
     }
 
