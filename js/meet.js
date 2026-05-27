@@ -320,6 +320,16 @@ window.initMeetPage = () => {
   setTimeout(syncSidePullLabel, 50);
   new MutationObserver(syncSidePullLabel).observe(meetSide || document.body,
     { attributes: true, attributeFilter: ["class"] });
+
+  // Floating fallback Maximize FAB — opens the side panel even if the
+  // user scrolled past the green bottom bar or the bar got covered.
+  document.getElementById("meetMaximizeFab")?.addEventListener("click", () => {
+    if (!meetSide?.classList.contains("expanded")) {
+      meetSide.classList.add("expanded");
+      syncSidePullLabel();
+      if (map) setTimeout(() => map.resize(), 320);
+    }
+  });
   // Tap on map collapses the drawer
   document.getElementById("map")?.addEventListener("click", () => {
     meetSide?.classList.remove("expanded");

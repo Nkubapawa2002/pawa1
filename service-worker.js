@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v19-2026-05-27-meet-maximize";
+const VERSION = "v20-2026-05-27-meet-maximize-fab";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 

@@ -332,32 +332,83 @@
     }
 
     /* ---- Side-panel handle: a real button users can't miss ----
-       Collapsed state = bright green "▲ Maximize · Chat & info" bar at
+       Collapsed state = bright green "▲ MAXIMIZE · CHAT & INFO" bar at
        the very bottom of the screen (now that the page-level bottom-nav
        is hidden on meet.html). Expanded state = same green bar acting as
-       the panel header with "▼ Minimize". Either way the handle is the
+       the panel header with "▼ MINIMIZE". Either way the handle is the
        primary affordance for toggling the bottom sheet. */
     @media (max-width: 900px) {
       .side-pull {
         background: linear-gradient(180deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33)) !important;
-        padding: 12px 0 14px !important;
+        padding: 14px 0 16px !important;
         border-bottom: none !important;
-        min-height: 52px;
+        min-height: 64px;
+        box-shadow: 0 -4px 18px rgba(0,0,0,.22);
       }
       .side-pull-bar {
-        background: rgba(255,255,255,.55) !important;
-        width: 46px !important; height: 5px !important;
+        background: rgba(255,255,255,.7) !important;
+        width: 54px !important; height: 5px !important;
       }
       .side-pull-label {
         color: #fff !important;
-        font-weight: 700 !important;
-        font-size: .92rem !important;
+        font-weight: 800 !important;
+        font-size: 1rem !important;
         text-transform: uppercase;
-        letter-spacing: .6px;
-        margin-top: 6px !important;
+        letter-spacing: .8px;
+        margin-top: 8px !important;
       }
+      .side-pull-label svg { width: 20px !important; height: 20px !important; }
+
+      /* Pulse the green handle when the panel is COLLAPSED so users see
+         a moving call-to-action at the bottom of the screen. Stops as
+         soon as the panel is expanded. */
+      .meet-side:not(.expanded) .side-pull {
+        animation: pull-pulse 2.2s ease-in-out infinite;
+      }
+      @keyframes pull-pulse {
+        0%, 100% { box-shadow: 0 -4px 18px rgba(0,0,0,.22), 0 0 0 0 rgba(10,111,77,.45); }
+        50%      { box-shadow: 0 -4px 18px rgba(0,0,0,.22), 0 0 0 14px rgba(10,111,77,0); }
+      }
+
       .meet-side.expanded .side-pull {
         position: sticky; top: 0; z-index: 5;
+        animation: none;
+      }
+    }
+
+    /* ---- Fallback floating Maximize FAB ----
+       Round green FAB pinned just above where the trip card sits, only
+       visible when the panel is collapsed. Gives users a second, totally
+       unmissable way to bring the chat back. */
+    .meet-fab-maximize {
+      position: absolute;
+      right: 10px;
+      bottom: 88px;
+      z-index: 13;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+      color: #fff; border: 2px solid #fff;
+      box-shadow: 0 6px 22px rgba(10,111,77,.5);
+      display: none;
+      align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .meet-fab-maximize:active { transform: scale(.94); }
+    .meet-fab-maximize svg { width: 24px; height: 24px; }
+    .meet-fab-maximize::after {
+      content: "Chat";
+      position: absolute; bottom: -18px; left: 50%;
+      transform: translateX(-50%);
+      font-size: .65rem; font-weight: 700; color: var(--c-brand-deep, #064a33);
+      background: #fff; padding: 1px 6px; border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.18);
+    }
+    /* Only show on phones, and only when the side panel is collapsed. */
+    @media (max-width: 900px) {
+      #meetRoom:not([hidden]) .meet-side:not(.expanded) ~ .meet-fab-maximize,
+      #meetRoom:not([hidden]) .meet-fab-maximize.show {
+        display: flex;
       }
     }
 
@@ -662,6 +713,12 @@
           </div>
 
         </aside>
+
+        <!-- Fallback floating Maximize FAB — phone-only, shows only
+             when the side panel is collapsed. -->
+        <button id="meetMaximizeFab" class="meet-fab-maximize" type="button" aria-label="Maximize chat & info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
       </div>
 
     </div>
