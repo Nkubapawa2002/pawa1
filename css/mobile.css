@@ -177,20 +177,30 @@ body[data-page="meet"] .meet-exit-btn > span { display: inline; }
 /* Hide the Exit button on the chat / non-meet pages just in case */
 body:not([data-page="meet"]) .meet-exit-btn { display: none; }
 
-/* Mobile: shrink Exit to an icon-only button in the top-right corner
-   so it doesn't collide with the room code in the topbar. The topbar's
-   own Leave button still handles cleanup-and-leave for active rooms. */
+/* Mobile: Exit pinned to the very top-right corner, sized big enough
+   to tap easily, with maximum z-index so it sits above the room
+   topbar (z:20), the side panel (z:10), and the map. The topbar
+   doesn't extend to the very edge, so this fits next to the Leave
+   button without overlap. */
 @media (max-width: 700px) {
   body[data-page="meet"] .meet-exit-btn {
-    left: auto;
-    right: calc(10px + var(--safe-right, 0px));
-    top: calc(8px + var(--safe-top, 0px));
-    padding: 6px;
-    border-radius: 50%;
-    width: 34px;
-    height: 34px;
+    left: auto !important;
+    right: 8px !important;
+    top: calc(8px + var(--safe-top, 0px)) !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    width: 36px !important;
+    height: 36px !important;
     justify-content: center;
-    z-index: 25; /* above topbar (z:20), below modal scrim */
+    align-items: center;
+    z-index: 9999 !important;
+    background: #c81e1e !important;          /* solid red — impossible to miss */
+    color: #fff !important;
+    border: 2px solid #fff !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+  }
+  body[data-page="meet"] .meet-exit-btn svg {
+    width: 18px !important; height: 18px !important;
   }
   body[data-page="meet"] .meet-exit-btn > span { display: none; }
 }
