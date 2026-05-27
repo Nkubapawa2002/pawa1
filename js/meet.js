@@ -135,6 +135,9 @@ window.initMeetPage = () => {
     lobby.hidden = true;
     roomEl.hidden = false;
     roomCodeDisplay.textContent = room.code;
+    // Mirror the code into the big share card in the side panel.
+    const sideCode = document.getElementById("shareCodeDisplay");
+    if (sideCode) sideCode.textContent = room.code;
     roomPurposeEl.textContent = labelPurpose(room.purpose);
 
     applyMobileLayout();
@@ -250,6 +253,46 @@ window.initMeetPage = () => {
   document.getElementById("mapRecenterBtn")?.addEventListener("click", () => {
     if (lastFix && map) map.easeTo({ center: [lastFix.lng, lastFix.lat], zoom: 15, animate: true });
   });
+
+  // Fit-all: zoom out so every roster member (me + peers) is visible.
+  document.getElementById("fabFitAll")?.addEventListener("click", () => {
+    if (!map) return;
+    const pts = [];
+    if (lastFix) pts.push([lastFix.lng, lastFix.lat]);
+    for (const p of peers.values()) pts.push([p.data.lng, p.data.lat]);
+    if (pts.length < 2) {
+      if (pts.length === 1) map.easeTo({ center: pts[0], zoom: 14 });
+      return;
+    }
+    const lngs = pts.map(p => p[0]), lats = pts.map(p => p[1]);
+    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+                  { padding: 80, maxZoom: 16, duration: 600 });
+  });
+
+  // Style toggle: cycle between satellite (default) and a clean street view
+  // so users on a busy map can switch to higher legibility when navigating.
+  let _styleMode = "satellite";
+  document.getElementById("fabStyle")?.addEventListener("click", () => {
+    if (!map) return;
+    _styleMode = _styleMode === "satellite" ? "streets" : "satellite";
+    if (_styleMode === "streets") {
+      map.setStyle({
+        version: 8,
+        sources: {
+          osm: { type: "raster", tileSize: 256, maxzoom: 19,
+                 tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                 attribution: "© OpenStreetMap contributors" }
+        },
+        layers: [{ id: "osm", type: "raster", source: "osm" }]
+      });
+    } else {
+      // Re-init brings back satellite + overlays + all peer layers.
+      const here = map.getCenter(), z = map.getZoom();
+      map.remove();
+      initMap();
+      map.once("load", () => map.jumpTo({ center: here, zoom: z }));
+    }
+  });
   const sidePull = document.getElementById("sidePull");
   const meetSide = document.getElementById("meetSide");
   sidePull?.addEventListener("click", () => {
@@ -272,6 +315,10 @@ window.initMeetPage = () => {
       setTimeout(() => copyCodeBtn.textContent = window.t("action_copy") || "Copy", 1500);
     });
   });
+  // The big share-card buttons in the side panel just trigger the same
+  // handlers as the small topbar buttons.
+  document.getElementById("copyCodeBig")?.addEventListener("click", () => copyCodeBtn?.click());
+  document.getElementById("shareCodeBig")?.addEventListener("click", () => shareCodeBtn?.click());
   shareCodeBtn?.addEventListener("click", () => {
     if (!activeRoom) return;
     const url  = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}meet.html?code=${activeRoom.code}`;

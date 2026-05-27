@@ -75,39 +75,214 @@
     }
     .map-back-btn:active { background: #e5e7eb; }
 
-    /* ---- Map overlay cards (weather + roster) ---- */
-    .map-card-weather {
-      position: absolute; top: 12px; left: 12px; z-index: 12;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      border-radius: 14px; padding: 8px 12px;
-      display: flex; align-items: center; gap: 9px;
-      box-shadow: 0 2px 14px rgba(0,0,0,.14);
-      pointer-events: none; max-width: 170px;
-    }
-    .map-card-weather > span:first-child { font-size: 1.4rem; line-height: 1; }
-    .map-weather-temp { font-weight: 700; font-size: .95rem; color: #111; line-height: 1.2; }
-    .map-weather-city { font-size: .75rem; font-weight: 600; color: #444; margin-top: 1px; }
-    .map-weather-desc { font-size: .68rem; color: #888; margin-top: 1px; }
+    /* =====================================================================
+       Active-room overlay zones — non-overlapping by design.
+       Z-index ladder (bottom → top):
+         1   map tiles
+         11  trip card  (bottom-left, above side-pull)
+         12  weather chip + roster strip  (just below topbar, left/right)
+         13  FAB stack  (right column, below roster strip)
+         14  arrival toast  (top-center)
+         15  share banner  (under topbar, full width — mobile only)
+         20  topbar
+         9999 fixed exit ✕ button
+       ===================================================================== */
 
+    /* ---- Weather chip (top-left of map, under topbar) ---- */
+    .map-card-weather {
+      position: absolute; top: 10px; left: 10px; z-index: 12;
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-radius: 999px; padding: 6px 12px 6px 10px;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 2px 14px rgba(0,0,0,.14);
+      pointer-events: none; max-width: 180px;
+      border: 1px solid rgba(0,0,0,.05);
+    }
+    .map-card-weather > span:first-child { font-size: 1.25rem; line-height: 1; }
+    .map-weather-temp { font-weight: 700; font-size: .92rem; color: var(--c-text, #1a1915); line-height: 1.1; }
+    .map-weather-city { font-size: .7rem; font-weight: 600; color: var(--c-text-soft, #3f3d36); margin-top: 1px; }
+    .map-weather-desc { font-size: .65rem; color: var(--c-text-muted, #6b6960); margin-top: 1px; }
+
+    /* ---- Roster strip (top-right of map, under topbar) ---- */
     .map-card-roster {
-      position: absolute; top: 12px; right: 12px; z-index: 12;
+      position: absolute; top: 10px; right: 10px; z-index: 12;
       display: flex; flex-direction: column; gap: 6px;
-      max-width: 175px;
+      max-width: 190px; max-height: 40vh; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
     .map-roster-chip {
-      background: rgba(255,255,255,0.92);
+      background: rgba(255,255,255,0.94);
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      border-radius: 12px; padding: 7px 10px;
+      border-radius: 999px; padding: 6px 10px;
       display: flex; align-items: center; gap: 7px;
       box-shadow: 0 2px 10px rgba(0,0,0,.13);
       border-left: 3px solid var(--chip-color, #6b7280);
       cursor: pointer;
+      border-top: 1px solid rgba(0,0,0,.04);
+      border-right: 1px solid rgba(0,0,0,.04);
+      border-bottom: 1px solid rgba(0,0,0,.04);
     }
-    .map-roster-chip:active { opacity: .75; }
+    .map-roster-chip:active { opacity: .75; transform: scale(.97); }
     .chip-emoji { font-size: .95rem; line-height: 1; }
-    .chip-name  { font-weight: 600; font-size: .78rem; color: #111; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chip-dist  { font-size: .7rem; color: #666; white-space: nowrap; }
+    .chip-name  { font-weight: 600; font-size: .78rem; color: var(--c-text, #111); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip-dist  { font-size: .7rem; color: var(--c-text-muted, #666); white-space: nowrap; }
+
+    /* ---- FAB stack (vertical right-column of nav buttons) ---- */
+    .map-fab-stack {
+      position: absolute;
+      right: 10px; top: 50%; transform: translateY(-50%);
+      z-index: 13;
+      display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    .map-fab {
+      pointer-events: auto;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.06);
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      color: var(--c-brand-deep, #064a33);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.18);
+      cursor: pointer;
+      transition: transform .12s ease, background .12s ease;
+    }
+    .map-fab:active { transform: scale(.92); background: var(--c-brand-faint, #f0f7f2); }
+    .map-fab svg { width: 20px; height: 20px; }
+
+    /* ---- Trip stats card (bottom-left, above side-pull) ---- */
+    .map-trip-card {
+      position: absolute;
+      left: 10px; bottom: 70px;
+      z-index: 11;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(0,0,0,.06);
+      border-radius: 14px;
+      padding: 8px 12px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.16);
+      max-width: calc(100% - 80px);
+    }
+    .trip-row { display: flex; align-items: center; gap: 10px; }
+    .trip-stat { display: flex; flex-direction: column; align-items: center; min-width: 48px; }
+    .trip-stat-val {
+      font-weight: 700; font-size: 1.05rem;
+      color: var(--c-brand-deep, #064a33); line-height: 1.1;
+      font-family: var(--c-font-mono, ui-monospace, monospace);
+    }
+    .trip-stat-lbl { font-size: .62rem; color: var(--c-text-muted, #6b6960); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+    .trip-divider { width: 1px; height: 26px; background: var(--c-border, #e7e4dd); }
+    .trip-follow-row {
+      margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-border, #e7e4dd);
+      display: flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--c-text-soft, #3f3d36);
+    }
+    .trip-follow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-success, #0d8050); animation: pawa-pulse 1.6s ease-out infinite; }
+    .trip-follow-stop { margin-left: auto; background: transparent; border: none; cursor: pointer; color: var(--c-text-muted, #6b6960); font-size: .9rem; line-height: 1; padding: 2px 4px; }
+
+    /* ---- Arrival toast (slides in from top-center) ---- */
+    .arrival-toast {
+      position: absolute;
+      top: 10px; left: 50%; transform: translateX(-50%);
+      z-index: 14;
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      border-radius: 14px; padding: 10px 14px;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 8px 24px rgba(10,111,77,.45);
+      max-width: 86%;
+      animation: arrival-slide-in .35s cubic-bezier(.21,.84,.34,1);
+    }
+    .arrival-toast-icon { font-size: 1.5rem; line-height: 1; }
+    .arrival-toast-body { display: flex; flex-direction: column; line-height: 1.25; }
+    .arrival-toast-body small { opacity: .85; font-size: .72rem; }
+    @keyframes arrival-slide-in {
+      from { opacity: 0; transform: translate(-50%, -16px); }
+      to   { opacity: 1; transform: translate(-50%, 0); }
+    }
+
+    /* ---- Big share banner inside side panel ---- */
+    .share-card { background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33)); color: #fff; border: none; }
+    .share-card-label { font-size: .72rem; text-transform: uppercase; letter-spacing: 1px; opacity: .8; margin-bottom: 4px; }
+    .share-card-code {
+      font-family: var(--c-font-mono, ui-monospace, monospace);
+      font-size: 1.8rem; font-weight: 800; letter-spacing: 6px;
+      padding: 8px 12px; background: rgba(255,255,255,.14);
+      border-radius: 10px; text-align: center; margin-bottom: 10px;
+    }
+    .share-card-actions { display: flex; gap: 8px; }
+    .share-card .btn-primary { background: #fff; color: var(--c-brand-deep, #064a33); border: none; }
+    .share-card .btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.5); }
+
+    /* =====================================================================
+       Mobile reorganisation (≤900px — matches the full-screen room layout
+       in styles.css): keep every overlay in its own zone so weather
+       doesn't sit on top of roster, FABs don't sit on top of the exit ✕,
+       and the trip card never collides with the side-pull.
+       ===================================================================== */
+    @media (max-width: 900px) {
+      /* Weather: compact pill in the top-LEFT corner under the topbar */
+      .map-card-weather {
+        top: 8px; left: 8px;
+        padding: 5px 10px 5px 8px;
+        max-width: 130px;
+        gap: 6px;
+      }
+      .map-card-weather > span:first-child { font-size: 1.05rem; }
+      .map-weather-temp { font-size: .82rem; }
+      .map-weather-city { display: none; }   /* save horizontal room */
+      .map-weather-desc { display: none; }
+
+      /* Roster: horizontal scrollable strip running across the top, to the
+         RIGHT of the weather pill. Reserved 138px for weather (130 + 8).
+         Reserved 46px on the right so the FAB stack doesn't collide.     */
+      .map-card-roster {
+        top: 8px;
+        left: 146px;     /* clear weather pill */
+        right: 56px;     /* clear FAB stack column */
+        max-width: none;
+        max-height: none;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+      }
+      .map-card-roster::-webkit-scrollbar { display: none; }
+      .map-roster-chip { flex-shrink: 0; padding: 5px 10px; }
+      .chip-name { max-width: 80px; }
+
+      /* FAB stack: right column starting BELOW the roster strip so the two
+         never overlap. The fixed exit ✕ at the very top-right corner sits
+         above the topbar (z:9999) — FABs start well below that.          */
+      .map-fab-stack {
+        top: 64px;
+        right: 8px;
+        transform: none;
+      }
+      .map-fab { width: 42px; height: 42px; }
+
+      /* Trip card: bottom-left, ALWAYS above the side-pull handle (~52px). */
+      .map-trip-card {
+        left: 8px;
+        bottom: 64px;
+        right: 60px;        /* don't slide under the FAB column */
+        max-width: none;
+        padding: 6px 10px;
+      }
+      .trip-stat-val { font-size: .95rem; }
+      .trip-stat-lbl { font-size: .58rem; }
+
+      /* Arrival toast: sit just under the topbar, above weather/roster. */
+      .arrival-toast { top: 60px; padding: 8px 12px; }
+    }
+
+    /* On very narrow screens hide weather pill text entirely — keep only icon. */
+    @media (max-width: 360px) {
+      .map-card-weather { max-width: 56px; }
+      .map-weather-temp { font-size: .76rem; }
+      .map-card-roster { left: 70px; }
+    }
   </style>
 
     <link rel="manifest" href="manifest.json" />
@@ -323,6 +498,24 @@
               Chat &amp; info
             </span>
             <span id="sideUnreadDot" hidden></span>
+          </div>
+
+          <!-- Big share-the-room card at the top of the panel.
+               Mirrors the small topbar code display but with enough room
+               to actually read and tap on phones. -->
+          <div class="meet-card share-card">
+            <div class="share-card-label">Share this room code</div>
+            <div class="share-card-code" id="shareCodeDisplay">—</div>
+            <div class="share-card-actions">
+              <button id="shareCodeBig"   class="btn btn-primary btn-block">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Share
+              </button>
+              <button id="copyCodeBig"    class="btn btn-outline btn-block">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy
+              </button>
+            </div>
           </div>
 
           <!-- Weather card -->
