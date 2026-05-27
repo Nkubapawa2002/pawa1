@@ -315,8 +315,15 @@
         <div class="map-card-roster" id="mapRosterCard"></div>
 
         <aside class="meet-side" id="meetSide">
-          <!-- Drag handle -->
-          <div class="side-pull" id="sidePull"><div class="side-pull-bar"></div><span id="sideUnreadDot" hidden></span></div>
+          <!-- Drag handle / tap-to-open (mobile only) -->
+          <div class="side-pull" id="sidePull">
+            <div class="side-pull-bar"></div>
+            <span class="side-pull-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Chat &amp; info
+            </span>
+            <span id="sideUnreadDot" hidden></span>
+          </div>
 
           <!-- Weather card -->
           <div class="meet-card weather-card">

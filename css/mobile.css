@@ -143,9 +143,10 @@ body[data-page="meet"] .footer,
 body[data-page="meet"] #footer-slot { display: none !important; }
 
 /* Pill-shaped Exit button — top-left, floats above the map so the user
-   always has a clear way out (the navbar can be hidden on small screens
-   and the chat FAB is removed from meet, so without this you'd be stuck
-   on the page). Only renders on meet.html via body[data-page=meet]. */
+   always has a clear way out. Only renders on meet.html. On phones in
+   the active-room state the existing topbar already has its own Leave
+   button, so we collapse the Exit to a small ✕ icon-only pinned to the
+   top-right corner where it doesn't cover the room code. */
 body[data-page="meet"] .meet-exit-btn {
   position: fixed;
   top: calc(10px + var(--safe-top, 0px));
@@ -172,8 +173,54 @@ body[data-page="meet"] .meet-exit-btn:focus-visible {
   outline: none;
 }
 body[data-page="meet"] .meet-exit-btn svg { display: block; }
+body[data-page="meet"] .meet-exit-btn > span { display: inline; }
 /* Hide the Exit button on the chat / non-meet pages just in case */
 body:not([data-page="meet"]) .meet-exit-btn { display: none; }
+
+/* Mobile: shrink Exit to an icon-only button in the top-right corner
+   so it doesn't collide with the room code in the topbar. The topbar's
+   own Leave button still handles cleanup-and-leave for active rooms. */
+@media (max-width: 700px) {
+  body[data-page="meet"] .meet-exit-btn {
+    left: auto;
+    right: calc(10px + var(--safe-right, 0px));
+    top: calc(8px + var(--safe-top, 0px));
+    padding: 6px;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    justify-content: center;
+    z-index: 25; /* above topbar (z:20), below modal scrim */
+  }
+  body[data-page="meet"] .meet-exit-btn > span { display: none; }
+}
+
+/* Make the bottom-sheet drag handle obviously tappable — the previous
+   thin 4px bar was easy to miss. Adds a "💬 Chat & info" label so the
+   user knows what's behind it. */
+.side-pull-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--green-dark, #0a6f4d);
+  margin-top: 4px;
+}
+.side-pull-label svg { display: block; }
+/* On desktop the side panel is always visible — hide the label there. */
+@media (min-width: 901px) {
+  .side-pull-label { display: none; }
+}
+@media (max-width: 900px) {
+  /* Give the drag handle real height so it's a comfortable tap target */
+  .side-pull {
+    flex-direction: column;
+    padding: 8px 0 10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,1));
+    border-bottom: 1px solid var(--border, #e5e7eb);
+  }
+}
 
 /* ---- Agent sheet (slide-up panel triggered by FAB) ---- */
 .pawa-sheet-backdrop {
