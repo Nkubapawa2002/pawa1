@@ -331,19 +331,33 @@
       .meet-room-code #shareCodeBtn { display: none; }
     }
 
-    /* ---- Expanded side panel: clear "▼ Minimize" affordance ---- */
+    /* ---- Side-panel handle: a real button users can't miss ----
+       Collapsed state = bright green "▲ Maximize · Chat & info" bar at
+       the very bottom of the screen (now that the page-level bottom-nav
+       is hidden on meet.html). Expanded state = same green bar acting as
+       the panel header with "▼ Minimize". Either way the handle is the
+       primary affordance for toggling the bottom sheet. */
     @media (max-width: 900px) {
+      .side-pull {
+        background: linear-gradient(180deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33)) !important;
+        padding: 12px 0 14px !important;
+        border-bottom: none !important;
+        min-height: 52px;
+      }
+      .side-pull-bar {
+        background: rgba(255,255,255,.55) !important;
+        width: 46px !important; height: 5px !important;
+      }
+      .side-pull-label {
+        color: #fff !important;
+        font-weight: 700 !important;
+        font-size: .92rem !important;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        margin-top: 6px !important;
+      }
       .meet-side.expanded .side-pull {
         position: sticky; top: 0; z-index: 5;
-        background: linear-gradient(180deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
-        padding: 10px 0 12px;
-      }
-      .meet-side.expanded .side-pull-bar {
-        background: rgba(255,255,255,.6);
-      }
-      .meet-side.expanded .side-pull-label {
-        color: #fff;
-        font-weight: 700;
       }
     }
 

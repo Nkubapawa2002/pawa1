@@ -142,6 +142,14 @@ body[data-page="meet"] .pawa-fab { display: none; }
 body[data-page="meet"] .footer,
 body[data-page="meet"] #footer-slot { display: none !important; }
 
+/* The mobile bottom-nav (z:950) was covering the collapsed side-panel
+   handle (~52 px at the bottom of #meetRoom). Hide it on meet.html —
+   the prominent Exit ✕ button already gives users a clear way back to
+   index.html, and we need every pixel of the bottom edge for the
+   "▲ Maximize · Chat & info" tap target. */
+body[data-page="meet"] .bottom-nav { display: none !important; }
+body[data-page="meet"] { padding-bottom: 0 !important; }
+
 /* Pill-shaped Exit button — top-left, floats above the map so the user
    always has a clear way out. Only renders on meet.html. On phones in
    the active-room state the existing topbar already has its own Leave
