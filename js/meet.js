@@ -295,15 +295,16 @@ window.initMeetPage = () => {
   });
   const sidePull = document.getElementById("sidePull");
   const meetSide = document.getElementById("meetSide");
-  // Helper: update the side-pull label so users have a clear affordance
-  // to collapse the expanded panel back to its normal hint.
+  // Helper: update the side-pull label so users have an obvious "Maximize
+  // / Minimize" affordance — chevron-up + "Maximize" when collapsed,
+  // chevron-down + "Minimize" when expanded.
   const syncSidePullLabel = () => {
     const lbl = sidePull?.querySelector(".side-pull-label");
     if (!lbl) return;
     const isExp = meetSide?.classList.contains("expanded");
     lbl.innerHTML = isExp
       ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg> Minimize`
-      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat & info`;
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg> Maximize · Chat & info`;
   };
   sidePull?.addEventListener("click", () => {
     const expanded = meetSide.classList.toggle("expanded");
@@ -355,15 +356,114 @@ window.initMeetPage = () => {
 
   chatSendBtn?.addEventListener("click", () => {
     const text = chatInputEl?.value.trim();
-    if (text && activeRoom) { sendChatMessage(text); chatInputEl.value = ""; }
+    if (text && activeRoom) { sendChatMessage({ text }); chatInputEl.value = ""; }
   });
   chatInputEl?.addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       const text = chatInputEl.value.trim();
-      if (text && activeRoom) { sendChatMessage(text); chatInputEl.value = ""; }
+      if (text && activeRoom) { sendChatMessage({ text }); chatInputEl.value = ""; }
     }
   });
+
+  // ---- Photo attachment ----------------------------------------------------
+  // Resize to max 800 px width, JPEG quality 0.7 → typically 50–150 KB so
+  // it fits comfortably in a Supabase Realtime broadcast payload.
+  const chatPhotoBtn   = document.getElementById("chatPhotoBtn");
+  const chatPhotoInput = document.getElementById("chatPhotoInput");
+  chatPhotoBtn?.addEventListener("click", () => chatPhotoInput?.click());
+  chatPhotoInput?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !activeRoom) return;
+    try {
+      const dataUrl = await compressImage(file, 800, 0.7);
+      sendChatMessage({ photo: dataUrl });
+    } catch (err) {
+      console.warn("photo compress failed", err);
+      alert("Could not attach that photo.");
+    }
+  });
+
+  function compressImage(file, maxW, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width  * ratio);
+        const h = Math.round(img.height * ratio);
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  // ---- Voice notes ---------------------------------------------------------
+  // Tap to start, tap again to stop. Hard cap at 30 s so we never exceed
+  // the realtime payload budget. webm/opus encodes ~6 KB/s so 30 s ≈ 180 KB.
+  const chatVoiceBtn    = document.getElementById("chatVoiceBtn");
+  const chatVoiceStatus = document.getElementById("chatVoiceStatus");
+  const chatVoiceTime   = document.getElementById("chatVoiceTime");
+  let mediaRec = null, recChunks = [], recStartedAt = 0, recTimer = null, recMaxTimer = null;
+
+  const stopRecording = () => {
+    if (mediaRec && mediaRec.state !== "inactive") mediaRec.stop();
+  };
+
+  chatVoiceBtn?.addEventListener("click", async () => {
+    if (mediaRec && mediaRec.state === "recording") { stopRecording(); return; }
+    if (!activeRoom) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("Voice recording isn't supported on this browser.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      mediaRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      recChunks = [];
+      mediaRec.ondataavailable = (ev) => { if (ev.data?.size) recChunks.push(ev.data); };
+      mediaRec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (recTimer)    clearInterval(recTimer);
+        if (recMaxTimer) clearTimeout(recMaxTimer);
+        chatVoiceBtn.classList.remove("recording");
+        chatVoiceStatus.hidden = true;
+        const blob = new Blob(recChunks, { type: mediaRec.mimeType || "audio/webm" });
+        if (blob.size < 1000) return;
+        const dataUrl = await blobToDataUrl(blob);
+        sendChatMessage({ audio: dataUrl, mime: blob.type });
+      };
+      mediaRec.start();
+      recStartedAt = Date.now();
+      chatVoiceBtn.classList.add("recording");
+      chatVoiceStatus.hidden = false;
+      chatVoiceTime.textContent = "0:00";
+      recTimer = setInterval(() => {
+        const s = Math.floor((Date.now() - recStartedAt) / 1000);
+        chatVoiceTime.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+      }, 200);
+      recMaxTimer = setTimeout(stopRecording, 30000);
+    } catch (err) {
+      console.warn("mic permission denied", err);
+      alert("Microphone permission denied.");
+    }
+  });
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
 
   // Auto-join via ?code=XXXX
   const params = new URLSearchParams(location.search);
@@ -888,16 +988,13 @@ window.initMeetPage = () => {
     const roadDurMin = nearPeer?.roadDurMin;
     const displayKm  = roadDistKm ?? bestKm;
     const eta        = roadDurMin ?? etaMinutes(displayKm, nearest.speed_mps);
-    const within     = displayKm < 0.05;
     const distLabel  = roadDistKm != null
       ? (roadDistKm < 1 ? Math.round(roadDistKm*1000)+" m" : roadDistKm.toFixed(2)+" km") + " by road"
       : (bestKm < 1 ? Math.round(bestKm*1000)+" m" : bestKm.toFixed(2)+" km") + " (est)";
     closestBody.innerHTML = `
       <div class="closest-name">${esc(nearest.display_name)} <span class="muted">${labelRole(nearest.role)}</span></div>
-      <div class="closest-distance ${within ? 'arrived' : ''}">
-        ${within ? "🎯 You've met!" : `🛣 ${distLabel} away`}
-      </div>
-      ${!within ? `<div class="muted small">ETA about ${eta} min</div>` : ""}
+      <div class="closest-distance">🛣 ${distLabel} away</div>
+      <div class="muted small">ETA about ${eta} min</div>
       <div class="closest-actions">
         ${nearest.phone ? `<a class="btn btn-outline btn-xs" href="tel:${nearest.phone}">Call</a>` : ""}
         <a class="btn btn-primary btn-xs" target="_blank" rel="noopener"
@@ -939,18 +1036,24 @@ window.initMeetPage = () => {
   }
 
   // ====================================================================
-  //  Room chat (Supabase broadcast — no DB required)
+  //  Room chat (Supabase broadcast — no DB)
+  //  Supports text, photo (data URL), and audio (data URL) messages.
+  //  Nothing is persisted: messages live in-memory in this tab only and
+  //  disappear on refresh, which is intentional.
   // ====================================================================
-  async function sendChatMessage(text) {
-    if (!realtimeCh || !text || !activeRoom) return;
+  async function sendChatMessage(opts) {
+    if (!realtimeCh || !activeRoom || !opts) return;
     const msg = {
       id:     Date.now() + "-" + myUserId.slice(0, 6),
       userId: myUserId,
       name:   myProfile?.name || "Me",
       role:   myProfile?.role || "guest",
-      text:   text.trim(),
       time:   new Date().toISOString()
     };
+    if (opts.text)  { msg.kind = "text";  msg.text  = opts.text.trim(); }
+    if (opts.photo) { msg.kind = "photo"; msg.photo = opts.photo; }
+    if (opts.audio) { msg.kind = "audio"; msg.audio = opts.audio; msg.mime = opts.mime || "audio/webm"; }
+    if (!msg.kind) return;
     chatMessages.push({ ...msg, mine: true });
     renderChatMessages();
     try {
@@ -975,12 +1078,23 @@ window.initMeetPage = () => {
       chatMsgsEl.innerHTML = '<p class="chat-empty">No messages yet — say hi!</p>';
       return;
     }
-    chatMsgsEl.innerHTML = chatMessages.map(m => `
-      <div class="chat-bubble ${m.mine ? "mine" : "theirs"}">
-        ${!m.mine ? `<div class="chat-bubble-name">${esc(m.name || "—")} <span style="font-weight:400;opacity:.7">${labelRole(m.role)}</span></div>` : ""}
-        ${esc(m.text)}
+    chatMsgsEl.innerHTML = chatMessages.map(m => {
+      const head = !m.mine
+        ? `<div class="chat-bubble-name">${esc(m.name || "—")} <span style="font-weight:400;opacity:.7">${labelRole(m.role)}</span></div>`
+        : "";
+      let body = "";
+      if (m.kind === "photo" && m.photo) {
+        body = `<img class="chat-photo" src="${m.photo}" alt="photo" onclick="window.open(this.src,'_blank')">`;
+      } else if (m.kind === "audio" && m.audio) {
+        body = `<audio class="chat-audio" controls preload="metadata" src="${m.audio}"></audio>`;
+      } else {
+        body = esc(m.text || "");
+      }
+      return `<div class="chat-bubble ${m.mine ? "mine" : "theirs"}">
+        ${head}${body}
         <div class="chat-bubble-time">${chatTime(m.time)}</div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
     chatMsgsEl.scrollTop = chatMsgsEl.scrollHeight;
   }
 
