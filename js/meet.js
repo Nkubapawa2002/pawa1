@@ -333,21 +333,20 @@ window.initMeetPage = () => {
           layers: [{ id: "satellite", type: "raster", source: "satellite" }]
         }
       : {
+          // Free Esri World Imagery satellite tiles — no token required.
           version: 8,
           sources: {
-            osm: {
+            esri: {
               type: "raster",
               tiles: [
-                "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               ],
               tileSize: 256,
               maxzoom: 19,
-              attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
+              attribution: "Tiles © <a href='https://www.esri.com/'>Esri</a>, Maxar, Earthstar Geographics, and the GIS User Community"
             }
           },
-          layers: [{ id: "osm", type: "raster", source: "osm" }]
+          layers: [{ id: "esri", type: "raster", source: "esri" }]
         };
     map = new maplibregl.Map({
       container: "map",

@@ -33,10 +33,14 @@ function initShipmentMap(shipment) {
       { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" }
     ).addTo(_trackMap);
   } else {
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
-    }).addTo(_trackMap);
+    // Free Esri World Imagery satellite — no token required.
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {
+        maxZoom: 19,
+        attribution: "Tiles © Esri, Maxar, Earthstar Geographics"
+      }
+    ).addTo(_trackMap);
   }
 
   const pinIcon = (label, color) => L.divIcon({
