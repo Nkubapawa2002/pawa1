@@ -295,8 +295,19 @@ window.initMeetPage = () => {
   });
   const sidePull = document.getElementById("sidePull");
   const meetSide = document.getElementById("meetSide");
+  // Helper: update the side-pull label so users have a clear affordance
+  // to collapse the expanded panel back to its normal hint.
+  const syncSidePullLabel = () => {
+    const lbl = sidePull?.querySelector(".side-pull-label");
+    if (!lbl) return;
+    const isExp = meetSide?.classList.contains("expanded");
+    lbl.innerHTML = isExp
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg> Minimize`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat & info`;
+  };
   sidePull?.addEventListener("click", () => {
     const expanded = meetSide.classList.toggle("expanded");
+    syncSidePullLabel();
     if (expanded && map) setTimeout(() => map.resize(), 320);
     if (expanded) {
       chatUnread = 0;
@@ -304,6 +315,10 @@ window.initMeetPage = () => {
       if (sideUnreadDot) sideUnreadDot.hidden = true;
     }
   });
+  // Initial label + react to auto-expand on room entry
+  setTimeout(syncSidePullLabel, 50);
+  new MutationObserver(syncSidePullLabel).observe(meetSide || document.body,
+    { attributes: true, attributeFilter: ["class"] });
   // Tap on map collapses the drawer
   document.getElementById("map")?.addEventListener("click", () => {
     meetSide?.classList.remove("expanded");
@@ -410,12 +425,33 @@ window.initMeetPage = () => {
               ],
               tileSize: 256,
               maxzoom: 19
+            },
+            // Carto Voyager labels-only — adds street names + POIs on top of
+            // the Esri satellite imagery so users can read street labels
+            // when zoomed into a neighbourhood (Esri's transport/places
+            // layers alone don't show street names).
+            carto_streets: {
+              type: "raster",
+              tiles: [
+                "https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
+                "https://b.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
+                "https://c.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
+                "https://d.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png"
+              ],
+              tileSize: 256,
+              maxzoom: 19,
+              attribution: "© <a href='https://carto.com/attributions'>CARTO</a> © OpenStreetMap contributors"
             }
           },
           layers: [
             { id: "esri",           type: "raster", source: "esri" },
             { id: "esri_transport", type: "raster", source: "esri_transport" },
-            { id: "esri_labels",    type: "raster", source: "esri_labels" }
+            { id: "esri_labels",    type: "raster", source: "esri_labels" },
+            // Show street labels from zoom 12 upward (city/neighbourhood
+            // level) — at lower zooms the Esri labels are enough and
+            // overlaying both gets cluttered.
+            { id: "carto_streets",  type: "raster", source: "carto_streets",
+              minzoom: 12 }
           ]
         };
     map = new maplibregl.Map({
@@ -553,7 +589,7 @@ window.initMeetPage = () => {
       const el = makeMyIconEl(myProfile.role, heading);
       myMarker = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([lng, lat])
-        .setPopup(new maplibregl.Popup({ offset: 28, closeButton: false }).setHTML(myPopupHtml()))
+        .setPopup(new maplibregl.Popup({ offset: 28, closeButton: true, closeOnClick: true, maxWidth: "240px" }).setHTML(myPopupHtml()))
         .addTo(map);
       map.easeTo({ center: [lng, lat], zoom: 15, animate: true });
     } else {
@@ -696,7 +732,7 @@ window.initMeetPage = () => {
       const el = makePeerIconEl(row.role, row.heading, row.display_name);
       const marker = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([row.lng, row.lat])
-        .setPopup(new maplibregl.Popup({ offset: 28, closeButton: false }).setHTML(peerPopupHtml(row)))
+        .setPopup(new maplibregl.Popup({ offset: 28, closeButton: true, closeOnClick: true, maxWidth: "240px" }).setHTML(peerPopupHtml(row)))
         .addTo(map);
       p = { marker, sourceId: null, data: row, lastRoutedFrom: null, lastGeocodedPos: null };
       peers.set(row.user_id, p);

@@ -283,6 +283,63 @@
       .map-weather-temp { font-size: .76rem; }
       .map-card-roster { left: 70px; }
     }
+
+    /* ---- Topbar room-code: make it actually readable on a phone ---- */
+    @media (max-width: 900px) {
+      .meet-room-code strong {
+        font-size: 1rem !important;
+        letter-spacing: 2px !important;
+        padding: 3px 8px !important;
+        background: var(--c-brand-faint, #f0f7f2) !important;
+        color: var(--c-brand-deep, #064a33) !important;
+        border: 1px solid var(--c-brand-soft, #d9ecdf);
+        border-radius: 6px;
+      }
+      /* The big share-card already exposes Copy/Share — hide the redundant
+         tiny copies in the topbar so the code itself gets more room.     */
+      .meet-room-code #copyCodeBtn,
+      .meet-room-code #shareCodeBtn { display: none; }
+    }
+
+    /* ---- Expanded side panel: clear "▼ Minimize" affordance ---- */
+    @media (max-width: 900px) {
+      .meet-side.expanded .side-pull {
+        position: sticky; top: 0; z-index: 5;
+        background: linear-gradient(180deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+        padding: 10px 0 12px;
+      }
+      .meet-side.expanded .side-pull-bar {
+        background: rgba(255,255,255,.6);
+      }
+      .meet-side.expanded .side-pull-label {
+        color: #fff;
+        font-weight: 700;
+      }
+    }
+
+    /* ---- Arrival toast: dismissible + auto-fade ---- */
+    .arrival-toast-close {
+      background: rgba(255,255,255,.18); border: none; color: #fff;
+      width: 26px; height: 26px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; margin-left: 6px; font-size: 1rem; line-height: 1;
+    }
+    .arrival-toast-close:active { background: rgba(255,255,255,.32); }
+
+    /* ---- MapLibre popup close button — make it tappable on phones ---- */
+    .maplibregl-popup-close-button {
+      width: 28px; height: 28px;
+      font-size: 1.4rem; line-height: 1;
+      color: var(--c-text-soft, #3f3d36);
+      background: rgba(255,255,255,.85);
+      border-radius: 50%;
+      margin: 4px;
+    }
+    .maplibregl-popup-close-button:hover,
+    .maplibregl-popup-close-button:active {
+      background: var(--c-danger-soft, #fce4e4);
+      color: var(--c-danger, #b91c1c);
+    }
   </style>
 
     <link rel="manifest" href="manifest.json" />
@@ -474,7 +531,19 @@
             <strong id="arrivalName">Someone</strong> has arrived
             <small id="arrivalDist">within 50 m</small>
           </div>
+          <button class="arrival-toast-close" id="arrivalToastClose" aria-label="Dismiss">&times;</button>
         </div>
+        <script>
+          (function(){
+            var t = document.getElementById("arrivalToast");
+            var c = document.getElementById("arrivalToastClose");
+            if (c && t) c.addEventListener("click", function(){ t.hidden = true; });
+            // Auto-dismiss after 4 s if anything ever opens it.
+            new MutationObserver(function(){
+              if (!t.hidden) setTimeout(function(){ t.hidden = true; }, 4000);
+            }).observe(t, { attributes: true, attributeFilter: ["hidden"] });
+          })();
+        </script>
 
         <!-- Map overlay: weather chip -->
         <div class="map-card-weather" id="mapWeatherCard" hidden>
