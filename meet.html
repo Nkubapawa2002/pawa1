@@ -44,7 +44,7 @@
     /* Road route line */
     .pawa-route { stroke-linecap: round; stroke-linejoin: round; }
 
-    /* ---- Room chat ---- */
+    /* ---- Room chat (desktop defaults — overridden for phones below) ---- */
     .meet-chat-card { display:flex; flex-direction:column; }
     .chat-messages { height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding:4px 0; scroll-behavior:smooth; }
     .chat-bubble { max-width:82%; padding:6px 10px; border-radius:12px; font-size:.82rem; line-height:1.4; word-break:break-word; }
@@ -59,6 +59,24 @@
     .chat-send-btn { flex-shrink:0; width:34px; height:34px; border-radius:50%; background:#0a6f4d; color:white; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; }
     .chat-send-btn:active { opacity:.75; }
     .chat-unread-badge { background:#ef4444; color:white; border-radius:999px; font-size:.65rem; font-weight:700; padding:0 5px; vertical-align:middle; margin-left:4px; }
+
+    /* Phones: chat is the headline feature of the bottom sheet — make it
+       generous so messages are easy to read & the composer is fat-thumb
+       friendly. The composer stays glued to the bottom of the card so
+       you never have to scroll inside the chat to send a message. */
+    @media (max-width: 900px) {
+      .meet-chat-card { padding: 14px 16px 12px; }
+      .meet-chat-card h4 { font-size: 1rem; margin-bottom: 10px; }
+      .chat-messages { height: 280px; gap: 8px; padding: 4px 2px; }
+      .chat-bubble { font-size: .98rem; padding: 9px 13px; max-width: 86%; border-radius: 16px; }
+      .chat-bubble-name { font-size: .74rem; margin-bottom: 3px; }
+      .chat-bubble-time { font-size: .68rem; }
+      .chat-empty { font-size: .9rem; padding: 24px 0; }
+      .chat-input-row { margin-top: 10px; gap: 8px; position: sticky; bottom: 0; background: var(--c-surface, #fff); padding: 6px 0; }
+      .chat-input { padding: 11px 16px; font-size: 16px; border-radius: 24px; }   /* 16px prevents iOS zoom-on-focus */
+      .chat-send-btn { width: 44px; height: 44px; }
+      .chat-send-btn svg { width: 18px; height: 18px; }
+    }
     .side-pull { position:relative; }
     #sideUnreadDot { position:absolute; top:3px; right:10px; width:9px; height:9px; background:#ef4444; border-radius:50%; border:2px solid white; }
 
@@ -82,7 +100,6 @@
          11  trip card  (bottom-left, above side-pull)
          12  weather chip + roster strip  (just below topbar, left/right)
          13  FAB stack  (right column, below roster strip)
-         14  arrival toast  (top-center)
          15  share banner  (under topbar, full width — mobile only)
          20  topbar
          9999 fixed exit ✕ button
@@ -181,26 +198,6 @@
     .trip-follow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-success, #0d8050); animation: pawa-pulse 1.6s ease-out infinite; }
     .trip-follow-stop { margin-left: auto; background: transparent; border: none; cursor: pointer; color: var(--c-text-muted, #6b6960); font-size: .9rem; line-height: 1; padding: 2px 4px; }
 
-    /* ---- Arrival toast (slides in from top-center) ---- */
-    .arrival-toast {
-      position: absolute;
-      top: 10px; left: 50%; transform: translateX(-50%);
-      z-index: 14;
-      background: var(--c-brand, #0a6f4d); color: #fff;
-      border-radius: 14px; padding: 10px 14px;
-      display: flex; align-items: center; gap: 10px;
-      box-shadow: 0 8px 24px rgba(10,111,77,.45);
-      max-width: 86%;
-      animation: arrival-slide-in .35s cubic-bezier(.21,.84,.34,1);
-    }
-    .arrival-toast-icon { font-size: 1.5rem; line-height: 1; }
-    .arrival-toast-body { display: flex; flex-direction: column; line-height: 1.25; }
-    .arrival-toast-body small { opacity: .85; font-size: .72rem; }
-    @keyframes arrival-slide-in {
-      from { opacity: 0; transform: translate(-50%, -16px); }
-      to   { opacity: 1; transform: translate(-50%, 0); }
-    }
-
     /* ---- Big share banner inside side panel ---- */
     .share-card { background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33)); color: #fff; border: none; }
     .share-card-label { font-size: .72rem; text-transform: uppercase; letter-spacing: 1px; opacity: .8; margin-bottom: 4px; }
@@ -273,8 +270,6 @@
       .trip-stat-val { font-size: .95rem; }
       .trip-stat-lbl { font-size: .58rem; }
 
-      /* Arrival toast: sit just under the topbar, above weather/roster. */
-      .arrival-toast { top: 60px; padding: 8px 12px; }
     }
 
     /* On very narrow screens hide weather pill text entirely — keep only icon. */
@@ -316,15 +311,6 @@
         font-weight: 700;
       }
     }
-
-    /* ---- Arrival toast: dismissible + auto-fade ---- */
-    .arrival-toast-close {
-      background: rgba(255,255,255,.18); border: none; color: #fff;
-      width: 26px; height: 26px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; margin-left: 6px; font-size: 1rem; line-height: 1;
-    }
-    .arrival-toast-close:active { background: rgba(255,255,255,.32); }
 
     /* ---- MapLibre popup close button — make it tappable on phones ---- */
     .maplibregl-popup-close-button {
@@ -524,26 +510,6 @@
           </div>
         </div>
 
-        <!-- Arrival toast (slides in when a peer arrives) -->
-        <div class="arrival-toast" id="arrivalToast" hidden>
-          <div class="arrival-toast-icon">🎯</div>
-          <div class="arrival-toast-body">
-            <strong id="arrivalName">Someone</strong> has arrived
-            <small id="arrivalDist">within 50 m</small>
-          </div>
-          <button class="arrival-toast-close" id="arrivalToastClose" aria-label="Dismiss">&times;</button>
-        </div>
-        <script>
-          (function(){
-            var t = document.getElementById("arrivalToast");
-            var c = document.getElementById("arrivalToastClose");
-            if (c && t) c.addEventListener("click", function(){ t.hidden = true; });
-            // Auto-dismiss after 4 s if anything ever opens it.
-            new MutationObserver(function(){
-              if (!t.hidden) setTimeout(function(){ t.hidden = true; }, 4000);
-            }).observe(t, { attributes: true, attributeFilter: ["hidden"] });
-          })();
-        </script>
 
         <!-- Map overlay: weather chip -->
         <div class="map-card-weather" id="mapWeatherCard" hidden>
