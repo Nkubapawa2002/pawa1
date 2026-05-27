@@ -220,6 +220,22 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
     background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,1));
     border-bottom: 1px solid var(--border, #e5e7eb);
   }
+
+  /* Mobile side-panel sizing — match PC parity by keeping it open by
+     default (auto-expanded on room entry in meet.js). When expanded,
+     limit to half the screen so the map is still usable above it.
+     Tapping the handle collapses back to a hint. */
+  body[data-page="meet"] .meet-side {
+    max-height: 55vh;
+  }
+  body[data-page="meet"] .meet-side.expanded {
+    max-height: 55vh;
+  }
+  /* Allow internal scrolling for long chat / roster lists */
+  body[data-page="meet"] .meet-side.expanded {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ---- Agent sheet (slide-up panel triggered by FAB) ---- */

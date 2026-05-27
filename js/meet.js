@@ -144,6 +144,14 @@ window.initMeetPage = () => {
     startGeolocate();
     startWeatherLoop();
 
+    // On phones, the side panel (chat/roster/weather/status) is a bottom
+    // sheet hidden by default. Auto-expand it on room entry so users see
+    // all the same features that PC users see in their persistent side
+    // panel — matching PC parity, not a hidden discovery step.
+    if (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) {
+      document.getElementById("meetSide")?.classList.add("expanded");
+    }
+
     setTimeout(() => map?.resize(), 200);
     setTimeout(() => map?.resize(), 700);
   }
