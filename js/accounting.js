@@ -230,16 +230,56 @@ window.initAccountingPage = async () => {
     }
     loginSetBusy(true);
     try {
-      await window.Auth.signUp(email, pass);
-      showLoginOk('Account created! Now go to Supabase Dashboard → Authentication → Providers → Email → turn OFF "Confirm email", then sign in.');
-    } catch(ex) {
-      const msg = ex.message || '';
-      if (msg.includes('already registered') || msg.includes('already been registered'))
-        showLoginErr('An account with this email already exists — just sign in with your password.');
-      else
-        showLoginErr(msg || 'Sign-up failed.');
+      try {
+        const data = await window.Auth.signUp(email, pass);
+        // Happy path: confirm-email is OFF, Supabase returned a session — we're in.
+        if (data?.session) {
+          sessionStorage.removeItem('fin_offline_session');
+          await gate();
+          return;
+        }
+        // No session returned. Try signing in with the same credentials — succeeds
+        // when the user is auto-confirmed (e.g. confirm-email OFF, or already confirmed
+        // via a magic link in a prior tab). If it fails with "Email not confirmed",
+        // surface the offline bypass so they can work while they fix Supabase.
+        try {
+          await window.Auth.signIn(email, pass);
+          sessionStorage.removeItem('fin_offline_session');
+          await gate();
+          return;
+        } catch (signInErr) {
+          const m = signInErr.message || '';
+          if (m.includes('Email not confirmed')) {
+            showLoginOk('Account created. Email confirmation is still ON in Supabase — disable it in <strong>Authentication → Providers → Email</strong>, then tap <strong>Sign in</strong> above. Or use offline mode below to work right now.');
+            $('offlineBypass').hidden = false;
+          } else {
+            showLoginErr(m || 'Account created, but sign-in failed. Tap <strong>Sign in</strong> above.');
+          }
+        }
+      } catch(ex) {
+        const msg = ex.message || '';
+        if (msg.includes('already registered') || msg.includes('already been registered')) {
+          // They probably hit "Create account" when they meant "Sign in". Try it for them.
+          try {
+            await window.Auth.signIn(email, pass);
+            sessionStorage.removeItem('fin_offline_session');
+            await gate();
+            return;
+          } catch (signInErr) {
+            const m = signInErr.message || '';
+            if (m.includes('Invalid login') || m.includes('invalid_credentials')) {
+              showLoginErr('You already have an account — but that password is wrong. Try again, or reset it from Supabase.');
+            } else {
+              showLoginErr('You already have an account. Tap <strong>Sign in</strong> above with your password.');
+            }
+          }
+        } else {
+          showLoginErr(msg || 'Sign-up failed.');
+        }
+      }
+    } finally {
+      loginSetBusy(false);
     }
-    loginSetBusy(false);
   });
 
   $('offlineAccessBtn')?.addEventListener('click', async()=>{
