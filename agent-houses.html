@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>My Listings — Pawa Houses</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+
+  <style>
+    /* =====================================================================
+       Agent Houses dashboard — sign-in card OR listings + create/edit form.
+       ===================================================================== */
+
+    /* ---- Auth (sign in / sign up) card ---- */
+    .ah-auth-card {
+      max-width: 460px;
+      margin: 24px auto;
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 16px;
+      padding: 28px 24px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.06);
+    }
+    .ah-auth-card h2 { color: var(--c-brand-deep, #064a33); margin-bottom: 4px; }
+    .ah-auth-card .muted { color: var(--c-text-muted, #6b6960); margin-bottom: 18px; font-size: .9rem; }
+    .ah-auth-tabs { display: flex; gap: 4px; background: var(--c-bg-elev, #f4f3ee); padding: 4px; border-radius: 10px; margin-bottom: 18px; }
+    .ah-auth-tabs button { flex: 1; padding: 8px 12px; background: transparent; border: none; border-radius: 7px; font-weight: 600; font-size: .9rem; color: var(--c-text-soft, #3f3d36); cursor: pointer; }
+    .ah-auth-tabs button.active { background: var(--c-surface, #fff); color: var(--c-brand-deep, #064a33); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .ah-form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .ah-form-row label { font-size: .82rem; font-weight: 600; color: var(--c-text-soft, #3f3d36); }
+    .ah-form-row input, .ah-form-row select, .ah-form-row textarea {
+      padding: 10px 12px;
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 8px;
+      font-size: 16px;     /* prevents iOS zoom */
+      font-family: inherit;
+      background: #fff;
+      width: 100%;
+    }
+    .ah-form-row input:focus, .ah-form-row select:focus, .ah-form-row textarea:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .ah-btn-primary {
+      width: 100%; padding: 12px;
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      border: none; border-radius: 10px;
+      font-weight: 700; font-size: 1rem; cursor: pointer;
+    }
+    .ah-btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+    .ah-msg { padding: 10px 12px; border-radius: 8px; font-size: .88rem; margin-top: 8px; }
+    .ah-msg.error   { background: var(--c-danger-soft, #fce4e4); color: var(--c-danger, #b91c1c); }
+    .ah-msg.success { background: var(--c-success-soft, #e1f3e8); color: var(--c-success, #0d8050); }
+
+    /* ---- Toolbar (signed in) ---- */
+    .ah-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; flex-wrap: wrap;
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+    .ah-user { font-size: .9rem; color: var(--c-text-soft, #3f3d36); }
+    .ah-user strong { color: var(--c-brand-deep, #064a33); }
+    .ah-toolbar-actions { display: flex; gap: 8px; }
+    .ah-btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--c-border, #e7e4dd); background: #fff; cursor: pointer; font-weight: 600; font-size: .88rem; display: inline-flex; align-items: center; gap: 6px; }
+    .ah-btn:hover { border-color: var(--c-brand, #0a6f4d); }
+    .ah-btn-brand { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .ah-btn-brand:hover { background: var(--c-brand-deep, #064a33); }
+    .ah-btn-danger { color: var(--c-danger, #b91c1c); border-color: var(--c-danger-soft, #fce4e4); }
+    .ah-btn-danger:hover { background: var(--c-danger-soft, #fce4e4); }
+
+    /* ---- Listings grid (my own properties) ---- */
+    .ah-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .ah-card {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .ah-card-photo {
+      height: 160px;
+      background: #ece9e1 center/cover no-repeat;
+      position: relative;
+    }
+    .ah-card-photo .badge {
+      position: absolute; top: 8px; left: 8px;
+      background: rgba(255,255,255,.92);
+      padding: 3px 9px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: var(--c-brand-deep, #064a33);
+    }
+    .ah-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .ah-card-title { font-weight: 600; color: var(--c-text, #1a1915); font-size: .95rem; line-height: 1.3; }
+    .ah-card-price { font-family: var(--c-font-display, serif); font-size: 1.05rem; font-weight: 700; color: var(--c-brand-deep, #064a33); }
+    .ah-card-meta { font-size: .78rem; color: var(--c-text-muted, #6b6960); }
+    .ah-card-actions { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--c-border, #e7e4dd); }
+    .ah-card-actions .ah-btn { flex: 1; justify-content: center; }
+
+    .ah-empty {
+      text-align: center;
+      padding: 50px 20px;
+      background: var(--c-surface-soft, #fbfaf6);
+      border: 1px dashed var(--c-border, #e7e4dd);
+      border-radius: 12px;
+      color: var(--c-text-muted, #6b6960);
+    }
+    .ah-empty h3 { color: var(--c-text, #1a1915); margin-bottom: 8px; }
+
+    /* ---- Form (create / edit listing) ---- */
+    .ah-form {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      padding: 22px;
+      max-width: 780px;
+      margin: 0 auto;
+    }
+    .ah-form h2 { color: var(--c-brand-deep, #064a33); margin-bottom: 4px; }
+    .ah-form .muted { color: var(--c-text-muted, #6b6960); margin-bottom: 18px; font-size: .9rem; }
+    .ah-form-section { border-top: 1px solid var(--c-border, #e7e4dd); padding-top: 18px; margin-top: 18px; }
+    .ah-form-section:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    .ah-form-section h4 { font-size: .82rem; text-transform: uppercase; letter-spacing: .8px; color: var(--c-brand-deep, #064a33); margin-bottom: 12px; }
+    .ah-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .ah-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 600px) {
+      .ah-grid-2, .ah-grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* Photo upload */
+    .ah-photo-upload {
+      border: 2px dashed var(--c-border-strong, #d6d2c8);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--c-surface-soft, #fbfaf6);
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .ah-photo-upload:hover { border-color: var(--c-brand, #0a6f4d); background: var(--c-brand-faint, #f0f7f2); }
+    .ah-photo-upload.has-photo { padding: 0; border-style: solid; }
+    .ah-photo-preview { width: 100%; max-height: 320px; object-fit: cover; display: block; border-radius: 10px; }
+    .ah-photo-upload svg { color: var(--c-brand, #0a6f4d); margin-bottom: 8px; }
+    .ah-photo-upload p { color: var(--c-text-soft, #3f3d36); font-weight: 600; }
+    .ah-photo-upload small { color: var(--c-text-muted, #6b6960); font-size: .8rem; }
+
+    /* Map pin picker */
+    .ah-pin-picker {
+      position: relative;
+      height: 280px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--c-border, #e7e4dd);
+    }
+    .ah-pin-controls {
+      position: absolute;
+      bottom: 10px; left: 10px; right: 10px;
+      display: flex; gap: 8px;
+      z-index: 10;
+    }
+    .ah-pin-controls .ah-btn { background: rgba(255,255,255,.95); backdrop-filter: blur(6px); box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+    .ah-pin-coords {
+      background: rgba(255,255,255,.95); backdrop-filter: blur(6px);
+      padding: 6px 10px; border-radius: 8px;
+      font-family: var(--c-font-mono, ui-monospace, monospace);
+      font-size: .76rem;
+      color: var(--c-text-soft, #3f3d36);
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* Amenities chips */
+    .ah-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ah-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 6px 12px;
+      background: var(--c-bg-elev, #f4f3ee);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 999px;
+      font-size: .82rem;
+      color: var(--c-text-soft, #3f3d36);
+      cursor: pointer;
+      user-select: none;
+    }
+    .ah-chip.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .ah-chip input { display: none; }
+
+    .ah-form-footer {
+      display: flex; justify-content: space-between; gap: 10px;
+      margin-top: 22px; padding-top: 18px;
+      border-top: 1px solid var(--c-border, #e7e4dd);
+    }
+    .ah-form-footer .ah-btn { padding: 11px 22px; font-size: .95rem; }
+
+    /* DB-not-configured banner */
+    .ah-warn {
+      background: var(--c-warning-soft, #fdf4e3);
+      color: var(--c-warning, #b45309);
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      font-size: .88rem;
+    }
+
+    /* One-time-setup card (rendered when public.houses is missing) */
+    .ah-setup-card {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-left: 4px solid var(--c-warning, #b45309);
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .ah-setup-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+    .ah-setup-icon {
+      flex-shrink: 0;
+      width: 44px; height: 44px;
+      background: var(--c-warning-soft, #fdf4e3);
+      color: var(--c-warning, #b45309);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+    }
+    .ah-setup-card h3 { color: var(--c-text, #1a1915); font-size: 1.1rem; margin-bottom: 4px; }
+    .ah-setup-card p  { color: var(--c-text-soft, #3f3d36); font-size: .92rem; line-height: 1.5; }
+    .ah-setup-card code { background: var(--c-bg-elev, #f4f3ee); padding: 1px 6px; border-radius: 4px; font-family: var(--c-font-mono, ui-monospace, monospace); font-size: .85em; }
+    .ah-setup-steps ol { padding-left: 22px; margin: 12px 0; color: var(--c-text-soft, #3f3d36); }
+    .ah-setup-steps li { margin: 6px 0; font-size: .92rem; }
+    .ah-setup-actions {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin: 16px 0;
+    }
+    .ah-setup-actions .ah-btn { padding: 11px 16px; font-size: .92rem; text-decoration: none; }
+    .ah-setup-details {
+      margin-top: 14px;
+      border-top: 1px solid var(--c-border, #e7e4dd);
+      padding-top: 12px;
+    }
+    .ah-setup-details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--c-text-soft, #3f3d36);
+      font-size: .88rem;
+      padding: 6px 0;
+      user-select: none;
+    }
+    .ah-setup-details summary:hover { color: var(--c-brand-deep, #064a33); }
+    .ah-setup-sql {
+      background: #1a1915;
+      color: #e7e4dd;
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-family: var(--c-font-mono, ui-monospace, monospace);
+      font-size: .78rem;
+      line-height: 1.5;
+      max-height: 380px;
+      overflow: auto;
+      white-space: pre;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')" data-page="agent-houses">
+  <a href="#ahMain" class="hp-skip-link">Skip to dashboard</a>
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="ah_page_title">My Property Listings</h1>
+      <p class="page-subtitle" data-i18n="ah_page_sub">Sign in, list a house, place its pin on the map, and reach buyers across Tanzania.</p>
+    </div>
+  </section>
+
+  <main id="ahMain" class="container" style="padding-top:18px; padding-bottom:60px;">
+
+    <!-- A: Sign-in / sign-up card (shown when not authenticated) -->
+    <section id="ahAuthCard" class="ah-auth-card" hidden>
+      <h2 data-i18n="ah_auth_title">Agent / owner sign in</h2>
+      <p class="muted" data-i18n="ah_auth_sub">List houses, apartments, plots or offices for rent or sale. New here? Create an account in 10 seconds.</p>
+
+      <div class="ah-auth-tabs">
+        <button id="tabSignIn" class="active" type="button" data-i18n="ah_tab_signin">Sign in</button>
+        <button id="tabSignUp" type="button" data-i18n="ah_tab_signup">Create account</button>
+      </div>
+
+      <form id="ahAuthForm" autocomplete="on">
+        <div class="ah-form-row">
+          <label for="ahEmail" data-i18n="ah_email">Email</label>
+          <input id="ahEmail" type="email" autocomplete="email" required placeholder="you@example.com" data-i18n-placeholder="ah_email_ph" />
+        </div>
+        <div class="ah-form-row">
+          <label for="ahPassword" data-i18n="ah_password">Password</label>
+          <input id="ahPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
+        </div>
+        <button id="ahAuthSubmit" class="ah-btn-primary" type="submit" data-i18n="ah_tab_signin">Sign in</button>
+        <p id="ahAuthMsg" class="ah-msg" hidden></p>
+      </form>
+    </section>
+
+    <!-- B: Dashboard view (shown when authenticated) -->
+    <section id="ahDashboard" hidden>
+      <div id="ahWarn"></div>
+
+      <div class="ah-toolbar">
+        <div class="ah-user"><span data-i18n="ah_signed_in_as">Signed in as</span> <strong id="ahUserEmail">—</strong></div>
+        <div class="ah-toolbar-actions">
+          <button id="ahNewBtn"    class="ah-btn ah-btn-brand" data-i18n="ah_new_listing">+ New listing</button>
+          <button id="ahSignOut"   class="ah-btn" data-i18n="ah_sign_out">Sign out</button>
+        </div>
+      </div>
+
+      <div id="ahList" class="ah-list" aria-live="polite" aria-busy="true">
+        <div class="hp-sk-card" style="grid-template-columns:1fr;grid-template-rows:160px auto" aria-hidden="true">
+          <div class="hp-sk-card__photo" style="height:160px"></div>
+          <div class="hp-sk-card__body">
+            <span class="hp-sk hp-sk--title"></span>
+            <span class="hp-sk hp-sk--price"></span>
+            <span class="hp-sk hp-sk--line" style="width:60%"></span>
+          </div>
+        </div>
+        <div class="hp-sk-card" style="grid-template-columns:1fr;grid-template-rows:160px auto" aria-hidden="true">
+          <div class="hp-sk-card__photo" style="height:160px"></div>
+          <div class="hp-sk-card__body">
+            <span class="hp-sk hp-sk--title"></span>
+            <span class="hp-sk hp-sk--price"></span>
+            <span class="hp-sk hp-sk--line" style="width:60%"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- C: Create / edit form (shown when adding or editing) -->
+    <section id="ahFormSection" hidden>
+      <form id="ahForm" class="ah-form" autocomplete="off">
+        <h2 id="ahFormTitle" data-i18n="ah_form_title_new">Add new listing</h2>
+        <p class="muted" data-i18n="ah_form_sub">Fill in the property details. The map pin tells buyers exactly where it is — drag it or tap "Use my GPS" while standing at the property.</p>
+
+        <!-- 1. Photo -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_photo">Photo</h4>
+          <label id="ahPhotoLabel" class="ah-photo-upload" for="ahPhotoInput">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <p data-i18n="ah_upload_cta">Tap to upload a photo</p>
+            <small data-i18n="ah_upload_hint">JPG, PNG or WebP · max 5 MB · resized client-side</small>
+          </label>
+          <input id="ahPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+        </div>
+
+        <!-- 2. The basics -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_basics">The basics</h4>
+          <div class="ah-form-row">
+            <label for="ahTitle" data-i18n="ah_field_title">Listing title</label>
+            <input id="ahTitle" type="text" required maxlength="120" placeholder="e.g. Modern 2-bed apartment with ocean view" data-i18n-placeholder="ah_field_title_ph" />
+          </div>
+          <div class="ah-grid-2">
+            <div class="ah-form-row">
+              <label for="ahType" data-i18n="ah_field_type">Property type</label>
+              <select id="ahType" required>
+                <option value="apartment" data-i18n="ah_type_apartment">Apartment</option>
+                <option value="house" data-i18n="ah_type_house">House</option>
+                <option value="plot" data-i18n="ah_type_plot">Plot</option>
+                <option value="office" data-i18n="ah_type_office">Office / shop</option>
+              </select>
+            </div>
+            <div class="ah-form-row">
+              <label for="ahListing" data-i18n="ah_field_listing">Listing</label>
+              <select id="ahListing" required>
+                <option value="rent" data-i18n="ah_listing_rent">For rent</option>
+                <option value="sale" data-i18n="ah_listing_sale">For sale</option>
+              </select>
+            </div>
+          </div>
+          <div class="ah-grid-2">
+            <div class="ah-form-row">
+              <label for="ahPrice" data-i18n="ah_field_price">Price (TZS)</label>
+              <input id="ahPrice" type="number" min="0" step="50000" required placeholder="e.g. 1800000" data-i18n-placeholder="ah_field_price_ph" />
+            </div>
+            <div class="ah-form-row">
+              <label for="ahPeriod" data-i18n="ah_field_period">Period</label>
+              <select id="ahPeriod">
+                <option value="month" data-i18n="ah_period_month">per month (rent)</option>
+                <option value="total" data-i18n="ah_period_total">total (sale)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Rooms & size -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_rooms">Rooms &amp; size</h4>
+          <div class="ah-grid-3">
+            <div class="ah-form-row">
+              <label for="ahBedrooms" data-i18n="ah_field_bedrooms">Bedrooms</label>
+              <input id="ahBedrooms" type="number" min="0" max="20" step="1" value="0" />
+            </div>
+            <div class="ah-form-row">
+              <label for="ahBathrooms" data-i18n="ah_field_bathrooms">Bathrooms</label>
+              <input id="ahBathrooms" type="number" min="0" max="20" step="1" value="0" />
+            </div>
+            <div class="ah-form-row">
+              <label for="ahSize" data-i18n="ah_field_size">Size (m²)</label>
+              <input id="ahSize" type="number" min="0" step="1" placeholder="e.g. 95" data-i18n-placeholder="ah_field_size_ph" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Where (region + area + address) -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_where">Where</h4>
+          <div class="ah-grid-2">
+            <div class="ah-form-row">
+              <label for="ahRegion" data-i18n="ah_field_region">Region</label>
+              <select id="ahRegion">
+                <option value="">—</option>
+              </select>
+            </div>
+            <div class="ah-form-row">
+              <label for="ahArea" data-i18n="ah_field_area">Area / neighbourhood</label>
+              <input id="ahArea" type="text" placeholder="e.g. Masaki" data-i18n-placeholder="ah_field_area_ph" />
+            </div>
+          </div>
+          <div class="ah-form-row">
+            <label for="ahAddress" data-i18n="ah_field_address">Street address</label>
+            <input id="ahAddress" type="text" placeholder="e.g. Toure Drive, Masaki" data-i18n-placeholder="ah_field_address_ph" />
+          </div>
+        </div>
+
+        <!-- 5. Pin on the map -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_pin">Pin on the map (GPS-verified location)</h4>
+          <p class="muted" style="margin-bottom:10px;" data-i18n="ah_section_pin_sub">Drag the green pin to where the property is, or tap "Use my GPS" if you're standing at the property right now.</p>
+          <div class="ah-pin-picker">
+            <div id="ahPinMap" style="position:absolute;inset:0;"></div>
+            <div class="ah-pin-controls">
+              <div id="ahPinCoords" class="ah-pin-coords" data-i18n="ah_pin_none">No pin set</div>
+              <button type="button" id="ahPinGps" class="ah-btn" data-i18n="ah_pin_gps">📍 Use my GPS</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Amenities & furnished -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_amenities">Amenities &amp; furnishing</h4>
+          <div class="ah-form-row">
+            <label data-i18n="ah_field_amenities">Amenities (tap to toggle)</label>
+            <div class="ah-chips" id="ahAmenities"></div>
+          </div>
+          <div class="ah-form-row">
+            <label for="ahFurnished" data-i18n="ah_field_furnished">Furnished</label>
+            <select id="ahFurnished">
+              <option value="no" data-i18n="ah_furn_no">No</option>
+              <option value="semi" data-i18n="ah_furn_semi">Semi-furnished</option>
+              <option value="yes" data-i18n="ah_furn_yes">Yes — fully furnished</option>
+              <option value="n/a" data-i18n="ah_furn_na">Not applicable</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 7. Description + availability -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_desc">Description &amp; availability</h4>
+          <div class="ah-form-row">
+            <label for="ahDescription" data-i18n="ah_field_desc">Description</label>
+            <textarea id="ahDescription" rows="4" maxlength="800" placeholder="What makes this place worth visiting? Any deal-makers (security, view, parking)?" data-i18n-placeholder="ah_field_desc_ph"></textarea>
+          </div>
+          <div class="ah-grid-2">
+            <div class="ah-form-row">
+              <label for="ahAvailable" data-i18n="ah_field_available">Available from</label>
+              <input id="ahAvailable" type="date" />
+            </div>
+            <div class="ah-form-row">
+              <label for="ahAgentPhone" data-i18n="ah_field_phone">Your phone (shown to buyers)</label>
+              <input id="ahAgentPhone" type="tel" placeholder="+255 7XX XXX XXX" data-i18n-placeholder="ah_field_phone_ph" />
+            </div>
+          </div>
+        </div>
+
+        <p id="ahFormMsg" class="ah-msg" hidden></p>
+
+        <div class="ah-form-footer">
+          <button type="button" id="ahCancelBtn" class="ah-btn" data-i18n="ah_cancel">Cancel</button>
+          <button type="submit" id="ahSaveBtn" class="ah-btn ah-btn-brand" data-i18n="ah_save">Save listing</button>
+        </div>
+      </form>
+    </section>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/agent-houses.js"></script>
+  <script>
+    window.renderNav("agent-houses.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initAgentHousesPage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

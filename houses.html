@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Houses for rent &amp; sale — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+
+  <style>
+    /* =====================================================================
+       Houses directory — split list + map (desktop) /
+       tabbed list ↔ map (phones).
+       ===================================================================== */
+    .houses-toolbar {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .houses-toolbar select,
+    .houses-toolbar input {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      font-size: .92rem; font-family: inherit;
+      background: #fff; color: var(--c-text, #1a1915);
+    }
+    .houses-toolbar input:focus,
+    .houses-toolbar select:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .houses-toolbar .ht-actions { display: flex; gap: 6px; align-items: center; }
+    .houses-near-me, .houses-alert-btn {
+      flex-shrink: 0; padding: 10px 14px;
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      border: none; border-radius: 10px; cursor: pointer;
+      font-weight: 600; font-size: .9rem;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .houses-near-me:active, .houses-alert-btn:active { transform: scale(.97); }
+    .houses-near-me svg, .houses-alert-btn svg { width: 16px; height: 16px; }
+    .houses-alert-btn { background: var(--c-accent, #bc5c00); }
+    .houses-alert-btn.subscribed { background: var(--c-success, #0d8050); }
+    .houses-alert-btn.subscribed::after { content: "✓"; margin-left: 2px; }
+
+    .houses-alert-banner {
+      background: linear-gradient(135deg, var(--c-success, #0d8050), #075c39);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 4px 16px rgba(13,128,80,.25);
+      animation: slideDown .35s ease;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .houses-alert-banner .ab-icon { font-size: 1.4rem; }
+    .houses-alert-banner .ab-body { flex: 1; min-width: 0; }
+    .houses-alert-banner strong { display: block; font-size: .98rem; margin-bottom: 2px; }
+    .houses-alert-banner small  { opacity: .9; font-size: .82rem; }
+    .houses-alert-banner button {
+      background: rgba(255,255,255,.18); color: #fff; border: none;
+      padding: 6px 12px; border-radius: 999px;
+      font-weight: 600; font-size: .82rem; cursor: pointer;
+    }
+    .houses-alert-banner button:hover { background: rgba(255,255,255,.28); }
+
+    /* ---- Active watched-area chips ---- */
+    .houses-watch-chips {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 12px;
+    }
+    .houses-watch-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--c-brand-faint, #f0f7f2);
+      color: var(--c-brand-deep, #064a33);
+      border: 1px solid var(--c-brand-soft, #d9ecdf);
+      border-radius: 999px;
+      padding: 6px 6px 6px 12px;
+      font-size: .82rem; font-weight: 600;
+    }
+    .houses-watch-chip small { font-weight: 500; opacity: .75; }
+    .houses-watch-chip button {
+      background: rgba(0,0,0,.06);
+      border: none;
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--c-brand-deep, #064a33);
+      font-size: .9rem; line-height: 1;
+    }
+    .houses-watch-chip button:hover { background: var(--c-danger-soft, #fce4e4); color: var(--c-danger, #b91c1c); }
+
+    /* ===========================================================
+       Area-alert modal
+       =========================================================== */
+    .alert-modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(26, 25, 21, 0.55);
+      backdrop-filter: blur(4px);
+      z-index: 2000;
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 0;
+      animation: am-fade .2s ease;
+    }
+    .alert-modal-backdrop[hidden],
+    .houses-alert-banner[hidden],
+    .houses-watch-chips[hidden] { display: none !important; }
+    @keyframes am-fade { from { opacity: 0; } to { opacity: 1; } }
+    .alert-modal {
+      background: var(--c-surface, #fff);
+      border-radius: 18px 18px 0 0;
+      width: 100%; max-width: 640px;
+      max-height: 92vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 -10px 40px rgba(0,0,0,.25);
+      animation: am-slide .25s cubic-bezier(.21,.84,.34,1);
+    }
+    @keyframes am-slide { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @media (min-width: 700px) {
+      .alert-modal-backdrop { align-items: center; padding: 20px; }
+      .alert-modal { border-radius: 18px; }
+    }
+
+    .am-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--c-border, #e7e4dd);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .am-head h3 { color: var(--c-brand-deep, #064a33); font-size: 1.05rem; margin: 0; }
+    .am-close {
+      background: transparent; border: none;
+      width: 34px; height: 34px; border-radius: 50%;
+      font-size: 1.4rem; line-height: 1;
+      cursor: pointer; color: var(--c-text-muted, #6b6960);
+    }
+    .am-close:hover { background: var(--c-bg-elev, #f4f3ee); color: var(--c-text, #1a1915); }
+
+    .am-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .am-help {
+      font-size: .88rem;
+      color: var(--c-text-soft, #3f3d36);
+      margin: 0;
+    }
+
+    .am-search-row { display: flex; gap: 6px; }
+    .am-search-row input {
+      flex: 1; min-width: 0;
+      padding: 11px 14px;
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      font-size: 16px;        /* 16px prevents iOS zoom-on-focus */
+      font-family: inherit;
+      background: #fff;
+    }
+    .am-search-row input:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .am-mini-btn {
+      flex-shrink: 0;
+      padding: 11px 14px;
+      background: var(--c-bg-elev, #f4f3ee);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      font-weight: 600; font-size: .88rem;
+      cursor: pointer; white-space: nowrap;
+    }
+    .am-mini-btn:hover { border-color: var(--c-brand, #0a6f4d); }
+    .am-mini-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .am-search-results {
+      max-height: 180px; overflow-y: auto;
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      background: #fff;
+      margin-top: -8px;
+    }
+    .am-search-result {
+      padding: 9px 12px;
+      cursor: pointer;
+      font-size: .88rem;
+      color: var(--c-text-soft, #3f3d36);
+      border-bottom: 1px solid var(--c-border, #e7e4dd);
+    }
+    .am-search-result:last-child { border-bottom: none; }
+    .am-search-result:hover { background: var(--c-brand-faint, #f0f7f2); color: var(--c-brand-deep, #064a33); }
+    .am-search-result strong { color: var(--c-text, #1a1915); display: block; font-weight: 600; }
+    .am-search-result small  { font-size: .76rem; opacity: .75; }
+    .am-search-result.loading { font-style: italic; color: var(--c-text-muted, #6b6960); cursor: default; }
+    .am-search-result.loading:hover { background: transparent; color: var(--c-text-muted, #6b6960); }
+
+    .am-map-wrap {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--c-border, #e7e4dd);
+    }
+    .am-map {
+      height: 280px;
+    }
+    .am-coords {
+      position: absolute; bottom: 8px; left: 8px; right: 8px;
+      background: rgba(255,255,255,.95);
+      backdrop-filter: blur(8px);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: .78rem;
+      color: var(--c-text-soft, #3f3d36);
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      pointer-events: none;
+    }
+    .am-coords.has-pin {
+      background: rgba(10,111,77,.95);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .am-radius-row label {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .88rem; font-weight: 600;
+      color: var(--c-text-soft, #3f3d36);
+      margin-bottom: 6px;
+    }
+    .am-radius-row strong { color: var(--c-brand-deep, #064a33); font-family: var(--c-font-mono, ui-monospace, monospace); }
+    .am-radius-row input[type=range] { width: 100%; accent-color: var(--c-brand, #0a6f4d); }
+
+    .am-name-row label {
+      display: block;
+      font-size: .82rem; font-weight: 600;
+      color: var(--c-text-soft, #3f3d36);
+      margin-bottom: 4px;
+    }
+    .am-name-row input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      font-size: 16px;
+      font-family: inherit;
+    }
+    .am-name-row input:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+
+    .am-foot {
+      padding: 12px 20px;
+      border-top: 1px solid var(--c-border, #e7e4dd);
+      display: flex; justify-content: flex-end; gap: 8px;
+    }
+    .am-btn {
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: 1px solid var(--c-border, #e7e4dd);
+      background: #fff;
+      color: var(--c-text, #1a1915);
+      font-weight: 600; font-size: .92rem;
+      cursor: pointer;
+    }
+    .am-btn:hover { border-color: var(--c-brand, #0a6f4d); }
+    .am-btn-brand { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .am-btn-brand:hover { background: var(--c-brand-deep, #064a33); }
+    .am-btn-brand:disabled { opacity: .5; cursor: not-allowed; background: var(--c-brand, #0a6f4d); }
+    .houses-result-count { font-size: .88rem; color: var(--c-text-muted, #6b6960); padding: 0 4px 8px; }
+
+    /* Split view */
+    .houses-stage {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 14px;
+      height: calc(100vh - 360px);
+      min-height: 520px;
+    }
+    .houses-list {
+      overflow-y: auto;
+      padding-right: 6px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .houses-map-wrap {
+      position: relative;
+      border-radius: 14px; overflow: hidden;
+      border: 1px solid var(--c-border, #e7e4dd);
+      box-shadow: 0 4px 16px rgba(0,0,0,.06);
+    }
+    .houses-map { position: absolute; inset: 0; }
+
+    /* House card */
+    .house-card {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 0;
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .house-card:hover,
+    .house-card.active { border-color: var(--c-brand, #0a6f4d); box-shadow: 0 6px 18px rgba(10,111,77,.12); transform: translateY(-1px); }
+    .house-card-photo {
+      background: #ece9e1 center/cover no-repeat;
+      min-height: 130px;
+      position: relative;
+    }
+    .house-card-photo .badge {
+      position: absolute; top: 8px; left: 8px;
+      background: rgba(255,255,255,.92); color: var(--c-brand-deep, #064a33);
+      padding: 3px 9px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px;
+      backdrop-filter: blur(6px);
+    }
+    .house-card-photo .verified {
+      position: absolute; top: 8px; right: 8px;
+      background: var(--c-success, #0d8050); color: #fff;
+      padding: 2px 7px; border-radius: 999px;
+      font-size: .65rem; font-weight: 700;
+    }
+    .house-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+    .house-card-price {
+      font-family: var(--c-font-display, serif);
+      font-size: 1.25rem; font-weight: 700;
+      color: var(--c-brand-deep, #064a33);
+      line-height: 1.1;
+    }
+    .house-card-price small { font-size: .72rem; color: var(--c-text-muted, #6b6960); font-weight: 500; }
+    .house-card-title { font-size: .92rem; font-weight: 600; color: var(--c-text, #1a1915); line-height: 1.3; }
+    .house-card-meta { font-size: .78rem; color: var(--c-text-muted, #6b6960); display: flex; gap: 10px; flex-wrap: wrap; }
+    .house-card-meta span { display: inline-flex; align-items: center; gap: 3px; }
+    .house-card-loc {
+      font-size: .76rem; color: var(--c-text-soft, #3f3d36); margin-top: 4px;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .house-card-view {
+      align-self: flex-start;
+      margin-top: 8px;
+      font-size: .8rem; font-weight: 700;
+      color: var(--c-brand-deep, #064a33);
+      background: var(--c-brand-faint, #f0f7f2);
+      border: 1px solid var(--c-brand-soft, #d9ecdf);
+      padding: 5px 11px; border-radius: 999px;
+      text-decoration: none;
+    }
+    .house-card-view:hover { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
+
+    /* Map popup */
+    .house-popup { width: 220px; }
+    .house-popup img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 6px; }
+    .house-popup h4 { font-size: .92rem; margin: 4px 0; color: var(--c-brand-deep, #064a33); }
+    .house-popup .price { font-weight: 700; color: var(--c-brand-deep, #064a33); margin-bottom: 4px; }
+    .house-popup .pop-meta { font-size: .76rem; color: var(--c-text-muted, #6b6960); margin-bottom: 6px; }
+    .house-popup .pop-actions { display: flex; gap: 6px; }
+    .house-popup .pop-actions a { flex: 1; text-align: center; padding: 6px 8px; border-radius: 6px; font-size: .78rem; text-decoration: none; font-weight: 600; }
+    .house-popup .pop-actions a.btn-call { background: var(--c-brand, #0a6f4d); color: #fff; }
+    .house-popup .pop-actions a.btn-wa   { background: #25D366; color: #fff; }
+
+    /* Map markers — circular pin with price tag */
+    .house-marker {
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      padding: 4px 9px; border-radius: 999px;
+      font-size: .76rem; font-weight: 700;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+      border: 2px solid #fff;
+      cursor: pointer; white-space: nowrap;
+      transform: translate(-50%, -100%);
+      transition: transform .12s ease;
+    }
+    .house-marker:hover,
+    .house-marker.active { background: var(--c-accent, #bc5c00); transform: translate(-50%, -100%) scale(1.08); z-index: 10; }
+    .house-marker.type-plot     { background: #6b3aa3; }
+    .house-marker.type-plot.active { background: var(--c-accent, #bc5c00); }
+    .house-marker.type-office   { background: #1e40af; }
+    .house-marker.type-office.active { background: var(--c-accent, #bc5c00); }
+
+    .houses-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--c-text-muted, #6b6960);
+      background: var(--c-surface-soft, #fbfaf6);
+      border: 1px dashed var(--c-border, #e7e4dd);
+      border-radius: 12px;
+    }
+    .houses-empty h3 { margin-bottom: 6px; color: var(--c-text, #1a1915); }
+
+    /* Phone: tabs (List | Map) */
+    .houses-mobile-tabs { display: none; }
+    @media (max-width: 900px) {
+      .houses-stage {
+        display: block;
+        height: calc(100vh - 280px);
+        min-height: 460px;
+      }
+      .houses-list, .houses-map-wrap {
+        position: absolute; inset: 0;
+        height: 100%; max-height: 100%;
+      }
+      .houses-stage { position: relative; }
+      .houses-stage[data-view="list"] .houses-map-wrap { display: none; }
+      .houses-stage[data-view="map"]  .houses-list     { display: none; }
+
+      .houses-mobile-tabs {
+        display: flex; gap: 6px; margin-bottom: 10px;
+        background: var(--c-bg-elev, #f4f3ee);
+        padding: 4px; border-radius: 12px;
+      }
+      .houses-mobile-tabs button {
+        flex: 1; padding: 9px 12px;
+        background: transparent; border: none; border-radius: 8px;
+        font-weight: 600; font-size: .9rem; color: var(--c-text-soft, #3f3d36);
+        cursor: pointer;
+      }
+      .houses-mobile-tabs button.active {
+        background: var(--c-surface, #fff);
+        color: var(--c-brand-deep, #064a33);
+        box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      }
+
+      .house-card { grid-template-columns: 120px 1fr; }
+      .house-card-photo { min-height: 110px; }
+      .house-card-price { font-size: 1.1rem; }
+    }
+    @media (max-width: 480px) {
+      .house-card { grid-template-columns: 100px 1fr; }
+      .house-card-photo { min-height: 100px; }
+      .house-card-title { font-size: .85rem; }
+    }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('data/jonas-allert-IU8lP4p-LEY-unsplash.jpg')" data-page="houses">
+  <a href="#housesMain" class="hp-skip-link">Skip to listings</a>
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/jonas-allert-IU8lP4p-LEY-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="houses_title">Houses for rent &amp; sale</h1>
+      <p class="page-subtitle" data-i18n="houses_sub">Property listings across Tanzania. Search on the map, filter by area, price and type.</p>
+    </div>
+  </section>
+
+  <main id="housesMain" class="container" style="padding-top:18px;">
+
+    <!-- Bento overview tiles (quick filters / counts) -->
+    <nav class="hp-bento" aria-label="Quick property filters">
+      <a class="hp-bento__cell hp-bento__cell--brand" href="#" data-quickfilter="all">
+        <span class="hp-bento__eyebrow">Live now</span>
+        <div>
+          <div id="hpBentoTotal" class="hp-bento__num" aria-live="polite">—</div>
+          <div class="hp-bento__lbl">Properties listed across Tanzania</div>
+        </div>
+      </a>
+      <a class="hp-bento__cell" href="#" data-quickfilter="rent">
+        <span class="hp-bento__eyebrow">For rent</span>
+        <div class="hp-bento__num" id="hpBentoRent">—</div>
+      </a>
+      <a class="hp-bento__cell" href="#" data-quickfilter="sale">
+        <span class="hp-bento__eyebrow">For sale</span>
+        <div class="hp-bento__num" id="hpBentoSale">—</div>
+      </a>
+      <a class="hp-bento__cell hp-bento__cell--accent" href="favorites.html">
+        <span class="hp-bento__eyebrow">Saved</span>
+        <div>
+          <div class="hp-bento__num" id="hpBentoFavs">—</div>
+          <div class="hp-bento__lbl">Open your favorites</div>
+        </div>
+      </a>
+      <a class="hp-bento__cell" href="#" data-quickfilter="verified">
+        <span class="hp-bento__eyebrow">Verified</span>
+        <div class="hp-bento__num" id="hpBentoVerified">—</div>
+      </a>
+      <a class="hp-bento__cell" href="agent-houses.html">
+        <span class="hp-bento__eyebrow">For agents</span>
+        <div class="hp-bento__num" style="font-size:1.1rem">List a property</div>
+      </a>
+    </nav>
+
+    <!-- Filter bar -->
+    <div class="houses-toolbar">
+      <select id="filterListing">
+        <option value="">Listing: any</option>
+        <option value="rent">For rent</option>
+        <option value="sale">For sale</option>
+      </select>
+      <select id="filterType">
+        <option value="">Type: any</option>
+        <option value="apartment">Apartment</option>
+        <option value="house">House</option>
+        <option value="plot">Plot</option>
+        <option value="office">Office / shop</option>
+      </select>
+      <select id="filterArea">
+        <option value="">Area: any</option>
+      </select>
+      <select id="filterBeds">
+        <option value="">Bedrooms: any</option>
+        <option value="1">1+ bed</option>
+        <option value="2">2+ beds</option>
+        <option value="3">3+ beds</option>
+        <option value="4">4+ beds</option>
+      </select>
+      <select id="filterPrice">
+        <option value="">Price: any</option>
+        <option value="rent_0_750000">Rent ≤ 750k/mo</option>
+        <option value="rent_750000_1500000">Rent 750k – 1.5M</option>
+        <option value="rent_1500000_3000000">Rent 1.5M – 3M</option>
+        <option value="rent_3000000_">Rent 3M+</option>
+        <option value="sale_0_100000000">Sale ≤ 100M</option>
+        <option value="sale_100000000_300000000">Sale 100M – 300M</option>
+        <option value="sale_300000000_">Sale 300M+</option>
+      </select>
+      <input type="text" id="filterSearch" placeholder="Search title or area…" />
+      <div class="ht-actions">
+        <button id="houseNearMeBtn" class="houses-near-me" title="Use my GPS location">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          Near me
+        </button>
+        <button id="houseAlertBtn" class="houses-alert-btn" title="Set up a geographic area alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span>Alert me about an area</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active watched areas (chips with delete buttons) -->
+    <div id="housesWatchChips" class="houses-watch-chips" hidden></div>
+
+    <!-- New-listing toast (shown when alerts fire) -->
+    <div id="housesAlertBanner" class="houses-alert-banner" hidden></div>
+
+    <!-- ===========================================================
+         Area-alert modal: search/GPS/pin a spot on the map,
+         set radius, name the alert, save.
+         =========================================================== -->
+    <div id="alertModalBackdrop" class="alert-modal-backdrop" hidden>
+      <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="alertModalTitle">
+        <header class="am-head">
+          <h3 id="alertModalTitle">Set up an area alert</h3>
+          <button id="alertCloseBtn" class="am-close" type="button" aria-label="Close">&times;</button>
+        </header>
+
+        <div class="am-body">
+          <p class="am-help">
+            Search a place, drop a pin on the map, or use your GPS. We'll notify
+            you whenever a property is listed inside the circle.
+          </p>
+
+          <div class="am-search-row">
+            <input id="alertSearchInput" type="search" placeholder="Search a place (e.g. Masaki, Mlimani City, Mbezi…)" autocomplete="off" />
+            <button id="alertGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS">📍 GPS</button>
+          </div>
+          <div id="alertSearchResults" class="am-search-results" hidden></div>
+
+          <div class="am-map-wrap">
+            <div id="alertModalMap" class="am-map"></div>
+            <div class="am-coords" id="alertCoords">Pin not placed yet — search or tap the map</div>
+          </div>
+
+          <div class="am-radius-row">
+            <label for="alertRadius">
+              <span>Alert radius</span>
+              <strong id="alertRadiusLabel">1.5 km</strong>
+            </label>
+            <input id="alertRadius" type="range" min="250" max="10000" step="250" value="1500" />
+          </div>
+
+          <div class="am-name-row">
+            <label for="alertName">Name this alert</label>
+            <input id="alertName" type="text" maxlength="60" placeholder="e.g. Masaki / near my workplace" />
+          </div>
+        </div>
+
+        <footer class="am-foot">
+          <button id="alertCancelBtn" class="am-btn" type="button">Cancel</button>
+          <button id="alertSaveBtn"   class="am-btn am-btn-brand" type="button" disabled>Save alert</button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="housesCount" class="houses-result-count" role="status" aria-live="polite"></div>
+    <span class="hp-sr-only" id="housesAnnounce" aria-live="polite" aria-atomic="true"></span>
+
+    <!-- Mobile tab switcher -->
+    <div class="houses-mobile-tabs">
+      <button id="tabList" class="active" type="button">List</button>
+      <button id="tabMap"  type="button">Map</button>
+    </div>
+
+    <!-- Split list + map -->
+    <div class="houses-stage" id="housesStage" data-view="list">
+      <div id="housesList" class="houses-list" aria-busy="true">
+        <div class="hp-sk-card" aria-hidden="true">
+          <div class="hp-sk-card__photo"></div>
+          <div class="hp-sk-card__body">
+            <span class="hp-sk hp-sk--price"></span>
+            <span class="hp-sk hp-sk--title"></span>
+            <span class="hp-sk hp-sk--line" style="width:50%"></span>
+            <span class="hp-sk hp-sk--line" style="width:35%"></span>
+          </div>
+        </div>
+        <div class="hp-sk-card" aria-hidden="true">
+          <div class="hp-sk-card__photo"></div>
+          <div class="hp-sk-card__body">
+            <span class="hp-sk hp-sk--price"></span>
+            <span class="hp-sk hp-sk--title"></span>
+            <span class="hp-sk hp-sk--line" style="width:50%"></span>
+            <span class="hp-sk hp-sk--line" style="width:35%"></span>
+          </div>
+        </div>
+        <div class="hp-sk-card" aria-hidden="true">
+          <div class="hp-sk-card__photo"></div>
+          <div class="hp-sk-card__body">
+            <span class="hp-sk hp-sk--price"></span>
+            <span class="hp-sk hp-sk--title"></span>
+            <span class="hp-sk hp-sk--line" style="width:50%"></span>
+          </div>
+        </div>
+      </div>
+      <div class="houses-map-wrap">
+        <div id="housesMap" class="houses-map"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/houses.js"></script>
+  <script>
+    window.renderNav("houses.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initHousesPage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

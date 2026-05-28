@@ -10,8 +10,8 @@ window.renderNav = (active) => {
   const groupActive = (pages) => pages.includes(active) ? "active" : "";
 
   const SERVICES = ["send.html", "track.html", "book-fast.html", "chat.html", "meet.html", "ride.html"];
-  const NETWORK  = ["buses.html", "agents.html"];
-  const ACCOUNT  = ["agent-register.html", "agent.html", "dashboard.html", "admin.html", "accounting.html", "super-admin.html"];
+  const NETWORK  = ["buses.html", "agents.html", "houses.html", "favorites.html"];
+  const ACCOUNT  = ["agent-register.html", "agent.html", "agent-houses.html", "dashboard.html", "admin.html", "accounting.html", "super-admin.html"];
   const SAAS_PAGES = ["saas.html", "signup.html"];
 
   const onlinePill = window.DataStore?.isOnline
@@ -66,8 +66,10 @@ window.renderNav = (active) => {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="nav-dropdown">
-              ${link("buses.html",  "nav_buses")}
-              ${link("agents.html", "nav_agents")}
+              ${link("buses.html",     "nav_buses")}
+              ${link("agents.html",    "nav_agents")}
+              ${link("houses.html",    "nav_houses")}
+              ${link("favorites.html", "nav_favorites")}
             </div>
           </li>
 
@@ -79,6 +81,7 @@ window.renderNav = (active) => {
             <div class="nav-dropdown">
               ${link("agent-register.html", "nav_agent_register")}
               ${link("agent.html",          "nav_agent_dashboard")}
+              ${link("agent-houses.html",   "nav_agent_houses")}
               ${link("dashboard.html",     "nav_dashboard",   "nav-company-link")}
               ${link("accounting.html",    "nav_finance",     "nav-company-link")}
               ${link("admin.html",          "nav_admin",       "nav-admin-link")}

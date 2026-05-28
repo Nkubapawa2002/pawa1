@@ -186,6 +186,34 @@
       return loadJSON("agents");
     },
 
+    // Houses — public property listings (House Booking TZ). Tries Supabase
+    // first, but falls back to data/houses.json if the table is missing
+    // (e.g. the SQL in supabase/schema_master.sql hasn't been applied
+    // yet). That way the page always works for visitors.
+    async getHouses() {
+      if (sb) {
+        try {
+          const { data, error } = await sb.from("houses").select("*").order("created_at", { ascending: false });
+          if (error) throw error;
+          if (Array.isArray(data) && data.length) return data;
+          // Empty table → fall through to the JSON fallback so visitors
+          // still see sample inventory until real listings are added.
+        } catch (e) {
+          console.warn("[houses] Supabase query failed, falling back to JSON:", e?.message || e);
+        }
+      }
+      return loadJSON("houses");
+    },
+
+    housePhotoUrl(path) {
+      if (!path) return "";
+      if (path.startsWith("http") || path.startsWith("data/")) return path;
+      if (!sb) return `data/${path}`;
+      const bucket = (window.APP_CONFIG && window.APP_CONFIG.HOUSE_PHOTOS_BUCKET) || "house-photos";
+      const { data } = sb.storage.from(bucket).getPublicUrl(path);
+      return data.publicUrl;
+    },
+
     // Shipments
     async getShipments() {
       if (sb) {

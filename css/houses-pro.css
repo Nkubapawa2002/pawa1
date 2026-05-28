@@ -1,0 +1,414 @@
+/* =====================================================================
+   Pawa Houses — Pro Max design layer
+   Applied to: houses.html, house.html, favorites.html, agent-houses.html
+   Loaded AFTER claude-design.css so it can override + extend tokens.
+   Rules followed (priority 1→7 from ui-ux-pro-max):
+     - Accessibility: visible focus rings, aria-live regions, color-not-only
+     - Touch: 44×44 targets, transform-only scale feedback
+     - Performance: skeletons (>300ms), lazy images, CLS-safe aspect-ratio
+     - Animation: 150-300ms, transform+opacity only, reduced-motion guard
+   ===================================================================== */
+
+/* ---------- Tokens (additive, fall back to claude-design.css) ---------- */
+:root {
+  --hp-radius:        14px;
+  --hp-radius-lg:     18px;
+  --hp-radius-sm:     10px;
+  --hp-shadow-1:      0 1px 2px rgba(20,28,22,.04), 0 2px 8px rgba(20,28,22,.05);
+  --hp-shadow-2:      0 4px 12px rgba(20,28,22,.06), 0 12px 30px rgba(20,28,22,.08);
+  --hp-shadow-brand:  0 8px 22px rgba(10,111,77,.18);
+  --hp-ring:          0 0 0 3px rgba(10,111,77,.30);
+  --hp-ring-accent:   0 0 0 3px rgba(188,92,0,.35);
+  --hp-dur-1:         140ms;
+  --hp-dur-2:         220ms;
+  --hp-ease:          cubic-bezier(.2,.7,.2,1);
+  --hp-stagger:       40ms;
+}
+
+/* =====================================================================
+   1. Skip link (Quick Reference §1 — skip-links)
+   ===================================================================== */
+.hp-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 2500;
+  background: var(--c-brand-deep, #064a33);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 0 0 10px 0;
+  font-weight: 700;
+  font-size: .92rem;
+  text-decoration: none;
+}
+.hp-skip-link:focus {
+  left: 0;
+  outline: none;
+  box-shadow: var(--hp-ring);
+}
+
+/* =====================================================================
+   2. Focus ring system (Quick Reference §1 — focus-states)
+   Apply globally so every clickable element on these 4 pages gets a
+   visible focus ring on keyboard nav.
+   ===================================================================== */
+[data-houses-pro] :is(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--hp-ring);
+  border-color: var(--c-brand, #0a6f4d) !important;
+  border-radius: var(--hp-radius-sm);
+}
+[data-houses-pro] .hd-cta:focus-visible,
+[data-houses-pro] .ah-btn-brand:focus-visible,
+[data-houses-pro] .houses-near-me:focus-visible,
+[data-houses-pro] .houses-alert-btn:focus-visible {
+  box-shadow: var(--hp-ring-accent);
+}
+
+/* =====================================================================
+   3. Skeleton loaders (Quick Reference §3 — progressive-loading + content-jumping)
+   Shimmer respects prefers-reduced-motion.
+   ===================================================================== */
+.hp-sk {
+  display: block;
+  background:
+    linear-gradient(90deg,
+      rgba(231,228,221,.55) 0%,
+      rgba(231,228,221,.95) 50%,
+      rgba(231,228,221,.55) 100%);
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: hp-shimmer 1.4s linear infinite;
+}
+.hp-sk--line     { height: 12px; }
+.hp-sk--lineLg   { height: 18px; }
+.hp-sk--title    { height: 22px; width: 70%; }
+.hp-sk--price    { height: 28px; width: 55%; }
+.hp-sk--chip     { height: 22px; width: 64px; border-radius: 999px; }
+.hp-sk--circle   { width: 44px; height: 44px; border-radius: 50%; }
+
+@keyframes hp-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* Card-shaped skeleton matching .house-card / .fav-card / .ah-card */
+.hp-sk-card {
+  background: var(--c-surface, #fff);
+  border: 1px solid var(--c-border, #e7e4dd);
+  border-radius: var(--hp-radius);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 160px 1fr;
+}
+.hp-sk-card__photo {
+  aspect-ratio: 4 / 3;
+  background: linear-gradient(90deg,
+    rgba(220,216,206,.6) 0%, rgba(232,229,221,.9) 50%, rgba(220,216,206,.6) 100%);
+  background-size: 200% 100%;
+  animation: hp-shimmer 1.4s linear infinite;
+}
+.hp-sk-card__body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Grid skeleton (favorites + agent dashboard) */
+.hp-sk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.hp-sk-grid .hp-sk-card {
+  grid-template-columns: 1fr;
+  grid-template-rows: 170px auto;
+}
+.hp-sk-grid .hp-sk-card__photo {
+  aspect-ratio: auto;
+  height: 170px;
+}
+
+/* House detail skeleton (single property) */
+.hp-sk-detail {
+  display: grid;
+  gap: 14px;
+}
+.hp-sk-detail__hero {
+  height: 360px;
+  border-radius: var(--hp-radius-lg);
+  background: linear-gradient(90deg,
+    rgba(220,216,206,.6) 0%, rgba(232,229,221,.9) 50%, rgba(220,216,206,.6) 100%);
+  background-size: 200% 100%;
+  animation: hp-shimmer 1.4s linear infinite;
+}
+.hp-sk-detail__panel {
+  background: var(--c-surface, #fff);
+  border: 1px solid var(--c-border, #e7e4dd);
+  border-radius: var(--hp-radius);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-width: 700px) {
+  .hp-sk-detail__hero { height: 220px; border-radius: var(--hp-radius); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-sk,
+  .hp-sk-card__photo,
+  .hp-sk-detail__hero {
+    animation: none;
+    background: rgba(231,228,221,.75);
+  }
+}
+
+/* =====================================================================
+   4. Image lazy-load + blur-up (Quick Reference §3)
+   Use as:
+     <div class="hp-img" style="--hp-img-bg:url(blur.jpg);aspect-ratio:4/3">
+       <img loading="lazy" decoding="async" src="full.jpg" alt="..." />
+     </div>
+   ===================================================================== */
+.hp-img {
+  position: relative;
+  overflow: hidden;
+  background: var(--hp-img-bg, #ece9e1) center/cover no-repeat;
+  border-radius: inherit;
+}
+.hp-img > img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--hp-dur-2) var(--hp-ease);
+}
+.hp-img > img.is-loaded { opacity: 1; }
+
+/* For CSS-only background-image fallback (existing pages), preload via the
+   shimmer feel by adding `data-loading` */
+.house-card-photo,
+.fav-card-photo,
+.ah-card-photo {
+  background-color: #ece9e1;
+  background-size: cover;
+  background-position: center;
+}
+.house-card-photo[data-loading="true"]::before,
+.fav-card-photo[data-loading="true"]::before,
+.ah-card-photo[data-loading="true"]::before,
+.hd-hero[data-loading="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    rgba(232,229,221,.0) 0%, rgba(232,229,221,.55) 50%, rgba(232,229,221,.0) 100%);
+  background-size: 200% 100%;
+  animation: hp-shimmer 1.4s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .house-card-photo[data-loading="true"]::before,
+  .fav-card-photo[data-loading="true"]::before,
+  .ah-card-photo[data-loading="true"]::before,
+  .hd-hero[data-loading="true"]::before { animation: none; }
+}
+
+/* =====================================================================
+   5. Rich empty states (Quick Reference §8 — empty-states)
+   Drop-in replacement: <div class="hp-empty">…</div>
+   ===================================================================== */
+.hp-empty {
+  text-align: center;
+  padding: 56px 24px;
+  background: var(--c-surface-soft, #fbfaf6);
+  border: 1px dashed var(--c-border, #e7e4dd);
+  border-radius: var(--hp-radius-lg);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.hp-empty__art {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  background: var(--c-brand-faint, #f0f7f2);
+  color: var(--c-brand-deep, #064a33);
+  display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1px var(--c-brand-soft, #d9ecdf);
+}
+.hp-empty__art svg { width: 44px; height: 44px; }
+.hp-empty__title {
+  font-family: var(--c-font-display, serif);
+  font-size: 1.35rem; font-weight: 700;
+  color: var(--c-text, #1a1915);
+  letter-spacing: -.01em;
+}
+.hp-empty__sub {
+  color: var(--c-text-muted, #6b6960);
+  font-size: .95rem;
+  max-width: 36ch;
+  line-height: 1.5;
+}
+.hp-empty__cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px;
+  background: var(--c-brand, #0a6f4d); color: #fff;
+  border: none; border-radius: 999px;
+  font-weight: 700; font-size: .95rem;
+  text-decoration: none;
+  min-height: 44px;
+  transition: background var(--hp-dur-1) var(--hp-ease), transform var(--hp-dur-1) var(--hp-ease);
+}
+.hp-empty__cta:hover { background: var(--c-brand-deep, #064a33); text-decoration: none; color: #fff; }
+.hp-empty__cta:active { transform: scale(.97); }
+.hp-empty__hint {
+  font-size: .82rem;
+  color: var(--c-text-faint, #9e9b91);
+}
+
+/* =====================================================================
+   6. Sticky filter bar (Quick Reference §5 + §9 — state-preservation)
+   The houses toolbar becomes a compact pill row when the user scrolls.
+   ===================================================================== */
+.houses-toolbar.is-sticky {
+  position: sticky;
+  top: 8px;
+  z-index: 30;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: saturate(140%) blur(10px);
+  -webkit-backdrop-filter: saturate(140%) blur(10px);
+  box-shadow: var(--hp-shadow-2);
+  border-color: rgba(10,111,77,.18);
+  transition: box-shadow var(--hp-dur-2) var(--hp-ease),
+              background var(--hp-dur-2) var(--hp-ease);
+}
+
+/* =====================================================================
+   7. Selected card ↔ marker sync (Quick Reference §7)
+   - Selected card glows briefly when activated from the map
+   - Active marker scales up + accent-color halo
+   ===================================================================== */
+.house-card.is-flash {
+  animation: hp-flash var(--hp-dur-2) var(--hp-ease);
+}
+@keyframes hp-flash {
+  0%   { box-shadow: 0 6px 18px rgba(10,111,77,.12); }
+  60%  { box-shadow: 0 0 0 4px rgba(10,111,77,.22), 0 8px 22px rgba(10,111,77,.20); }
+  100% { box-shadow: 0 6px 18px rgba(10,111,77,.12); }
+}
+.house-marker {
+  transition: transform var(--hp-dur-1) var(--hp-ease),
+              box-shadow var(--hp-dur-1) var(--hp-ease),
+              background var(--hp-dur-1) var(--hp-ease);
+}
+.house-marker.active {
+  box-shadow:
+    0 0 0 4px rgba(188,92,0,.30),
+    0 4px 14px rgba(0,0,0,.35);
+}
+
+/* =====================================================================
+   8. Bento-style hero block for the directory page
+   Optional decorative grid that breaks the page-hero monotony.
+   Place inside main.container.
+   ===================================================================== */
+.hp-bento {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 92px;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.hp-bento__cell {
+  background: var(--c-surface, #fff);
+  border: 1px solid var(--c-border, #e7e4dd);
+  border-radius: var(--hp-radius);
+  padding: 14px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  text-decoration: none;
+  color: inherit;
+  transition: transform var(--hp-dur-1) var(--hp-ease),
+              box-shadow var(--hp-dur-1) var(--hp-ease),
+              border-color var(--hp-dur-1) var(--hp-ease);
+  cursor: pointer;
+  min-height: 44px;
+}
+.hp-bento__cell:hover {
+  transform: translateY(-2px);
+  border-color: var(--c-brand-soft, #d9ecdf);
+  box-shadow: var(--hp-shadow-2);
+  text-decoration: none;
+  color: inherit;
+}
+.hp-bento__cell:active { transform: translateY(0); }
+.hp-bento__cell--brand {
+  background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+  color: #fff;
+  border-color: transparent;
+  grid-column: span 2; grid-row: span 2;
+}
+.hp-bento__cell--brand:hover { color: #fff; border-color: transparent; }
+.hp-bento__cell--accent {
+  background: linear-gradient(135deg, var(--c-accent, #bc5c00), var(--c-accent-deep, #8a4200));
+  color: #fff;
+  border-color: transparent;
+}
+.hp-bento__cell--accent:hover { color: #fff; border-color: transparent; }
+.hp-bento__eyebrow {
+  font-size: .68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em;
+  opacity: .85;
+}
+.hp-bento__num {
+  font-family: var(--c-font-display, serif);
+  font-size: 1.55rem; font-weight: 700;
+  line-height: 1; letter-spacing: -.01em;
+}
+.hp-bento__lbl {
+  font-size: .82rem;
+  font-weight: 500;
+  opacity: .82;
+}
+.hp-bento__cell--brand .hp-bento__num,
+.hp-bento__cell--accent .hp-bento__num { font-size: 2rem; }
+
+@media (max-width: 760px) {
+  .hp-bento { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 84px; }
+  .hp-bento__cell--brand { grid-column: span 2; grid-row: span 2; }
+}
+
+/* =====================================================================
+   9. Visually-hidden helper for aria-live regions etc.
+   ===================================================================== */
+.hp-sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* =====================================================================
+   10. Touch target enforcement on small icon buttons
+   ===================================================================== */
+.fav-card-photo .remove,
+.hd-icon-btn,
+.am-close {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* =====================================================================
+   11. Reduced motion global guardrail
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}

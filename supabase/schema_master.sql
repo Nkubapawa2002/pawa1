@@ -2588,5 +2588,102 @@ create policy "pending_changes updatable"
   on public.pending_changes for update using (true);
 
 -- ============================================================================
--- Done — 33 tables, 31 RPCs, pg_cron reminders + payment-confirmation SMS, full RLS, realtime, seed data, and multi-tenant.
+-- 34. houses  (House Booking TZ — property listings, public read)
+-- ============================================================================
+create table if not exists public.houses (
+  id                text primary key,
+  title             text not null,
+  type              text not null check (type in ('apartment','house','plot','office')),
+  listing           text not null check (listing in ('rent','sale')),
+  price_tzs         bigint not null default 0 check (price_tzs >= 0),
+  currency          text not null default 'TZS',
+  period            text default 'month',         -- 'month' for rent, 'total' for sale
+  bedrooms          int  not null default 0,
+  bathrooms         int  not null default 0,
+  size_sqm          int,
+  region            text references public.regions(name) on update cascade,
+  area              text,
+  address           text,
+  lat               double precision,
+  lng               double precision,
+  amenities         text[] not null default '{}',
+  furnished         text default 'no' check (furnished in ('yes','no','semi','n/a')),
+  photo             text,                          -- storage path OR external URL
+  description       text,
+  verified          boolean not null default false,
+  available_from    date,
+  agent             jsonb not null default '{}'::jsonb,
+  -- Owner / agent linkage for the agent dashboard step we'll build next.
+  owner_user_id     uuid references auth.users(id) on delete set null,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+create index if not exists houses_region_idx     on public.houses (region);
+create index if not exists houses_area_idx       on public.houses (area);
+create index if not exists houses_type_idx       on public.houses (type);
+create index if not exists houses_listing_idx    on public.houses (listing);
+create index if not exists houses_price_idx      on public.houses (price_tzs);
+create index if not exists houses_lat_lng_idx    on public.houses (lat, lng);
+
+drop trigger if exists set_houses_updated_at on public.houses;
+create trigger set_houses_updated_at
+  before update on public.houses
+  for each row execute function public.set_updated_at();
+
+alter table public.houses enable row level security;
+drop policy if exists "houses readable"      on public.houses;
+drop policy if exists "houses owner insert"  on public.houses;
+drop policy if exists "houses owner update"  on public.houses;
+drop policy if exists "houses owner delete"  on public.houses;
+drop policy if exists "houses admin write"   on public.houses;
+
+-- Anyone (signed in or anonymous) can browse listings.
+create policy "houses readable" on public.houses for select using (true);
+
+-- Owners can insert their own listings (must set owner_user_id = their uid).
+create policy "houses owner insert" on public.houses for insert
+  with check (auth.uid() is not null and owner_user_id = auth.uid());
+
+-- Owners can edit / delete only their own listings.
+create policy "houses owner update" on public.houses for update
+  using (owner_user_id = auth.uid()) with check (owner_user_id = auth.uid());
+create policy "houses owner delete" on public.houses for delete
+  using (owner_user_id = auth.uid());
+
+-- Admins can do anything.
+create policy "houses admin write" on public.houses for all
+  using (public.is_admin()) with check (public.is_admin());
+
+-- ----------------------------------------------------------------------------
+-- 34b. house-photos storage bucket (public-read, 20 MB max, jpg/png/webp)
+-- Run this in the SQL editor; the storage extension auto-loads on Supabase.
+-- ----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'house-photos', 'house-photos', true, 20971520,
+  array['image/jpeg','image/png','image/webp']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+-- Anyone can read the photos (the bucket is public anyway, but be explicit).
+drop policy if exists "house-photos readable" on storage.objects;
+create policy "house-photos readable" on storage.objects for select
+  using (bucket_id = 'house-photos');
+
+-- Signed-in users can upload to the bucket; admins can manage everything.
+drop policy if exists "house-photos upload" on storage.objects;
+create policy "house-photos upload" on storage.objects for insert
+  with check (bucket_id = 'house-photos' and auth.uid() is not null);
+
+drop policy if exists "house-photos admin write" on storage.objects;
+create policy "house-photos admin write" on storage.objects for all
+  using (bucket_id = 'house-photos' and public.is_admin())
+  with check (bucket_id = 'house-photos' and public.is_admin());
+
+-- ============================================================================
+-- Done — 34 tables, 31 RPCs, pg_cron reminders + payment-confirmation SMS, full RLS, realtime, seed data, and multi-tenant.
 -- ============================================================================

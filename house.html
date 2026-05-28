@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Property — Pawa Houses</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+
+  <style>
+    /* =====================================================================
+       House detail page — single property, photo + map + agent + CTAs
+       ===================================================================== */
+
+    .hd-wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 120px; }
+
+    /* Back to listings */
+    .hd-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--c-brand-deep, #064a33);
+      font-weight: 600; font-size: .92rem;
+      text-decoration: none;
+      padding: 6px 12px;
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+    .hd-back:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
+
+    /* Hero photo (full width) */
+    .hd-hero {
+      position: relative;
+      height: 360px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: #ece9e1 center/cover no-repeat;
+      box-shadow: 0 6px 20px rgba(0,0,0,.08);
+      margin-bottom: 18px;
+    }
+    .hd-hero-badges {
+      position: absolute; top: 14px; left: 14px;
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .hd-badge {
+      background: rgba(255,255,255,.95);
+      color: var(--c-brand-deep, #064a33);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: .76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      backdrop-filter: blur(8px);
+    }
+    .hd-badge.verified { background: var(--c-success, #0d8050); color: #fff; }
+    .hd-badge.type-plot     { background: #6b3aa3; color: #fff; }
+    .hd-badge.type-office   { background: #1e40af; color: #fff; }
+
+    .hd-hero-actions {
+      position: absolute; top: 14px; right: 14px;
+      display: flex; gap: 6px;
+    }
+    .hd-icon-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.95);
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--c-brand-deep, #064a33);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    }
+    .hd-icon-btn:active { transform: scale(.94); }
+    .hd-icon-btn.fav-active { color: var(--c-danger, #b91c1c); }
+
+    /* Header block (title + price) */
+    .hd-header {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 14px;
+    }
+    .hd-title {
+      font-family: var(--c-font-display, serif);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--c-text, #1a1915);
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    .hd-loc {
+      color: var(--c-text-muted, #6b6960);
+      font-size: .95rem;
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-bottom: 14px;
+    }
+    .hd-price {
+      font-family: var(--c-font-display, serif);
+      font-size: 2.1rem;
+      font-weight: 800;
+      color: var(--c-brand-deep, #064a33);
+      line-height: 1;
+    }
+    .hd-price small {
+      font-size: .82rem;
+      font-weight: 500;
+      color: var(--c-text-muted, #6b6960);
+      margin-left: 4px;
+    }
+
+    /* Stats row (beds / baths / sqm) */
+    .hd-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .hd-stat {
+      background: var(--c-bg-elev, #f4f3ee);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px;
+    }
+    .hd-stat-val {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--c-brand-deep, #064a33);
+      font-family: var(--c-font-display, serif);
+    }
+    .hd-stat-lbl {
+      font-size: .75rem;
+      color: var(--c-text-muted, #6b6960);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    /* Generic content card */
+    .hd-card {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 14px;
+    }
+    .hd-card h3 {
+      color: var(--c-brand-deep, #064a33);
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-bottom: 12px;
+    }
+    .hd-card p { color: var(--c-text-soft, #3f3d36); line-height: 1.6; }
+
+    /* Map */
+    .hd-map { position: relative; height: 320px; border-radius: 12px; overflow: hidden; border: 1px solid var(--c-border, #e7e4dd); }
+
+    /* Nearby-amenity toggle chips (overlaid on map). 10+ categories so we
+       scroll horizontally instead of wrapping over half the map. */
+    .hd-poi-toolbar {
+      position: absolute; top: 10px; left: 10px; right: 70px;
+      z-index: 10;
+      display: flex; gap: 4px;
+      overflow-x: auto; overflow-y: hidden;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .hd-poi-toolbar::-webkit-scrollbar { display: none; }
+    .hd-poi-chip {
+      flex-shrink: 0;
+      background: rgba(255,255,255,.95);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,.08);
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: .78rem; font-weight: 600;
+      color: var(--c-text-soft, #3f3d36);
+      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.12);
+      transition: background .12s ease, color .12s ease, transform .12s ease;
+      white-space: nowrap;
+    }
+    .hd-poi-chip:active { transform: scale(.95); }
+    .hd-poi-chip.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .hd-poi-chip.loading::after {
+      content: ""; width: 8px; height: 8px; margin-left: 4px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%;
+      animation: hd-spin .8s linear infinite;
+    }
+    @keyframes hd-spin { to { transform: rotate(360deg); } }
+    .hd-poi-status {
+      position: absolute; bottom: 10px; left: 10px;
+      z-index: 10;
+      background: rgba(0,0,0,.65); color: #fff;
+      padding: 4px 10px; border-radius: 999px;
+      font-size: .72rem;
+      backdrop-filter: blur(6px);
+      pointer-events: none;
+    }
+
+    /* Tiny POI marker pin (emoji-style) */
+    .hd-poi-marker {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.96);
+      border: 2px solid #0a6f4d;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+      cursor: pointer;
+      transform: translate(-50%, -50%);
+      transition: transform .12s ease;
+    }
+    .hd-poi-marker:hover { transform: translate(-50%, -50%) scale(1.18); z-index: 5; }
+    .hd-poi-marker.cat-school    { border-color: #1e40af; }
+    .hd-poi-marker.cat-hospital  { border-color: #b91c1c; }
+    .hd-poi-marker.cat-market    { border-color: #bc5c00; }
+    .hd-poi-marker.cat-transport { border-color: #6b3aa3; }
+
+    /* POI popup styling */
+    .hd-poi-popup { min-width: 160px; font-size: .85rem; }
+    .hd-poi-popup strong { display: block; color: var(--c-brand-deep, #064a33); margin-bottom: 2px; }
+    .hd-poi-popup .pp-meta { font-size: .75rem; color: var(--c-text-muted, #6b6960); }
+    .hd-map-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .hd-map-actions a, .hd-map-actions button {
+      flex: 1; min-width: 140px;
+      padding: 10px 14px;
+      background: var(--c-bg-elev, #f4f3ee);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: .9rem;
+      color: var(--c-text, #1a1915);
+      text-decoration: none;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .hd-map-actions a:hover, .hd-map-actions button:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
+
+    /* Amenities chips */
+    .hd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .hd-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 7px 14px;
+      background: var(--c-brand-faint, #f0f7f2);
+      color: var(--c-brand-deep, #064a33);
+      border-radius: 999px;
+      font-size: .85rem;
+      font-weight: 500;
+    }
+
+    /* Agent card */
+    .hd-agent {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .hd-agent-avatar {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      background: var(--c-brand, #0a6f4d);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+      font-family: var(--c-font-display, serif);
+      flex-shrink: 0;
+    }
+    .hd-agent-meta { flex: 1; min-width: 0; }
+    .hd-agent-name { font-weight: 700; color: var(--c-text, #1a1915); font-size: 1rem; }
+    .hd-agent-role { color: var(--c-text-muted, #6b6960); font-size: .82rem; }
+
+    .hd-cta-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .hd-cta {
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 700;
+      font-size: .95rem;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      text-decoration: none;
+    }
+    .hd-cta-call { background: var(--c-brand, #0a6f4d); color: #fff; }
+    .hd-cta-wa   { background: #25D366; color: #fff; }
+    .hd-cta-meet { background: var(--c-accent, #bc5c00); color: #fff; grid-column: span 2; }
+    .hd-cta:active { transform: scale(.97); }
+    .hd-cta:hover { text-decoration: none; opacity: .94; }
+
+    /* Sticky bottom CTA bar (phones) */
+    .hd-sticky {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--c-surface, #fff);
+      border-top: 1px solid var(--c-border, #e7e4dd);
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+      z-index: 940;
+      box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+    }
+    .hd-sticky-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .hd-sticky .hd-cta { padding: 11px 8px; font-size: .85rem; min-height: 44px; }
+
+    /* Loading / not-found states */
+    .hd-state {
+      text-align: center; padding: 80px 20px;
+      background: var(--c-surface-soft, #fbfaf6);
+      border: 1px dashed var(--c-border, #e7e4dd);
+      border-radius: 16px;
+      color: var(--c-text-muted, #6b6960);
+    }
+    .hd-state h3 { color: var(--c-text, #1a1915); margin-bottom: 8px; }
+
+    @media (max-width: 700px) {
+      .hd-wrap { padding-bottom: 100px; }
+      .hd-hero { height: 240px; border-radius: 14px; }
+      .hd-title { font-size: 1.3rem; }
+      .hd-price { font-size: 1.7rem; }
+      .hd-card  { padding: 16px; }
+      .hd-header { padding: 16px; }
+      .hd-sticky { display: block; }
+      /* Hide the in-page CTAs on phones (sticky bar covers them) */
+      .hd-cta-row-mobile-hide { display: none; }
+    }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')" data-page="house">
+  <a href="#hdBody" class="hp-skip-link">Skip to property details</a>
+  <div id="nav-slot"></div>
+
+  <main class="hd-wrap">
+    <a href="houses.html" class="hd-back">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      <span>Back to listings</span>
+    </a>
+
+    <div id="hdBody" aria-live="polite" aria-busy="true">
+      <div class="hp-sk-detail" aria-hidden="true">
+        <div class="hp-sk-detail__hero"></div>
+        <div class="hp-sk-detail__panel">
+          <span class="hp-sk hp-sk--title"></span>
+          <span class="hp-sk hp-sk--line" style="width:40%"></span>
+          <span class="hp-sk hp-sk--price"></span>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px">
+            <span class="hp-sk" style="height:60px;border-radius:12px"></span>
+            <span class="hp-sk" style="height:60px;border-radius:12px"></span>
+            <span class="hp-sk" style="height:60px;border-radius:12px"></span>
+          </div>
+        </div>
+        <div class="hp-sk-detail__panel">
+          <span class="hp-sk hp-sk--line" style="width:30%"></span>
+          <span class="hp-sk hp-sk--line"></span>
+          <span class="hp-sk hp-sk--line" style="width:85%"></span>
+          <span class="hp-sk hp-sk--line" style="width:60%"></span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Sticky bottom CTA bar (phones) — wired in JS after data loads -->
+  <div id="hdSticky" class="hd-sticky" hidden>
+    <div class="hd-sticky-inner">
+      <a id="hdStickyCall" class="hd-cta hd-cta-call" href="#" aria-label="Call agent">📞 Call</a>
+      <a id="hdStickyWa"   class="hd-cta hd-cta-wa"   href="#" target="_blank" rel="noopener" aria-label="WhatsApp agent">💬 WhatsApp</a>
+      <a id="hdStickyMeet" class="hd-cta hd-cta-meet" href="#" target="_blank" rel="noopener" aria-label="Request live viewing">📍 Viewing</a>
+    </div>
+  </div>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/house.js"></script>
+  <script>
+    window.renderNav("houses.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initHousePage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

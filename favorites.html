@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>My Favorites — Pawa Houses</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+
+  <style>
+    /* =====================================================================
+       Favorites page — list of saved properties (localStorage-backed)
+       ===================================================================== */
+    .fav-wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 80px; }
+
+    /* Toolbar (count + sort + clear) */
+    .fav-toolbar {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; flex-wrap: wrap;
+    }
+    .fav-toolbar[hidden] { display: none !important; }
+    .fav-count {
+      font-size: .92rem;
+      color: var(--c-text-soft, #3f3d36);
+    }
+    .fav-count strong { color: var(--c-brand-deep, #064a33); font-size: 1rem; }
+    .fav-toolbar-actions { display: flex; gap: 8px; align-items: center; }
+    .fav-sort {
+      padding: 8px 12px;
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 8px;
+      font-size: .88rem;
+      font-family: inherit;
+      background: #fff;
+      cursor: pointer;
+    }
+    .fav-clear-btn {
+      padding: 8px 14px;
+      background: transparent;
+      color: var(--c-danger, #b91c1c);
+      border: 1px solid var(--c-danger-soft, #fce4e4);
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: .86rem;
+      cursor: pointer;
+    }
+    .fav-clear-btn:hover { background: var(--c-danger-soft, #fce4e4); }
+
+    /* Grid of favorite cards */
+    .fav-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    .fav-card {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .fav-card:hover {
+      border-color: var(--c-brand, #0a6f4d);
+      box-shadow: 0 6px 18px rgba(10,111,77,.12);
+      transform: translateY(-1px);
+    }
+
+    .fav-card-photo {
+      height: 170px;
+      background: #ece9e1 center/cover no-repeat;
+      position: relative;
+    }
+    .fav-card-photo .badge {
+      position: absolute; top: 8px; left: 8px;
+      background: rgba(255,255,255,.95);
+      padding: 3px 9px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: var(--c-brand-deep, #064a33);
+      backdrop-filter: blur(6px);
+    }
+    .fav-card-photo .verified {
+      position: absolute; top: 8px; right: 8px;
+      background: var(--c-success, #0d8050); color: #fff;
+      padding: 2px 7px; border-radius: 999px;
+      font-size: .65rem; font-weight: 700;
+    }
+    .fav-card-photo .remove {
+      position: absolute; bottom: 8px; right: 8px;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.96);
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--c-danger, #b91c1c);
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    }
+    .fav-card-photo .remove:active { transform: scale(.92); }
+
+    .fav-card-body {
+      padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 4px;
+      flex: 1;
+    }
+    .fav-card-price {
+      font-family: var(--c-font-display, serif);
+      font-size: 1.2rem; font-weight: 700;
+      color: var(--c-brand-deep, #064a33);
+      line-height: 1.1;
+    }
+    .fav-card-price small {
+      font-size: .72rem; color: var(--c-text-muted, #6b6960);
+      font-weight: 500;
+    }
+    .fav-card-title {
+      font-size: .92rem; font-weight: 600;
+      color: var(--c-text, #1a1915);
+      line-height: 1.3;
+    }
+    .fav-card-meta {
+      font-size: .78rem;
+      color: var(--c-text-muted, #6b6960);
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .fav-card-loc {
+      font-size: .76rem;
+      color: var(--c-text-soft, #3f3d36);
+      margin-top: 4px;
+    }
+    .fav-card-view {
+      align-self: flex-start;
+      margin-top: 8px;
+      font-size: .8rem; font-weight: 700;
+      color: var(--c-brand-deep, #064a33);
+      background: var(--c-brand-faint, #f0f7f2);
+      border: 1px solid var(--c-brand-soft, #d9ecdf);
+      padding: 5px 11px; border-radius: 999px;
+      text-decoration: none;
+    }
+    .fav-card-view:hover {
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      border-color: var(--c-brand, #0a6f4d);
+      text-decoration: none;
+    }
+
+    /* States */
+    .fav-state {
+      text-align: center;
+      padding: 60px 24px;
+      background: var(--c-surface-soft, #fbfaf6);
+      border: 1px dashed var(--c-border, #e7e4dd);
+      border-radius: 16px;
+    }
+    .fav-state-icon {
+      font-size: 3.4rem;
+      margin-bottom: 8px;
+    }
+    .fav-state h3 {
+      color: var(--c-text, #1a1915);
+      font-family: var(--c-font-display, serif);
+      font-size: 1.4rem;
+      margin-bottom: 6px;
+    }
+    .fav-state p {
+      color: var(--c-text-muted, #6b6960);
+      margin-bottom: 18px;
+    }
+    .fav-state .btn-brand {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 11px 20px;
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      border: none; border-radius: 999px;
+      font-weight: 700; font-size: .95rem;
+      text-decoration: none;
+    }
+    .fav-state .btn-brand:hover { background: var(--c-brand-deep, #064a33); text-decoration: none; }
+
+    /* Card "removed" toast */
+    .fav-toast {
+      position: fixed;
+      bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--c-text, #1a1915); color: #fff;
+      padding: 11px 18px;
+      border-radius: 999px;
+      box-shadow: 0 6px 22px rgba(0,0,0,.3);
+      display: flex; align-items: center; gap: 12px;
+      z-index: 1000;
+      font-size: .9rem;
+      animation: fav-toast-in .2s ease;
+    }
+    @keyframes fav-toast-in {
+      from { opacity: 0; transform: translate(-50%, 8px); }
+      to   { opacity: 1; transform: translate(-50%, 0); }
+    }
+    .fav-toast .undo {
+      background: transparent;
+      color: var(--c-accent, #fbe9d7);
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 2px 4px;
+    }
+    .fav-toast .undo:hover { color: #fff; }
+
+    @media (max-width: 700px) {
+      .fav-wrap { padding: 14px 12px 80px; }
+      .fav-grid { grid-template-columns: 1fr; gap: 12px; }
+      .fav-card-photo { height: 150px; }
+    }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('data/geranimo-9yvADFNcXOc-unsplash.jpg')" data-page="favorites">
+  <a href="#favGrid" class="hp-skip-link">Skip to favorites</a>
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('data/geranimo-9yvADFNcXOc-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title">My favorite properties</h1>
+      <p class="page-subtitle">Houses you've saved with the heart button. Stored on this device.</p>
+    </div>
+  </section>
+
+  <main class="fav-wrap">
+
+    <div id="favToolbar" class="fav-toolbar" hidden>
+      <div class="fav-count"><strong id="favCount">0</strong> saved</div>
+      <div class="fav-toolbar-actions">
+        <select id="favSort" class="fav-sort">
+          <option value="recent">Recently saved</option>
+          <option value="price_asc">Price: low to high</option>
+          <option value="price_desc">Price: high to low</option>
+          <option value="title">Title (A → Z)</option>
+        </select>
+        <button id="favClearAll" class="fav-clear-btn" type="button">Clear all</button>
+      </div>
+    </div>
+
+    <div id="favGrid" class="fav-grid" aria-live="polite" aria-busy="true"></div>
+
+    <div id="favState">
+      <div class="hp-sk-grid" aria-hidden="true">
+        <div class="hp-sk-card">
+          <div class="hp-sk-card__photo"></div>
+          <div class="hp-sk-card__body">
+            <span class="hp-sk hp-sk--price"></span>
+            <span class="hp-sk hp-sk--title"></span>
+            <span class="hp-sk hp-sk--line" style="width:50%"></span>
+          </div>
+        </div>
+        <div class="hp-sk-card">
+          <div class="hp-sk-card__photo"></div>
+          <div class="hp-sk-card__body">
+            <span class="hp-sk hp-sk--price"></span>
+            <span class="hp-sk hp-sk--title"></span>
+            <span class="hp-sk hp-sk--line" style="width:50%"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/favorites.js"></script>
+  <script>
+    window.renderNav("favorites.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initFavoritesPage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>
