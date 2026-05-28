@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v38-2026-05-28-houses-pro";
+const VERSION = "v40-2026-05-28-neon-pro";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -14,6 +14,7 @@ const APP_SHELL = [
   "./css/styles.css",
   "./css/mobile.css",
   "./css/houses-pro.css",
+  "./css/neon-pro.css",
   "./js/config.js",
   "./js/i18n.js",
   "./js/data.js",

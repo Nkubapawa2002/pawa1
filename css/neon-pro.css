@@ -1,0 +1,520 @@
+/* =====================================================================
+   PAWA — NEON PRO
+   The dark-mode-with-neon-glow design system for the whole project.
+
+   Load order on every page (this file is LAST):
+     css/styles.css        ← base components
+     css/mobile.css        ← mobile tweaks
+     css/premium.css       ← legacy premium overlay
+     css/claude-design.css ← prior redesign (warm cream)
+     css/neon-pro.css      ← THIS FILE — last word on visual identity
+
+   What it does:
+     • Flips the whole app to deep-midnight surfaces with neon-green/gold glow
+     • Tanzania brand kept (green = primary glow, gold = accent glow)
+     • Orbitron headlines for a futuristic Africa-tech feel
+     • Inter body for readability; JetBrains Mono for numbers/prices
+     • Neon button glow (text-shadow + box-shadow ring), gradient CTAs
+     • Subtle radial atmosphere on bg — never pure #000 (OLED burn-in risk)
+     • WCAG AAA text contrast (>= 7:1)
+     • Respects prefers-reduced-motion (no pulses or scans)
+     • Mobile-first; touch targets >= 44px
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
+/* ── Tokens ────────────────────────────────────────────────────────── */
+:root {
+  /* Tanzania brand re-imagined as neon */
+  --green:        #10b981;
+  --green-bright: #34d399;
+  --green-deep:   #064e3b;
+  --green-dark:   #022c1e;
+  --green-soft:   rgba(16, 185, 129, 0.12);
+  --green-line:   rgba(16, 185, 129, 0.28);
+
+  --gold:         #fcd116;
+  --gold-bright:  #ffe066;
+  --gold-dark:    #b88800;
+  --gold-soft:    rgba(252, 209, 22, 0.12);
+  --gold-line:    rgba(252, 209, 22, 0.32);
+
+  /* Deep surfaces — never pure black (OLED burn + readability) */
+  --n-bg:         #07120d;   /* page */
+  --n-bg-2:       #0b1a13;   /* second-layer atmosphere */
+  --n-surface:    #0f221a;   /* cards */
+  --n-surface-2:  #142b22;   /* hover/elevated cards */
+  --n-surface-3:  #1a3528;   /* sticky bars, nav */
+
+  /* Text on dark */
+  --n-text:       #f0f5f2;
+  --n-text-soft:  #c8d3cd;
+  --n-text-muted: #8a9c92;
+  --n-text-faint: #586a60;
+  --n-text-on-brand: #051a10;
+
+  /* Borders */
+  --n-border:        rgba(255, 255, 255, 0.06);
+  --n-border-strong: rgba(255, 255, 255, 0.12);
+  --n-border-focus:  var(--green);
+
+  /* Glows */
+  --glow-green:     0 0 18px rgba(16, 185, 129, 0.55), 0 0 40px rgba(16, 185, 129, 0.28);
+  --glow-green-sm:  0 0 10px rgba(16, 185, 129, 0.48);
+  --glow-gold:      0 0 18px rgba(252, 209, 22, 0.55), 0 0 40px rgba(252, 209, 22, 0.28);
+  --glow-gold-sm:   0 0 10px rgba(252, 209, 22, 0.5);
+  --glow-text-green: 0 0 8px rgba(52, 211, 153, 0.6);
+  --glow-text-gold:  0 0 8px rgba(252, 209, 22, 0.6);
+
+  /* Page atmosphere — subtle radial spots, dark base */
+  --n-page-mesh:
+    radial-gradient(48% 38% at 12% 0%, rgba(16, 185, 129, 0.18) 0%, transparent 65%),
+    radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.10) 0%, transparent 70%),
+    radial-gradient(60% 50% at 50% 100%, rgba(16, 185, 129, 0.10) 0%, transparent 75%),
+    linear-gradient(180deg, #07120d 0%, #050d09 100%);
+
+  /* Gradients */
+  --grad-brand:    linear-gradient(135deg, #064e3b 0%, #10b981 60%, #34d399 100%);
+  --grad-gold:     linear-gradient(135deg, #b88800 0%, #fcd116 55%, #ffe066 100%);
+  --grad-stroke:   linear-gradient(135deg, rgba(16,185,129,0.6) 0%, rgba(252,209,22,0.4) 100%);
+
+  /* Shadows — softer on dark; lean on glow instead of depth */
+  --n-shadow-1: 0 1px 2px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+  --n-shadow-2: 0 2px 4px rgba(0,0,0,0.4), 0 8px 20px rgba(0,0,0,0.45);
+  --n-shadow-3: 0 4px 8px rgba(0,0,0,0.4), 0 16px 36px rgba(0,0,0,0.55);
+
+  /* Re-assert legacy tokens so old components recolor automatically */
+  --black:        var(--n-text);
+  --gray:         var(--n-text-muted);
+  --gray-light:   var(--n-bg);
+  --gray-mid:     var(--n-border);
+  --white:        var(--n-surface);
+  --border:       var(--n-border);
+  --shadow-sm:    var(--n-shadow-1);
+  --shadow:       var(--n-shadow-2);
+  --shadow-lg:    var(--n-shadow-3);
+  --radius:       12px;
+  --radius-lg:    18px;
+  --radius-xl:    24px;
+  --glass-bg:     rgba(15, 34, 26, 0.78);
+  --glass-border: var(--n-border-strong);
+  --glass-blur:   18px;
+
+  /* Motion */
+  --n-ease:       cubic-bezier(0.22, 1, 0.36, 1);
+  --n-dur-fast:   140ms;
+  --n-dur:        220ms;
+  --n-dur-slow:   360ms;
+}
+
+/* ── Page baseline ─────────────────────────────────────────────────── */
+html, body { background: var(--n-bg); color-scheme: dark; }
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  color: var(--n-text);
+  background:
+    var(--n-page-mesh) fixed,
+    var(--n-bg);
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hero images get a darker overlay so text stays readable */
+body[data-bg]::before {
+  filter: brightness(0.38) saturate(1.4) contrast(1.05);
+}
+
+/* ── Typography — Orbitron headlines, Inter body, JetBrains Mono for data ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Orbitron", "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  line-height: 1.1;
+  color: var(--n-text);
+}
+h1 { font-weight: 900; letter-spacing: 0.01em; }
+.hero h1 {
+  font-family: "Orbitron", "Inter", system-ui, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.015em;
+  line-height: 1.05;
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(16, 185, 129, 0.4);
+}
+.hero p { color: rgba(240, 245, 242, 0.88); font-weight: 400; }
+.hero .gold {
+  color: var(--gold-bright);
+  text-shadow: var(--glow-text-gold);
+}
+
+/* Numbers and prices get monospace for the techy feel */
+.stat-value, .price, .amount, .number, [data-count-to], code, kbd, samp, pre {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-feature-settings: "tnum", "zero";
+}
+
+a { color: var(--green-bright); transition: color var(--n-dur) var(--n-ease); }
+a:hover { color: #6ee7b7; text-shadow: var(--glow-text-green); }
+
+/* ── Navbar — dark frosted, neon brand ─────────────────────────────── */
+.navbar {
+  background: rgba(7, 18, 13, 0.78);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  backdrop-filter: saturate(160%) blur(20px);
+  border-bottom: 1px solid var(--n-border);
+  box-shadow: 0 1px 0 rgba(16, 185, 129, 0.08) inset, var(--n-shadow-1);
+}
+.nav-container { max-width: 1240px; }
+.nav-brand {
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--green-bright);
+  text-shadow: var(--glow-text-green);
+}
+.nav-brand .gold { color: var(--gold-bright); text-shadow: var(--glow-text-gold); }
+.nav-brand .logo {
+  background: var(--grad-brand);
+  box-shadow: var(--glow-green-sm), 0 1px 0 rgba(255,255,255,0.1) inset;
+  border-radius: 10px;
+  color: var(--n-text-on-brand);
+}
+.nav-links a,
+.nav-links .nav-top-link {
+  color: var(--n-text-soft);
+  font-weight: 500;
+  border-radius: 10px;
+  padding: 9px 13px;
+  transition: background var(--n-dur) var(--n-ease), color var(--n-dur) var(--n-ease), text-shadow var(--n-dur) var(--n-ease);
+  background: transparent;
+}
+.nav-links a:hover,
+.nav-links .nav-top-link:hover {
+  background: var(--green-soft);
+  color: var(--green-bright);
+  text-decoration: none;
+  text-shadow: var(--glow-text-green);
+}
+.nav-links a.active,
+.nav-links .nav-top-link.active {
+  background: var(--grad-brand);
+  color: var(--n-text-on-brand);
+  box-shadow: var(--glow-green-sm);
+}
+.nav-dropdown {
+  background: rgba(15, 34, 26, 0.94);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  backdrop-filter: saturate(160%) blur(20px);
+  border: 1px solid var(--n-border-strong);
+  box-shadow: var(--n-shadow-3), 0 0 32px rgba(16, 185, 129, 0.1);
+  border-radius: 14px;
+}
+.nav-dropdown a { color: var(--n-text-soft); }
+.nav-dropdown a:hover { color: var(--green-bright); background: var(--green-soft); }
+
+/* ── Buttons — neon glow gradient, mechanical press ───────────────── */
+.btn {
+  font-family: "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  border-radius: 12px;
+  padding: 12px 22px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    transform var(--n-dur-fast) var(--n-ease),
+    box-shadow var(--n-dur) var(--n-ease),
+    filter var(--n-dur) var(--n-ease);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  text-decoration: none;
+  will-change: transform;
+  position: relative;
+}
+.btn:active { transform: translateY(1px) scale(0.98); }
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5), var(--glow-green-sm);
+}
+
+.btn-primary {
+  background: var(--grad-brand);
+  color: var(--n-text-on-brand);
+  box-shadow: var(--glow-green-sm), 0 1px 0 rgba(255,255,255,0.15) inset;
+  font-weight: 700;
+}
+.btn-primary:hover {
+  box-shadow: var(--glow-green), 0 1px 0 rgba(255,255,255,0.2) inset;
+  filter: brightness(1.08);
+}
+
+.btn-secondary {
+  background: var(--grad-gold);
+  color: #1a1500;
+  box-shadow: var(--glow-gold-sm), 0 1px 0 rgba(255,255,255,0.25) inset;
+  font-weight: 700;
+}
+.btn-secondary:hover { box-shadow: var(--glow-gold); filter: brightness(1.08); }
+
+.btn-outline {
+  background: rgba(16, 185, 129, 0.04);
+  color: var(--green-bright);
+  border: 1px solid var(--green-line);
+}
+.btn-outline:hover {
+  background: var(--green-soft);
+  border-color: var(--green-bright);
+  box-shadow: var(--glow-green-sm);
+  color: var(--green-bright);
+}
+
+.btn-sm { padding: 8px 14px; min-height: 36px; font-size: 0.88rem; border-radius: 10px; }
+
+/* ── Stat strip — dark tiles with neon numbers ─────────────────────── */
+.stats-strip {
+  background: rgba(15, 34, 26, 0.88);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  backdrop-filter: saturate(160%) blur(20px);
+  border: 1px solid var(--n-border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--n-shadow-2), 0 0 48px rgba(16, 185, 129, 0.08);
+  margin: -32px auto 24px;
+  max-width: 1180px;
+}
+.stat-value {
+  color: var(--green-bright);
+  text-shadow: var(--glow-text-green);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.stat-label { color: var(--n-text-muted); font-weight: 500; }
+
+/* ── Cards — dark surface, neon edge on hover ──────────────────────── */
+.card,
+.fin-card,
+.fin-login-card,
+.kpi-card,
+.panel,
+.tile,
+.feature,
+.feature-card,
+.glass-card,
+.dashboard-card,
+.admin-card {
+  background: var(--n-surface);
+  border: 1px solid var(--n-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--n-shadow-1);
+  color: var(--n-text);
+  transition:
+    transform var(--n-dur) var(--n-ease),
+    box-shadow var(--n-dur) var(--n-ease),
+    border-color var(--n-dur) var(--n-ease),
+    background var(--n-dur) var(--n-ease);
+}
+.card:hover,
+.fin-card:hover,
+.kpi-card:hover,
+.panel:hover,
+.tile:hover,
+.feature:hover,
+.feature-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--green-line);
+  background: var(--n-surface-2);
+  box-shadow: var(--n-shadow-2), 0 0 24px rgba(16, 185, 129, 0.15);
+}
+
+/* KPI accent strips — neon edges */
+.kpi-card { padding: 18px 20px; }
+.kpi-green  { border-top: 2px solid var(--green); box-shadow: var(--n-shadow-1), inset 0 1px 0 var(--green-line); }
+.kpi-blue   { border-top: 2px solid #38bdf8; box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(56,189,248,0.25); }
+.kpi-teal   { border-top: 2px solid #2dd4bf; box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(45,212,191,0.25); }
+.kpi-gold   { border-top: 2px solid var(--gold); box-shadow: var(--n-shadow-1), inset 0 1px 0 var(--gold-line); }
+.kpi-purple { border-top: 2px solid #a78bfa; box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(167,139,250,0.25); }
+
+/* ── Hero feature tiles — dark image cards with neon hover ─────────── */
+.hero-feature {
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--n-border-strong);
+  box-shadow: var(--n-shadow-2);
+  transition: transform var(--n-dur) var(--n-ease), box-shadow var(--n-dur) var(--n-ease), border-color var(--n-dur) var(--n-ease);
+}
+.hero-feature:hover {
+  transform: translateY(-3px);
+  border-color: var(--green-line);
+  box-shadow: var(--n-shadow-3), 0 0 32px rgba(16, 185, 129, 0.22);
+}
+.hf-overlay {
+  background:
+    linear-gradient(180deg, rgba(7, 18, 13, 0) 25%, rgba(7, 18, 13, 0.92) 100%);
+  padding: 22px 22px 24px;
+}
+.hf-overlay h3 {
+  font-family: "Orbitron", system-ui, sans-serif;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 16px rgba(0,0,0,0.6);
+}
+.hf-overlay p { color: rgba(240, 245, 242, 0.92); }
+.hf-tag {
+  background: var(--green-soft);
+  color: var(--green-bright);
+  border: 1px solid var(--green-line);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: var(--glow-text-green);
+}
+.hf-tag.gold {
+  color: var(--gold-bright);
+  background: var(--gold-soft);
+  border-color: var(--gold-line);
+  text-shadow: var(--glow-text-gold);
+}
+
+/* ── Chips, tags, pills ────────────────────────────────────────────── */
+.chip, .tag, .pill, .badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--green-soft);
+  border: 1px solid var(--green-line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--green-bright);
+}
+
+/* ── Modals / sheets — dark glass with neon ring ───────────────────── */
+.modal, .sheet, .modal-content, .dialog {
+  background: rgba(15, 34, 26, 0.96);
+  -webkit-backdrop-filter: saturate(160%) blur(28px);
+  backdrop-filter: saturate(160%) blur(28px);
+  border: 1px solid var(--green-line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--n-shadow-3), 0 0 48px rgba(16, 185, 129, 0.18);
+  color: var(--n-text);
+}
+.modal-overlay, .backdrop, .scrim {
+  background: rgba(0, 0, 0, 0.72);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* ── Inputs — dark field with neon focus ───────────────────────────── */
+input, select, textarea {
+  background: rgba(7, 18, 13, 0.65);
+  border: 1px solid var(--n-border-strong);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 1rem;
+  color: var(--n-text);
+  min-height: 44px;
+  transition: border-color var(--n-dur) var(--n-ease), box-shadow var(--n-dur) var(--n-ease), background var(--n-dur) var(--n-ease);
+}
+input::placeholder, textarea::placeholder { color: var(--n-text-faint); }
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  background: rgba(15, 34, 26, 0.8);
+  border-color: var(--green-bright);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), var(--glow-green-sm);
+}
+input[type="checkbox"], input[type="radio"] { min-height: 0; accent-color: var(--green); }
+
+/* Disable iOS auto-zoom on inputs by keeping >=16px */
+@media (max-width: 768px) {
+  input, select, textarea { font-size: 16px; }
+}
+
+/* ── Containers ────────────────────────────────────────────────────── */
+.container, main.container {
+  max-width: 1240px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* ── Tables — dark zebra ───────────────────────────────────────────── */
+table { color: var(--n-text); border-collapse: collapse; }
+th { color: var(--n-text-soft); font-weight: 600; border-bottom: 1px solid var(--n-border-strong); }
+td { border-bottom: 1px solid var(--n-border); }
+tr:hover td { background: var(--green-soft); }
+
+/* ── Bottom-nav (mobile) — dark with neon top stroke ───────────────── */
+.mobile-nav, .bottom-nav, .tabbar {
+  background: rgba(7, 18, 13, 0.92);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  backdrop-filter: saturate(160%) blur(20px);
+  border-top: 1px solid var(--green-line);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.5), 0 -1px 0 rgba(16, 185, 129, 0.18) inset;
+}
+.mobile-nav a, .bottom-nav a, .tabbar a {
+  color: var(--n-text-muted);
+}
+.mobile-nav a.active, .bottom-nav a.active, .tabbar a.active {
+  color: var(--green-bright);
+  text-shadow: var(--glow-text-green);
+}
+
+/* ── Houses-pro page surfaces — dark-mode override ─────────────────── */
+.house-card, .hp-card, .listing-card {
+  background: var(--n-surface);
+  border: 1px solid var(--n-border-strong);
+  color: var(--n-text);
+}
+
+/* ── Selection — neon green ────────────────────────────────────────── */
+::selection { background: rgba(16, 185, 129, 0.55); color: #fff; }
+
+/* Scrollbar — slim neon */
+* { scrollbar-color: var(--green-line) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--green-line); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--green); }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Mobile tightening ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .stats-strip { margin: -16px 12px 16px; border-radius: var(--radius-lg); }
+  .nav-container { padding: 0 14px; }
+  body {
+    background:
+      radial-gradient(60% 35% at 50% 0%, rgba(16, 185, 129, 0.16) 0%, transparent 70%),
+      radial-gradient(60% 40% at 50% 100%, rgba(252, 209, 22, 0.08) 0%, transparent 75%),
+      var(--n-bg);
+    background-attachment: scroll; /* fixed gradients jitter on iOS */
+  }
+}
+
+/* ── A11y + perf ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  .btn:active { transform: none; }
+  .card:hover, .hero-feature:hover, .kpi-card:hover { transform: none; }
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5);
+}
+
+[disabled], .disabled, .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: saturate(0.4);
+  box-shadow: none !important;
+}
+
+/* ── Theme color override (browser chrome on mobile) ───────────────── */
+/* Page <meta name="theme-color"> is set per-page in HTML; we just ensure
+   the JS-loaded nav doesn't add a light strip on iOS Safari URL bar. */
