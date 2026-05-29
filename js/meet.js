@@ -575,24 +575,27 @@ window.initMeetPage = () => {
     return new Blob([buf], { type: "audio/wav" });
   }
 
-  // ---- Live camera streaming -----------------------------------------------
-  // Broadcasts a small JPEG (~320x240, q=0.45 ≈ 8–15 KB) every 1500 ms to all
-  // roommates over the existing Realtime channel using a separate event name
-  // (`camera_frame`) so it doesn't clutter the chat. Each peer's latest frame
-  // is shown in a tile above the chat; tapping any tile opens a fullscreen
-  // gallery so you can see everyone large. Front/back toggle button appears
-  // when the camera is live. Stops on toggle-off, room leave, tab close, or
-  // visibility hidden so we never broadcast in the background.
+  // ---- Live camera + voice (WebRTC) ----------------------------------------
+  // Real-time bidirectional video + audio between everyone in the room.
+  // We use the existing Supabase Realtime channel for signaling (SDP +
+  // ICE), then both video and audio flow peer-to-peer over WebRTC.
+  // The earlier JPEG-snapshot path was killed because 1.5 s snapshots
+  // were the source of the perceived "WebRTC is slow" lag — real WebRTC
+  // video is ~100 ms latency. Front/back camera switch keeps the call
+  // alive (renegotiates the new video track without re-creating peers).
   const chatCameraBtn = document.getElementById("chatCameraBtn");
   const liveCamerasEl = document.getElementById("liveCameras");
   const camSwitchBtn  = document.getElementById("chatCameraSwitchBtn");
   const camGalleryBtn = document.getElementById("chatCameraGalleryBtn");
-  const cameraStreams = new Map();  // user_id -> { name, role, src, lastTs, mine, mirror }
-  let camStream = null, camVideoEl = null, camCanvas = null, camTimer = null;
+  const cameraStreams = new Map();  // user_id -> { name, role, stream, mine, mirror }
+  // One <video> element per peer per render location — the strip and the
+  // gallery both render the same peers simultaneously and a single video
+  // element can only live at one DOM location at a time.
+  const peerVideoStrip   = new Map();   // user_id -> HTMLVideoElement (strip)
+  const peerVideoGallery = new Map();   // user_id -> HTMLVideoElement (gallery)
+  let camStream = null, camPreviewEl = null;
   let camFacing  = "environment";   // "user" = selfie, "environment" = rear
-  const CAM_INTERVAL_MS  = 1500;
-  const CAM_STALE_MS     = 6000;     // drop tile if no frame in 6s
-  const CAM_W = 320, CAM_H = 240;
+  const CAM_W = 640, CAM_H = 480;   // higher res now that video is real WebRTC, not 1.5s JPEGs
 
   async function startCamera(facing = camFacing) {
     if (!activeRoom) return;
@@ -613,7 +616,16 @@ window.initMeetPage = () => {
     // We always capture the mic but apply the mute state via track.enabled
     // afterwards, so unmuting doesn't re-prompt for permission.
     let newStream;
-    const audioConstraint = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    // Aggressive noise/echo suppression + iOS voiceIsolation when available.
+    // `ideal` constraints are non-throwing — unsupported keys are ignored.
+    const audioConstraint = {
+      echoCancellation: { ideal: true },
+      noiseSuppression: { ideal: true },
+      autoGainControl:  { ideal: true },
+      voiceIsolation:   { ideal: true },   // iOS 17+ / Chrome 124+ noise cancellation
+      channelCount:     { ideal: 1 },      // mono — cleaner voice
+      sampleRate:       { ideal: 48000 },  // Opus native rate
+    };
     try {
       newStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: facing }, width: { ideal: CAM_W }, height: { ideal: CAM_H } },
@@ -654,43 +666,30 @@ window.initMeetPage = () => {
     // Hand the (possibly new) audio track to every existing WebRTC peer
     // connection so they all keep hearing us after a camera switch.
     rtcReplaceLocalAudio();
-    // iOS Safari ONLY plays a video element when both:
-    //   (a) the `playsinline` ATTRIBUTE is present (the .playsInline property
-    //       alone is NOT enough — Safari checks the attribute on parse),
-    //   (b) the element is attached to the DOM.
-    // We attach a 1×1 invisible element off-screen.
-    if (!camVideoEl) {
-      camVideoEl = document.createElement("video");
-      camVideoEl.setAttribute("autoplay", "");
-      camVideoEl.setAttribute("playsinline", "");
-      camVideoEl.setAttribute("webkit-playsinline", "");   // iOS < 10 legacy
-      camVideoEl.setAttribute("muted", "");
-      camVideoEl.muted = true;          // also set property for older WebKit
-      camVideoEl.playsInline = true;
-      camVideoEl.style.cssText =
+    // Local preview element — required by iOS Safari even though we never
+    // SHOW it (it just keeps the stream live and gives WebRTC something to
+    // work with). 1×1 off-screen, must be DOM-attached + playsinline.
+    if (!camPreviewEl) {
+      camPreviewEl = document.createElement("video");
+      camPreviewEl.setAttribute("autoplay", "");
+      camPreviewEl.setAttribute("playsinline", "");
+      camPreviewEl.setAttribute("webkit-playsinline", "");
+      camPreviewEl.setAttribute("muted", "");
+      camPreviewEl.muted = true;
+      camPreviewEl.playsInline = true;
+      camPreviewEl.style.cssText =
         "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;";
-      document.body.appendChild(camVideoEl);
+      document.body.appendChild(camPreviewEl);
     }
-    camVideoEl.srcObject = camStream;
-    // Don't await — iOS sometimes resolves play() much later and we lose
-    // the gesture window if we let other awaits run first.
-    const playPromise = camVideoEl.play();
-    if (playPromise?.catch) playPromise.catch(e => console.warn("video.play()", e));
-    if (!camCanvas) {
-      camCanvas = document.createElement("canvas");
-      camCanvas.width = CAM_W;
-      camCanvas.height = CAM_H;
-    }
+    camPreviewEl.srcObject = camStream;
+    const playPromise = camPreviewEl.play();
+    if (playPromise?.catch) playPromise.catch(e => console.warn("local preview play", e));
     chatCameraBtn?.classList.add("recording");
-    if (!camTimer) camTimer = setInterval(captureAndSendFrame, CAM_INTERVAL_MS);
-    // First frame after a short delay — gives the video element time to
-    // populate videoWidth/Height on iOS (~200ms typical).
-    setTimeout(captureAndSendFrame, 400);
     updateCameraControls();
-    // Announce we're online so any peers already sharing know to call us.
+    // Announce we're online (with name/role) so peers know who's calling.
     rtcAnnounce();
-    // Also: peers we already knew about (from earlier camera_frames) —
-    // try to initiate with them directly in case rtc_hello got lost.
+    // For peers we already know about (their meta or first hello),
+    // try to initiate the WebRTC call now.
     for (const peerId of cameraStreams.keys()) {
       if (peerId !== myUserId) rtcMaybeInitiate(peerId);
     }
@@ -711,14 +710,12 @@ window.initMeetPage = () => {
   }
 
   function stopCamera({ notify = true } = {}) {
-    if (camTimer) { clearInterval(camTimer); camTimer = null; }
     if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-    if (camVideoEl) {
-      camVideoEl.srcObject = null;
-      camVideoEl.remove();
-      camVideoEl = null;
+    if (camPreviewEl) {
+      camPreviewEl.srcObject = null;
+      camPreviewEl.remove();
+      camPreviewEl = null;
     }
-    camCanvas = null;
     chatCameraBtn?.classList.remove("recording");
     cameraStreams.delete(myUserId);
     renderLiveCameras();
@@ -729,15 +726,20 @@ window.initMeetPage = () => {
     }
   }
 
-  // ── WebRTC voice ──────────────────────────────────────────────────────
-  // Real-time bidirectional audio between everyone in the room. Signaling
-  // (SDP offers/answers + ICE candidates) flows through the existing
-  // Supabase Realtime channel using `rtc_*` events. STUN only — good
-  // enough for the vast majority of users; we'd add TURN later if NAT
-  // traversal failures show up.
-  const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+  // ── WebRTC voice + video ───────────────────────────────────────────────
+  // Real-time bidirectional video + audio between everyone in the room.
+  // Signaling (SDP + ICE) rides on the existing Supabase Realtime channel
+  // via `rtc_*` broadcast events. STUN-only — good enough for most users;
+  // add TURN later if Tanzanian carrier NAT blocks ICE.
+  const RTC_CONFIG = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+    ],
+    bundlePolicy: "max-bundle",      // single transport — faster
+    rtcpMuxPolicy: "require",
+  };
   const peerConns  = new Map();   // user_id -> RTCPeerConnection
-  const peerAudios = new Map();   // user_id -> HTMLAudioElement (hidden, attached to DOM for iOS autoplay)
   let camMuted = false;
   const camMuteBtn = document.getElementById("chatCameraMuteBtn");
 
@@ -748,16 +750,16 @@ window.initMeetPage = () => {
       event: "rtc_hello",
       payload: { from: myUserId },
     }).catch(() => {});
+    // Also push my metadata so peers can label my tile before ICE establishes
+    announceCameraMeta();
   }
 
-  // Ensure (or create) a peer connection for the given remote user.
   function getPeer(remoteId) {
     let pc = peerConns.get(remoteId);
     if (pc) return pc;
     pc = new RTCPeerConnection(RTC_CONFIG);
     peerConns.set(remoteId, pc);
 
-    // Send ICE candidates as they're discovered
     pc.onicecandidate = (event) => {
       if (event.candidate && realtimeCh) {
         realtimeCh.send({
@@ -768,63 +770,108 @@ window.initMeetPage = () => {
       }
     };
 
-    // Incoming audio track from peer — pipe into a hidden <audio>
+    // Incoming track (audio OR video). Both go onto the same MediaStream
+    // and are bound to a single <video> element which plays the video and
+    // the audio together.
     pc.ontrack = (event) => {
       const stream = event.streams[0];
       if (!stream) return;
-      let audioEl = peerAudios.get(remoteId);
-      if (!audioEl) {
-        audioEl = document.createElement("audio");
-        audioEl.autoplay = true;
-        audioEl.setAttribute("autoplay", "");
-        audioEl.setAttribute("playsinline", "");
-        audioEl.playsInline = true;
-        audioEl.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;";
-        document.body.appendChild(audioEl);
-        peerAudios.set(remoteId, audioEl);
-      }
-      audioEl.srcObject = stream;
-      audioEl.play().catch(e => console.warn("peer audio play", e));
+      // Hint browser to keep playout buffer minimal — trades a little
+      // glitchiness for much lower latency. Critical for "we can talk".
+      try { event.receiver.playoutDelayHint = 0; } catch {}
+      try { event.receiver.jitterBufferTarget = 0; } catch {}
+
+      const existing = cameraStreams.get(remoteId) || {};
+      cameraStreams.set(remoteId, {
+        ...existing,
+        name: existing.name || "—",
+        role: existing.role || "guest",
+        stream,
+        mine: false,
+        mirror: false,
+      });
+      renderLiveCameras();
     };
 
-    // Drop the connection if it dies
     pc.onconnectionstatechange = () => {
       if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
         closePeer(remoteId);
+        cameraStreams.delete(remoteId);
+        renderLiveCameras();
+        if (visibleStreams().length === 0) closeCameraGallery();
       }
     };
 
-    // Add our own audio track(s) so the remote side can hear us
+    // Add OUR tracks so the remote can hear+see us
     if (camStream) {
-      camStream.getAudioTracks().forEach(track => pc.addTrack(track, camStream));
+      camStream.getTracks().forEach(track => pc.addTrack(track, camStream));
     }
+    // Once tracks are added, tune the codec preferences and bitrates
+    rtcTuneSenders(pc);
     return pc;
+  }
+
+  // Prefer Opus for audio with FEC + DTX, and bump the bitrate so voices
+  // don't sound thin or noisy. ~32-64 kbps Opus is the sweet spot.
+  function rtcTuneSenders(pc) {
+    try {
+      const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+      for (const tr of transceivers) {
+        if (tr.sender.track?.kind === "audio" && tr.setCodecPreferences) {
+          const caps = RTCRtpSender.getCapabilities?.("audio");
+          if (caps?.codecs) {
+            const opus = caps.codecs.find(c => /opus/i.test(c.mimeType));
+            const rest = caps.codecs.filter(c => c !== opus);
+            if (opus) tr.setCodecPreferences([opus, ...rest]);
+          }
+        }
+      }
+    } catch (e) { console.warn("setCodecPreferences", e); }
+    // Bitrate hints — small effect on quality but helps on patchy networks
+    for (const sender of pc.getSenders()) {
+      if (!sender.track) continue;
+      const params = sender.getParameters();
+      if (!params.encodings) params.encodings = [{}];
+      if (sender.track.kind === "audio") {
+        params.encodings[0].maxBitrate = 48_000;       // clear voice
+        params.encodings[0].priority   = "high";
+        params.encodings[0].networkPriority = "high";
+      } else if (sender.track.kind === "video") {
+        params.encodings[0].maxBitrate = 350_000;      // ~350 kbps video, fits 3G
+      }
+      sender.setParameters(params).catch(() => {});
+    }
   }
 
   function closePeer(remoteId) {
     const pc = peerConns.get(remoteId);
     if (pc) { try { pc.close(); } catch {} peerConns.delete(remoteId); }
-    const audioEl = peerAudios.get(remoteId);
-    if (audioEl) { try { audioEl.srcObject = null; audioEl.remove(); } catch {} peerAudios.delete(remoteId); }
+    for (const map of [peerVideoStrip, peerVideoGallery]) {
+      const el = map.get(remoteId);
+      if (el) { try { el.srcObject = null; el.remove(); } catch {} map.delete(remoteId); }
+    }
   }
 
   function rtcTearDown() {
     for (const id of [...peerConns.keys()]) closePeer(id);
   }
 
-  // Called whenever we get a new audio track (initial start, or switch
-  // camera ended up with a fresh mic track) — push it to every peer.
+  // Called when a fresh audio/video track appears (initial start OR camera
+  // switch produced new tracks) — push them to every existing peer
+  // connection via replaceTrack so the call doesn't have to renegotiate.
   function rtcReplaceLocalAudio() {
     if (!camStream) return;
     const audioTrack = camStream.getAudioTracks()[0] || null;
+    const videoTrack = camStream.getVideoTracks()[0] || null;
     for (const pc of peerConns.values()) {
       const senders = pc.getSenders();
       const audioSender = senders.find(s => s.track?.kind === "audio");
-      if (audioSender) {
-        audioSender.replaceTrack(audioTrack).catch(e => console.warn("replaceTrack", e));
-      } else if (audioTrack) {
-        pc.addTrack(audioTrack, camStream);
-      }
+      const videoSender = senders.find(s => s.track?.kind === "video");
+      if (audioSender) audioSender.replaceTrack(audioTrack).catch(e => console.warn("replaceTrack audio", e));
+      else if (audioTrack) pc.addTrack(audioTrack, camStream);
+      if (videoSender) videoSender.replaceTrack(videoTrack).catch(e => console.warn("replaceTrack video", e));
+      else if (videoTrack) pc.addTrack(videoTrack, camStream);
+      rtcTuneSenders(pc);
     }
   }
 
@@ -834,8 +881,9 @@ window.initMeetPage = () => {
     if (myUserId >= remoteId) return;  // they'll call us instead
     const pc = getPeer(remoteId);
     try {
-      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
       await pc.setLocalDescription(offer);
+      rtcTuneSenders(pc);
       await realtimeCh.send({
         type: "broadcast",
         event: "rtc_offer",
@@ -878,6 +926,8 @@ window.initMeetPage = () => {
   async function rtcHandleHello(payload) {
     if (payload.from === myUserId) return;
     if (!camStream) return;            // not sharing → nothing to do
+    // Send peer our metadata so they can label our tile
+    announceCameraMeta(payload.from);
     rtcMaybeInitiate(payload.from);
   }
 
@@ -892,85 +942,92 @@ window.initMeetPage = () => {
 
   camMuteBtn?.addEventListener("click", toggleMute);
 
-  async function captureAndSendFrame() {
-    if (!camStream || !camVideoEl || !camCanvas || !realtimeCh) return;
-    const vw = camVideoEl.videoWidth, vh = camVideoEl.videoHeight;
-    if (!vw || !vh) return;  // first ticks may fire before metadata
-    const ctx = camCanvas.getContext("2d");
-    // letterbox-cover the canvas with the video
-    const scale = Math.max(CAM_W / vw, CAM_H / vh);
-    const dw = vw * scale, dh = vh * scale;
-    const dx = (CAM_W - dw) / 2, dy = (CAM_H - dh) / 2;
-    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, CAM_W, CAM_H);
-    ctx.drawImage(camVideoEl, dx, dy, dw, dh);
-    const frame = camCanvas.toDataURL("image/jpeg", 0.45);
-    const mirror = camFacing === "user";   // selfie cam → mirrored locally for natural feel
-    // Update my own tile
-    cameraStreams.set(myUserId, {
-      name: (myProfile?.name || "Me") + " (you)",
-      role: myProfile?.role || "guest",
-      src:  frame,
-      lastTs: Date.now(),
-      mine: true,
-      mirror,
-    });
-    renderLiveCameras();
-    try {
-      await realtimeCh.send({
-        type: "broadcast",
-        event: "camera_frame",
-        payload: {
-          userId: myUserId,
-          name:   myProfile?.name || "Me",
-          role:   myProfile?.role || "guest",
-          frame,
-          mirror,
-          ts: Date.now(),
-        },
-      });
-    } catch (e) { /* swallow — next frame will retry */ }
+  // Broadcast my display metadata (name, role) — peers need this to label
+  // the incoming WebRTC track. Sent on startCamera and whenever a peer
+  // joins (rtc_hello reply). Tiny payload, no media.
+  function announceCameraMeta(toUserId) {
+    if (!realtimeCh) return;
+    realtimeCh.send({
+      type: "broadcast",
+      event: "camera_meta",
+      payload: {
+        userId: myUserId,
+        name:   myProfile?.name || "Me",
+        role:   myProfile?.role || "guest",
+        to:     toUserId || null,        // null = everyone; specific id = direct response
+      },
+    }).catch(() => {});
   }
 
-  function onPeerCameraFrame(payload) {
+  function onPeerCameraMeta(payload) {
     if (!payload || payload.userId === myUserId) return;
-    const isNew = !cameraStreams.has(payload.userId);
+    if (payload.to && payload.to !== myUserId) return;     // direct, not for us
+    const existing = cameraStreams.get(payload.userId) || {};
     cameraStreams.set(payload.userId, {
+      ...existing,
       name: payload.name || "—",
       role: payload.role || "guest",
-      src:  payload.frame,
-      lastTs: Date.now(),
       mine: false,
-      mirror: false,    // remote peers' selfies don't mirror — they look at themselves through MY screen
     });
     renderLiveCameras();
-    // First time we've seen this peer? Try to establish the voice call
-    // (rtcMaybeInitiate is a no-op if we're not sharing or if our user
-    // id is higher than theirs — in which case THEY initiate to us).
-    if (isNew && camStream) rtcMaybeInitiate(payload.userId);
+    // First time we know this peer is sharing? Try to establish the call.
+    if (camStream && !peerConns.has(payload.userId)) rtcMaybeInitiate(payload.userId);
   }
 
   function onPeerCameraStop(payload) {
     if (!payload?.userId) return;
     cameraStreams.delete(payload.userId);
+    closePeer(payload.userId);
     renderLiveCameras();
     if (visibleStreams().length === 0) closeCameraGallery();
   }
 
-  // Prune stale tiles every 2s — a tab that died silently won't send stop
-  setInterval(() => {
-    const now = Date.now();
-    let changed = false;
-    for (const [uid, s] of cameraStreams.entries()) {
-      if (uid === myUserId) continue;     // never prune self
-      if (now - s.lastTs > CAM_STALE_MS) { cameraStreams.delete(uid); changed = true; }
-    }
-    if (changed) renderLiveCameras();
-  }, 2000);
-
   // Show only OTHER people's cameras — not your own face. The pulsing
   // red camera button is the indicator that your camera is broadcasting.
   function visibleStreams() {
-    return Array.from(cameraStreams.values()).filter(s => !s.mine);
+    // Only entries that actually have a MediaStream (i.e. WebRTC connected).
+    // A peer might have meta set before their tracks arrive — don't render
+    // an empty tile in that case.
+    return Array.from(cameraStreams.entries())
+      .filter(([uid, s]) => !s.mine && s.stream)
+      .map(([uid, s]) => ({ ...s, userId: uid }));
+  }
+
+  // Get or create a persistent <video> element bound to a peer's MediaStream.
+  // Reusing the element across renders is critical — replacing innerHTML
+  // would drop the srcObject and the video would freeze for ~500 ms each
+  // time anything in the strip changes.
+  function getPeerVideoEl(userId, stream, mirror, location = "strip") {
+    // Strip and gallery each need their own video element bound to the
+    // peer's MediaStream. The strip element is muted (audio is played from
+    // the gallery element when open, OR the strip element when not — see
+    // muteStrategy below) to avoid double-audio. We standardize on: AUDIO
+    // ALWAYS PLAYS FROM THE STRIP ELEMENT, gallery element is muted.
+    const map = location === "gallery" ? peerVideoGallery : peerVideoStrip;
+    let el = map.get(userId);
+    if (!el) {
+      el = document.createElement("video");
+      el.setAttribute("autoplay", "");
+      el.setAttribute("playsinline", "");
+      el.setAttribute("webkit-playsinline", "");
+      el.autoplay = true;
+      el.playsInline = true;
+      if (location === "gallery") {
+        el.muted = true;
+        el.setAttribute("muted", "");
+      }
+      map.set(userId, el);
+    }
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+      el.play().catch(() => {});
+    }
+    el.style.transform = mirror ? "scaleX(-1)" : "";
+    el.style.width = "100%";
+    el.style.height = "100%";
+    el.style.objectFit = "cover";
+    el.style.display = "block";
+    return el;
   }
 
   function renderLiveCameras() {
@@ -984,12 +1041,20 @@ window.initMeetPage = () => {
       return;
     }
     liveCamerasEl.classList.add("has-streams");
-    liveCamerasEl.innerHTML = others.map(s => `
-      <div class="live-cam-tile" data-cam-tile="1">
-        <img src="${s.src}" alt="live camera" style="${s.mirror ? "transform:scaleX(-1)" : ""}">
-        <div class="live-cam-label"><span class="live-cam-dot"></span>${esc(s.name)}</div>
-      </div>
-    `).join("");
+    // Build tiles preserving the peer <video> elements
+    liveCamerasEl.innerHTML = "";
+    for (const s of others) {
+      const tile = document.createElement("div");
+      tile.className = "live-cam-tile";
+      tile.dataset.camTile = "1";
+      const videoEl = getPeerVideoEl(s.userId, s.stream, s.mirror);
+      tile.appendChild(videoEl);
+      const label = document.createElement("div");
+      label.className = "live-cam-label";
+      label.innerHTML = `<span class="live-cam-dot"></span>${esc(s.name)}`;
+      tile.appendChild(label);
+      liveCamerasEl.appendChild(tile);
+    }
     updateCameraControls();
     if (cameraGalleryOpen) renderCameraGallery();
   }
@@ -1029,12 +1094,18 @@ window.initMeetPage = () => {
     const others = visibleStreams();
     if (others.length === 0) { closeCameraGallery(); return; }
     countEl.textContent = others.length;
-    grid.innerHTML = others.map(s => `
-      <div class="cam-gallery-tile">
-        <img src="${s.src}" alt="live camera" style="${s.mirror ? "transform:scaleX(-1)" : ""}">
-        <div class="cam-gallery-label"><span class="live-cam-dot"></span>${esc(s.name)}</div>
-      </div>
-    `).join("");
+    grid.innerHTML = "";
+    for (const s of others) {
+      const tile = document.createElement("div");
+      tile.className = "cam-gallery-tile";
+      const videoEl = getPeerVideoEl(s.userId, s.stream, s.mirror, "gallery");
+      tile.appendChild(videoEl);
+      const label = document.createElement("div");
+      label.className = "cam-gallery-label";
+      label.innerHTML = `<span class="live-cam-dot"></span>${esc(s.name)}`;
+      tile.appendChild(label);
+      grid.appendChild(tile);
+    }
     // Auto-grid column count based on PEER tile count for a balanced layout
     const n = others.length;
     const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
@@ -1421,8 +1492,8 @@ window.initMeetPage = () => {
         filter: `room_code=eq.${activeRoom.code}`
       }, () => refreshRoster())
       .on("broadcast", { event: "chat" }, ({ payload }) => receiveChatMessage(payload))
-      .on("broadcast", { event: "camera_frame" }, ({ payload }) => onPeerCameraFrame(payload))
-      .on("broadcast", { event: "camera_stop"  }, ({ payload }) => onPeerCameraStop(payload))
+      .on("broadcast", { event: "camera_meta" }, ({ payload }) => onPeerCameraMeta(payload))
+      .on("broadcast", { event: "camera_stop" }, ({ payload }) => onPeerCameraStop(payload))
       .on("broadcast", { event: "rtc_hello"  }, ({ payload }) => rtcHandleHello(payload))
       .on("broadcast", { event: "rtc_offer"  }, ({ payload }) => rtcHandleOffer(payload))
       .on("broadcast", { event: "rtc_answer" }, ({ payload }) => rtcHandleAnswer(payload))
