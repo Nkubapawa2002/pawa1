@@ -1,10 +1,28 @@
 // Build stamp — shows in console AND on-screen (#meetBuildBadge) so you
 // can confirm which build is loaded without DevTools. Bump on each ship.
-const MEET_BUILD = "v52 (2026-05-29)";
+const MEET_BUILD = "v53 (2026-05-29)";
 console.log(`[meet] build ${MEET_BUILD} loaded`);
 window.addEventListener("DOMContentLoaded", () => {
   const b = document.getElementById("meetBuildBadge");
   if (b) b.textContent = "build " + MEET_BUILD;
+});
+
+// Surface ANY uncaught JS error as a visible alert on the page — without
+// this, init errors die silently and buttons appear "not to work" with
+// no explanation. Alerts only the first error so we don't spam.
+window.addEventListener("error", (e) => {
+  if (window._meetErrAlerted) return;
+  window._meetErrAlerted = true;
+  const msg = `[meet] uncaught: ${e.message}\nat ${e.filename || "?"}:${e.lineno || "?"}:${e.colno || "?"}`;
+  console.error("[meet] caught error", e.error || e);
+  alert(msg);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  if (window._meetErrAlerted) return;
+  window._meetErrAlerted = true;
+  const msg = `[meet] promise rejection: ${e.reason?.message || e.reason}`;
+  console.error("[meet] unhandled rejection", e.reason);
+  alert(msg);
 });
 
 // ============================================================================
@@ -21,6 +39,16 @@ window.addEventListener("DOMContentLoaded", () => {
 // ============================================================================
 
 window.initMeetPage = () => {
+  try {
+    _initMeetPageImpl();
+  } catch (err) {
+    console.error("[meet] initMeetPage threw:", err);
+    alert(`[meet] init error — buttons will not work until fixed:\n${err?.message || err}\nstack: ${err?.stack?.split("\n")?.slice(0, 3)?.join(" | ") || "n/a"}`);
+    throw err;
+  }
+};
+
+const _initMeetPageImpl = () => {
   const cfg = window.APP_CONFIG;
   const sb  = window.DataStore?.sb;
 
