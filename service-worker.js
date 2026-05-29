@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v56-2026-05-29-meet-snapshot-not-webrtc";
+const VERSION = "v57-2026-05-29-meet-popup-api-fix";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
