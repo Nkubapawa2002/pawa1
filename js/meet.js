@@ -1,3 +1,7 @@
+// Build stamp — shows in console so you can confirm which build is loaded.
+// Bump this whenever you ship a meet.js change that users keep missing.
+console.log("[meet] build v51 (2026-05-29) loaded");
+
 // ============================================================================
 //  Meet & Locate — realtime GPS rooms over Tanzania
 //  Stack:
