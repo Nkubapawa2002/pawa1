@@ -1,135 +1,102 @@
 /* =====================================================================
-   PAWA — NEON PRO
-   The dark-mode-with-neon-glow design system for the whole project.
+   PAWA — NEON PRO  (v2 — readability fix)
 
-   Load order on every page (this file is LAST):
-     css/styles.css        ← base components
-     css/mobile.css        ← mobile tweaks
-     css/premium.css       ← legacy premium overlay
-     css/claude-design.css ← prior redesign (warm cream)
-     css/neon-pro.css      ← THIS FILE — last word on visual identity
+   Loaded LAST on every page. Dark-mode + neon-glow visual identity.
 
-   What it does:
-     • Flips the whole app to deep-midnight surfaces with neon-green/gold glow
-     • Tanzania brand kept (green = primary glow, gold = accent glow)
-     • Orbitron headlines for a futuristic Africa-tech feel
-     • Inter body for readability; JetBrains Mono for numbers/prices
-     • Neon button glow (text-shadow + box-shadow ring), gradient CTAs
-     • Subtle radial atmosphere on bg — never pure #000 (OLED burn-in risk)
-     • WCAG AAA text contrast (>= 7:1)
-     • Respects prefers-reduced-motion (no pulses or scans)
-     • Mobile-first; touch targets >= 44px
+   v2 changes from v1:
+     • Stops overriding legacy --white/--black/--gray-light tokens —
+       caused light-text-on-hardcoded-white-bg invisibility bugs in
+       accounting.css and styles.css cream zones.
+     • Surgically overrides every known light-background class
+       (accounting forms, sidebar, warning zones, seat holds, etc).
+     • Tones down all glows (~50% intensity) so they no longer
+       bleed onto adjacent text on non-retina displays.
+     • Removes glow halo from stat numbers (was making digits blurry).
+     • Removes always-on glow ring from buttons — only on :hover.
    ===================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 
-/* ── Tokens ────────────────────────────────────────────────────────── */
+/* ── Tokens (scoped — no legacy overrides) ─────────────────────────── */
 :root {
   /* Tanzania brand re-imagined as neon */
-  --green:        #10b981;
-  --green-bright: #34d399;
-  --green-deep:   #064e3b;
-  --green-dark:   #022c1e;
-  --green-soft:   rgba(16, 185, 129, 0.12);
-  --green-line:   rgba(16, 185, 129, 0.28);
+  --n-green:        #10b981;
+  --n-green-bright: #34d399;
+  --n-green-deep:   #064e3b;
+  --n-green-soft:   rgba(16, 185, 129, 0.10);
+  --n-green-line:   rgba(16, 185, 129, 0.25);
 
-  --gold:         #fcd116;
-  --gold-bright:  #ffe066;
-  --gold-dark:    #b88800;
-  --gold-soft:    rgba(252, 209, 22, 0.12);
-  --gold-line:    rgba(252, 209, 22, 0.32);
+  --n-gold:         #fcd116;
+  --n-gold-bright:  #ffe066;
+  --n-gold-soft:    rgba(252, 209, 22, 0.10);
+  --n-gold-line:    rgba(252, 209, 22, 0.30);
 
-  /* Deep surfaces — never pure black (OLED burn + readability) */
-  --n-bg:         #07120d;   /* page */
-  --n-bg-2:       #0b1a13;   /* second-layer atmosphere */
-  --n-surface:    #0f221a;   /* cards */
-  --n-surface-2:  #142b22;   /* hover/elevated cards */
-  --n-surface-3:  #1a3528;   /* sticky bars, nav */
+  /* Surfaces — never pure black (OLED + readability) */
+  --n-bg:         #07120d;
+  --n-bg-2:       #0b1a13;
+  --n-surface:    #0f221a;
+  --n-surface-2:  #142b22;
+  --n-surface-3:  #1a3528;
+  --n-surface-warn: #2a1d05;   /* dark amber for warning panels */
+  --n-surface-err:  #2a0d0d;   /* dark red for error panels */
+  --n-surface-ok:   #052619;   /* dark green for success panels */
 
-  /* Text on dark */
+  /* Text */
   --n-text:       #f0f5f2;
   --n-text-soft:  #c8d3cd;
   --n-text-muted: #8a9c92;
   --n-text-faint: #586a60;
   --n-text-on-brand: #051a10;
+  --n-text-warn:  #fde68a;
+  --n-text-err:   #fecaca;
+  --n-text-ok:    #86efac;
 
   /* Borders */
   --n-border:        rgba(255, 255, 255, 0.06);
   --n-border-strong: rgba(255, 255, 255, 0.12);
-  --n-border-focus:  var(--green);
 
-  /* Glows */
-  --glow-green:     0 0 18px rgba(16, 185, 129, 0.55), 0 0 40px rgba(16, 185, 129, 0.28);
-  --glow-green-sm:  0 0 10px rgba(16, 185, 129, 0.48);
-  --glow-gold:      0 0 18px rgba(252, 209, 22, 0.55), 0 0 40px rgba(252, 209, 22, 0.28);
-  --glow-gold-sm:   0 0 10px rgba(252, 209, 22, 0.5);
-  --glow-text-green: 0 0 8px rgba(52, 211, 153, 0.6);
-  --glow-text-gold:  0 0 8px rgba(252, 209, 22, 0.6);
+  /* Glows — tamed (v1 had 18-40px halos that washed out text) */
+  --n-glow-green:   0 0 8px rgba(16, 185, 129, 0.30);
+  --n-glow-gold:    0 0 8px rgba(252, 209, 22, 0.32);
+  --n-glow-text:    0 0 4px rgba(52, 211, 153, 0.35);   /* much weaker */
+  --n-glow-text-g:  0 0 4px rgba(252, 209, 22, 0.35);
 
-  /* Page atmosphere — subtle radial spots, dark base */
-  --n-page-mesh:
-    radial-gradient(48% 38% at 12% 0%, rgba(16, 185, 129, 0.18) 0%, transparent 65%),
-    radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.10) 0%, transparent 70%),
-    radial-gradient(60% 50% at 50% 100%, rgba(16, 185, 129, 0.10) 0%, transparent 75%),
-    linear-gradient(180deg, #07120d 0%, #050d09 100%);
-
-  /* Gradients */
-  --grad-brand:    linear-gradient(135deg, #064e3b 0%, #10b981 60%, #34d399 100%);
-  --grad-gold:     linear-gradient(135deg, #b88800 0%, #fcd116 55%, #ffe066 100%);
-  --grad-stroke:   linear-gradient(135deg, rgba(16,185,129,0.6) 0%, rgba(252,209,22,0.4) 100%);
-
-  /* Shadows — softer on dark; lean on glow instead of depth */
+  /* Shadows */
   --n-shadow-1: 0 1px 2px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
   --n-shadow-2: 0 2px 4px rgba(0,0,0,0.4), 0 8px 20px rgba(0,0,0,0.45);
   --n-shadow-3: 0 4px 8px rgba(0,0,0,0.4), 0 16px 36px rgba(0,0,0,0.55);
 
-  /* Re-assert legacy tokens so old components recolor automatically */
-  --black:        var(--n-text);
-  --gray:         var(--n-text-muted);
-  --gray-light:   var(--n-bg);
-  --gray-mid:     var(--n-border);
-  --white:        var(--n-surface);
-  --border:       var(--n-border);
-  --shadow-sm:    var(--n-shadow-1);
-  --shadow:       var(--n-shadow-2);
-  --shadow-lg:    var(--n-shadow-3);
-  --radius:       12px;
-  --radius-lg:    18px;
-  --radius-xl:    24px;
-  --glass-bg:     rgba(15, 34, 26, 0.78);
-  --glass-border: var(--n-border-strong);
-  --glass-blur:   18px;
+  /* Page atmosphere */
+  --n-page-mesh:
+    radial-gradient(48% 38% at 12% 0%, rgba(16, 185, 129, 0.15) 0%, transparent 65%),
+    radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.08) 0%, transparent 70%),
+    radial-gradient(60% 50% at 50% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 75%),
+    linear-gradient(180deg, #07120d 0%, #050d09 100%);
 
-  /* Motion */
+  --n-grad-brand:    linear-gradient(135deg, #064e3b 0%, #10b981 60%, #34d399 100%);
+  --n-grad-gold:     linear-gradient(135deg, #b88800 0%, #fcd116 55%, #ffe066 100%);
+
   --n-ease:       cubic-bezier(0.22, 1, 0.36, 1);
   --n-dur-fast:   140ms;
   --n-dur:        220ms;
-  --n-dur-slow:   360ms;
 }
 
 /* ── Page baseline ─────────────────────────────────────────────────── */
-html, body { background: var(--n-bg); color-scheme: dark; }
+html { color-scheme: dark; background: var(--n-bg); }
 body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   color: var(--n-text);
-  background:
-    var(--n-page-mesh) fixed,
-    var(--n-bg);
-  letter-spacing: -0.005em;
+  background: var(--n-page-mesh) fixed, var(--n-bg);
   -webkit-font-smoothing: antialiased;
 }
+body[data-bg]::before { filter: brightness(0.42) saturate(1.3) contrast(1.05); }
 
-/* Hero images get a darker overlay so text stays readable */
-body[data-bg]::before {
-  filter: brightness(0.38) saturate(1.4) contrast(1.05);
-}
-
-/* ── Typography — Orbitron headlines, Inter body, JetBrains Mono for data ── */
+/* ── Typography ────────────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
   font-family: "Orbitron", "Inter", system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: 0.005em;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--n-text);
 }
 h1 { font-weight: 900; letter-spacing: 0.01em; }
@@ -139,80 +106,74 @@ h1 { font-weight: 900; letter-spacing: 0.01em; }
   letter-spacing: 0.015em;
   line-height: 1.05;
   color: #fff;
-  text-shadow: 0 2px 24px rgba(16, 185, 129, 0.4);
+  /* keep a hint of glow for the hero only — but weak so it doesn't blur the letters */
+  text-shadow: 0 2px 12px rgba(0,0,0,0.55);
 }
-.hero p { color: rgba(240, 245, 242, 0.88); font-weight: 400; }
-.hero .gold {
-  color: var(--gold-bright);
-  text-shadow: var(--glow-text-gold);
-}
+.hero p { color: rgba(240, 245, 242, 0.92); font-weight: 400; }
+.hero .gold { color: var(--n-gold-bright); }
 
-/* Numbers and prices get monospace for the techy feel */
-.stat-value, .price, .amount, .number, [data-count-to], code, kbd, samp, pre {
+.stat-value, .price, .amount, [data-count-to], code, kbd, samp, pre {
   font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   font-feature-settings: "tnum", "zero";
 }
 
-a { color: var(--green-bright); transition: color var(--n-dur) var(--n-ease); }
-a:hover { color: #6ee7b7; text-shadow: var(--glow-text-green); }
+a { color: var(--n-green-bright); transition: color var(--n-dur) var(--n-ease); }
+a:hover { color: #6ee7b7; }
 
-/* ── Navbar — dark frosted, neon brand ─────────────────────────────── */
+/* ── Navbar ────────────────────────────────────────────────────────── */
 .navbar {
-  background: rgba(7, 18, 13, 0.78);
+  background: rgba(7, 18, 13, 0.82);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
   backdrop-filter: saturate(160%) blur(20px);
   border-bottom: 1px solid var(--n-border);
-  box-shadow: 0 1px 0 rgba(16, 185, 129, 0.08) inset, var(--n-shadow-1);
+  box-shadow: var(--n-shadow-1);
 }
 .nav-container { max-width: 1240px; }
 .nav-brand {
   font-family: "Orbitron", system-ui, sans-serif;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: var(--green-bright);
-  text-shadow: var(--glow-text-green);
+  color: var(--n-green-bright);
 }
-.nav-brand .gold { color: var(--gold-bright); text-shadow: var(--glow-text-gold); }
+.nav-brand .gold { color: var(--n-gold-bright); }
 .nav-brand .logo {
-  background: var(--grad-brand);
-  box-shadow: var(--glow-green-sm), 0 1px 0 rgba(255,255,255,0.1) inset;
-  border-radius: 10px;
+  background: var(--n-grad-brand);
+  box-shadow: var(--n-glow-green);
   color: var(--n-text-on-brand);
+  border-radius: 10px;
 }
 .nav-links a,
 .nav-links .nav-top-link {
-  color: var(--n-text-soft);
+  color: var(--n-text-soft) !important;
   font-weight: 500;
   border-radius: 10px;
   padding: 9px 13px;
-  transition: background var(--n-dur) var(--n-ease), color var(--n-dur) var(--n-ease), text-shadow var(--n-dur) var(--n-ease);
+  transition: background var(--n-dur) var(--n-ease), color var(--n-dur) var(--n-ease);
   background: transparent;
 }
 .nav-links a:hover,
 .nav-links .nav-top-link:hover {
-  background: var(--green-soft);
-  color: var(--green-bright);
+  background: var(--n-green-soft);
+  color: var(--n-green-bright) !important;
   text-decoration: none;
-  text-shadow: var(--glow-text-green);
 }
 .nav-links a.active,
 .nav-links .nav-top-link.active {
-  background: var(--grad-brand);
-  color: var(--n-text-on-brand);
-  box-shadow: var(--glow-green-sm);
+  background: var(--n-grad-brand);
+  color: var(--n-text-on-brand) !important;
 }
 .nav-dropdown {
-  background: rgba(15, 34, 26, 0.94);
+  background: rgba(15, 34, 26, 0.97) !important;
   -webkit-backdrop-filter: saturate(160%) blur(20px);
   backdrop-filter: saturate(160%) blur(20px);
   border: 1px solid var(--n-border-strong);
-  box-shadow: var(--n-shadow-3), 0 0 32px rgba(16, 185, 129, 0.1);
+  box-shadow: var(--n-shadow-3);
   border-radius: 14px;
 }
-.nav-dropdown a { color: var(--n-text-soft); }
-.nav-dropdown a:hover { color: var(--green-bright); background: var(--green-soft); }
+.nav-dropdown a { color: var(--n-text-soft) !important; background: transparent; }
+.nav-dropdown a:hover { color: var(--n-green-bright) !important; background: var(--n-green-soft); }
 
-/* ── Buttons — neon glow gradient, mechanical press ───────────────── */
+/* ── Buttons ───────────────────────────────────────────────────────── */
 .btn {
   font-family: "Inter", system-ui, sans-serif;
   font-weight: 600;
@@ -229,127 +190,90 @@ a:hover { color: #6ee7b7; text-shadow: var(--glow-text-green); }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   text-decoration: none;
   will-change: transform;
-  position: relative;
 }
 .btn:active { transform: translateY(1px) scale(0.98); }
-.btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5), var(--glow-green-sm);
-}
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.4); }
 
 .btn-primary {
-  background: var(--grad-brand);
+  background: var(--n-grad-brand);
   color: var(--n-text-on-brand);
-  box-shadow: var(--glow-green-sm), 0 1px 0 rgba(255,255,255,0.15) inset;
   font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
-.btn-primary:hover {
-  box-shadow: var(--glow-green), 0 1px 0 rgba(255,255,255,0.2) inset;
-  filter: brightness(1.08);
-}
+.btn-primary:hover { box-shadow: var(--n-glow-green), 0 2px 8px rgba(0,0,0,0.35); filter: brightness(1.06); }
 
 .btn-secondary {
-  background: var(--grad-gold);
-  color: #1a1500;
-  box-shadow: var(--glow-gold-sm), 0 1px 0 rgba(255,255,255,0.25) inset;
+  background: var(--n-grad-gold) !important;
+  color: #1a1500 !important;
   font-weight: 700;
+  border: 1px solid transparent !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
-.btn-secondary:hover { box-shadow: var(--glow-gold); filter: brightness(1.08); }
+.btn-secondary:hover { box-shadow: var(--n-glow-gold), 0 2px 8px rgba(0,0,0,0.35); filter: brightness(1.06); }
 
 .btn-outline {
-  background: rgba(16, 185, 129, 0.04);
-  color: var(--green-bright);
-  border: 1px solid var(--green-line);
+  background: rgba(16, 185, 129, 0.04) !important;
+  color: var(--n-green-bright) !important;
+  border: 1px solid var(--n-green-line) !important;
 }
-.btn-outline:hover {
-  background: var(--green-soft);
-  border-color: var(--green-bright);
-  box-shadow: var(--glow-green-sm);
-  color: var(--green-bright);
-}
+.btn-outline:hover { background: var(--n-green-soft) !important; border-color: var(--n-green-bright) !important; }
 
 .btn-sm { padding: 8px 14px; min-height: 36px; font-size: 0.88rem; border-radius: 10px; }
 
-/* ── Stat strip — dark tiles with neon numbers ─────────────────────── */
+/* ── Stat strip ────────────────────────────────────────────────────── */
 .stats-strip {
-  background: rgba(15, 34, 26, 0.88);
+  background: rgba(15, 34, 26, 0.9);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
   backdrop-filter: saturate(160%) blur(20px);
   border: 1px solid var(--n-border-strong);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--n-shadow-2), 0 0 48px rgba(16, 185, 129, 0.08);
+  border-radius: 24px;
+  box-shadow: var(--n-shadow-2);
   margin: -32px auto 24px;
   max-width: 1180px;
 }
 .stat-value {
-  color: var(--green-bright);
-  text-shadow: var(--glow-text-green);
+  color: var(--n-green-bright);
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-weight: 700;
   letter-spacing: 0.01em;
+  /* NO text-shadow — was making numbers blurry on 1080p */
 }
 .stat-label { color: var(--n-text-muted); font-weight: 500; }
 
-/* ── Cards — dark surface, neon edge on hover ──────────────────────── */
+/* ── Generic cards ─────────────────────────────────────────────────── */
 .card,
-.fin-card,
-.fin-login-card,
-.kpi-card,
 .panel,
 .tile,
 .feature,
 .feature-card,
 .glass-card,
 .dashboard-card,
-.admin-card {
-  background: var(--n-surface);
-  border: 1px solid var(--n-border-strong);
-  border-radius: var(--radius-lg);
+.admin-card,
+.section.alt {
+  background: var(--n-surface) !important;
+  border: 1px solid var(--n-border-strong) !important;
+  border-radius: 18px;
   box-shadow: var(--n-shadow-1);
   color: var(--n-text);
-  transition:
-    transform var(--n-dur) var(--n-ease),
-    box-shadow var(--n-dur) var(--n-ease),
-    border-color var(--n-dur) var(--n-ease),
-    background var(--n-dur) var(--n-ease);
+  transition: transform var(--n-dur) var(--n-ease), border-color var(--n-dur) var(--n-ease), background var(--n-dur) var(--n-ease);
 }
-.card:hover,
-.fin-card:hover,
-.kpi-card:hover,
-.panel:hover,
-.tile:hover,
-.feature:hover,
-.feature-card:hover {
+.card:hover, .panel:hover, .tile:hover, .feature:hover, .feature-card:hover {
   transform: translateY(-2px);
-  border-color: var(--green-line);
-  background: var(--n-surface-2);
-  box-shadow: var(--n-shadow-2), 0 0 24px rgba(16, 185, 129, 0.15);
+  border-color: var(--n-green-line) !important;
+  background: var(--n-surface-2) !important;
 }
 
-/* KPI accent strips — neon edges */
-.kpi-card { padding: 18px 20px; }
-.kpi-green  { border-top: 2px solid var(--green); box-shadow: var(--n-shadow-1), inset 0 1px 0 var(--green-line); }
-.kpi-blue   { border-top: 2px solid #38bdf8; box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(56,189,248,0.25); }
-.kpi-teal   { border-top: 2px solid #2dd4bf; box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(45,212,191,0.25); }
-.kpi-gold   { border-top: 2px solid var(--gold); box-shadow: var(--n-shadow-1), inset 0 1px 0 var(--gold-line); }
-.kpi-purple { border-top: 2px solid #a78bfa; box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(167,139,250,0.25); }
-
-/* ── Hero feature tiles — dark image cards with neon hover ─────────── */
+/* ── Hero feature tiles ────────────────────────────────────────────── */
 .hero-feature {
-  border-radius: var(--radius-xl);
+  border-radius: 24px;
   overflow: hidden;
   border: 1px solid var(--n-border-strong);
   box-shadow: var(--n-shadow-2);
-  transition: transform var(--n-dur) var(--n-ease), box-shadow var(--n-dur) var(--n-ease), border-color var(--n-dur) var(--n-ease);
+  transition: transform var(--n-dur) var(--n-ease), border-color var(--n-dur) var(--n-ease);
 }
-.hero-feature:hover {
-  transform: translateY(-3px);
-  border-color: var(--green-line);
-  box-shadow: var(--n-shadow-3), 0 0 32px rgba(16, 185, 129, 0.22);
-}
+.hero-feature:hover { transform: translateY(-3px); border-color: var(--n-green-line); }
 .hf-overlay {
-  background:
-    linear-gradient(180deg, rgba(7, 18, 13, 0) 25%, rgba(7, 18, 13, 0.92) 100%);
+  background: linear-gradient(180deg, rgba(7, 18, 13, 0) 25%, rgba(7, 18, 13, 0.94) 100%);
   padding: 22px 22px 24px;
 }
 .hf-overlay h3 {
@@ -357,13 +281,13 @@ a:hover { color: #6ee7b7; text-shadow: var(--glow-text-green); }
   color: #fff;
   font-weight: 700;
   letter-spacing: 0.01em;
-  text-shadow: 0 2px 16px rgba(0,0,0,0.6);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.7);
 }
 .hf-overlay p { color: rgba(240, 245, 242, 0.92); }
 .hf-tag {
-  background: var(--green-soft);
-  color: var(--green-bright);
-  border: 1px solid var(--green-line);
+  background: var(--n-green-soft);
+  color: var(--n-green-bright);
+  border: 1px solid var(--n-green-line);
   padding: 4px 10px;
   border-radius: 999px;
   font-family: "JetBrains Mono", monospace;
@@ -371,150 +295,204 @@ a:hover { color: #6ee7b7; text-shadow: var(--glow-text-green); }
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  text-shadow: var(--glow-text-green);
 }
-.hf-tag.gold {
-  color: var(--gold-bright);
-  background: var(--gold-soft);
-  border-color: var(--gold-line);
-  text-shadow: var(--glow-text-gold);
-}
+.hf-tag.gold { color: var(--n-gold-bright); background: var(--n-gold-soft); border-color: var(--n-gold-line); }
 
-/* ── Chips, tags, pills ────────────────────────────────────────────── */
+/* ── Chips ─────────────────────────────────────────────────────────── */
 .chip, .tag, .pill, .badge {
   display: inline-flex; align-items: center; gap: 6px;
-  background: var(--green-soft);
-  border: 1px solid var(--green-line);
+  background: var(--n-green-soft);
+  border: 1px solid var(--n-green-line);
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--green-bright);
+  color: var(--n-green-bright);
 }
 
-/* ── Modals / sheets — dark glass with neon ring ───────────────────── */
+/* ── Modals ────────────────────────────────────────────────────────── */
 .modal, .sheet, .modal-content, .dialog {
-  background: rgba(15, 34, 26, 0.96);
+  background: rgba(15, 34, 26, 0.97);
   -webkit-backdrop-filter: saturate(160%) blur(28px);
   backdrop-filter: saturate(160%) blur(28px);
-  border: 1px solid var(--green-line);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--n-shadow-3), 0 0 48px rgba(16, 185, 129, 0.18);
+  border: 1px solid var(--n-border-strong);
+  border-radius: 24px;
+  box-shadow: var(--n-shadow-3);
   color: var(--n-text);
 }
 .modal-overlay, .backdrop, .scrim {
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.75);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
 
-/* ── Inputs — dark field with neon focus ───────────────────────────── */
+/* ── Inputs ────────────────────────────────────────────────────────── */
 input, select, textarea {
-  background: rgba(7, 18, 13, 0.65);
-  border: 1px solid var(--n-border-strong);
+  background: rgba(7, 18, 13, 0.7) !important;
+  border: 1px solid var(--n-border-strong) !important;
   border-radius: 10px;
   padding: 11px 13px;
   font-family: "Inter", system-ui, sans-serif;
-  font-size: 1rem;
-  color: var(--n-text);
+  font-size: 16px; /* keep >=16px to avoid iOS zoom */
+  color: var(--n-text) !important;
   min-height: 44px;
-  transition: border-color var(--n-dur) var(--n-ease), box-shadow var(--n-dur) var(--n-ease), background var(--n-dur) var(--n-ease);
+  transition: border-color var(--n-dur) var(--n-ease), box-shadow var(--n-dur) var(--n-ease);
 }
-input::placeholder, textarea::placeholder { color: var(--n-text-faint); }
+input::placeholder, textarea::placeholder { color: var(--n-text-faint) !important; }
 input:focus, select:focus, textarea:focus {
   outline: none;
-  background: rgba(15, 34, 26, 0.8);
-  border-color: var(--green-bright);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), var(--glow-green-sm);
+  background: rgba(15, 34, 26, 0.85) !important;
+  border-color: var(--n-green-bright) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
 }
-input[type="checkbox"], input[type="radio"] { min-height: 0; accent-color: var(--green); }
+input[type="checkbox"], input[type="radio"] { min-height: 0; accent-color: var(--n-green); }
 
-/* Disable iOS auto-zoom on inputs by keeping >=16px */
-@media (max-width: 768px) {
-  input, select, textarea { font-size: 16px; }
-}
-
-/* ── Containers ────────────────────────────────────────────────────── */
-.container, main.container {
-  max-width: 1240px;
-  padding-left: 20px;
-  padding-right: 20px;
-}
-
-/* ── Tables — dark zebra ───────────────────────────────────────────── */
+/* ── Tables ────────────────────────────────────────────────────────── */
 table { color: var(--n-text); border-collapse: collapse; }
 th { color: var(--n-text-soft); font-weight: 600; border-bottom: 1px solid var(--n-border-strong); }
-td { border-bottom: 1px solid var(--n-border); }
-tr:hover td { background: var(--green-soft); }
+td { border-bottom: 1px solid var(--n-border); color: var(--n-text); }
+tr:hover td { background: var(--n-green-soft); }
 
-/* ── Bottom-nav (mobile) — dark with neon top stroke ───────────────── */
+/* ── Bottom-nav ────────────────────────────────────────────────────── */
 .mobile-nav, .bottom-nav, .tabbar {
-  background: rgba(7, 18, 13, 0.92);
+  background: rgba(7, 18, 13, 0.94);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
   backdrop-filter: saturate(160%) blur(20px);
-  border-top: 1px solid var(--green-line);
-  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.5), 0 -1px 0 rgba(16, 185, 129, 0.18) inset;
+  border-top: 1px solid var(--n-border-strong);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.5);
 }
-.mobile-nav a, .bottom-nav a, .tabbar a {
-  color: var(--n-text-muted);
+.mobile-nav a, .bottom-nav a, .tabbar a { color: var(--n-text-muted); }
+.mobile-nav a.active, .bottom-nav a.active, .tabbar a.active { color: var(--n-green-bright); }
+
+/* ═════════════════════════════════════════════════════════════════════
+   SURGICAL OVERRIDES — hardcoded light backgrounds from legacy CSS.
+   These are the classes that had `background: #fff` etc. in styles.css
+   and accounting.css. Without these overrides we'd see white-on-white.
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* ── accounting.css: login page ──────────────────────────────────── */
+.fin-login-page { background: var(--n-bg); }
+.fin-login-left { background: var(--n-bg-2); color: var(--n-text); }
+.fin-login-right { background: var(--n-bg-2) !important; }
+.fin-login-card { background: var(--n-surface); border: 1px solid var(--n-border-strong); border-radius: 18px; padding: 28px; }
+.fin-login-heading { color: var(--n-text) !important; }
+.fin-login-sub { color: var(--n-text-muted) !important; }
+.fin-login-badge { background: var(--n-green-soft) !important; color: var(--n-green-bright) !important; }
+.fin-field label { color: var(--n-text-soft) !important; }
+.fin-field-wrap input {
+  background: rgba(7, 18, 13, 0.7) !important;
+  border: 1.5px solid var(--n-border-strong) !important;
+  color: var(--n-text) !important;
 }
-.mobile-nav a.active, .bottom-nav a.active, .tabbar a.active {
-  color: var(--green-bright);
-  text-shadow: var(--glow-text-green);
+.fin-field-wrap input::placeholder { color: var(--n-text-faint) !important; }
+.fin-field-wrap input:focus { border-color: var(--n-green-bright) !important; box-shadow: 0 0 0 3px rgba(16,185,129,0.22) !important; }
+.fin-field-icon { color: var(--n-text-faint) !important; }
+.fin-eye-btn { color: var(--n-text-faint) !important; }
+.fin-eye-btn:hover { color: var(--n-green-bright) !important; }
+.fin-login-divider { color: var(--n-text-muted) !important; }
+.fin-login-divider::before, .fin-login-divider::after { background: var(--n-border-strong) !important; }
+.fin-signup-btn {
+  background: rgba(16, 185, 129, 0.04) !important;
+  color: var(--n-green-bright) !important;
+  border: 1.5px solid var(--n-green-line) !important;
+}
+.fin-signup-btn:hover { background: var(--n-green-soft) !important; border-color: var(--n-green-bright) !important; }
+.fin-msg-error   { background: var(--n-surface-err) !important; color: var(--n-text-err) !important; border-color: rgba(239,68,68,0.35) !important; }
+.fin-msg-success { background: var(--n-surface-ok) !important; color: var(--n-text-ok) !important; border-color: rgba(34,197,94,0.35) !important; }
+.fin-offline-box { background: var(--n-surface-warn) !important; border-color: var(--n-gold-line) !important; }
+.fin-offline-title { color: var(--n-text-warn) !important; }
+.fin-offline-sub { color: var(--n-text-warn) !important; opacity: 0.85; }
+.fin-offline-badge { background: var(--n-gold-soft) !important; color: var(--n-gold-bright) !important; border-color: var(--n-gold-line) !important; }
+@media (max-width: 840px) {
+  .fin-login-right { background: var(--n-bg) !important; }
 }
 
-/* ── Houses-pro page surfaces — dark-mode override ─────────────────── */
+/* ── accounting.css: sidebar + nav + content ─────────────────────── */
+.fin-sidebar { background: var(--n-bg-2) !important; border-right-color: var(--n-border-strong) !important; }
+.fin-nav-item { color: var(--n-text-soft) !important; }
+.fin-nav-item:hover { background: var(--n-green-soft) !important; color: var(--n-green-bright) !important; }
+.fin-nav-item.active { background: var(--n-grad-brand) !important; color: var(--n-text-on-brand) !important; }
+.fin-filters { border-top-color: var(--n-border-strong) !important; }
+.fin-filter-label { color: var(--n-text-muted) !important; }
+.fin-period-btn { background: rgba(255,255,255,0.04) !important; color: var(--n-text-soft) !important; border: 1px solid var(--n-border-strong) !important; }
+.fin-period-btn.active { background: var(--n-grad-brand) !important; color: var(--n-text-on-brand) !important; }
+.fin-print-btn { background: var(--n-green) !important; color: var(--n-text-on-brand) !important; }
+
+/* ── accounting.css: KPI / status zones ──────────────────────────── */
+.ratio-good  { background: var(--n-surface-ok) !important;   color: var(--n-text-ok) !important; }
+.ratio-warn  { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; }
+.ratio-bad   { background: var(--n-surface-err) !important;  color: var(--n-text-err) !important; }
+.tcal-item.tcal-soon { background: var(--n-surface-warn) !important; }
+
+/* ── styles.css: cream/yellow utility zones ──────────────────────── */
+.shipment-card.needs-confirm { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; }
+.id-warning { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; border-color: var(--n-gold-line) !important; }
+.seat.held { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; border-color: var(--n-gold-line) !important; }
+.seat.free:hover { background: var(--n-green-soft) !important; }
+.badge-registered { background: rgba(59,130,246,0.15) !important; color: #93c5fd !important; }
+.badge-picked { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; }
+
+/* ── claude-design.css: pay-btn was pure #000 ────────────────────── */
+.pay-btn { background: var(--n-grad-brand) !important; color: var(--n-text-on-brand) !important; }
+.pay-btn:hover:not(:disabled) { background: var(--n-grad-brand) !important; filter: brightness(1.08); box-shadow: var(--n-glow-green) !important; }
+
+/* ── houses-pro.css: light cream background ──────────────────────── */
+.hp-page { background-color: var(--n-bg) !important; }
 .house-card, .hp-card, .listing-card {
-  background: var(--n-surface);
-  border: 1px solid var(--n-border-strong);
+  background: var(--n-surface) !important;
+  border: 1px solid var(--n-border-strong) !important;
   color: var(--n-text);
 }
 
-/* ── Selection — neon green ────────────────────────────────────────── */
-::selection { background: rgba(16, 185, 129, 0.55); color: #fff; }
+/* ── Catch-all: any element using legacy --white or --gray-light as
+   inline style — these can't be fixed in CSS, but at least cover
+   the most common .section / .container ancestors. ─────────────── */
+section, .section, main, article, aside {
+  color: var(--n-text);
+}
 
-/* Scrollbar — slim neon */
-* { scrollbar-color: var(--green-line) transparent; scrollbar-width: thin; }
+/* Generic fix: any element with a hardcoded white-ish background
+   that still has a parent text color of dark, force it light. */
+[style*="background: #fff"],
+[style*="background:#fff"],
+[style*="background: white"],
+[style*="background:white"] { color: var(--n-text); }
+
+/* ── Selection ─────────────────────────────────────────────────────── */
+::selection { background: rgba(16, 185, 129, 0.45); color: #fff; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────────── */
+* { scrollbar-color: var(--n-green-line) transparent; scrollbar-width: thin; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
-*::-webkit-scrollbar-thumb { background: var(--green-line); border-radius: 999px; }
-*::-webkit-scrollbar-thumb:hover { background: var(--green); }
+*::-webkit-scrollbar-thumb { background: var(--n-green-line); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--n-green); }
 *::-webkit-scrollbar-track { background: transparent; }
 
-/* ── Mobile tightening ─────────────────────────────────────────────── */
+/* ── Mobile ────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .stats-strip { margin: -16px 12px 16px; border-radius: var(--radius-lg); }
+  .stats-strip { margin: -16px 12px 16px; border-radius: 18px; }
   .nav-container { padding: 0 14px; }
   body {
     background:
-      radial-gradient(60% 35% at 50% 0%, rgba(16, 185, 129, 0.16) 0%, transparent 70%),
-      radial-gradient(60% 40% at 50% 100%, rgba(252, 209, 22, 0.08) 0%, transparent 75%),
+      radial-gradient(60% 35% at 50% 0%, rgba(16, 185, 129, 0.14) 0%, transparent 70%),
+      radial-gradient(60% 40% at 50% 100%, rgba(252, 209, 22, 0.07) 0%, transparent 75%),
       var(--n-bg);
-    background-attachment: scroll; /* fixed gradients jitter on iOS */
+    background-attachment: scroll;
   }
 }
 
-/* ── A11y + perf ───────────────────────────────────────────────────── */
+/* ── A11y ──────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    transition: none !important;
-    animation: none !important;
-  }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
   .btn:active { transform: none; }
-  .card:hover, .hero-feature:hover, .kpi-card:hover { transform: none; }
+  .card:hover, .hero-feature:hover { transform: none; }
 }
 
-:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5);
-}
+:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.45); }
 
 [disabled], .disabled, .btn:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
-  filter: saturate(0.4);
+  filter: saturate(0.5);
   box-shadow: none !important;
 }
-
-/* ── Theme color override (browser chrome on mobile) ───────────────── */
-/* Page <meta name="theme-color"> is set per-page in HTML; we just ensure
-   the JS-loaded nav doesn't add a light strip on iOS Safari URL bar. */
