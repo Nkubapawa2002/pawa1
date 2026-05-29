@@ -780,3 +780,109 @@ section *,
   filter: saturate(0.5);
   box-shadow: none !important;
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   USER DIRECTIVE — "where there is a white colour use green words colour"
+   ═════════════════════════════════════════════════════════════════════
+   Universal safety net: every chat / message / inline-white container
+   forces text to bright neon green. Green is readable on BOTH our dark
+   surface (matches the neon theme) AND on white (high-contrast brand
+   colour), so no matter whether the bg-flip rules above won the cascade
+   or got beaten by some !important upstream, the words stay readable.
+   This block is intentionally last so it overrides everything earlier.
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* — chat bubbles (page-level + floating sheet) — */
+.msg.assistant .msg-bubble,
+.msg.assistant .msg-bubble *,
+.message.assistant .msg-bubble,
+.message.assistant .msg-bubble *,
+.message-assistant,
+.message-assistant *,
+.pawa-sheet-msg.assistant,
+.pawa-sheet-msg.assistant *,
+.chat-bubble.assistant,
+.chat-bubble.assistant *,
+.bubble.assistant,
+.bubble.assistant *,
+.ai-response,
+.ai-response *,
+.assistant-msg,
+.assistant-msg * {
+  color: var(--n-green-bright) !important;
+}
+
+/* — every inline white-ish background gets green text inside — */
+[style*='background:#fff;'],
+[style*='background: #fff;'],
+[style*='background:#fff"'],
+[style*='background: #fff"'],
+[style*='background:#fff '],
+[style*='background: #fff '],
+[style*='background:white;'],
+[style*='background: white;'],
+[style*='background:white"'],
+[style*='background: white"'],
+[style*='background:white '],
+[style*='background: white '],
+[style*='background:#f1f5f9'],
+[style*='background: #f1f5f9'],
+[style*='background:#f8fafc'],
+[style*='background: #f8fafc'],
+[style*='background:#f8faff'],
+[style*='background: #f8faff'],
+[style*='background:#f4f8ff'],
+[style*='background: #f4f8ff'],
+[style*='background:#f4f6f4'],
+[style*='background: #f4f6f4'],
+[style*='background:#f9fbf7'],
+[style*='background: #f9fbf7'],
+[style*='background:#eff6ff'],
+[style*='background: #eff6ff'],
+[style*='background:#fff1f2'],
+[style*='background: #fff1f2'],
+[style*='background:#fff7ed'],
+[style*='background: #fff7ed'] {
+  color: var(--n-green-bright) !important;
+}
+[style*='background:#fff;'] *,
+[style*='background: #fff;'] *,
+[style*='background:#fff"'] *,
+[style*='background: #fff"'] *,
+[style*='background:#fff '] *,
+[style*='background: #fff '] *,
+[style*='background:white;'] *,
+[style*='background: white;'] *,
+[style*='background:white"'] *,
+[style*='background: white"'] *,
+[style*='background:white '] *,
+[style*='background: white '] *,
+[style*='background:#f1f5f9'] *,
+[style*='background: #f1f5f9'] *,
+[style*='background:#f8fafc'] *,
+[style*='background: #f8fafc'] *,
+[style*='background:#f8faff'] *,
+[style*='background: #f8faff'] *,
+[style*='background:#f4f8ff'] *,
+[style*='background: #f4f8ff'] *,
+[style*='background:#f4f6f4'] *,
+[style*='background: #f4f6f4'] *,
+[style*='background:#f9fbf7'] *,
+[style*='background: #f9fbf7'] *,
+[style*='background:#eff6ff'] *,
+[style*='background: #eff6ff'] *,
+[style*='background:#fff1f2'] *,
+[style*='background: #fff1f2'] *,
+[style*='background:#fff7ed'] *,
+[style*='background: #fff7ed'] * {
+  color: var(--n-green-bright) !important;
+}
+
+/* — Any element using legacy --white var as background → text green — */
+/* (caught by class names that we know set bg via --white in styles.css) */
+.msg-bubble,
+.pawa-sheet-msg,
+.messages-section,
+.message-empty {
+  color: var(--n-green-bright) !important;
+}
