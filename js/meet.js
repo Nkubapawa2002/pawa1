@@ -1,6 +1,6 @@
 // Build stamp — shows in console AND on-screen (#meetBuildBadge) so you
 // can confirm which build is loaded without DevTools. Bump on each ship.
-const MEET_BUILD = "v55 (2026-05-29 alert-removed)";
+const MEET_BUILD = "v56 (2026-05-29 popup-fix)";
 console.log(`[meet] build ${MEET_BUILD} loaded`);
 window.addEventListener("DOMContentLoaded", () => {
   const b = document.getElementById("meetBuildBadge");
@@ -1594,7 +1594,7 @@ const _initMeetPageImpl = () => {
       fetchAddress(row.lat, row.lng).then(addr => {
         if (!peers.has(row.user_id) || !addr) return;
         p.streetAddr = addr.street ? addr.street + (addr.suburb ? ", " + addr.suburb : "") : addr.suburb;
-        p.marker.setPopupContent(peerPopupHtml(row));
+        p.marker.getPopup()?.setHTML(peerPopupHtml(row));
         if (lastRosterRows.length) renderRoster(lastRosterRows);
       });
     }
