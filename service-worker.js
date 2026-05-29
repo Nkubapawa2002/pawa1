@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v47-2026-05-28-meet-camera-v2";
+const VERSION = "v48-2026-05-28-meet-camera-others-only";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 

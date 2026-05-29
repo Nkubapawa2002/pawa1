@@ -666,7 +666,9 @@ window.initMeetPage = () => {
 
   function updateCameraControls() {
     if (camSwitchBtn) camSwitchBtn.hidden = !camStream;
-    if (camGalleryBtn) camGalleryBtn.hidden = cameraStreams.size === 0;
+    // Gallery only appears when there's at least one PEER to look at —
+    // your own face isn't shown anywhere.
+    if (camGalleryBtn) camGalleryBtn.hidden = visibleStreams().length === 0;
   }
 
   function stopCamera({ notify = true } = {}) {
@@ -743,7 +745,7 @@ window.initMeetPage = () => {
     if (!payload?.userId) return;
     cameraStreams.delete(payload.userId);
     renderLiveCameras();
-    if (cameraStreams.size === 0) closeCameraGallery();
+    if (visibleStreams().length === 0) closeCameraGallery();
   }
 
   // Prune stale tiles every 2s — a tab that died silently won't send stop
@@ -757,19 +759,25 @@ window.initMeetPage = () => {
     if (changed) renderLiveCameras();
   }, 2000);
 
+  // Show only OTHER people's cameras — not your own face. The pulsing
+  // red camera button is the indicator that your camera is broadcasting.
+  function visibleStreams() {
+    return Array.from(cameraStreams.values()).filter(s => !s.mine);
+  }
+
   function renderLiveCameras() {
     if (!liveCamerasEl) return;
-    if (cameraStreams.size === 0) {
+    const others = visibleStreams();
+    if (others.length === 0) {
       liveCamerasEl.classList.remove("has-streams");
       liveCamerasEl.innerHTML = "";
       updateCameraControls();
-      // Also refresh the gallery in case it's open
       if (cameraGalleryOpen) renderCameraGallery();
       return;
     }
     liveCamerasEl.classList.add("has-streams");
-    liveCamerasEl.innerHTML = Array.from(cameraStreams.values()).map(s => `
-      <div class="live-cam-tile ${s.mine ? "mine" : ""}" data-cam-tile="1">
+    liveCamerasEl.innerHTML = others.map(s => `
+      <div class="live-cam-tile" data-cam-tile="1">
         <img src="${s.src}" alt="live camera" style="${s.mirror ? "transform:scaleX(-1)" : ""}">
         <div class="live-cam-label"><span class="live-cam-dot"></span>${esc(s.name)}</div>
       </div>
@@ -781,7 +789,7 @@ window.initMeetPage = () => {
   // ── Camera gallery (fullscreen, grid view for many users) ────────────
   let cameraGalleryOpen = false;
   function openCameraGallery() {
-    if (cameraStreams.size === 0) return;
+    if (visibleStreams().length === 0) return;   // nothing to show — no peer broadcasting
     cameraGalleryOpen = true;
     let modal = document.getElementById("cameraGalleryModal");
     if (!modal) {
@@ -810,15 +818,17 @@ window.initMeetPage = () => {
     const grid     = document.getElementById("camGalleryGrid");
     const countEl  = document.getElementById("camGalleryCount");
     if (!grid) return;
-    countEl.textContent = cameraStreams.size;
-    grid.innerHTML = Array.from(cameraStreams.values()).map(s => `
-      <div class="cam-gallery-tile ${s.mine ? "mine" : ""}">
+    const others = visibleStreams();
+    if (others.length === 0) { closeCameraGallery(); return; }
+    countEl.textContent = others.length;
+    grid.innerHTML = others.map(s => `
+      <div class="cam-gallery-tile">
         <img src="${s.src}" alt="live camera" style="${s.mirror ? "transform:scaleX(-1)" : ""}">
         <div class="cam-gallery-label"><span class="live-cam-dot"></span>${esc(s.name)}</div>
       </div>
     `).join("");
-    // Auto-grid column count based on tile count for a balanced layout
-    const n = cameraStreams.size;
+    // Auto-grid column count based on PEER tile count for a balanced layout
+    const n = others.length;
     const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   }
