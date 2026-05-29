@@ -413,12 +413,32 @@ window.initMeetPage = () => {
   }
 
   // ---- Voice notes ---------------------------------------------------------
-  // Tap to start, tap again to stop. Hard cap at 30 s so we never exceed
-  // the realtime payload budget. webm/opus encodes ~6 KB/s so 30 s ≈ 180 KB.
+  // Cross-platform recording: try mp4/AAC first (iOS native, modern Android
+  // Chrome supports it) before falling back to webm/opus (older Android).
+  // If we end up with webm — which iOS Safari CANNOT decode — we transcode
+  // to 16 kHz mono WAV on the sender so the receiving iPhone plays it.
+  // Hard cap 30 s for mp4/opus (~180 KB), 15 s when transcoding to WAV
+  // (16 kHz × 16-bit × 1ch = 32 KB/s, ~480 KB max — fits Realtime payload).
   const chatVoiceBtn    = document.getElementById("chatVoiceBtn");
   const chatVoiceStatus = document.getElementById("chatVoiceStatus");
   const chatVoiceTime   = document.getElementById("chatVoiceTime");
   let mediaRec = null, recChunks = [], recStartedAt = 0, recTimer = null, recMaxTimer = null;
+
+  // Pick the best recording mime: prefer mp4/AAC (playable on every
+  // platform including iOS). Fall back to webm only if mp4 isn't supported.
+  function pickRecordingMime() {
+    const candidates = [
+      "audio/mp4;codecs=mp4a.40.2",   // AAC-LC in mp4 — iOS native, modern Android Chrome
+      "audio/mp4",
+      "audio/aac",
+      "audio/webm;codecs=opus",       // older Android fallback
+      "audio/webm",
+    ];
+    for (const m of candidates) {
+      if (MediaRecorder.isTypeSupported(m)) return m;
+    }
+    return "";
+  }
 
   const stopRecording = () => {
     if (mediaRec && mediaRec.state !== "inactive") mediaRec.stop();
@@ -433,10 +453,9 @@ window.initMeetPage = () => {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const mime = pickRecordingMime();
       mediaRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      const needsTranscode = (mediaRec.mimeType || mime || "").toLowerCase().includes("webm");
       recChunks = [];
       mediaRec.ondataavailable = (ev) => { if (ev.data?.size) recChunks.push(ev.data); };
       mediaRec.onstop = async () => {
@@ -445,8 +464,10 @@ window.initMeetPage = () => {
         if (recMaxTimer) clearTimeout(recMaxTimer);
         chatVoiceBtn.classList.remove("recording");
         chatVoiceStatus.hidden = true;
-        const blob = new Blob(recChunks, { type: mediaRec.mimeType || "audio/webm" });
+        let blob = new Blob(recChunks, { type: mediaRec.mimeType || "audio/webm" });
         if (blob.size < 1000) return;
+        // iOS Safari can't decode webm/opus. Re-encode to WAV before sending.
+        blob = await ensureCrossPlatformAudio(blob);
         const dataUrl = await blobToDataUrl(blob);
         sendChatMessage({ audio: dataUrl, mime: blob.type });
       };
@@ -459,7 +480,8 @@ window.initMeetPage = () => {
         const s = Math.floor((Date.now() - recStartedAt) / 1000);
         chatVoiceTime.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
       }, 200);
-      recMaxTimer = setTimeout(stopRecording, 30000);
+      // Shorter cap when transcoding (WAV is uncompressed, eats payload budget fast).
+      recMaxTimer = setTimeout(stopRecording, needsTranscode ? 15000 : 30000);
     } catch (err) {
       console.warn("mic permission denied", err);
       alert("Microphone permission denied.");
@@ -473,6 +495,79 @@ window.initMeetPage = () => {
       r.onerror = reject;
       r.readAsDataURL(blob);
     });
+  }
+
+  // ── Cross-platform audio shim ───────────────────────────────────────
+  // iOS Safari can play: mp4/aac, mpeg, wav. CANNOT play: webm/opus.
+  // Android Chrome can DECODE webm/opus via AudioContext.decodeAudioData,
+  // so we resample to 16 kHz mono and re-emit as a WAV blob. Plays
+  // everywhere; ~32 KB/sec.
+  async function ensureCrossPlatformAudio(blob) {
+    const t = (blob.type || "").toLowerCase();
+    const iosSafe = t.startsWith("audio/mp4") || t.startsWith("audio/aac") ||
+                    t.startsWith("audio/wav") || t.startsWith("audio/mpeg") ||
+                    t.startsWith("audio/x-m4a");
+    if (iosSafe) return blob;
+    try {
+      const arrBuf = await blob.arrayBuffer();
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return blob;
+      const ctx = new Ctx();
+      const audioBuf = await ctx.decodeAudioData(arrBuf.slice(0));
+      ctx.close?.();
+      return encodeWavMono16k(audioBuf);
+    } catch (e) {
+      console.warn("audio transcode to WAV failed; sending original:", e);
+      return blob;
+    }
+  }
+
+  // Encode an AudioBuffer as 16 kHz mono 16-bit PCM WAV.
+  function encodeWavMono16k(audioBuffer) {
+    const targetRate = 16000;
+    const srcRate    = audioBuffer.sampleRate;
+    const srcLen     = audioBuffer.length;
+    // Mix down to mono first
+    const mono = new Float32Array(srcLen);
+    const chCount = audioBuffer.numberOfChannels;
+    for (let c = 0; c < chCount; c++) {
+      const data = audioBuffer.getChannelData(c);
+      for (let i = 0; i < srcLen; i++) mono[i] += data[i] / chCount;
+    }
+    // Linear-interpolation resample to 16 kHz
+    const ratio = srcRate / targetRate;
+    const dstLen = Math.floor(srcLen / ratio);
+    const dst = new Int16Array(dstLen);
+    for (let i = 0; i < dstLen; i++) {
+      const srcIdx = i * ratio;
+      const i0 = Math.floor(srcIdx);
+      const i1 = Math.min(i0 + 1, srcLen - 1);
+      const frac = srcIdx - i0;
+      const s = mono[i0] * (1 - frac) + mono[i1] * frac;
+      const clamped = Math.max(-1, Math.min(1, s));
+      dst[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+    }
+    // WAV header (RIFF / fmt / data — 16-bit PCM mono)
+    const dataBytes = dst.length * 2;
+    const buf = new ArrayBuffer(44 + dataBytes);
+    const v = new DataView(buf);
+    const ws = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    ws(0, "RIFF");                                // chunk id
+    v.setUint32(4, 36 + dataBytes, true);         // chunk size
+    ws(8, "WAVE");                                // format
+    ws(12, "fmt ");                               // subchunk1 id
+    v.setUint32(16, 16, true);                    // subchunk1 size (PCM = 16)
+    v.setUint16(20, 1, true);                     // audio format (1 = PCM)
+    v.setUint16(22, 1, true);                     // num channels (1 = mono)
+    v.setUint32(24, targetRate, true);            // sample rate
+    v.setUint32(28, targetRate * 2, true);        // byte rate
+    v.setUint16(32, 2, true);                     // block align
+    v.setUint16(34, 16, true);                    // bits per sample
+    ws(36, "data");                               // subchunk2 id
+    v.setUint32(40, dataBytes, true);             // subchunk2 size
+    let off = 44;
+    for (let i = 0; i < dst.length; i++, off += 2) v.setInt16(off, dst[i], true);
+    return new Blob([buf], { type: "audio/wav" });
   }
 
   // Auto-join via ?code=XXXX
