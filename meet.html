@@ -82,6 +82,37 @@
     .cvs-time { font-family: var(--c-font-mono, ui-monospace, monospace); font-weight: 700; }
     .chat-disclaimer { font-size: .68rem; color: var(--c-text-muted, #9ca3af); text-align: center; margin: 6px 0 0; padding: 0; }
 
+    /* Live cameras panel — shows live snapshot tiles per active broadcaster */
+    .live-cameras {
+      display: none;            /* shown when any peer (or self) is broadcasting */
+      gap: 8px; padding: 8px;
+      margin-bottom: 8px;
+      background: rgba(7, 18, 13, 0.4);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 12px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+    }
+    .live-cameras.has-streams { display: flex; }
+    .live-cam-tile {
+      flex: 0 0 auto;
+      width: 152px; height: 114px;
+      border-radius: 10px; overflow: hidden;
+      background: #000; position: relative;
+      border: 1px solid rgba(255,255,255,0.08);
+      scroll-snap-align: start;
+    }
+    .live-cam-tile.mine { border-color: #34d399; box-shadow: 0 0 10px rgba(16,185,129,0.35); }
+    .live-cam-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .live-cam-label {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.85));
+      color: #fff; font-size: .7rem; font-weight: 600;
+      padding: 12px 8px 5px; line-height: 1;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .live-cam-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; animation: chat-rec-pulse 1.2s ease-in-out infinite; }
+
     /* Inline photo + audio bubbles */
     .chat-bubble img.chat-photo {
       max-width: 100%; max-height: 220px; display: block;
@@ -689,6 +720,7 @@
           <!-- Room Chat -->
           <div class="meet-card meet-chat-card">
             <h4>Room Chat <span id="chatUnreadBadge" class="chat-unread-badge" hidden></span></h4>
+            <div id="liveCameras" class="live-cameras"></div>
             <div id="chatMessages" class="chat-messages">
               <p class="chat-empty">No messages yet — say hi!</p>
             </div>
@@ -699,6 +731,9 @@
               </button>
               <button id="chatVoiceBtn" class="chat-attach-btn" title="Hold to record · tap again to stop" type="button" aria-label="Send voice note">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+              <button id="chatCameraBtn" class="chat-attach-btn" title="Tap to start/stop live camera" type="button" aria-label="Share live camera">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
               </button>
               <input id="chatInput" class="chat-input" type="text" placeholder="Type a message…" maxlength="280" />
               <button id="chatSendBtn" class="chat-send-btn" title="Send">
