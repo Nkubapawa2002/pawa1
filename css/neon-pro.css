@@ -648,6 +648,78 @@ section *,
   /* DON'T set !important — we want individual class overrides above to win */
 }
 
+/* ═════════════════════════════════════════════════════════════════════
+   CHAT — explicit overrides regardless of var() cascade
+   ═════════════════════════════════════════════════════════════════════ */
+.chat-messages { background: transparent; color: var(--n-text); }
+.msg, .message { color: var(--n-text); }
+.msg-bubble { color: var(--n-text); }
+
+/* Assistant / AI reply — dark bubble, light text */
+.msg.assistant .msg-bubble,
+.message.assistant .msg-bubble,
+.message-assistant,
+.chat-bubble.assistant,
+.bubble.assistant {
+  background: var(--n-surface) !important;
+  border: 1px solid var(--n-border-strong) !important;
+  color: var(--n-text) !important;
+}
+.msg.assistant .msg-bubble *,
+.message.assistant .msg-bubble * { color: var(--n-text) !important; }
+
+/* User message — green gradient, dark text on bright green */
+.msg.user .msg-bubble,
+.message.user .msg-bubble,
+.message-user,
+.chat-bubble.user,
+.bubble.user {
+  background: var(--n-grad-brand) !important;
+  color: var(--n-text-on-brand) !important;
+  border: 1px solid var(--n-green-line) !important;
+}
+.msg.user .msg-bubble *,
+.message.user .msg-bubble * { color: var(--n-text-on-brand) !important; }
+
+/* System message — dark amber */
+.msg.system .msg-bubble,
+.message.system .msg-bubble {
+  background: var(--n-surface-warn) !important;
+  color: var(--n-text-warn) !important;
+}
+
+/* Track-page messages section */
+.messages-section {
+  background: var(--n-surface) !important;
+  color: var(--n-text) !important;
+}
+
+/* Chat header / input bar */
+.chat-header, .chat-input-bar {
+  background: rgba(7, 18, 13, 0.85) !important;
+  border-color: var(--n-border-strong) !important;
+  color: var(--n-text);
+}
+.chat-tab {
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--n-text-soft) !important;
+  border: 1px solid var(--n-border-strong) !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   GLOBAL SAFETY NET — User's suggestion: any element with a white-ish
+   background that slipped through previous overrides must have DARK
+   text so words are always readable. Belt-and-braces fallback.
+   ═════════════════════════════════════════════════════════════════════ */
+.bg-white, .bg-light, [class*='-white-bg'],
+.is-white-bg {
+  color: #0f172a !important;
+}
+.bg-white *, .bg-light *,
+[class*='-white-bg'] *, .is-white-bg * {
+  color: #0f172a !important;
+}
+
 /* Last-resort: any element with hardcoded dark text color via inline style
    gets soft-light text. Use carefully — we restrict to elements that ALSO
    have a non-light background, so we don't break light dots. */
