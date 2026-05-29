@@ -579,55 +579,109 @@ window.initMeetPage = () => {
   // Broadcasts a small JPEG (~320x240, q=0.45 ≈ 8–15 KB) every 1500 ms to all
   // roommates over the existing Realtime channel using a separate event name
   // (`camera_frame`) so it doesn't clutter the chat. Each peer's latest frame
-  // is shown in a tile above the chat. Stops on toggle-off, room leave, tab
-  // close, or visibility hidden so we never broadcast in the background.
+  // is shown in a tile above the chat; tapping any tile opens a fullscreen
+  // gallery so you can see everyone large. Front/back toggle button appears
+  // when the camera is live. Stops on toggle-off, room leave, tab close, or
+  // visibility hidden so we never broadcast in the background.
   const chatCameraBtn = document.getElementById("chatCameraBtn");
   const liveCamerasEl = document.getElementById("liveCameras");
-  const cameraStreams = new Map();  // user_id -> { name, role, src, lastTs }
+  const camSwitchBtn  = document.getElementById("chatCameraSwitchBtn");
+  const camGalleryBtn = document.getElementById("chatCameraGalleryBtn");
+  const cameraStreams = new Map();  // user_id -> { name, role, src, lastTs, mine, mirror }
   let camStream = null, camVideoEl = null, camCanvas = null, camTimer = null;
+  let camFacing  = "environment";   // "user" = selfie, "environment" = rear
   const CAM_INTERVAL_MS  = 1500;
   const CAM_STALE_MS     = 6000;     // drop tile if no frame in 6s
   const CAM_W = 320, CAM_H = 240;
 
-  async function startCamera() {
+  async function startCamera(facing = camFacing) {
     if (!activeRoom) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       alert("Camera isn't supported on this browser.");
       return;
     }
+    // Stop the previous stream first if we're switching cameras
+    if (camStream) {
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+    }
+    // Try the requested facing first; fall back to plain `video:true` if
+    // the constraint can't be satisfied (some iPads / desktop webcams have
+    // no facingMode metadata at all and would otherwise OverconstrainError).
     try {
       camStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: CAM_W }, height: { ideal: CAM_H } },
+        video: { facingMode: { ideal: facing }, width: { ideal: CAM_W }, height: { ideal: CAM_H } },
         audio: false,
       });
-    } catch (err) {
-      console.warn("camera permission denied", err);
-      alert("Camera permission denied.");
-      return;
+    } catch (err1) {
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (err2) {
+        console.warn("camera permission denied", err2);
+        alert("Camera permission denied or no camera available.");
+        return;
+      }
     }
-    camVideoEl = document.createElement("video");
-    camVideoEl.autoplay = true;
-    camVideoEl.muted = true;
-    camVideoEl.playsInline = true;
+    camFacing = facing;
+    // iOS Safari ONLY plays a video element when both:
+    //   (a) the `playsinline` ATTRIBUTE is present (the .playsInline property
+    //       alone is NOT enough — Safari checks the attribute on parse),
+    //   (b) the element is attached to the DOM.
+    // We attach a 1×1 invisible element off-screen.
+    if (!camVideoEl) {
+      camVideoEl = document.createElement("video");
+      camVideoEl.setAttribute("autoplay", "");
+      camVideoEl.setAttribute("playsinline", "");
+      camVideoEl.setAttribute("webkit-playsinline", "");   // iOS < 10 legacy
+      camVideoEl.setAttribute("muted", "");
+      camVideoEl.muted = true;          // also set property for older WebKit
+      camVideoEl.playsInline = true;
+      camVideoEl.style.cssText =
+        "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;";
+      document.body.appendChild(camVideoEl);
+    }
     camVideoEl.srcObject = camStream;
-    try { await camVideoEl.play(); } catch {}
-    camCanvas = document.createElement("canvas");
-    camCanvas.width = CAM_W;
-    camCanvas.height = CAM_H;
+    // Don't await — iOS sometimes resolves play() much later and we lose
+    // the gesture window if we let other awaits run first.
+    const playPromise = camVideoEl.play();
+    if (playPromise?.catch) playPromise.catch(e => console.warn("video.play()", e));
+    if (!camCanvas) {
+      camCanvas = document.createElement("canvas");
+      camCanvas.width = CAM_W;
+      camCanvas.height = CAM_H;
+    }
     chatCameraBtn?.classList.add("recording");
-    camTimer = setInterval(captureAndSendFrame, CAM_INTERVAL_MS);
-    captureAndSendFrame();  // first frame immediately
+    if (!camTimer) camTimer = setInterval(captureAndSendFrame, CAM_INTERVAL_MS);
+    // First frame after a short delay — gives the video element time to
+    // populate videoWidth/Height on iOS (~200ms typical).
+    setTimeout(captureAndSendFrame, 400);
+    updateCameraControls();
+  }
+
+  async function switchCamera() {
+    if (!camStream) return;
+    const next = camFacing === "user" ? "environment" : "user";
+    await startCamera(next);
+  }
+
+  function updateCameraControls() {
+    if (camSwitchBtn) camSwitchBtn.hidden = !camStream;
+    if (camGalleryBtn) camGalleryBtn.hidden = cameraStreams.size === 0;
   }
 
   function stopCamera({ notify = true } = {}) {
     if (camTimer) { clearInterval(camTimer); camTimer = null; }
     if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-    if (camVideoEl) { camVideoEl.srcObject = null; camVideoEl = null; }
+    if (camVideoEl) {
+      camVideoEl.srcObject = null;
+      camVideoEl.remove();
+      camVideoEl = null;
+    }
     camCanvas = null;
     chatCameraBtn?.classList.remove("recording");
-    // Remove my own tile
     cameraStreams.delete(myUserId);
     renderLiveCameras();
+    updateCameraControls();
     if (notify && realtimeCh) {
       realtimeCh.send({ type: "broadcast", event: "camera_stop", payload: { userId: myUserId } }).catch(() => {});
     }
@@ -645,6 +699,7 @@ window.initMeetPage = () => {
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, CAM_W, CAM_H);
     ctx.drawImage(camVideoEl, dx, dy, dw, dh);
     const frame = camCanvas.toDataURL("image/jpeg", 0.45);
+    const mirror = camFacing === "user";   // selfie cam → mirrored locally for natural feel
     // Update my own tile
     cameraStreams.set(myUserId, {
       name: (myProfile?.name || "Me") + " (you)",
@@ -652,6 +707,7 @@ window.initMeetPage = () => {
       src:  frame,
       lastTs: Date.now(),
       mine: true,
+      mirror,
     });
     renderLiveCameras();
     try {
@@ -663,6 +719,7 @@ window.initMeetPage = () => {
           name:   myProfile?.name || "Me",
           role:   myProfile?.role || "guest",
           frame,
+          mirror,
           ts: Date.now(),
         },
       });
@@ -677,6 +734,7 @@ window.initMeetPage = () => {
       src:  payload.frame,
       lastTs: Date.now(),
       mine: false,
+      mirror: false,    // remote peers' selfies don't mirror — they look at themselves through MY screen
     });
     renderLiveCameras();
   }
@@ -685,6 +743,7 @@ window.initMeetPage = () => {
     if (!payload?.userId) return;
     cameraStreams.delete(payload.userId);
     renderLiveCameras();
+    if (cameraStreams.size === 0) closeCameraGallery();
   }
 
   // Prune stale tiles every 2s — a tab that died silently won't send stop
@@ -703,20 +762,80 @@ window.initMeetPage = () => {
     if (cameraStreams.size === 0) {
       liveCamerasEl.classList.remove("has-streams");
       liveCamerasEl.innerHTML = "";
+      updateCameraControls();
+      // Also refresh the gallery in case it's open
+      if (cameraGalleryOpen) renderCameraGallery();
       return;
     }
     liveCamerasEl.classList.add("has-streams");
     liveCamerasEl.innerHTML = Array.from(cameraStreams.values()).map(s => `
-      <div class="live-cam-tile ${s.mine ? "mine" : ""}">
-        <img src="${s.src}" alt="live camera">
+      <div class="live-cam-tile ${s.mine ? "mine" : ""}" data-cam-tile="1">
+        <img src="${s.src}" alt="live camera" style="${s.mirror ? "transform:scaleX(-1)" : ""}">
         <div class="live-cam-label"><span class="live-cam-dot"></span>${esc(s.name)}</div>
       </div>
     `).join("");
+    updateCameraControls();
+    if (cameraGalleryOpen) renderCameraGallery();
+  }
+
+  // ── Camera gallery (fullscreen, grid view for many users) ────────────
+  let cameraGalleryOpen = false;
+  function openCameraGallery() {
+    if (cameraStreams.size === 0) return;
+    cameraGalleryOpen = true;
+    let modal = document.getElementById("cameraGalleryModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "cameraGalleryModal";
+      modal.className = "cam-gallery-modal";
+      modal.innerHTML = `
+        <div class="cam-gallery-header">
+          <span class="cam-gallery-title">Live cameras (<span id="camGalleryCount">0</span>)</span>
+          <button class="cam-gallery-close" type="button" aria-label="Close gallery">×</button>
+        </div>
+        <div class="cam-gallery-grid" id="camGalleryGrid"></div>
+      `;
+      document.body.appendChild(modal);
+      modal.querySelector(".cam-gallery-close").addEventListener("click", closeCameraGallery);
+      modal.addEventListener("click", (e) => { if (e.target === modal) closeCameraGallery(); });
+    }
+    modal.classList.add("open");
+    renderCameraGallery();
+  }
+  function closeCameraGallery() {
+    cameraGalleryOpen = false;
+    document.getElementById("cameraGalleryModal")?.classList.remove("open");
+  }
+  function renderCameraGallery() {
+    const grid     = document.getElementById("camGalleryGrid");
+    const countEl  = document.getElementById("camGalleryCount");
+    if (!grid) return;
+    countEl.textContent = cameraStreams.size;
+    grid.innerHTML = Array.from(cameraStreams.values()).map(s => `
+      <div class="cam-gallery-tile ${s.mine ? "mine" : ""}">
+        <img src="${s.src}" alt="live camera" style="${s.mirror ? "transform:scaleX(-1)" : ""}">
+        <div class="cam-gallery-label"><span class="live-cam-dot"></span>${esc(s.name)}</div>
+      </div>
+    `).join("");
+    // Auto-grid column count based on tile count for a balanced layout
+    const n = cameraStreams.size;
+    const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   }
 
   chatCameraBtn?.addEventListener("click", () => {
     if (camStream) stopCamera();
     else           startCamera();
+  });
+  camSwitchBtn?.addEventListener("click", switchCamera);
+  camGalleryBtn?.addEventListener("click", openCameraGallery);
+  // Tapping any tile in the strip opens the gallery
+  liveCamerasEl?.addEventListener("click", (e) => {
+    if (e.target.closest("[data-cam-tile]")) openCameraGallery();
+  });
+  // ESC closes the gallery
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && cameraGalleryOpen) closeCameraGallery();
   });
 
   // Pause when tab goes hidden so we don't burn battery / bandwidth in bg
