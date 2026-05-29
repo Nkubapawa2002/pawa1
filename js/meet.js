@@ -1,6 +1,6 @@
 // Build stamp — shows in console AND on-screen (#meetBuildBadge) so you
 // can confirm which build is loaded without DevTools. Bump on each ship.
-const MEET_BUILD = "v53 (2026-05-29)";
+const MEET_BUILD = "v54 (2026-05-29)";
 console.log(`[meet] build ${MEET_BUILD} loaded`);
 window.addEventListener("DOMContentLoaded", () => {
   const b = document.getElementById("meetBuildBadge");
@@ -160,6 +160,7 @@ const _initMeetPageImpl = () => {
   // ---- Room lifecycle -----------------------------------------------------
   async function enterRoom(room) {
     activeRoom = room;
+    window._meetActiveRoom = true;
     persistRoom(room);
 
     // Restore profile from session if needed (page-refresh case)
@@ -232,6 +233,7 @@ const _initMeetPageImpl = () => {
 
     clearPersisted();
     activeRoom = null;
+    window._meetActiveRoom = false;
     window._meetMap = null;
     const mwc = document.getElementById("mapWeatherCard");
     if (mwc) mwc.hidden = true;
