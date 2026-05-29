@@ -600,29 +600,60 @@ window.initMeetPage = () => {
       alert("Camera isn't supported on this browser.");
       return;
     }
-    // Stop the previous stream first if we're switching cameras
+    // Stop the previous video tracks first if we're switching cameras.
+    // Keep audio tracks alive across switches so the voice call doesn't drop.
     if (camStream) {
-      camStream.getTracks().forEach(t => t.stop());
-      camStream = null;
+      camStream.getVideoTracks().forEach(t => t.stop());
     }
     // Try the requested facing first; fall back to plain `video:true` if
     // the constraint can't be satisfied (some iPads / desktop webcams have
     // no facingMode metadata at all and would otherwise OverconstrainError).
+    // We now request audio TOO so peers can talk during the stream — see
+    // the WebRTC voice section below for how the audio track gets routed.
+    // We always capture the mic but apply the mute state via track.enabled
+    // afterwards, so unmuting doesn't re-prompt for permission.
+    let newStream;
+    const audioConstraint = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
     try {
-      camStream = await navigator.mediaDevices.getUserMedia({
+      newStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: facing }, width: { ideal: CAM_W }, height: { ideal: CAM_H } },
-        audio: false,
+        audio: audioConstraint,
       });
     } catch (err1) {
       try {
-        camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: audioConstraint });
       } catch (err2) {
-        console.warn("camera permission denied", err2);
-        alert("Camera permission denied or no camera available.");
-        return;
+        // Last resort: video only (mic denied)
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (err3) {
+          console.warn("camera permission denied", err3);
+          alert("Camera permission denied or no camera available.");
+          return;
+        }
       }
     }
+    // If we already had an audio track from a previous camera (camera switch),
+    // keep it and just swap in the new video. Otherwise adopt the new stream.
+    if (camStream && newStream.getVideoTracks().length) {
+      // Remove old video tracks from camStream, add new video track
+      camStream.getVideoTracks().forEach(t => camStream.removeTrack(t));
+      newStream.getVideoTracks().forEach(t => camStream.addTrack(t));
+      // Audio track: keep existing if we have one; otherwise add the new one
+      if (camStream.getAudioTracks().length === 0) {
+        newStream.getAudioTracks().forEach(t => camStream.addTrack(t));
+      } else {
+        newStream.getAudioTracks().forEach(t => t.stop());   // discard duplicate audio
+      }
+    } else {
+      camStream = newStream;
+    }
     camFacing = facing;
+    // Apply current mute state to the audio track
+    camStream.getAudioTracks().forEach(t => { t.enabled = !camMuted; });
+    // Hand the (possibly new) audio track to every existing WebRTC peer
+    // connection so they all keep hearing us after a camera switch.
+    rtcReplaceLocalAudio();
     // iOS Safari ONLY plays a video element when both:
     //   (a) the `playsinline` ATTRIBUTE is present (the .playsInline property
     //       alone is NOT enough — Safari checks the attribute on parse),
@@ -656,6 +687,13 @@ window.initMeetPage = () => {
     // populate videoWidth/Height on iOS (~200ms typical).
     setTimeout(captureAndSendFrame, 400);
     updateCameraControls();
+    // Announce we're online so any peers already sharing know to call us.
+    rtcAnnounce();
+    // Also: peers we already knew about (from earlier camera_frames) —
+    // try to initiate with them directly in case rtc_hello got lost.
+    for (const peerId of cameraStreams.keys()) {
+      if (peerId !== myUserId) rtcMaybeInitiate(peerId);
+    }
   }
 
   async function switchCamera() {
@@ -666,6 +704,7 @@ window.initMeetPage = () => {
 
   function updateCameraControls() {
     if (camSwitchBtn) camSwitchBtn.hidden = !camStream;
+    if (camMuteBtn)   camMuteBtn.hidden   = !camStream;
     // Gallery only appears when there's at least one PEER to look at —
     // your own face isn't shown anywhere.
     if (camGalleryBtn) camGalleryBtn.hidden = visibleStreams().length === 0;
@@ -683,11 +722,175 @@ window.initMeetPage = () => {
     chatCameraBtn?.classList.remove("recording");
     cameraStreams.delete(myUserId);
     renderLiveCameras();
+    rtcTearDown();
     updateCameraControls();
     if (notify && realtimeCh) {
       realtimeCh.send({ type: "broadcast", event: "camera_stop", payload: { userId: myUserId } }).catch(() => {});
     }
   }
+
+  // ── WebRTC voice ──────────────────────────────────────────────────────
+  // Real-time bidirectional audio between everyone in the room. Signaling
+  // (SDP offers/answers + ICE candidates) flows through the existing
+  // Supabase Realtime channel using `rtc_*` events. STUN only — good
+  // enough for the vast majority of users; we'd add TURN later if NAT
+  // traversal failures show up.
+  const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+  const peerConns  = new Map();   // user_id -> RTCPeerConnection
+  const peerAudios = new Map();   // user_id -> HTMLAudioElement (hidden, attached to DOM for iOS autoplay)
+  let camMuted = false;
+  const camMuteBtn = document.getElementById("chatCameraMuteBtn");
+
+  function rtcAnnounce() {
+    if (!realtimeCh) return;
+    realtimeCh.send({
+      type: "broadcast",
+      event: "rtc_hello",
+      payload: { from: myUserId },
+    }).catch(() => {});
+  }
+
+  // Ensure (or create) a peer connection for the given remote user.
+  function getPeer(remoteId) {
+    let pc = peerConns.get(remoteId);
+    if (pc) return pc;
+    pc = new RTCPeerConnection(RTC_CONFIG);
+    peerConns.set(remoteId, pc);
+
+    // Send ICE candidates as they're discovered
+    pc.onicecandidate = (event) => {
+      if (event.candidate && realtimeCh) {
+        realtimeCh.send({
+          type: "broadcast",
+          event: "rtc_ice",
+          payload: { from: myUserId, to: remoteId, candidate: event.candidate.toJSON() },
+        }).catch(() => {});
+      }
+    };
+
+    // Incoming audio track from peer — pipe into a hidden <audio>
+    pc.ontrack = (event) => {
+      const stream = event.streams[0];
+      if (!stream) return;
+      let audioEl = peerAudios.get(remoteId);
+      if (!audioEl) {
+        audioEl = document.createElement("audio");
+        audioEl.autoplay = true;
+        audioEl.setAttribute("autoplay", "");
+        audioEl.setAttribute("playsinline", "");
+        audioEl.playsInline = true;
+        audioEl.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;";
+        document.body.appendChild(audioEl);
+        peerAudios.set(remoteId, audioEl);
+      }
+      audioEl.srcObject = stream;
+      audioEl.play().catch(e => console.warn("peer audio play", e));
+    };
+
+    // Drop the connection if it dies
+    pc.onconnectionstatechange = () => {
+      if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
+        closePeer(remoteId);
+      }
+    };
+
+    // Add our own audio track(s) so the remote side can hear us
+    if (camStream) {
+      camStream.getAudioTracks().forEach(track => pc.addTrack(track, camStream));
+    }
+    return pc;
+  }
+
+  function closePeer(remoteId) {
+    const pc = peerConns.get(remoteId);
+    if (pc) { try { pc.close(); } catch {} peerConns.delete(remoteId); }
+    const audioEl = peerAudios.get(remoteId);
+    if (audioEl) { try { audioEl.srcObject = null; audioEl.remove(); } catch {} peerAudios.delete(remoteId); }
+  }
+
+  function rtcTearDown() {
+    for (const id of [...peerConns.keys()]) closePeer(id);
+  }
+
+  // Called whenever we get a new audio track (initial start, or switch
+  // camera ended up with a fresh mic track) — push it to every peer.
+  function rtcReplaceLocalAudio() {
+    if (!camStream) return;
+    const audioTrack = camStream.getAudioTracks()[0] || null;
+    for (const pc of peerConns.values()) {
+      const senders = pc.getSenders();
+      const audioSender = senders.find(s => s.track?.kind === "audio");
+      if (audioSender) {
+        audioSender.replaceTrack(audioTrack).catch(e => console.warn("replaceTrack", e));
+      } else if (audioTrack) {
+        pc.addTrack(audioTrack, camStream);
+      }
+    }
+  }
+
+  // Lower userId initiates to avoid simultaneous offers ("glare").
+  async function rtcMaybeInitiate(remoteId) {
+    if (!camStream) return;            // we're not sharing → don't call out
+    if (myUserId >= remoteId) return;  // they'll call us instead
+    const pc = getPeer(remoteId);
+    try {
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      await pc.setLocalDescription(offer);
+      await realtimeCh.send({
+        type: "broadcast",
+        event: "rtc_offer",
+        payload: { from: myUserId, to: remoteId, sdp: pc.localDescription },
+      });
+    } catch (e) { console.warn("rtc offer", e); }
+  }
+
+  async function rtcHandleOffer(payload) {
+    if (payload.to !== myUserId) return;
+    const pc = getPeer(payload.from);
+    try {
+      await pc.setRemoteDescription(payload.sdp);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await realtimeCh.send({
+        type: "broadcast",
+        event: "rtc_answer",
+        payload: { from: myUserId, to: payload.from, sdp: pc.localDescription },
+      });
+    } catch (e) { console.warn("rtc answer", e); }
+  }
+
+  async function rtcHandleAnswer(payload) {
+    if (payload.to !== myUserId) return;
+    const pc = peerConns.get(payload.from);
+    if (!pc) return;
+    try { await pc.setRemoteDescription(payload.sdp); }
+    catch (e) { console.warn("rtc setRemote answer", e); }
+  }
+
+  async function rtcHandleIce(payload) {
+    if (payload.to !== myUserId) return;
+    const pc = peerConns.get(payload.from);
+    if (!pc) return;
+    try { await pc.addIceCandidate(payload.candidate); }
+    catch (e) { console.warn("rtc ICE", e); }
+  }
+
+  async function rtcHandleHello(payload) {
+    if (payload.from === myUserId) return;
+    if (!camStream) return;            // not sharing → nothing to do
+    rtcMaybeInitiate(payload.from);
+  }
+
+  // Mute / unmute the local mic without dropping the call
+  function toggleMute() {
+    if (!camStream) return;
+    camMuted = !camMuted;
+    camStream.getAudioTracks().forEach(t => { t.enabled = !camMuted; });
+    camMuteBtn?.classList.toggle("recording", camMuted);
+    camMuteBtn?.setAttribute("title", camMuted ? "Mic muted — tap to unmute" : "Tap to mute mic");
+  }
+
+  camMuteBtn?.addEventListener("click", toggleMute);
 
   async function captureAndSendFrame() {
     if (!camStream || !camVideoEl || !camCanvas || !realtimeCh) return;
@@ -730,6 +933,7 @@ window.initMeetPage = () => {
 
   function onPeerCameraFrame(payload) {
     if (!payload || payload.userId === myUserId) return;
+    const isNew = !cameraStreams.has(payload.userId);
     cameraStreams.set(payload.userId, {
       name: payload.name || "—",
       role: payload.role || "guest",
@@ -739,6 +943,10 @@ window.initMeetPage = () => {
       mirror: false,    // remote peers' selfies don't mirror — they look at themselves through MY screen
     });
     renderLiveCameras();
+    // First time we've seen this peer? Try to establish the voice call
+    // (rtcMaybeInitiate is a no-op if we're not sharing or if our user
+    // id is higher than theirs — in which case THEY initiate to us).
+    if (isNew && camStream) rtcMaybeInitiate(payload.userId);
   }
 
   function onPeerCameraStop(payload) {
@@ -1215,6 +1423,10 @@ window.initMeetPage = () => {
       .on("broadcast", { event: "chat" }, ({ payload }) => receiveChatMessage(payload))
       .on("broadcast", { event: "camera_frame" }, ({ payload }) => onPeerCameraFrame(payload))
       .on("broadcast", { event: "camera_stop"  }, ({ payload }) => onPeerCameraStop(payload))
+      .on("broadcast", { event: "rtc_hello"  }, ({ payload }) => rtcHandleHello(payload))
+      .on("broadcast", { event: "rtc_offer"  }, ({ payload }) => rtcHandleOffer(payload))
+      .on("broadcast", { event: "rtc_answer" }, ({ payload }) => rtcHandleAnswer(payload))
+      .on("broadcast", { event: "rtc_ice"    }, ({ payload }) => rtcHandleIce(payload))
       .subscribe();
   }
 
