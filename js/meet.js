@@ -450,10 +450,11 @@ window.initMeetPage = () => {
   };
 
   chatVoiceBtn?.addEventListener("click", async () => {
+    console.log("[meet] voice button clicked — activeRoom:", !!activeRoom, "recording:", mediaRec?.state);
     if (mediaRec && mediaRec.state === "recording") { stopRecording(); return; }
-    if (!activeRoom) return;
+    if (!activeRoom) { alert("Join a room first, then tap the mic to record."); return; }
     if (!navigator.mediaDevices?.getUserMedia) {
-      alert("Voice recording isn't supported on this browser.");
+      alert("Voice recording isn't supported on this browser. Use HTTPS and a modern browser (Safari 14+, Chrome).");
       return;
     }
     try {
@@ -598,9 +599,10 @@ window.initMeetPage = () => {
   const CAM_W = 640, CAM_H = 480;   // higher res now that video is real WebRTC, not 1.5s JPEGs
 
   async function startCamera(facing = camFacing) {
-    if (!activeRoom) return;
+    console.log("[meet] startCamera — activeRoom:", !!activeRoom, "facing:", facing);
+    if (!activeRoom) { alert("Join a room first, then tap the camera to share live video."); return; }
     if (!navigator.mediaDevices?.getUserMedia) {
-      alert("Camera isn't supported on this browser.");
+      alert("Camera isn't supported on this browser. The page must be served over HTTPS.");
       return;
     }
     // Stop the previous video tracks first if we're switching cameras.
@@ -1113,6 +1115,7 @@ window.initMeetPage = () => {
   }
 
   chatCameraBtn?.addEventListener("click", () => {
+    console.log("[meet] camera button clicked — camStream:", !!camStream, "activeRoom:", !!activeRoom);
     if (camStream) stopCamera();
     else           startCamera();
   });
@@ -1679,7 +1682,10 @@ window.initMeetPage = () => {
   }
 
   // ====================================================================
-  //  Peer-to-peer connecting lines (all pairs, straight-line distance)
+  //  Roommate polyline — one line through everyone in the room, in name
+  //  order, with a single total-distance label at the polyline's middle.
+  //  Order is alphabetical by display_name so the path stays stable
+  //  across GPS ticks (otherwise the line would reshuffle every update).
   // ====================================================================
   function updateAllPeerLines() {
     if (!map || !map.loaded()) return;
@@ -1688,27 +1694,60 @@ window.initMeetPage = () => {
     if (!lineSrc || !lblSrc) return;
 
     const all = [];
-    if (lastFix) all.push({ lat: lastFix.lat, lng: lastFix.lng });
-    for (const p of peers.values()) all.push({ lat: p.data.lat, lng: p.data.lng });
-
-    const lineFeats = [], lblFeats = [];
-    for (let i = 0; i < all.length; i++) {
-      for (let j = i + 1; j < all.length; j++) {
-        const a = all[i], b = all[j];
-        const km   = haversineKm(a.lat, a.lng, b.lat, b.lng);
-        const dist = km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(2) + " km";
-        lineFeats.push({ type: "Feature",
-          geometry: { type: "LineString", coordinates: [[a.lng, a.lat], [b.lng, b.lat]] },
-          properties: { dist }
-        });
-        lblFeats.push({ type: "Feature",
-          geometry: { type: "Point", coordinates: [(a.lng + b.lng) / 2, (a.lat + b.lat) / 2] },
-          properties: { dist }
-        });
-      }
+    if (lastFix) {
+      all.push({ name: myProfile?.name || "Me", lat: lastFix.lat, lng: lastFix.lng });
     }
-    lineSrc.setData({ type: "FeatureCollection", features: lineFeats });
-    lblSrc.setData({ type: "FeatureCollection", features: lblFeats });
+    const peerPts = [];
+    for (const p of peers.values()) {
+      if (p.data?.lat == null || p.data?.lng == null) continue;
+      peerPts.push({
+        name: p.data.display_name || "—",
+        lat:  p.data.lat,
+        lng:  p.data.lng,
+      });
+    }
+    peerPts.sort((a, b) => a.name.localeCompare(b.name));
+    all.push(...peerPts);
+
+    if (all.length < 2) {
+      lineSrc.setData({ type: "FeatureCollection", features: [] });
+      lblSrc.setData({  type: "FeatureCollection", features: [] });
+      return;
+    }
+
+    const coords = all.map(p => [p.lng, p.lat]);
+    let totalKm = 0;
+    for (let i = 1; i < all.length; i++) {
+      totalKm += haversineKm(all[i-1].lat, all[i-1].lng, all[i].lat, all[i].lng);
+    }
+    const totalLabel = totalKm < 1
+      ? `Total: ${Math.round(totalKm * 1000)} m`
+      : `Total: ${totalKm.toFixed(2)} km`;
+
+    lineSrc.setData({
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: coords },
+        properties: { dist: totalLabel }
+      }]
+    });
+
+    // Label at the geographic midpoint of the polyline (the middle
+    // segment's midpoint), so it sits visually centered on the path.
+    const midIdx = Math.floor(all.length / 2);
+    const a = coords[midIdx - 1] || coords[0];
+    const b = coords[midIdx]     || coords[0];
+    const lblPt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+
+    lblSrc.setData({
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Point", coordinates: lblPt },
+        properties: { dist: totalLabel }
+      }]
+    });
   }
 
   // ====================================================================
