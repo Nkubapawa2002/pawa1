@@ -1,6 +1,6 @@
 // Build stamp — shows in console AND on-screen (#meetBuildBadge) so you
 // can confirm which build is loaded without DevTools. Bump on each ship.
-const MEET_BUILD = "v54 (2026-05-29)";
+const MEET_BUILD = "v55 (2026-05-29 alert-removed)";
 console.log(`[meet] build ${MEET_BUILD} loaded`);
 window.addEventListener("DOMContentLoaded", () => {
   const b = document.getElementById("meetBuildBadge");
