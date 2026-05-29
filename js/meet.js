@@ -1,6 +1,11 @@
-// Build stamp — shows in console so you can confirm which build is loaded.
-// Bump this whenever you ship a meet.js change that users keep missing.
-console.log("[meet] build v51 (2026-05-29) loaded");
+// Build stamp — shows in console AND on-screen (#meetBuildBadge) so you
+// can confirm which build is loaded without DevTools. Bump on each ship.
+const MEET_BUILD = "v52 (2026-05-29)";
+console.log(`[meet] build ${MEET_BUILD} loaded`);
+window.addEventListener("DOMContentLoaded", () => {
+  const b = document.getElementById("meetBuildBadge");
+  if (b) b.textContent = "build " + MEET_BUILD;
+});
 
 // ============================================================================
 //  Meet & Locate — realtime GPS rooms over Tanzania
@@ -453,7 +458,7 @@ window.initMeetPage = () => {
     if (mediaRec && mediaRec.state !== "inactive") mediaRec.stop();
   };
 
-  chatVoiceBtn?.addEventListener("click", async () => {
+  const voiceToggle = async () => {
     console.log("[meet] voice button clicked — activeRoom:", !!activeRoom, "recording:", mediaRec?.state);
     if (mediaRec && mediaRec.state === "recording") { stopRecording(); return; }
     if (!activeRoom) { alert("Join a room first, then tap the mic to record."); return; }
@@ -496,7 +501,9 @@ window.initMeetPage = () => {
       console.warn("mic permission denied", err);
       alert("Microphone permission denied.");
     }
-  });
+  };
+  window._meetVoiceToggle = voiceToggle;
+  chatVoiceBtn?.addEventListener("click", voiceToggle);
 
   function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
@@ -1118,11 +1125,16 @@ window.initMeetPage = () => {
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   }
 
-  chatCameraBtn?.addEventListener("click", () => {
+  // Click handler (still wired via addEventListener), AND a window-global
+  // mirror so the inline onclick="..." attribute in meet.html works even
+  // if a JS error elsewhere breaks listener attachment.
+  const cameraToggle = () => {
     console.log("[meet] camera button clicked — camStream:", !!camStream, "activeRoom:", !!activeRoom);
     if (camStream) stopCamera();
     else           startCamera();
-  });
+  };
+  window._meetCameraToggle = cameraToggle;
+  chatCameraBtn?.addEventListener("click", cameraToggle);
   camSwitchBtn?.addEventListener("click", switchCamera);
   camGalleryBtn?.addEventListener("click", openCameraGallery);
   // Tapping any tile in the strip opens the gallery

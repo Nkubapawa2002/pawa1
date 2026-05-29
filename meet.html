@@ -656,6 +656,7 @@
           </div>
           <div class="meet-room-meta">
             <span id="roomPurpose">—</span> · <span id="roomMembers">0</span> <span data-i18n="meet_members">people</span>
+            · <span id="meetBuildBadge" style="opacity:.55;font-size:11px;">build —</span>
           </div>
         </div>
         <div class="meet-room-actions">
@@ -792,10 +793,10 @@
               <button id="chatPhotoBtn" class="chat-attach-btn" title="Send photo" type="button" aria-label="Send photo">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
               </button>
-              <button id="chatVoiceBtn" class="chat-attach-btn" title="Hold to record · tap again to stop" type="button" aria-label="Send voice note">
+              <button id="chatVoiceBtn" class="chat-attach-btn" title="Hold to record · tap again to stop" type="button" aria-label="Send voice note" onclick="window._meetVoiceToggle &amp;&amp; window._meetVoiceToggle()">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
               </button>
-              <button id="chatCameraBtn" class="chat-attach-btn" title="Tap to start/stop live camera" type="button" aria-label="Share live camera">
+              <button id="chatCameraBtn" class="chat-attach-btn" title="Tap to start/stop live camera" type="button" aria-label="Share live camera" onclick="window._meetCameraToggle &amp;&amp; window._meetCameraToggle()">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
               </button>
               <button id="chatCameraSwitchBtn" class="chat-attach-btn" title="Switch front/back camera" type="button" aria-label="Switch camera" hidden>
@@ -844,7 +845,7 @@
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/tracking-id.js"></script>
-  <script src="js/meet.js?v=51"></script>
+  <script src="js/meet.js?v=52"></script>
   <script>
     window.renderNav("meet.html");
     window.renderFooter();
