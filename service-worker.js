@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v41-2026-05-28-neon-pro-readable";
+const VERSION = "v42-2026-05-28-neon-pro-v3";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 

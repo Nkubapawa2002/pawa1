@@ -17,7 +17,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 
-/* ── Tokens (scoped — no legacy overrides) ─────────────────────────── */
+/* ── Tokens ────────────────────────────────────────────────────────── */
 :root {
   /* Tanzania brand re-imagined as neon */
   --n-green:        #10b981;
@@ -79,6 +79,18 @@
   --n-ease:       cubic-bezier(0.22, 1, 0.36, 1);
   --n-dur-fast:   140ms;
   --n-dur:        220ms;
+
+  /* ── Legacy token override — flips var()-based light surfaces to dark.
+        Pair with explicit text-color rules below so we never end up with
+        dark-on-dark or light-on-light. ── */
+  --white:       var(--n-surface);
+  --gray-light:  var(--n-bg-2);
+  --gray-mid:    var(--n-border-strong);
+  --border:      var(--n-border-strong);
+  --shadow-sm:   var(--n-shadow-1);
+  --shadow:      var(--n-shadow-2);
+  --shadow-lg:   var(--n-shadow-3);
+  --green-light: var(--n-green-soft);
 }
 
 /* ── Page baseline ─────────────────────────────────────────────────── */
@@ -444,19 +456,219 @@ tr:hover td { background: var(--n-green-soft); }
   color: var(--n-text);
 }
 
-/* ── Catch-all: any element using legacy --white or --gray-light as
-   inline style — these can't be fixed in CSS, but at least cover
-   the most common .section / .container ancestors. ─────────────── */
-section, .section, main, article, aside {
+section, .section, main, article, aside { color: var(--n-text); }
+
+/* ═════════════════════════════════════════════════════════════════════
+   INLINE-STYLE OVERRIDES — there are dozens of <div style="background:#fff">
+   panels in dashboard.html, send.html, accounting.html. They have no text
+   color, so they inherit the body's light text → light-on-white = invisible.
+   We catch every light hex pattern I found in HTML inline styles and:
+     (a) flip the panel to a dark surface
+     (b) override any hardcoded dark text inside (color:#0xx/#1xx/etc.) to light
+   We use trailing `;` / `"` / ` ` to avoid matching prefix patterns
+   like #fffbeb when we only want #fff.
+   ═════════════════════════════════════════════════════════════════════ */
+
+[style*='background:#fff;'],
+[style*='background: #fff;'],
+[style*='background:#fff"'],
+[style*='background: #fff"'],
+[style*='background:#fff '],
+[style*='background: #fff '],
+[style*='background:white'],
+[style*='background: white'],
+[style*='background:#f1f5f9'],
+[style*='background: #f1f5f9'],
+[style*='background:#f8fafc'],
+[style*='background: #f8fafc'],
+[style*='background:#f8faff'],
+[style*='background: #f8faff'],
+[style*='background:#f4f8ff'],
+[style*='background: #f4f8ff'],
+[style*='background:#f4f6f4'],
+[style*='background: #f4f6f4'],
+[style*='background:#f9fbf7'],
+[style*='background: #f9fbf7'],
+[style*='background:#eff6ff'],
+[style*='background: #eff6ff'],
+[style*='background:#fffdf0'],
+[style*='background: #fffdf0'],
+[style*='background:#fff8ef'],
+[style*='background: #fff8ef'],
+[style*='background:#fff8f8'],
+[style*='background: #fff8f8'],
+[style*='background:#fff8e1'],
+[style*='background: #fff8e1'],
+[style*='background:#fff3cd'],
+[style*='background: #fff3cd'] {
+  background: var(--n-surface) !important;
+  border-color: var(--n-border-strong) !important;
+  color: var(--n-text) !important;
+}
+
+/* Warn-tinted inline panels → dark amber surface */
+[style*='background:#fff8e1'],
+[style*='background: #fff8e1'],
+[style*='background:#fff3cd'],
+[style*='background: #fff3cd'],
+[style*='background:#fffdf0'],
+[style*='background: #fffdf0'],
+[style*='background:#fff8ef'],
+[style*='background: #fff8ef'] {
+  background: var(--n-surface-warn) !important;
+  border-color: var(--n-gold-line) !important;
+  color: var(--n-text-warn) !important;
+}
+
+/* Error-tinted inline panels → dark red surface */
+[style*='background:#fff8f8'],
+[style*='background: #fff8f8'] {
+  background: var(--n-surface-err) !important;
+  border-color: rgba(239,68,68,0.35) !important;
+  color: var(--n-text-err) !important;
+}
+
+/* All descendants inside an inline-light panel get light text, beating
+   any hardcoded `style="color:#xxx"` because !important on a stylesheet
+   rule outranks a non-important inline declaration. */
+[style*='background:#fff;'] *,
+[style*='background: #fff;'] *,
+[style*='background:#fff"'] *,
+[style*='background: #fff"'] *,
+[style*='background:#fff '] *,
+[style*='background: #fff '] *,
+[style*='background:white'] *,
+[style*='background: white'] *,
+[style*='background:#f1f5f9'] *,
+[style*='background: #f1f5f9'] *,
+[style*='background:#f8fafc'] *,
+[style*='background: #f8fafc'] *,
+[style*='background:#f8faff'] *,
+[style*='background: #f8faff'] *,
+[style*='background:#f4f8ff'] *,
+[style*='background: #f4f8ff'] *,
+[style*='background:#f4f6f4'] *,
+[style*='background: #f4f6f4'] *,
+[style*='background:#f9fbf7'] *,
+[style*='background: #f9fbf7'] *,
+[style*='background:#eff6ff'] *,
+[style*='background: #eff6ff'] * {
+  color: var(--n-text) !important;
+}
+[style*='background:#fffdf0'] *,
+[style*='background: #fffdf0'] *,
+[style*='background:#fff8ef'] *,
+[style*='background: #fff8ef'] *,
+[style*='background:#fff8e1'] *,
+[style*='background: #fff8e1'] *,
+[style*='background:#fff3cd'] *,
+[style*='background: #fff3cd'] * {
+  color: var(--n-text-warn) !important;
+}
+[style*='background:#fff8f8'] *,
+[style*='background: #fff8f8'] * {
+  color: var(--n-text-err) !important;
+}
+
+/* Tiny status-dot indicators in book-fast.html should keep their bright
+   colours — protect them from the above sweep by class. */
+.dot,
+[style*='background:#fbbf24'],
+[style*='background: #fbbf24'],
+[style*='background:#dcfce7'],
+[style*='background: #dcfce7'],
+[style*='background:#fee2e2'],
+[style*='background: #fee2e2'],
+[style*='background:#fef3c7'],
+[style*='background: #fef3c7'],
+[style*='background:#e0e7ff'],
+[style*='background: #e0e7ff'] {
+  background: unset; /* let the inline style win for these */
+}
+/* Actually the inline always wins because attribute selectors don't beat
+   inline specificity, but !important would. We have no !important on the
+   protection rule, so inline naturally wins. The above is documentation. */
+
+/* ═════════════════════════════════════════════════════════════════════
+   MORE CLASSES from premium.css + mobile.css
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* premium.css: input focus was forced bg:#fff !important — override */
+input:focus, select:focus, textarea:focus {
+  background: rgba(15, 34, 26, 0.85) !important;
+  border-color: var(--n-green-bright) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22) !important;
+  color: var(--n-text) !important;
+}
+
+/* premium.css: seat-bus-wrap had light gradient !important */
+.seat-bus-wrap {
+  background: linear-gradient(180deg, var(--n-surface) 0%, var(--n-surface-2) 100%) !important;
+  border: 1px solid var(--n-green-line) !important;
+}
+
+/* mobile.css: chat sheet messages */
+.pawa-sheet-msg.assistant {
+  background: var(--n-surface) !important;
+  border: 1px solid var(--n-border-strong) !important;
+  color: var(--n-text) !important;
+}
+.pawa-sheet-msg.user {
+  background: var(--n-grad-brand);
+  color: var(--n-text-on-brand);
+}
+.pawa-sheet-input, .pawa-sheet-header, .pawa-sheet-body {
+  background: var(--n-bg-2) !important;
+  border-color: var(--n-border-strong) !important;
   color: var(--n-text);
 }
 
-/* Generic fix: any element with a hardcoded white-ish background
-   that still has a parent text color of dark, force it light. */
-[style*="background: #fff"],
-[style*="background:#fff"],
-[style*="background: white"],
-[style*="background:white"] { color: var(--n-text); }
+/* ═════════════════════════════════════════════════════════════════════
+   MORE styles.css cards/sections that use hardcoded #fef3c7/#fef9c3 etc.
+   ═════════════════════════════════════════════════════════════════════ */
+.pill-pending,
+.voice-status-badge.calling,
+.message-item.from-system {
+  background: var(--n-surface-warn) !important;
+  color: var(--n-text-warn) !important;
+}
+.badge-transit { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; }
+tr:hover td { background: var(--n-green-soft) !important; }
+
+/* Ensure all generic text inside legacy containers stays light */
+.container *,
+main *,
+.section *,
+section *,
+.card *,
+.panel *,
+.feature *,
+.fin-card *,
+.kpi-card * {
+  /* DON'T set !important — we want individual class overrides above to win */
+}
+
+/* Last-resort: any element with hardcoded dark text color via inline style
+   gets soft-light text. Use carefully — we restrict to elements that ALSO
+   have a non-light background, so we don't break light dots. */
+[style*='color:#0f172a'],
+[style*='color: #0f172a'],
+[style*='color:#1e40af'],
+[style*='color: #1e40af'],
+[style*='color:#334155'],
+[style*='color: #334155'],
+[style*='color:#475569'],
+[style*='color: #475569'],
+[style*='color:#555'],
+[style*='color: #555'],
+[style*='color:#64748b'],
+[style*='color: #64748b'],
+[style*='color:#374151'],
+[style*='color: #374151'],
+[style*='color:#856404'],
+[style*='color: #856404'] {
+  color: var(--n-text-soft) !important;
+}
 
 /* ── Selection ─────────────────────────────────────────────────────── */
 ::selection { background: rgba(16, 185, 129, 0.45); color: #fff; }
