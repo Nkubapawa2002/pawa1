@@ -35,105 +35,6 @@
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 8px;
     }
-
-    /* Country-wide place search (above the filter bar) */
-    .houses-placebar {
-      position: relative;
-      background: var(--c-surface, #fff);
-      border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 14px;
-      padding: 10px;
-      margin-bottom: 10px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: center;
-    }
-    .hpb-search {
-      position: relative;
-      display: flex; align-items: center;
-      background: var(--c-bg-elev, #f4f3ee);
-      border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 10px;
-      padding: 0 10px;
-    }
-    .hpb-search:focus-within { border-color: var(--c-brand, #0a6f4d); background: #fff; }
-    .hpb-icon { width: 18px; height: 18px; color: var(--c-text-muted, #6b6960); flex-shrink: 0; }
-    .hpb-search input {
-      flex: 1; min-width: 0;
-      padding: 11px 10px; border: none; background: transparent;
-      font-size: 16px; font-family: inherit; color: var(--c-text, #1a1915);
-    }
-    .hpb-search input:focus { outline: none; }
-    .hpb-clear {
-      background: transparent; border: none; cursor: pointer;
-      width: 26px; height: 26px; border-radius: 50%;
-      font-size: 1.2rem; line-height: 1;
-      color: var(--c-text-muted, #6b6960);
-    }
-    .hpb-clear:hover { background: var(--c-border, #e7e4dd); color: var(--c-text, #1a1915); }
-    .hpb-reset {
-      padding: 10px 14px;
-      background: var(--c-brand-faint, #f0f7f2);
-      color: var(--c-brand-deep, #064a33);
-      border: 1px solid var(--c-brand-soft, #d9ecdf);
-      border-radius: 10px;
-      font-weight: 600; font-size: .88rem;
-      cursor: pointer; white-space: nowrap;
-    }
-    .hpb-reset:hover { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
-
-    .hpb-results {
-      position: absolute; left: 10px; right: 10px; top: 100%;
-      background: #fff;
-      border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 10px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.12);
-      max-height: 320px; overflow-y: auto;
-      z-index: 50;
-      margin-top: 4px;
-    }
-    .hpb-result {
-      padding: 10px 14px;
-      cursor: pointer;
-      border-bottom: 1px solid var(--c-border, #e7e4dd);
-      font-size: .9rem;
-      color: var(--c-text-soft, #3f3d36);
-    }
-    .hpb-result:last-child { border-bottom: none; }
-    .hpb-result:hover, .hpb-result.kbd { background: var(--c-brand-faint, #f0f7f2); color: var(--c-brand-deep, #064a33); }
-    .hpb-result strong { display: block; color: var(--c-text, #1a1915); font-weight: 600; }
-    .hpb-result small { color: var(--c-text-muted, #6b6960); font-size: .76rem; }
-    .hpb-result .hpb-kind {
-      display: inline-block;
-      font-size: .65rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .5px;
-      padding: 2px 7px; border-radius: 999px;
-      background: var(--c-brand-faint, #f0f7f2);
-      color: var(--c-brand-deep, #064a33);
-      margin-right: 6px;
-      vertical-align: middle;
-    }
-    .hpb-result.loading { font-style: italic; color: var(--c-text-muted, #6b6960); cursor: default; }
-    .hpb-result.loading:hover { background: transparent; color: var(--c-text-muted, #6b6960); }
-
-    .hpb-active {
-      grid-column: 1 / -1;
-      display: inline-flex; align-items: center; gap: 8px;
-      background: var(--c-brand-faint, #f0f7f2);
-      color: var(--c-brand-deep, #064a33);
-      border: 1px solid var(--c-brand-soft, #d9ecdf);
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: .82rem; font-weight: 600;
-      width: fit-content;
-    }
-    .hpb-active small { color: var(--c-text-muted, #6b6960); font-weight: 500; }
-    @media (max-width: 700px) {
-      .houses-placebar { grid-template-columns: 1fr; }
-      .hpb-reset { justify-self: stretch; }
-    }
-
     .houses-toolbar select,
     .houses-toolbar input {
       width: 100%; padding: 10px 12px;
@@ -546,11 +447,11 @@
     }
   </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('data/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg')" data-page="houses">
+<body data-bg data-houses-pro style="--page-bg:url('data/jonas-allert-IU8lP4p-LEY-unsplash.jpg')" data-page="houses">
   <a href="#housesMain" class="hp-skip-link">Skip to listings</a>
   <div id="nav-slot"></div>
 
-  <section class="page-hero" style="background-image:url('data/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg')">
+  <section class="page-hero" style="background-image:url('data/jonas-allert-IU8lP4p-LEY-unsplash.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title" data-i18n="houses_title">Houses for rent &amp; sale</h1>
       <p class="page-subtitle" data-i18n="houses_sub">Property listings across Tanzania. Search on the map, filter by area, price and type.</p>
@@ -588,25 +489,10 @@
         <div class="hp-bento__num" id="hpBentoVerified">—</div>
       </a>
       <a class="hp-bento__cell" href="agent-houses.html">
-        <span class="hp-bento__eyebrow">List yours</span>
-        <div class="hp-bento__num" style="font-size:1.05rem">Register a room — photos &amp; videos</div>
+        <span class="hp-bento__eyebrow">For agents</span>
+        <div class="hp-bento__num" style="font-size:1.1rem">List a property</div>
       </a>
     </nav>
-
-    <!-- Country-wide place search (region / district / ward / village / street) -->
-    <div class="houses-placebar">
-      <div class="hpb-search">
-        <svg class="hpb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="placeSearchInput" type="search" autocomplete="off"
-               placeholder="Search any place in Tanzania — region, district, ward, village, street…" />
-        <button type="button" id="placeClearBtn" class="hpb-clear" aria-label="Clear" hidden>&times;</button>
-      </div>
-      <button type="button" id="placeResetBtn" class="hpb-reset" hidden title="Show the whole country again">
-        🇹🇿 Whole country
-      </button>
-      <div id="placeSearchResults" class="hpb-results" hidden></div>
-      <div id="placeActiveChip" class="hpb-active" hidden></div>
-    </div>
 
     <!-- Filter bar -->
     <div class="houses-toolbar">
