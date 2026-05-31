@@ -327,7 +327,7 @@
   padding: 14px;
   display: flex; flex-direction: column; justify-content: space-between;
   text-decoration: none;
-  color: inherit;
+  color: var(--c-text, #1a1915);
   transition: transform var(--hp-dur-1) var(--hp-ease),
               box-shadow var(--hp-dur-1) var(--hp-ease),
               border-color var(--hp-dur-1) var(--hp-ease);
@@ -339,7 +339,7 @@
   border-color: var(--c-brand-soft, #d9ecdf);
   box-shadow: var(--hp-shadow-2);
   text-decoration: none;
-  color: inherit;
+  color: var(--c-text, #1a1915);
 }
 .hp-bento__cell:active { transform: translateY(0); }
 .hp-bento__cell--brand {
@@ -358,18 +358,31 @@
 .hp-bento__eyebrow {
   font-size: .68rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .08em;
-  opacity: .85;
+  color: var(--c-brand-deep, #064a33);
 }
 .hp-bento__num {
   font-family: var(--c-font-display, serif);
   font-size: 1.55rem; font-weight: 700;
   line-height: 1; letter-spacing: -.01em;
+  color: var(--c-brand-deep, #064a33);
 }
 .hp-bento__lbl {
   font-size: .82rem;
   font-weight: 500;
-  opacity: .82;
+  color: var(--c-text-soft, #3f3d36);
 }
+.hp-bento__cell--brand,
+.hp-bento__cell--accent { color: #fff; }
+.hp-bento__cell--brand .hp-bento__eyebrow,
+.hp-bento__cell--brand .hp-bento__num,
+.hp-bento__cell--brand .hp-bento__lbl,
+.hp-bento__cell--accent .hp-bento__eyebrow,
+.hp-bento__cell--accent .hp-bento__num,
+.hp-bento__cell--accent .hp-bento__lbl { color: #fff; }
+.hp-bento__cell--brand .hp-bento__eyebrow,
+.hp-bento__cell--accent .hp-bento__eyebrow { opacity: .92; }
+.hp-bento__cell--brand .hp-bento__lbl,
+.hp-bento__cell--accent .hp-bento__lbl { opacity: .9; }
 .hp-bento__cell--brand .hp-bento__num,
 .hp-bento__cell--accent .hp-bento__num { font-size: 2rem; }
 
