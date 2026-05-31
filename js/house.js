@@ -68,7 +68,21 @@ function render(h) {
   const bodyEl   = document.getElementById("hdBody");
   const stickyEl = document.getElementById("hdSticky");
 
-  const photo    = window.DataStore.housePhotoUrl(h.photo);
+  // Media: combine photos[] and videos[] into one carousel. Back-compat:
+  // if the row predates the multi-media migration, photos[] is empty so we
+  // fall back to the single `photo` column.
+  const photoList = (Array.isArray(h.photos) && h.photos.length)
+    ? h.photos
+    : (h.photo ? [h.photo] : []);
+  const videoList = Array.isArray(h.videos) ? h.videos : [];
+  const slides = [
+    ...photoList.map(p => ({ kind: "photo", url: window.DataStore.housePhotoUrl(p) })),
+    ...videoList.map(v => ({ kind: "video", url: window.DataStore.housePhotoUrl(v) })),
+  ];
+  if (!slides.length) {
+    slides.push({ kind: "photo", url: "data/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg" });
+  }
+
   const listing  = h.listing === "sale" ? "For sale" : "For rent";
   const price    = formatPrice(h);
   const verified = h.verified ? `<span class="hd-badge verified">✓ Verified</span>` : "";
@@ -107,10 +121,39 @@ function render(h) {
     `Could we do a live viewing? Join me on Pawa Live Meet — code ${meetCode}: ${meetUrl}`);
   const waHref     = waNumber ? `https://wa.me/${waNumber}?text=${waText}` : "";
 
+  // Build the slide and thumbnail markup for the carousel.
+  const slidesHtml = slides.map((s, i) => s.kind === "video"
+    ? `<div class="hd-gallery-slide is-video" data-i="${i}">
+         <video src="${esc(s.url)}" controls playsinline preload="${i === 0 ? "metadata" : "none"}"></video>
+       </div>`
+    : `<div class="hd-gallery-slide" data-i="${i}">
+         <img src="${esc(s.url)}" alt="${esc(h.title)} — photo ${i + 1}"
+              loading="${i === 0 ? "eager" : "lazy"}" decoding="async">
+       </div>`).join("");
+
+  const thumbsHtml = slides.length > 1 ? `
+    <div class="hd-gallery-thumbs" id="hdGalleryThumbs" role="tablist" aria-label="Media">
+      ${slides.map((s, i) => s.kind === "video"
+        ? `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"
+                   aria-label="Open video ${i + 1 - photoList.length}">
+             <video src="${esc(s.url)}" muted playsinline preload="metadata"></video>
+             <span class="vbadge">▶</span>
+           </button>`
+        : `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"
+                   aria-label="Open photo ${i + 1}">
+             <img src="${esc(s.url)}" alt="" loading="lazy" decoding="async">
+           </button>`).join("")}
+    </div>` : "";
+
+  const dotsHtml = slides.length > 1 ? `
+    <div class="hd-gallery-dots" aria-hidden="true">
+      ${slides.map((_, i) => `<span class="hd-gallery-dot ${i === 0 ? "active" : ""}" data-i="${i}"></span>`).join("")}
+    </div>` : "";
+
   bodyEl.innerHTML = `
-    <!-- Hero photo -->
-    <div class="hd-hero" data-loading="true" style="background-image:url('${photo}')"
-         role="img" aria-label="Photo of ${esc(h.title)}">
+    <!-- Media gallery -->
+    <div class="hd-gallery">
+      <div class="hd-gallery-stage" id="hdGalleryStage">${slidesHtml}</div>
       <div class="hd-hero-badges">
         <span class="hd-badge">${listing}</span>
         ${typeBadge}
@@ -124,6 +167,17 @@ function render(h) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
       </div>
+      ${slides.length > 1 ? `
+        <button type="button" class="hd-gallery-nav prev" id="hdGalleryPrev" aria-label="Previous">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button type="button" class="hd-gallery-nav next" id="hdGalleryNext" aria-label="Next">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <div class="hd-gallery-counter" id="hdGalleryCounter">1 / ${slides.length}</div>
+        ${dotsHtml}
+      ` : ""}
+      ${thumbsHtml}
     </div>
 
     <!-- Header (title + price) -->
@@ -171,19 +225,10 @@ function render(h) {
     </div>
   `;
 
-  // Preload hero photo so the shimmer drops once the image is ready.
-  const hero = bodyEl.querySelector(".hd-hero[data-loading]");
-  if (hero) {
-    const m = hero.getAttribute("style").match(/url\(['"]?([^'")]+)['"]?\)/);
-    if (m) {
-      const img = new Image();
-      img.decoding = "async";
-      img.onload = img.onerror = () => hero.removeAttribute("data-loading");
-      img.src = m[1];
-    } else {
-      hero.removeAttribute("data-loading");
-    }
-  }
+  // Wire up the media carousel (prev/next, dots, thumbnails, scroll-snap
+  // keeps the active index in sync, videos pause when scrolled away).
+  if (slides.length > 1) wireGallery(slides.length);
+  else hookSingleVideoAutopause(bodyEl);
 
   // ---- Wire up actions ---------------------------------------------------
   // Favorite (also records save-order so the favorites page can sort by
@@ -570,4 +615,70 @@ function esc(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// ============================================================================
+// Media gallery — scroll-snap carousel with prev/next, dots, thumbnails.
+// Videos auto-pause when they scroll out of view to keep CPU + data usage sane.
+// ============================================================================
+function wireGallery(total) {
+  const stage   = document.getElementById("hdGalleryStage");
+  const prev    = document.getElementById("hdGalleryPrev");
+  const next    = document.getElementById("hdGalleryNext");
+  const counter = document.getElementById("hdGalleryCounter");
+  const dots    = document.querySelectorAll(".hd-gallery-dot");
+  const thumbs  = document.querySelectorAll("#hdGalleryThumbs .hd-gallery-thumb");
+  if (!stage) return;
+
+  let current = 0;
+
+  function goTo(i) {
+    current = Math.max(0, Math.min(total - 1, i));
+    const slide = stage.children[current];
+    if (slide) stage.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
+    update();
+  }
+  function update() {
+    if (counter) counter.textContent = `${current + 1} / ${total}`;
+    dots.forEach((d, i)   => d.classList.toggle("active", i === current));
+    thumbs.forEach((t, i) => t.classList.toggle("active", i === current));
+    if (prev) prev.disabled = current <= 0;
+    if (next) next.disabled = current >= total - 1;
+    stage.querySelectorAll("video").forEach((v, i) => {
+      if (i !== current) try { v.pause(); } catch (_) {}
+    });
+  }
+
+  prev?.addEventListener("click", () => goTo(current - 1));
+  next?.addEventListener("click", () => goTo(current + 1));
+  thumbs.forEach(t => t.addEventListener("click", () => goTo(parseInt(t.dataset.i, 10))));
+
+  // Scroll-snap on iOS triggers many `scroll` events — debounce + read the
+  // currently-snapped slide based on scrollLeft / stage width.
+  let scrollDebounce;
+  stage.addEventListener("scroll", () => {
+    clearTimeout(scrollDebounce);
+    scrollDebounce = setTimeout(() => {
+      const w = stage.clientWidth || 1;
+      const i = Math.round(stage.scrollLeft / w);
+      if (i !== current) { current = Math.max(0, Math.min(total - 1, i)); update(); }
+    }, 60);
+  }, { passive: true });
+
+  stage.tabIndex = 0;
+  stage.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft")  { e.preventDefault(); goTo(current - 1); }
+    if (e.key === "ArrowRight") { e.preventDefault(); goTo(current + 1); }
+  });
+
+  update();
+}
+
+function hookSingleVideoAutopause(rootEl) {
+  const v = rootEl.querySelector(".hd-gallery video");
+  if (!v) return;
+  const io = new IntersectionObserver(([entry]) => {
+    if (!entry.isIntersecting) try { v.pause(); } catch (_) {}
+  }, { threshold: 0.1 });
+  io.observe(v);
 }
