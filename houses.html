@@ -311,7 +311,7 @@
       border-radius: 14px;
       overflow: hidden;
       display: grid;
-      grid-template-columns: 160px 1fr;
+      grid-template-columns: 240px 1fr;
       gap: 0;
       cursor: pointer;
       transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
@@ -320,7 +320,7 @@
     .house-card.active { border-color: var(--c-brand, #0a6f4d); box-shadow: 0 6px 18px rgba(10,111,77,.12); transform: translateY(-1px); }
     .house-card-photo {
       background: #ece9e1 center/cover no-repeat;
-      min-height: 130px;
+      min-height: 200px;
       position: relative;
     }
     .house-card-photo .badge {
@@ -436,13 +436,13 @@
         box-shadow: 0 1px 4px rgba(0,0,0,.08);
       }
 
-      .house-card { grid-template-columns: 120px 1fr; }
-      .house-card-photo { min-height: 110px; }
+      .house-card { grid-template-columns: 170px 1fr; }
+      .house-card-photo { min-height: 160px; }
       .house-card-price { font-size: 1.1rem; }
     }
     @media (max-width: 480px) {
-      .house-card { grid-template-columns: 100px 1fr; }
-      .house-card-photo { min-height: 100px; }
+      .house-card { grid-template-columns: 140px 1fr; }
+      .house-card-photo { min-height: 140px; }
       .house-card-title { font-size: .85rem; }
     }
   </style>

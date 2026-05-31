@@ -562,7 +562,18 @@ window.initHousesPage = async () => {
         if (hi && p > +hi) return false;
       }
       if (q) {
-        const hay = `${h.title} ${h.area} ${h.address} ${h.region}`.toLowerCase();
+        // Extended haystack so typing "rent", "apartment", "3 bed", a price
+        // figure, or an area name in the same search box all narrow the list.
+        // Bedroom variants ("3 bed", "3br", "3 bedroom") let users phrase it
+        // however they like. Price is included as a raw int so partial
+        // matches work ("500000" hits anything between 500k and 5M).
+        const hay = [
+          h.title, h.area, h.address, h.region,
+          h.listing, h.type,
+          h.bedrooms ? `${h.bedrooms}bed ${h.bedrooms} bed ${h.bedrooms} bedroom ${h.bedrooms}br` : "",
+          h.bathrooms ? `${h.bathrooms} bath` : "",
+          h.price_tzs ? String(h.price_tzs) : ""
+        ].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
