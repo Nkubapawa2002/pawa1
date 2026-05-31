@@ -339,6 +339,7 @@ window.initDashboard = async () => {
     if (error) {
       flash("addAgentStatus", "err", "Failed: " + error.message, 6000);
     } else {
+      window.DataStore?.invalidateCache(["agents"]);
       flash("addAgentStatus", "ok", `Agent ${name} added as ${id}.`);
       document.getElementById("addAgentForm").reset();
       document.getElementById("agentGridWrap").dataset.loaded = "";
@@ -473,6 +474,7 @@ window.initDashboard = async () => {
     if (error) {
       flash("addBusStatus", "err", error.code === "23505" ? "A bus with that name already exists." : "Failed: " + error.message, 6000);
     } else {
+      window.DataStore?.invalidateCache(["buses"]);
       flash("addBusStatus", "ok", `${name} saved.`);
       document.getElementById("addBusForm").reset();
       document.getElementById("bus_seats").value = "50";
@@ -825,6 +827,7 @@ window.initDashboard = async () => {
     const { data: busRow } = await sb.from("buses").select("routes").eq("id", busId).single();
     const routes = (busRow?.routes || []).filter((_, i) => i !== routeIndex);
     await sb.from("buses").update({ routes }).eq("id", busId).eq("tenant_id", _tenantId);
+    window.DataStore?.invalidateCache(["buses"]);
     document.getElementById("busListWrap").dataset.loaded = "";
     loadBuses();
   };

@@ -54,8 +54,21 @@ window.initAgentsPage = async () => {
       const verified = a.verified !== false
         ? `<span class="verified-badge" title="ID-verified by Pawa">✓ ${window.t("label_verified")}</span>` : "";
       const rating = Number(a.rating_avg) || 0;
-      const count = a.rating_count || 0;
-      const stars = renderStars(rating);
+      const count = Number(a.rating_count) || 0;
+      const reviewWord = count === 1 ? window.t("review_singular") : window.t("review_plural");
+      // Three states:
+      //  1. No reviews            → render NOTHING (no row, no empty box).
+      //  2. Reviews + a real avg  → stars + "4.5 · 3 reviews".
+      //  3. Reviews but no avg yet→ state the count only ("3 reviews"), with NO
+      //     empty stars and NO misleading "0.0" (e.g. the Maziwa agent).
+      let ratingHtml;
+      if (count <= 0) {
+        ratingHtml = "";
+      } else if (rating > 0) {
+        ratingHtml = `<div class="rating-row">${renderStars(rating)} <small>${rating.toFixed(1)} · ${count} ${reviewWord}</small></div>`;
+      } else {
+        ratingHtml = `<div class="rating-row rating-row--empty"><small>${count} ${reviewWord}</small></div>`;
+      }
       const exp   = a.experience_years ? `<p class="meta"><strong>${window.t("label_experience")}:</strong> ${a.experience_years} ${window.t("label_years")}</p>` : "";
       const about = a.about ? `<p class="meta agent-about">${a.about}</p>` : "";
       const photo = window.DataStore.agentPhotoUrl(a.photo_path);
@@ -74,7 +87,7 @@ window.initAgentsPage = async () => {
           <div class="agent-avatar">${avatar}</div>
           <div class="agent-card-id">
             <h3>${a.name} ${verified}</h3>
-            <div class="rating-row">${stars} <small>${rating.toFixed(1)} · ${count} ${count === 1 ? window.t("review_singular") : window.t("review_plural")}</small></div>
+            ${ratingHtml}
           </div>
         </div>
         <p class="meta"><strong>${window.t("label_region")}:</strong> ${a.region}</p>

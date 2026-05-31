@@ -75,12 +75,12 @@
     .ah-user { font-size: .9rem; color: var(--c-text-soft, #3f3d36); }
     .ah-user strong { color: var(--c-brand-deep, #064a33); }
     .ah-toolbar-actions { display: flex; gap: 8px; }
-    .ah-btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--c-border, #e7e4dd); background: #fff; cursor: pointer; font-weight: 600; font-size: .88rem; display: inline-flex; align-items: center; gap: 6px; }
-    .ah-btn:hover { border-color: var(--c-brand, #0a6f4d); }
+    .ah-btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--c-border, #e7e4dd); background: #fff; color: var(--c-text, #1a1915); cursor: pointer; font-weight: 600; font-size: .88rem; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+    .ah-btn:hover { border-color: var(--c-brand, #0a6f4d); color: var(--c-brand-deep, #064a33); }
     .ah-btn-brand { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
-    .ah-btn-brand:hover { background: var(--c-brand-deep, #064a33); }
+    .ah-btn-brand:hover { background: var(--c-brand-deep, #064a33); color: #fff; }
     .ah-btn-danger { color: var(--c-danger, #b91c1c); border-color: var(--c-danger-soft, #fce4e4); }
-    .ah-btn-danger:hover { background: var(--c-danger-soft, #fce4e4); }
+    .ah-btn-danger:hover { background: var(--c-danger-soft, #fce4e4); color: var(--c-danger, #b91c1c); }
 
     /* ---- Listings grid (my own properties) ---- */
     .ah-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
@@ -142,6 +142,85 @@
     }
 
     /* Photo upload */
+    /* ---- Media gallery grid (photos + videos) ---- */
+    .ah-media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ah-media-grid:empty { display: none; }
+    .ah-media-tile {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--c-bg-elev, #f4f3ee);
+      border: 1px solid var(--c-border, #e7e4dd);
+      cursor: grab;
+      user-select: none;
+    }
+    .ah-media-tile.dragging { opacity: .5; cursor: grabbing; }
+    .ah-media-tile.drop-target { outline: 2px dashed var(--c-brand, #0a6f4d); outline-offset: -3px; }
+    .ah-media-tile img,
+    .ah-media-tile video {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .ah-media-tile .ah-cover-flag {
+      position: absolute; top: 6px; left: 6px;
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      font-size: .65rem; font-weight: 700; letter-spacing: .4px;
+      padding: 2px 7px; border-radius: 999px;
+      text-transform: uppercase;
+    }
+    .ah-media-tile .ah-video-flag {
+      position: absolute; bottom: 6px; left: 6px;
+      background: rgba(0,0,0,.7); color: #fff;
+      font-size: .65rem; font-weight: 700;
+      padding: 2px 6px; border-radius: 6px;
+      display: inline-flex; align-items: center; gap: 3px;
+    }
+    .ah-media-tile .ah-enhanced-flag {
+      position: absolute; bottom: 6px; left: 6px;
+      background: linear-gradient(135deg, #0a6f4d, #0d8050); color: #fff;
+      font-size: .62rem; font-weight: 700; letter-spacing: .2px;
+      padding: 2px 7px; border-radius: 999px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+    .ah-media-tile .ah-tile-remove {
+      position: absolute; top: 4px; right: 4px;
+      width: 26px; height: 26px;
+      background: rgba(26,25,21,.78); color: #fff;
+      border: none; border-radius: 50%;
+      font-size: 1rem; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ah-media-tile .ah-tile-remove:hover { background: var(--c-danger, #b91c1c); }
+    .ah-media-tile .ah-tile-progress {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,.7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 600; color: var(--c-brand-deep, #064a33);
+    }
+
+    .ah-media-add {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px; padding: 16px;
+      border: 1px dashed var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      background: var(--c-bg-elev, #f4f3ee);
+      color: var(--c-text-soft, #3f3d36);
+      cursor: pointer;
+    }
+    .ah-media-add:hover { border-color: var(--c-brand, #0a6f4d); background: var(--c-brand-faint, #f0f7f2); }
+    .ah-media-add span { font-weight: 600; font-size: .92rem; }
+    .ah-media-add small { font-size: .78rem; color: var(--c-text-muted, #6b6960); }
+    .ah-media-add.full {
+      opacity: .55; cursor: not-allowed;
+      border-style: solid;
+    }
+    .ah-media-add--video svg { color: var(--c-accent, #bc5c00); }
+
     .ah-photo-upload {
       border: 2px dashed var(--c-border-strong, #d6d2c8);
       border-radius: 12px;
@@ -183,6 +262,30 @@
       flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+
+    /* Reverse-geocoded place confirmation under the map */
+    .ah-pin-place {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 10px; padding: 10px 12px;
+      background: var(--c-brand-faint, #f0f7f2);
+      border: 1px solid var(--c-brand-soft, #d9ecdf);
+      border-radius: 10px;
+    }
+    .ah-pin-place[hidden] { display: none; }
+    .ah-pin-place__icon { font-size: 1.2rem; flex-shrink: 0; }
+    .ah-pin-place__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .ah-pin-place__body strong { color: var(--c-brand-deep, #064a33); font-size: .9rem; line-height: 1.25; }
+    .ah-pin-place__body small  { color: var(--c-text-muted, #6b6960); font-size: .76rem; }
+    .ah-pin-place.is-loading strong { color: var(--c-text-muted, #6b6960); font-style: italic; }
+    .ah-pin-acc {
+      display: inline-block; margin-left: 6px;
+      padding: 1px 7px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700;
+      font-family: var(--c-font-sans, system-ui, sans-serif);
+    }
+    .ah-pin-acc.good { background: var(--c-success-soft, #e1f3e8); color: var(--c-success, #0d8050); }
+    .ah-pin-acc.ok   { background: #fdf4e3; color: #b45309; }
+    .ah-pin-acc.poor { background: var(--c-danger-soft, #fce4e4); color: var(--c-danger, #b91c1c); }
 
     /* Amenities chips */
     .ah-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -349,15 +452,31 @@
         <h2 id="ahFormTitle" data-i18n="ah_form_title_new">Add new listing</h2>
         <p class="muted" data-i18n="ah_form_sub">Fill in the property details. The map pin tells buyers exactly where it is — drag it or tap "Use my GPS" while standing at the property.</p>
 
-        <!-- 1. Photo -->
+        <!-- 1. Photos + videos -->
         <div class="ah-form-section">
-          <h4 data-i18n="ah_section_photo">Photo</h4>
-          <label id="ahPhotoLabel" class="ah-photo-upload" for="ahPhotoInput">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <p data-i18n="ah_upload_cta">Tap to upload a photo</p>
-            <small data-i18n="ah_upload_hint">JPG, PNG or WebP · max 5 MB · resized client-side</small>
+          <h4 data-i18n="ah_section_media">Photos &amp; videos</h4>
+          <p class="muted" style="margin-bottom:10px;font-size:.86rem;" data-i18n="ah_media_help">
+            Up to 12 photos and 2 short video clips (max 60 s each). The first photo becomes the cover.
+            Drag tiles to reorder.
+          </p>
+
+          <!-- Photos -->
+          <div class="ah-media-grid" id="ahPhotoGrid" aria-label="Photos"></div>
+          <label id="ahPhotoLabel" class="ah-media-add" for="ahPhotoInput">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span data-i18n="ah_upload_cta">Add photos</span>
+            <small data-i18n="ah_upload_hint">JPG, PNG or WebP · resized to 1600 px · ✨ auto-enhanced</small>
           </label>
-          <input id="ahPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+          <input id="ahPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+
+          <!-- Videos -->
+          <div class="ah-media-grid" id="ahVideoGrid" aria-label="Videos" style="margin-top:12px;"></div>
+          <label id="ahVideoLabel" class="ah-media-add ah-media-add--video" for="ahVideoInput">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            <span data-i18n="ah_video_cta">Add a video walkthrough</span>
+            <small data-i18n="ah_video_hint">MP4 or WebM · max 60 s · up to 60 MB</small>
+          </label>
+          <input id="ahVideoInput" type="file" accept="video/mp4,video/webm,video/quicktime" multiple hidden />
         </div>
 
         <!-- 2. The basics -->
@@ -397,6 +516,14 @@
                 <option value="total" data-i18n="ah_period_total">total (sale)</option>
               </select>
             </div>
+          </div>
+          <!-- Minimum months a tenant must pay upfront — rent listings only -->
+          <div class="ah-form-row" id="ahMinMonthsRow">
+            <label for="ahMinMonths" data-i18n="ah_field_min_months">Minimum months to pay upfront</label>
+            <input id="ahMinMonths" type="number" min="1" max="60" step="1" value="1" placeholder="e.g. 6" />
+            <small style="color:var(--c-text-muted,#6b6960);font-size:.78rem;margin-top:2px;" data-i18n="ah_field_min_months_hint">
+              How many months the tenant must pay at once for this room, shop or office (e.g. 6 months). Ignored for properties listed for sale.
+            </small>
           </div>
         </div>
 
@@ -443,7 +570,14 @@
         <!-- 5. Pin on the map -->
         <div class="ah-form-section">
           <h4 data-i18n="ah_section_pin">Pin on the map (GPS-verified location)</h4>
-          <p class="muted" style="margin-bottom:10px;" data-i18n="ah_section_pin_sub">Drag the green pin to where the property is, or tap "Use my GPS" if you're standing at the property right now.</p>
+          <p class="muted" style="margin-bottom:10px;" data-i18n="ah_section_pin_sub">Two ways to pin the property: search any village or street in Tanzania, OR tap "Use my GPS" while standing on the property. You can fine-tune by dragging the pin.</p>
+          <div class="ah-pin-search" style="position:relative;margin-bottom:10px;">
+            <input id="ahPinSearch" type="search" autocomplete="off" spellcheck="false"
+                   placeholder="Search a place in Tanzania — e.g. Mikocheni, Mwanza, Stesheni Sumbawanga"
+                   style="width:100%;padding:11px 14px;border:1px solid #d0d7de;border-radius:10px;font-size:.95rem;" />
+            <div id="ahPinSearchResults"
+                 style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow-y:auto;background:#fff;border:1px solid #d0d7de;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.08);z-index:5;"></div>
+          </div>
           <div class="ah-pin-picker">
             <div id="ahPinMap" style="position:absolute;inset:0;"></div>
             <div class="ah-pin-controls">
@@ -451,23 +585,57 @@
               <button type="button" id="ahPinGps" class="ah-btn" data-i18n="ah_pin_gps">📍 Use my GPS</button>
             </div>
           </div>
+          <!-- Reverse-geocoded location verification (street + area confirmation) -->
+          <div id="ahPinPlace" class="ah-pin-place" hidden>
+            <span class="ah-pin-place__icon" aria-hidden="true">📌</span>
+            <div class="ah-pin-place__body">
+              <strong id="ahPinPlaceName">—</strong>
+              <small id="ahPinPlaceMeta"></small>
+            </div>
+            <button type="button" id="ahPinFill" class="ah-btn" style="padding:6px 12px;font-size:.82rem;white-space:nowrap;">Use this address</button>
+          </div>
+        </div>
+
+        <!-- 5b. Nearby social services (auto from OpenStreetMap) -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_nearby">What's nearby</h4>
+          <p class="muted" style="margin-bottom:10px;" data-i18n="ah_section_nearby_sub">Schools, hospitals, mosques, churches, markets, transport and more — detected automatically around your pin. Buyers will see this on the listing.</p>
+          <div class="ah-nearby-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;">
+            <div id="ahNearbyRadius" role="group" aria-label="Search radius"
+                 style="display:inline-flex;border:1px solid #d0d7de;border-radius:8px;overflow:hidden;background:#fff;">
+              <button type="button" data-r="1000"          style="padding:6px 12px;border:0;background:transparent;cursor:pointer;font-size:.86rem;border-right:1px solid #e6ebf0;">1 km</button>
+              <button type="button" data-r="1500" class="active" style="padding:6px 12px;border:0;background:#0a6f4d;color:#fff;cursor:pointer;font-size:.86rem;font-weight:600;border-right:1px solid #e6ebf0;">1.5 km</button>
+              <button type="button" data-r="3000"          style="padding:6px 12px;border:0;background:transparent;cursor:pointer;font-size:.86rem;">3 km</button>
+            </div>
+            <button type="button" id="ahNearbyRefresh" class="ah-btn"
+                    style="padding:6px 12px;font-size:.86rem;" title="Re-scan the same pin">↻ Refresh</button>
+            <span id="ahNearbyStatus" class="muted" style="margin-left:auto;font-size:.82rem;"></span>
+          </div>
+          <div id="ahNearbyPanel" class="ah-nearby"
+               style="background:#f6f8fa;border:1px solid #e6ebf0;border-radius:10px;padding:14px;min-height:60px;">
+            <p class="muted" id="ahNearbyHint" style="margin:0;font-size:.9rem;">Drop a pin first, then this panel will fill in automatically.</p>
+          </div>
         </div>
 
         <!-- 6. Amenities & furnished -->
         <div class="ah-form-section">
           <h4 data-i18n="ah_section_amenities">Amenities &amp; furnishing</h4>
           <div class="ah-form-row">
-            <label data-i18n="ah_field_amenities">Amenities (tap to toggle)</label>
+            <label data-i18n="ah_field_amenities">Amenities (tap to toggle, or add your own below)</label>
             <div class="ah-chips" id="ahAmenities"></div>
           </div>
+          <div class="ah-form-row" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <div style="flex:1 1 220px;min-width:0;">
+              <label for="ahCustomAmenity">Add your own amenity</label>
+              <input id="ahCustomAmenity" type="text" maxlength="40"
+                     placeholder="e.g. Backup generator · CCTV · Solar · Servant quarters" />
+            </div>
+            <button type="button" id="ahAddAmenityBtn" class="ah-btn">+ Add</button>
+          </div>
           <div class="ah-form-row">
-            <label for="ahFurnished" data-i18n="ah_field_furnished">Furnished</label>
-            <select id="ahFurnished">
-              <option value="no" data-i18n="ah_furn_no">No</option>
-              <option value="semi" data-i18n="ah_furn_semi">Semi-furnished</option>
-              <option value="yes" data-i18n="ah_furn_yes">Yes — fully furnished</option>
-              <option value="n/a" data-i18n="ah_furn_na">Not applicable</option>
-            </select>
+            <label for="ahFurnished" data-i18n="ah_field_furnished">Furnished — describe it freely</label>
+            <input id="ahFurnished" type="text" maxlength="160"
+                   placeholder="e.g. Fully furnished — fridge, gas cooker, smart TV, fans · or 'unfurnished'" />
           </div>
         </div>
 

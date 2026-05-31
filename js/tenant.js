@@ -36,10 +36,12 @@
 
     // If the user is signed in, prefer their actual membership(s).
     let memberships = [];
+    let isSignedIn  = false;
     if (sb) {
       try {
         const { data: session } = await sb.auth.getSession();
         if (session?.session?.user) {
+          isSignedIn = true;
           const { data, error } = await sb
             .from("tenant_users")
             .select("tenant_id, role, tenants ( id, slug, display_name, status )")
@@ -75,7 +77,12 @@
       if (!error && data) return shapeTenant(data);
     }
 
-    // Last resort: demo tenant for legacy pages.
+    // Signed-in users with no membership and no explicit slug shouldn't
+    // silently land in the demo tenant — dashboards gate on this returning
+    // null so they can show the "you don't belong to any tenant" screen.
+    if (isSignedIn && memberships.length === 0 && !urlSlug) return null;
+
+    // Last resort: demo tenant for anonymous visitors of legacy/public pages.
     if (sb) {
       const { data } = await sb
         .from("tenants")

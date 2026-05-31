@@ -1213,6 +1213,24 @@ td code { font-size: 0.85rem; background: var(--gray-light); padding: 2px 6px; b
 .rating-row { display: flex; align-items: center; gap: 5px; margin: 2px 0 6px; flex-wrap: wrap; line-height: 1.1; }
 .rating-row small { color: var(--gray); font-size: 0.65rem; }
 
+/* Agents directory: keep the review / rating row clearly smaller than the
+   card's body text (.meta is 0.9rem, name is 1.15rem) so it reads as a quiet
+   sub-label under the name instead of competing with it. Single line — the
+   stars + "4.5 · 12 reviews" stay together and never push the name to wrap. */
+body[data-page="agents"] .rating-row { gap: 4px; margin: 1px 0 7px; line-height: 1; flex-wrap: nowrap; }
+body[data-page="agents"] .rating-row .stars { font-size: 0.62rem; }
+body[data-page="agents"] .rating-row small { font-size: 0.62rem; white-space: nowrap; }
+/* Agents with no reviews yet: a quiet placeholder that keeps the same row
+   height as a rated agent, so cards in the grid line up evenly. */
+body[data-page="agents"] .rating-row--empty small { color: var(--gray-mid); font-style: italic; }
+
+/* Let each agent card size to its OWN content instead of stretching to match
+   the tallest card in the row. Without this, an agent with little info (e.g.
+   no reviews) got stretched, leaving a big empty white rectangle at the bottom
+   that crowded the layout. align-items:start makes every card as short as its
+   content allows. */
+body[data-page="agents"] .card-grid { align-items: start; }
+
 /* Tabs (admin) */
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin: 24px 0 18px; flex-wrap: wrap; }
 .tab-btn {

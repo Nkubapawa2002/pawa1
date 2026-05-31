@@ -363,6 +363,12 @@ create table if not exists public.bookings (
   updated_at       timestamptz not null default now()
 );
 
+-- Idempotent column add: the VAPI reserve-seat workflow writes expires_at
+-- so the dashboard "Pending holds" card can show how long is left on each hold.
+alter table public.bookings add column if not exists expires_at timestamptz;
+create index if not exists bookings_expires_idx on public.bookings (expires_at)
+  where status = 'pending';
+
 create index if not exists bookings_phone_idx    on public.bookings (passenger_phone);
 create index if not exists bookings_status_idx   on public.bookings (status, travel_date);
 create index if not exists bookings_bus_date_idx on public.bookings (bus_id, travel_date, departure_time);
@@ -407,6 +413,9 @@ alter table public.call_requests add column if not exists context       jsonb;
 alter table public.call_requests add column if not exists at_session_id text;
 alter table public.call_requests add column if not exists vapi_call_id  text;
 alter table public.call_requests add column if not exists attempt_count int not null default 0;
+alter table public.call_requests add column if not exists last_error    text;
+alter table public.call_requests add column if not exists purpose       text;
+alter table public.call_requests add column if not exists created_by    text;
 
 create index if not exists call_requests_status_idx
   on public.call_requests (status, requested_at);
@@ -657,12 +666,16 @@ create policy "expenses finance read"
   on public.org_expenses for select to authenticated using (public.is_finance_user());
 create policy "expenses accountant write"
   on public.org_expenses for insert to authenticated with check (public.is_finance_user());
-create policy "expenses accountant update"
-  on public.org_expenses for update to authenticated using (public.is_finance_user());
-create policy "expenses admin delete"
-  on public.org_expenses for delete to authenticated using (public.is_admin());
+-- UPDATE/DELETE intentionally NOT exposed via RLS to authenticated users.
+-- Originals are immutable from the API; corrections go through the
+-- ledger_adjustments overlay. Admins can still fix data via the Supabase
+-- dashboard (service_role bypasses RLS). Belt-and-braces: we also revoke the
+-- table-level grant below, so even if a permissive policy is added later,
+-- the role itself lacks the UPDATE/DELETE privilege.
+revoke update, delete on public.org_expenses from authenticated;
+revoke update, delete on public.org_expenses from anon;
 
-grant select, insert, update on public.org_expenses to authenticated;
+grant select, insert on public.org_expenses to authenticated;
 grant usage, select on sequence public.org_expenses_id_seq to authenticated;
 grant select on public.tax_rates to anon, authenticated;
 
@@ -697,6 +710,42 @@ create policy "adj_all" on public.org_adjustments for all using (true) with chec
 
 grant select, insert, update, delete on public.org_adjustments to authenticated;
 grant usage, select on sequence public.org_adjustments_id_seq to authenticated;
+
+-- ============================================================================
+-- 18c. ledger_adjustments (per-record corrections — editable overlay on top of
+--      bookings / shipments / payments. Originals stay untouched; reports
+--      sum original + adjustment so an accountant can fix a single fare
+--      without rewriting the source row.)
+-- ============================================================================
+create table if not exists public.ledger_adjustments (
+  id           bigserial primary key,
+  tenant_id    uuid references public.tenants(id) on delete cascade,
+  entity_type  text not null check (entity_type in ('booking','shipment','payment','expense')),
+  entity_ref   text,
+  data         jsonb not null default '{}'::jsonb,
+  amount_tzs   numeric(14,2),
+  reason       text,
+  recorded_by  text not null,
+  period_date  date not null,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists ledger_adj_period_idx on public.ledger_adjustments (period_date desc);
+create index if not exists ledger_adj_entity_idx on public.ledger_adjustments (entity_type, entity_ref);
+create index if not exists ledger_adj_tenant_idx on public.ledger_adjustments (tenant_id, period_date desc);
+
+drop trigger if exists trg_ledger_adj_updated on public.ledger_adjustments;
+create trigger trg_ledger_adj_updated
+  before update on public.ledger_adjustments
+  for each row execute function public.touch_updated_at();
+
+alter table public.ledger_adjustments enable row level security;
+drop policy if exists "ledger_adj all" on public.ledger_adjustments;
+create policy "ledger_adj all" on public.ledger_adjustments for all using (true) with check (true);
+
+grant select, insert, update, delete on public.ledger_adjustments to authenticated;
+grant usage, select on sequence public.ledger_adjustments_id_seq to authenticated;
 
 -- ============================================================================
 -- 19. meet_rooms
@@ -1589,16 +1638,13 @@ create policy "shipments tenant write" on public.shipments
   );
 
 -- ORG EXPENSES — tenant owners/admins only
+-- Tenant-scoped INSERT only. UPDATE/DELETE on org_expenses are intentionally
+-- not exposed via RLS to authenticated users (see section 18); corrections
+-- go through ledger_adjustments. Admins use the Supabase dashboard
+-- (service_role bypasses RLS) for genuine deletes.
 drop policy if exists "org_expenses tenant write" on public.org_expenses;
-create policy "org_expenses tenant write" on public.org_expenses
-  for all to authenticated
-  using (
-    public.is_admin() or
-    tenant_id in (
-      select tu.tenant_id from public.tenant_users tu
-      where tu.user_id = auth.uid() and tu.role in ('owner','admin')
-    )
-  )
+create policy "org_expenses tenant insert" on public.org_expenses
+  for insert to authenticated
   with check (
     public.is_admin() or
     tenant_id in (
@@ -2607,7 +2653,7 @@ create table if not exists public.houses (
   lat               double precision,
   lng               double precision,
   amenities         text[] not null default '{}',
-  furnished         text default 'no' check (furnished in ('yes','no','semi','n/a')),
+  furnished         text default 'no',  -- free-text since 2026-05 (e.g. "fridge, gas cooker")
   photo             text,                          -- storage path OR external URL
   description       text,
   verified          boolean not null default false,
@@ -2629,7 +2675,7 @@ create index if not exists houses_lat_lng_idx    on public.houses (lat, lng);
 drop trigger if exists set_houses_updated_at on public.houses;
 create trigger set_houses_updated_at
   before update on public.houses
-  for each row execute function public.set_updated_at();
+  for each row execute function public.touch_updated_at();
 
 alter table public.houses enable row level security;
 drop policy if exists "houses readable"      on public.houses;
@@ -2683,6 +2729,53 @@ drop policy if exists "house-photos admin write" on storage.objects;
 create policy "house-photos admin write" on storage.objects for all
   using (bucket_id = 'house-photos' and public.is_admin())
   with check (bucket_id = 'house-photos' and public.is_admin());
+
+-- ----------------------------------------------------------------------------
+-- 34c. Multi-photo + video support for house listings.
+--     Owners can attach up to 12 photos and 2 short video clips per listing.
+--     Storage paths land in the same `house-photos` bucket (renamed
+--     conceptually to "house media" but kept as the same bucket so existing
+--     paths still resolve). The single legacy `photo` column is retained as
+--     the cover/thumbnail.
+--     Idempotent — safe to re-run.
+-- ----------------------------------------------------------------------------
+alter table public.houses
+  add column if not exists photos text[] not null default '{}'::text[],
+  add column if not exists videos text[] not null default '{}'::text[],
+  add column if not exists nearby jsonb  not null default '{}'::jsonb;
+
+-- Allow free-text furnishing notes (e.g. "fridge, gas cooker"). If an older
+-- CHECK constraint still exists on a re-run database, drop it.
+do $$
+declare con record;
+begin
+  for con in
+    select c.conname
+    from pg_constraint c join pg_class t on t.oid = c.conrelid
+    where t.relname = 'houses'
+      and c.contype = 'c'
+      and pg_get_constraintdef(c.oid) ilike '%furnished%'
+  loop
+    execute 'alter table public.houses drop constraint if exists "' || con.conname || '"';
+  end loop;
+end $$;
+
+-- Backfill the photos array from the legacy single-photo column on rows
+-- that haven't been edited yet, so the gallery has something to show.
+update public.houses
+   set photos = array[photo]
+ where photo is not null and photo <> '' and coalesce(array_length(photos, 1), 0) = 0;
+
+-- Bump the bucket size limit to 60 MB so a 60-second 1080p clip (~45 MB at
+-- average bitrate) fits with headroom. Whitelist the same image formats plus
+-- the three video formats browsers can record (mp4 / webm / quicktime).
+update storage.buckets
+   set file_size_limit = 62914560,   -- 60 MB
+       allowed_mime_types = array[
+         'image/jpeg','image/png','image/webp',
+         'video/mp4','video/webm','video/quicktime'
+       ]
+ where id = 'house-photos';
 
 -- ============================================================================
 -- Done — 34 tables, 31 RPCs, pg_cron reminders + payment-confirmation SMS, full RLS, realtime, seed data, and multi-tenant.

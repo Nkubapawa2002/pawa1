@@ -660,6 +660,95 @@ code { font-family: monospace; font-size: 0.82rem; background: var(--gray-light)
 .chart-share { font-size: .7rem; color: var(--gray); margin-left: 4px; }
 .share-pill  { font-size: .75rem; font-weight: 600; background: var(--green-light); color: var(--green-dark); padding: 2px 8px; border-radius: 999px; }
 
+/* ── SVG icon system ─────────────────────────────────────── */
+.fin-icon {
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+  stroke-width: 2;
+  vertical-align: -3px;
+}
+.fin-icon-sm { width: 14px; height: 14px; }
+.fin-icon-lg { width: 22px; height: 22px; }
+.fin-nav-item .fin-icon { color: currentColor; }
+.fin-brand .fin-icon { width: 22px; height: 22px; color: #fff; }
+.fin-section-header h2 .fin-icon { color: var(--green); }
+.fin-card-title .fin-icon { color: var(--green); }
+.tab-btn .fin-icon { color: currentColor; }
+
+/* ── Badges (READ-ONLY / EDITABLE / role) ────────────────── */
+.fin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  border-radius: 6px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  vertical-align: middle;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.fin-badge-readonly { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+.fin-badge-editable { background: #dcfce7; color: #065f46; border-color: #bbf7d0; }
+.fin-badge-info     { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.fin-badge .fin-icon { width: 12px; height: 12px; }
+
+/* ── Note boxes (replaces inline-styled info paragraphs) ─── */
+.fin-note {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 14px;
+}
+.fin-note-warn { background: #fefce8; border-color: #fde68a; color: #713f12; }
+.fin-note-info { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+.fin-note-tip  { background: #f0fdf4; border-color: #bbf7d0; color: #065f46; }
+
+/* ── Small helper text ───────────────────────────────────── */
+.fin-helper {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #6b7280;
+  margin: 0 0 8px;
+}
+
+/* ── Ledger adjustment header (✏️ + EDITABLE + add btn) ── */
+.ladj-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 8px;
+}
+.ladj-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--green);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ladj-header .btn { margin-left: auto; }
+
+/* ── Form input sizing — prevent iOS auto-zoom ───────────── */
+.exp-form input[type="text"],
+.exp-form input[type="number"],
+.exp-form input[type="date"],
+.exp-form select,
+.paye-calc-grid input,
+.paye-calc-grid select,
+.bs-input-grid input,
+.budget-input-grid input,
+#forecastControls input,
+#forecastControls select {
+  font-size: 16px;
+}
+
 /* ── Print ───────────────────────────────────────────────── */
 @media print {
   .fin-topbar, .fin-sidebar, .fin-actions, #loadDataBtn, #logoutBtn, #addExpenseCard,
@@ -685,7 +774,7 @@ code { font-family: monospace; font-size: 0.82rem; background: var(--gray-light)
   .fin-topbar-left { gap: 10px; flex: 1; min-width: 0; }
   .fin-topbar-right { gap: 6px; }
   .fin-brand { font-size: 1rem; }
-  .fin-brand-text { display: none; }   /* show only the emoji on mobile */
+  .fin-brand-text { display: none; }   /* show only the icon on mobile */
   .fin-user { display: none; }
   .fin-print-btn { display: none; }
   .fin-role-badge { font-size: 0.65rem; padding: 2px 7px; }

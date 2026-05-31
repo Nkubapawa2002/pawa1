@@ -22,15 +22,20 @@ window.APP_CONFIG = {
   N8N_WEBHOOK_BASE: "https://your-n8n.yourdomain.com",
 
   // ---------- Anthropic AI Chat ----------
-  // Claude is now the brain of the voice + chat agent, but the API key
-  // does NOT live in the browser. It is configured in:
-  //   • VAPI assistant → Provider Keys → Anthropic   (for voice calls)
-  //   • n8n env → ANTHROPIC_API_KEY                  (if any workflow needs it)
-  // The values below are kept only so chat.js's legacy demoReply fallback
-  // still loads without errors. Leave ANTHROPIC_API_KEY empty.
+  // Claude is the brain of the voice + chat agent, but the API key
+  // NEVER lives in the browser. It is configured in:
+  //   • VAPI assistant → Provider Keys → Anthropic                 (for voice calls)
+  //   • Supabase Edge Function secrets → ANTHROPIC_API_KEY         (for ai-chat / ai-think / ai-map)
+  //   • Tenant settings (encrypted) → per-tenant agent-chat        (for dashboard agent)
+  // The browser calls the Edge Functions below; they hold the key.
   ANTHROPIC_API_KEY: "",                            // do not set — server-side only
   ANTHROPIC_MODEL: "claude-opus-4-7",               // pinned to match VAPI config
   ANTHROPIC_API_URL: "https://api.anthropic.com/v1/messages",
+
+  // Edge Function endpoints (paths are appended to SUPABASE_URL at call time).
+  AI_CHAT_PATH:  "/functions/v1/ai-chat",           // generic conversational replies
+  AI_THINK_PATH: "/functions/v1/ai-think",          // structured decision / algorithm
+  AI_MAP_PATH:   "/functions/v1/ai-map",            // NL → map intent
 
   // ---------- Insurance ----------
   INSURANCE_COVERAGE_PERCENT: 80,

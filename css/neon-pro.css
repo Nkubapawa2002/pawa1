@@ -886,3 +886,115 @@ section *,
 .message-empty {
   color: var(--n-green-bright) !important;
 }
+
+/* — Pages with a photo background (body[data-bg]) get a LIGHT photo + WHITE
+     frosted-glass cards (rgba(255,255,255,0.92)) from styles.css. Under the
+     neon theme the inherited text is near-white, so words on the photo and
+     inside every card render invisibly. Force dark text on these surfaces. — */
+
+/* Reset the legacy color tokens to their light-mode values inside data-bg pages.
+   Neon-pro.css :root remaps --white/--gray-light/--border etc. to dark surfaces;
+   that breaks every `background: var(--white)` rule from styles.css on these
+   pages. Reverting the tokens here is a one-shot fix for cards, tabs, banners,
+   filter-bars, etc. that don't have an explicit body[data-bg] override. */
+body[data-bg] {
+  --white: #ffffff;
+  --gray-light: #f9fafb;
+  --gray-mid: #e5e7eb;
+  --border: #e5e7eb;
+  --green-light: #e8f5ee;
+}
+
+body[data-bg],
+body[data-bg] h1,
+body[data-bg] h2,
+body[data-bg] h3,
+body[data-bg] h4,
+body[data-bg] h5,
+body[data-bg] h6,
+body[data-bg] p,
+body[data-bg] label,
+body[data-bg] li,
+body[data-bg] td,
+body[data-bg] th,
+body[data-bg] .hint,
+body[data-bg] .form-card,
+body[data-bg] .form-card *,
+body[data-bg] .card,
+body[data-bg] .card *,
+body[data-bg] .auth-card,
+body[data-bg] .auth-card *,
+body[data-bg] .feature,
+body[data-bg] .feature *,
+body[data-bg] .filter-bar,
+body[data-bg] .filter-bar *,
+body[data-bg] .track-tabs,
+body[data-bg] .track-result,
+body[data-bg] .track-result *,
+body[data-bg] .shipment-card,
+body[data-bg] .shipment-card *,
+body[data-bg] .chat-container,
+body[data-bg] .agent-banner,
+body[data-bg] .agent-banner *,
+body[data-bg] .kpi,
+body[data-bg] .kpi *,
+body[data-bg] .step,
+body[data-bg] .step *,
+body[data-bg] .booking-pickers,
+body[data-bg] .booking-pickers *,
+body[data-bg] .tab-panel,
+body[data-bg] .tab-panel *,
+body[data-bg] table,
+body[data-bg] table *,
+body[data-bg] .banner {
+  color: var(--black, #111827) !important;
+}
+
+/* Keep elements that have their own colored background (buttons, badges,
+   .banner.success/.error, .tab-btn.active, etc.) free to set their own text
+   color. Re-exempt the obvious ones so they keep their white-on-color look. */
+body[data-bg] .btn-primary,
+body[data-bg] .btn-primary *,
+body[data-bg] .btn-danger,
+body[data-bg] .btn-danger *,
+body[data-bg] .tab-btn.active,
+body[data-bg] .tab-btn.active *,
+body[data-bg] .badge,
+body[data-bg] .online-pill,
+body[data-bg] .banner.error,
+body[data-bg] .banner.success,
+body[data-bg] .page-hero,
+body[data-bg] .page-hero * {
+  color: #fff !important;
+}
+
+/* Inputs/selects/textareas inside data-bg pages: white field, dark text. */
+body[data-bg] input,
+body[data-bg] select,
+body[data-bg] textarea {
+  background: #fff !important;
+  color: var(--black, #111827) !important;
+  border-color: var(--border, #e5e7eb) !important;
+}
+
+/* Muted/secondary text still uses --gray so hierarchy is preserved. */
+body[data-bg] .hint,
+body[data-bg] .page-subtitle:not(.page-hero .page-subtitle) {
+  color: var(--gray, #6b7280) !important;
+}
+
+/* Table headers: styles.css gives <th> background:var(--gray-light) + color:var(--gray),
+   but neon-pro remaps --gray-light to a dark surface (line 87), so the header strip
+   ends up dark with dark text. Force a concrete light strip + dark gray label. */
+body[data-bg] th,
+body[data-bg] thead th,
+body[data-bg] table th {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+body[data-bg] td,
+body[data-bg] tbody td {
+  background: transparent !important;
+  color: var(--black, #111827) !important;
+}

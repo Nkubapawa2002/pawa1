@@ -281,7 +281,7 @@ button[type="submit"], #callAgentBtn {
 @keyframes starfield {
   to { background-position: 300px 300px, -300px 300px, 300px -300px; }
 }
-.hero h1, .saas-hero h1, .page-title {
+.hero h1, .saas-hero h1, .page-hero .page-title {
   /* Override the gradient-clip in hero context with bright white + glow */
   background: linear-gradient(180deg, #ffffff 0%, #d1fae5 100%) !important;
   -webkit-background-clip: text !important;
@@ -290,11 +290,14 @@ button[type="submit"], #callAgentBtn {
   text-shadow: 0 4px 30px rgba(0,0,0,.25);
   filter: drop-shadow(0 6px 20px rgba(16, 185, 129, .35));
 }
-.hero p, .saas-hero p, .page-subtitle { color: rgba(255, 255, 255, .82) !important; }
+.hero p, .saas-hero p, .page-hero .page-subtitle { color: rgba(255, 255, 255, .82) !important; }
 
-/* Stats strip / pitch grid — give each tile a slight 3D float */
+/* Stats strip / pitch grid — give each tile a slight 3D float.
+   .hero-feature is deliberately excluded: those tiles are photo-backed
+   (background-image: var(--feat-img)) and `background` shorthand here
+   would wipe the photo. They get their own elevation below. */
 .stats-strip > *, .stat-card,
-.hero-feature-grid > *, .pitch-grid > *,
+.pitch-grid > *,
 .feat-card, .feature-card {
   background: var(--grad-card) !important;
   border: 1px solid var(--glass-border) !important;
@@ -303,7 +306,17 @@ button[type="submit"], #callAgentBtn {
   transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
 }
 .stats-strip > *:hover, .stat-card:hover,
-.hero-feature-grid > *:hover, .pitch-grid > *:hover {
+.pitch-grid > *:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: var(--shadow-3d-lg) !important;
+}
+.hero-feature-grid > .hero-feature {
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-3d-md) !important;
+  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+.hero-feature-grid > .hero-feature:hover {
   transform: translateY(-4px) scale(1.02);
   box-shadow: var(--shadow-3d-lg) !important;
 }
@@ -327,6 +340,17 @@ button[type="submit"], #callAgentBtn {
     0 16px 40px rgba(10, 111, 77, .60),
     0 0 0 1px rgba(255,255,255,.25) inset,
     0 -2px 6px rgba(0,0,0,.25) inset !important;
+}
+/* Auto-hide after 3s of no scrolling (re-shown on touch / scroll).
+   Wired by js/premium.js — applied to .pawa-fab and the call widget. */
+.pawa-fab, .pawa-call-widget {
+  transition: opacity .35s ease, transform .35s ease;
+}
+.pawa-fab.fab-auto-hidden,
+.pawa-call-widget.fab-auto-hidden {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
 }
 .pcw-pulse {
   position: absolute; inset: -6px;
@@ -538,6 +562,23 @@ input:focus, select:focus, textarea:focus {
     border-color: rgba(255, 255, 255, .12) !important;
   }
   .hero, .saas-hero { background: var(--grad-dark) !important; }
+
+  /* Pages with a photo background (body[data-bg]) force a light photo + white frosted cards,
+     so dark-mode's light text would be unreadable. Opt those pages out. */
+  body[data-bg],
+  body[data-bg] .card, body[data-bg] .bf-card, body[data-bg] .agent-card, body[data-bg] .bus-card,
+  body[data-bg] .db-section, body[data-bg] .signup-wrap, body[data-bg] .sa-section, body[data-bg] .stat-card,
+  body[data-bg] .form-card, body[data-bg] .auth-card, body[data-bg] .feature,
+  body[data-bg] .shipment-card, body[data-bg] .messages-section, body[data-bg] .chat-container,
+  body[data-bg] .kpi, body[data-bg] .step, body[data-bg] .booking-pickers,
+  body[data-bg] .tab-panel, body[data-bg] .banner {
+    color: var(--black);
+  }
+  body[data-bg] input, body[data-bg] select, body[data-bg] textarea {
+    background: #fff !important;
+    color: var(--black) !important;
+    border-color: var(--border) !important;
+  }
 }
 
 /* ── Reduced-motion users: kill the splashy animations ─────────────────── */

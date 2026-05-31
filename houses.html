@@ -22,6 +22,83 @@
 
   <style>
     /* =====================================================================
+       Smart natural-language search
+       ===================================================================== */
+    .smart-search {
+      background: linear-gradient(135deg, #0a6f4d, #075c39);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 26px rgba(10,111,77,.25);
+    }
+    .ss-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .ss-spark { font-size: 1.1rem; }
+    .ss-label { color: #fff; font-weight: 700; font-size: 1.02rem; letter-spacing: .2px; }
+    .ss-row { display: flex; gap: 8px; }
+    .ss-row input {
+      flex: 1; min-width: 0;
+      padding: 13px 16px;
+      border: none; border-radius: 11px;
+      font-size: 16px;            /* 16px stops iOS zoom-on-focus */
+      font-family: inherit;
+      background: #fff; color: var(--c-text, #1a1915);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
+    }
+    .ss-row input:focus { outline: 2px solid #ffd56b; outline-offset: 1px; }
+    .ss-row button {
+      flex-shrink: 0;
+      padding: 13px 20px;
+      border: none; border-radius: 11px;
+      background: var(--c-accent, #bc5c00); color: #fff;
+      font-weight: 700; font-size: .95rem; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: transform .12s ease, filter .12s ease;
+    }
+    .ss-row button:hover  { filter: brightness(1.08); }
+    .ss-row button:active { transform: scale(.97); }
+    .ss-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .ss-chips[hidden] { display: none; }
+    .ss-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,.16);
+      color: #fff; font-size: .8rem; font-weight: 600;
+      padding: 5px 11px; border-radius: 999px;
+      backdrop-filter: blur(4px);
+    }
+    .ss-chip .ss-chip-x {
+      border: none; background: rgba(255,255,255,.22); color: #fff;
+      width: 16px; height: 16px; border-radius: 50%;
+      font-size: .72rem; line-height: 1; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .ss-chip .ss-chip-x:hover { background: rgba(255,255,255,.4); }
+    .ss-chip.ss-chip-clear { background: rgba(0,0,0,.18); cursor: pointer; }
+    .ss-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+    .ss-examples[hidden] { display: none; }
+    .ss-ex-lbl { color: rgba(255,255,255,.8); font-size: .8rem; font-weight: 600; }
+    .ss-ex {
+      border: 1px solid rgba(255,255,255,.35); background: transparent;
+      color: #fff; font-size: .78rem; font-weight: 500;
+      padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    }
+    .ss-ex:hover { background: rgba(255,255,255,.16); }
+
+    /* Match-score badge on cards (only shown while a smart search is active) */
+    .house-card-match {
+      align-self: flex-start;
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: .72rem; font-weight: 800; letter-spacing: .3px;
+      padding: 3px 9px; border-radius: 999px;
+      color: #fff; background: var(--c-success, #0d8050);
+      margin-bottom: 2px;
+    }
+    .house-card-match.mid  { background: var(--c-accent, #bc5c00); }
+    .house-card-match.low  { background: #6b6960; }
+    @media (max-width: 600px) {
+      .ss-row button { padding: 13px 14px; }
+    }
+
+    /* =====================================================================
        Houses directory — split list + map (desktop) /
        tabbed list ↔ map (phones).
        ===================================================================== */
@@ -459,6 +536,29 @@
   </section>
 
   <main id="housesMain" class="container" style="padding-top:18px;">
+
+    <!-- ===========================================================
+         Smart search — type what you want in plain language and a
+         budget; we parse it and rank listings by match score.
+         =========================================================== -->
+    <form id="smartSearch" class="smart-search" autocomplete="off">
+      <div class="ss-head">
+        <span class="ss-spark" aria-hidden="true">✨</span>
+        <label for="smartSearchInput" class="ss-label">Tell us what you're looking for</label>
+      </div>
+      <div class="ss-row">
+        <input id="smartSearchInput" type="search" spellcheck="false"
+               placeholder="e.g. 3 bedroom apartment in Masaki for rent under 1.5M with parking &amp; water" />
+        <button type="submit" id="smartSearchBtn">Find matches</button>
+      </div>
+      <div id="smartSearchChips" class="ss-chips" hidden></div>
+      <div class="ss-examples" id="smartSearchExamples">
+        <span class="ss-ex-lbl">Try:</span>
+        <button type="button" class="ss-ex" data-q="2 bedroom house for rent in Mbezi under 800k with parking">2 bed in Mbezi under 800k</button>
+        <button type="button" class="ss-ex" data-q="plot for sale in Mwanza below 50M">plot for sale in Mwanza ≤50M</button>
+        <button type="button" class="ss-ex" data-q="furnished apartment Masaki sea view 3 beds with pool and gym">furnished 3-bed, pool + gym</button>
+      </div>
+    </form>
 
     <!-- Bento overview tiles (quick filters / counts) -->
     <nav class="hp-bento" aria-label="Quick property filters">

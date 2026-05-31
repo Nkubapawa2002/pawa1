@@ -23,6 +23,77 @@
     return cache[name];
   }
 
+  // -------- Read-through cache (browser-side stand-in for Redis) --------
+  // Two-tier: in-memory Map for sub-ms hits within a page lifetime, plus
+  // localStorage so a reload still skips the round-trip until TTL expires.
+  // Each entry is {v, exp} where exp is epoch ms. Anything past exp is
+  // treated as a miss and the caller refetches. Writes invalidate the
+  // matching key so mutations show up immediately in the same session.
+  const KCACHE_PREFIX = "pawa_cache:";
+  const mem = new Map();
+
+  function kcacheGet(key) {
+    // Memory first
+    const hit = mem.get(key);
+    if (hit && hit.exp > Date.now()) return hit.v;
+    if (hit) mem.delete(key);
+    // Then storage
+    try {
+      const raw = localStorage.getItem(KCACHE_PREFIX + key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.exp <= Date.now()) {
+        localStorage.removeItem(KCACHE_PREFIX + key);
+        return null;
+      }
+      mem.set(key, parsed);   // promote to memory
+      return parsed.v;
+    } catch { return null; }
+  }
+
+  function kcacheSet(key, val, ttlMs) {
+    const entry = { v: val, exp: Date.now() + ttlMs };
+    mem.set(key, entry);
+    try { localStorage.setItem(KCACHE_PREFIX + key, JSON.stringify(entry)); } catch {}
+  }
+
+  function kcacheInvalidate(keys) {
+    const list = Array.isArray(keys) ? keys : [keys];
+    for (const k of list) {
+      mem.delete(k);
+      try { localStorage.removeItem(KCACHE_PREFIX + k); } catch {}
+    }
+  }
+
+  function kcacheClear() {
+    mem.clear();
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith(KCACHE_PREFIX))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+  }
+
+  // Wraps an async fetcher with cache. Pass {fresh: true} on the caller to
+  // force a network round-trip and refresh the cache.
+  async function cached(key, ttlMs, fetcher, opts = {}) {
+    if (!opts.fresh) {
+      const hit = kcacheGet(key);
+      if (hit !== null) return hit;
+    }
+    const val = await fetcher();
+    kcacheSet(key, val, ttlMs);
+    return val;
+  }
+
+  // TTLs — tune here, not at every call site.
+  const TTL = {
+    regions:  24 * 60 * 60 * 1000,   // 1 day — almost never changes
+    buses:         5 * 60 * 1000,    // 5 min
+    agents:        5 * 60 * 1000,    // 5 min
+    houses:        2 * 60 * 1000     // 2 min — listings churn faster
+  };
+
   // -------- Mappers (DB -> UI shape) --------
   const mapShipment = (r) => ({
     tracking_code: r.tracking_code,
@@ -157,53 +228,64 @@
     },
 
     // Regions
-    async getRegions() {
-      if (sb) {
-        const { data, error } = await sb.from("regions").select("name").order("name");
-        if (error) throw error;
-        return data.map(r => r.name);
-      }
-      return loadJSON("regions");
+    async getRegions(opts = {}) {
+      return cached("regions", TTL.regions, async () => {
+        if (sb) {
+          const { data, error } = await sb.from("regions").select("name").order("name");
+          if (error) throw error;
+          return data.map(r => r.name);
+        }
+        return loadJSON("regions");
+      }, opts);
     },
 
     // Buses
-    async getBuses() {
-      if (sb) {
-        const { data, error } = await sb.from("buses").select("*").order("name");
-        if (error) throw error;
-        return data;
-      }
-      return loadJSON("buses");
+    async getBuses(opts = {}) {
+      return cached("buses", TTL.buses, async () => {
+        if (sb) {
+          const { data, error } = await sb.from("buses").select("*").order("name");
+          if (error) throw error;
+          return data;
+        }
+        return loadJSON("buses");
+      }, opts);
     },
 
     // Agents
-    async getAgents() {
-      if (sb) {
-        const { data, error } = await sb.from("agents").select("*").order("region");
-        if (error) throw error;
-        return data;
-      }
-      return loadJSON("agents");
+    async getAgents(opts = {}) {
+      return cached("agents", TTL.agents, async () => {
+        if (sb) {
+          const { data, error } = await sb.from("agents").select("*").order("region");
+          if (error) throw error;
+          return data;
+        }
+        return loadJSON("agents");
+      }, opts);
     },
 
     // Houses — public property listings (House Booking TZ). Tries Supabase
     // first, but falls back to data/houses.json if the table is missing
     // (e.g. the SQL in supabase/schema_master.sql hasn't been applied
     // yet). That way the page always works for visitors.
-    async getHouses() {
-      if (sb) {
-        try {
-          const { data, error } = await sb.from("houses").select("*").order("created_at", { ascending: false });
-          if (error) throw error;
-          if (Array.isArray(data) && data.length) return data;
-          // Empty table → fall through to the JSON fallback so visitors
-          // still see sample inventory until real listings are added.
-        } catch (e) {
-          console.warn("[houses] Supabase query failed, falling back to JSON:", e?.message || e);
+    async getHouses(opts = {}) {
+      return cached("houses", TTL.houses, async () => {
+        if (sb) {
+          try {
+            const { data, error } = await sb.from("houses").select("*").order("created_at", { ascending: false });
+            if (error) throw error;
+            if (Array.isArray(data) && data.length) return data;
+          } catch (e) {
+            console.warn("[houses] Supabase query failed, falling back to JSON:", e?.message || e);
+          }
         }
-      }
-      return loadJSON("houses");
+        return loadJSON("houses");
+      }, opts);
     },
+
+    // Manual cache controls — admin pages can call these after a write
+    // so the next read goes straight to Postgres instead of returning stale.
+    invalidateCache(keys) { kcacheInvalidate(keys); },
+    clearCache() { kcacheClear(); },
 
     housePhotoUrl(path) {
       if (!path) return "";

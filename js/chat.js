@@ -69,7 +69,7 @@ window.initChatPage = async () => {
 
   const lang = window.getLang();
 
-  // Conversation history shared with the agent-chat Edge Function.
+  // Conversation history shared with the ai-chat Edge Function.
   const conversation = [];
 
   function addMessage(role, text) {
@@ -88,15 +88,61 @@ window.initChatPage = async () => {
 
   addMessage("assistant", window.t("chat_greeting"));
 
-  // Agent-chat lives server-side now; no per-browser key needed.
-  // We just need a configured tenant + the SUPABASE_URL.
+  // window.AI (js/ai.js) wraps ai-chat / ai-think / ai-map. The API key
+  // lives only in Supabase Edge Function secrets; the browser holds nothing.
   const cfg = window.APP_CONFIG || {};
-  const agentUrl = (cfg.SUPABASE_URL || "").replace(/\/$/, "") + "/functions/v1/agent-chat";
-  const haveAgent = !!cfg.SUPABASE_URL;
+  const haveAI = !!cfg.SUPABASE_URL && !!window.AI;
+
+  // Stable system prompt: regions + buses + agents are folded in so Claude
+  // can answer route/agent questions without tool calls. Kept large enough
+  // (>1KB) so ai-chat marks it cacheable.
+  const buildSystemPrompt = () => {
+    const regionList = (regions || []).join(", ");
+    const busLines = (buses || []).map(b => {
+      const routes = (b.routes || []).map(r => `${r.from}->${r.to}`).join("; ");
+      return `- ${b.name} (${b.contact}): ${routes}`;
+    }).join("\n");
+    const agentLines = (agents || []).slice(0, 40).map(a =>
+      `- ${a.name} in ${a.region} (${a.terminal || "—"}): ${a.phone}`
+    ).join("\n");
+    const replyLang = lang === "sw" ? "Swahili (Kiswahili)" : "English";
+    return `You are PAWA, the AI assistant for a Tanzania bus cargo and passenger ticketing platform.
+
+Reply in ${replyLang} by default; switch language if the user writes in the other one. Keep replies short — a sentence or two, or a tight bulleted list. Use **bold** sparingly.
+
+You can help with:
+- Finding a bus on a route
+- Finding an agent in a region
+- Tracking a parcel (codes look like TZ-XXX-XXX-YYYYMMDD-NNN)
+- Registering a shipment (point the user to the Send Parcel page)
+- Explaining insurance (default cover ${cfg.INSURANCE_COVERAGE_PERCENT || 80}% of declared value)
+
+Pricing reference (TZS): base ${cfg.FREIGHT_BASE_TZS || 2000}, per kg ${cfg.FREIGHT_PER_KG_TZS || 500}, size multipliers small=1, medium=1.5, large=2.5.
+
+REGIONS:
+${regionList}
+
+BUS COMPANIES:
+${busLines || "(none loaded)"}
+
+AGENTS:
+${agentLines || "(none loaded)"}`;
+  };
+  const systemPrompt = buildSystemPrompt();
 
   const SUGGESTIONS = lang === "sw"
-    ? ["Nataka kutuma mzigo Dar kwenda Mwanza", "Mawakala wa Arusha", "Fuatilia TZ-DAR-ARU-20260429-002", "Mabasi yanayokwenda Mbeya"]
-    : ["Send a parcel from Dar to Mwanza", "Agents in Arusha", "Track TZ-DAR-ARU-20260429-002", "Buses to Mbeya"];
+    ? [
+        "Nataka kutuma mzigo Dar kwenda Mwanza",
+        "Mawakala wa Arusha",
+        "/map wakala wa karibu na Mwanza",
+        "/think nipendekeze basi bora kutoka Dar kwenda Arusha"
+      ]
+    : [
+        "Send a parcel from Dar to Mwanza",
+        "Agents in Arusha",
+        "/map nearest agent to Mwanza",
+        "/think recommend the best bus from Dar to Arusha"
+      ];
 
   SUGGESTIONS.forEach(s => {
     const chip = document.createElement("div");
@@ -106,45 +152,93 @@ window.initChatPage = async () => {
     suggestions.appendChild(chip);
   });
 
-  // Calls the per-tenant agent-chat Edge Function. The Function loads
-  // the tenant's encrypted Anthropic key, builds a tenant-flavoured
-  // system prompt, and runs Claude with the 24 tool webhooks.
+  // Stateless ai-chat call: pass full conversation each turn.
   const callAI = async (userText) => {
-    if (!haveAgent) return demoReply(userText);
+    if (!haveAI) return demoReply(userText);
 
-    const tenant_slug = (window.tenantSlug && window.tenantSlug()) || "bus-tz-pawa";
     conversation.push({ role: "user", content: userText });
 
     try {
-      const res = await fetch(agentUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": cfg.SUPABASE_ANON_KEY,
-          "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
-          tenant_slug,
-          messages: conversation,
-          conversation_id: window.__chatConvId || (window.__chatConvId = "web-" + Math.random().toString(36).slice(2,10))
-        })
+      const data = await window.AI.chat({
+        messages: conversation,
+        system: systemPrompt,
+        max_tokens: 1024,
+        temperature: 0.6
       });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`agent-chat ${res.status}: ${t.slice(0, 240)}`);
-      }
-      const data = await res.json();
-      // The Edge Function returns the updated message history; replace ours
-      // so subsequent turns include the assistant + tool_result blocks.
-      if (Array.isArray(data.messages)) {
-        conversation.length = 0;
-        data.messages.forEach(m => conversation.push(m));
-      }
-      return data.reply || "(no reply)";
+      const reply = data.reply || "(no reply)";
+      conversation.push({ role: "assistant", content: reply });
+      return reply;
     } catch (e) {
       console.error(e);
-      return `Error contacting agent: ${e.message}\n\n${demoReply(userText)}`;
+      conversation.pop();   // drop the failed user turn so retry isn't stale
+      return demoReply(userText);
     }
+  };
+
+  // /map <query> — structured map intent via ai-map.
+  const callMap = async (query) => {
+    if (!haveAI) return "Map AI unavailable (configure Supabase).";
+    try {
+      const data = await window.AI.map({
+        query,
+        regions: regions || []
+      });
+      const i = data.intent || {};
+      const lines = [`**Map intent:** ${i.kind || "unknown"}`];
+      if (i.entity) lines.push(`**Entity:** ${i.entity}`);
+      if (i.from?.name) lines.push(`**From:** ${i.from.name}`);
+      if (i.to?.name)   lines.push(`**To:** ${i.to.name}`);
+      if (i.region)     lines.push(`**Region:** ${i.region}`);
+      if (i.answer)     lines.push("", i.answer);
+      return lines.join("\n");
+    } catch (e) {
+      console.error(e);
+      return `Map error: ${e.message}`;
+    }
+  };
+
+  // /think <task> — structured decision via ai-think.
+  const callThink = async (task) => {
+    if (!haveAI) return "Decision AI unavailable (configure Supabase).";
+    try {
+      const data = await window.AI.think({
+        task,
+        context: {
+          regions,
+          buses: (buses || []).map(b => ({
+            name: b.name,
+            contact: b.contact,
+            routes: (b.routes || []).map(r => `${r.from}->${r.to}`)
+          })),
+          agents: (agents || []).slice(0, 30).map(a => ({
+            name: a.name, region: a.region, terminal: a.terminal, phone: a.phone
+          }))
+        },
+        thinking: false,
+        max_tokens: 1500
+      });
+      const r = data.result;
+      if (r && typeof r === "object") {
+        const decision = r.decision !== undefined ? `**Decision:** ${typeof r.decision === "string" ? r.decision : JSON.stringify(r.decision)}` : "";
+        const reasoning = r.reasoning ? `**Reasoning:** ${r.reasoning}` : "";
+        return [decision, reasoning].filter(Boolean).join("\n\n") || data.raw;
+      }
+      return data.raw || "(no decision)";
+    } catch (e) {
+      console.error(e);
+      return `Think error: ${e.message}`;
+    }
+  };
+
+  // Slash-command router. Falls back to plain chat for everything else.
+  const dispatch = async (text) => {
+    const m = text.match(/^\s*\/(map|think|chat)\s+([\s\S]+)$/i);
+    if (!m) return callAI(text);
+    const cmd = m[1].toLowerCase();
+    const rest = m[2].trim();
+    if (cmd === "map")   return callMap(rest);
+    if (cmd === "think") return callThink(rest);
+    return callAI(rest);
   };
 
   const demoReply = (text) => {
@@ -200,7 +294,7 @@ window.initChatPage = async () => {
     sendBtn.textContent = "...";
     suggestions.style.display = "none";
 
-    const reply = await callAI(text);
+    const reply = await dispatch(text);
     addMessage("assistant", reply);
     sendBtn.disabled = false;
     sendBtn.textContent = window.t("chat_send");

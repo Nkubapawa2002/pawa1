@@ -27,6 +27,7 @@ window.I18N = {
     nav_group_services: "Services",
     nav_group_network: "Network",
     nav_group_account: "Account",
+    nav_logout: "Sign out",
     nav_group_business: "Business",
     nav_for_companies: "For Companies",
     nav_signup: "List your Company",
@@ -244,6 +245,7 @@ window.I18N = {
     label_years: "year(s)",
     review_singular: "review",
     review_plural: "reviews",
+    agents_no_reviews: "No reviews yet",
     action_book: "Book a seat",
     buses_no_routes_match: "No routes match the filter — try clearing it.",
 
@@ -851,6 +853,8 @@ window.I18N = {
     ah_field_price: "Price (TZS)",
     ah_field_price_ph: "e.g. 1800000",
     ah_field_period: "Period",
+    ah_field_min_months: "Minimum months to pay upfront",
+    ah_field_min_months_hint: "How many months the tenant must pay at once for this room, shop or office (e.g. 6 months). Ignored for properties listed for sale.",
     ah_period_month: "per month (rent)",
     ah_period_total: "total (sale)",
 
@@ -957,6 +961,7 @@ window.I18N = {
     nav_group_network: "Mtandao",
     nav_group_account: "Akaunti",
     nav_group_business: "Biashara",
+    nav_logout: "Toka",
     nav_for_companies: "Kwa Makampuni",
     nav_signup: "Sajili Kampuni Yako",
     nav_more: "Zaidi",
@@ -1173,6 +1178,7 @@ window.I18N = {
     label_years: "mwaka(miaka)",
     review_singular: "tathmini",
     review_plural: "tathmini",
+    agents_no_reviews: "Hakuna tathmini bado",
     action_book: "Kata tiketi",
     buses_no_routes_match: "Hakuna njia inayolingana na vichungi — futa vichungi.",
 
@@ -1779,6 +1785,8 @@ window.I18N = {
     ah_field_price: "Bei (TZS)",
     ah_field_price_ph: "mfano: 1800000",
     ah_field_period: "Kipindi",
+    ah_field_min_months: "Idadi ya chini ya miezi ya kulipa kwanza",
+    ah_field_min_months_hint: "Miezi mingapi mpangaji lazima alipe kwa mara moja kwa chumba, duka au ofisi hii (mf. miezi 6). Haitumiki kwa mali zinazouzwa.",
     ah_period_month: "kwa mwezi (kupanga)",
     ah_period_total: "jumla (kuuza)",
 

@@ -276,6 +276,9 @@ window.initAdminPage = async () => {
       }
     }
 
+    if (entityType === "bus")   window.DataStore?.invalidateCache(["buses"]);
+    if (entityType === "agent") window.DataStore?.invalidateCache(["agents"]);
+
     const reviewNote = result.stripped.length
       ? `Stripped unknown columns: ${result.stripped.join(", ")}`
       : null;
@@ -662,6 +665,7 @@ window.initAdminPage = async () => {
         msg.hidden = false; msg.className = "banner error"; msg.textContent = error.message;
         return;
       }
+      window.DataStore?.invalidateCache(["buses"]);
       msg.hidden = false; msg.className = "banner success";
       msg.textContent = `"${name}" registered — reloading…`;
       setTimeout(() => location.reload(), 900);
@@ -693,6 +697,7 @@ window.initAdminPage = async () => {
           );
           const { error } = await sb.from("buses").update({ routes: filtered }).eq("id", btn.dataset.bus);
           if (error) return alert(error.message);
+          window.DataStore?.invalidateCache(["buses"]);
           location.reload();
         });
       });
@@ -752,6 +757,7 @@ window.initAdminPage = async () => {
 
       const { error } = await sb.from("buses").update({ routes }).eq("id", busId);
       if (error) { msg.hidden = false; msg.className = "banner error"; msg.textContent = error.message; return; }
+      window.DataStore?.invalidateCache(["buses"]);
       msg.hidden = false; msg.className = "banner success";
       msg.textContent = "Route + return leg added.";
       setTimeout(() => location.reload(), 800);

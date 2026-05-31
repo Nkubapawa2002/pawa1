@@ -31,6 +31,10 @@ window.initHousesPage = async () => {
   const watchChips = document.getElementById("housesWatchChips");
   const tabList    = document.getElementById("tabList");
   const tabMap     = document.getElementById("tabMap");
+  const ssForm     = document.getElementById("smartSearch");
+  const ssInput    = document.getElementById("smartSearchInput");
+  const ssChips    = document.getElementById("smartSearchChips");
+  const ssExamples = document.getElementById("smartSearchExamples");
 
   // ---- State -------------------------------------------------------------
   let houses    = [];
@@ -39,6 +43,8 @@ window.initHousesPage = async () => {
   let markers   = new Map();   // id -> marker
   let activeId  = null;
   let userLoc   = null;
+  let smartCriteria = null;        // parsed natural-language query (or null)
+  let matchScores   = new Map();   // house id -> match % (when smart search active)
 
   // ---- Load data ---------------------------------------------------------
   try {
@@ -64,6 +70,9 @@ window.initHousesPage = async () => {
   fSearch?.addEventListener("input", () => { clearTimeout(window._hf); window._hf = setTimeout(apply, 180); });
 
   apply();
+
+  // ---- Smart natural-language search -------------------------------------
+  setupSmartSearch();
 
   // ---- Geo-circle area alerts (Nominatim + GPS + draggable pin) ----------
   setupGeoAlerts();
@@ -539,6 +548,195 @@ window.initHousesPage = async () => {
   }
 
   // ====================================================================
+  //  Smart search — parse a plain-language query into structured criteria,
+  //  reflect it into the dropdown filters, then rank results by match score.
+  // ====================================================================
+  const AMENITY_SYNONYMS = {
+    parking:                ["parking", "garage", "car park"],
+    security:               ["security", "guard", "gated", "24h", "24 hour"],
+    water_tank:             ["water tank", "water storage"],
+    borehole:               ["borehole", "well", "kisima"],
+    generator:              ["generator", "backup power", "genset", "standby power"],
+    wifi:                   ["wifi", "wi-fi", "internet", "fibre", "fiber"],
+    pool:                   ["pool", "swimming"],
+    gym:                    ["gym", "fitness"],
+    garden:                 ["garden", "yard", "lawn"],
+    elevator:               ["elevator", "lift"],
+    water_connection:       ["water connection", "piped water", "city water", "maji"],
+    electricity_connection: ["electricity", "power", "umeme"]
+  };
+  function amenityLabel(k) {
+    return ({ parking:"Parking", security:"Security", water_tank:"Water tank",
+      borehole:"Borehole", generator:"Generator", wifi:"Wi-Fi", pool:"Pool",
+      gym:"Gym", garden:"Garden", elevator:"Elevator",
+      water_connection:"Water", electricity_connection:"Electricity" })[k] || k;
+  }
+  function parseMoney(numStr, suffix) {
+    let n = parseFloat(String(numStr).replace(/[,\s]/g, ""));
+    if (!isFinite(n)) return null;
+    const s = (suffix || "").toLowerCase();
+    if (/^b/.test(s)) n *= 1e9;
+    else if (/^m/.test(s)) n *= 1e6;
+    else if (/^k/.test(s) || /thousand/.test(s)) n *= 1e3;
+    return Math.round(n);
+  }
+  function shortTzs(p) {
+    if (p >= 1e9) return (p/1e9).toFixed(p % 1e9 ? 1 : 0) + "B";
+    if (p >= 1e6) return (p/1e6).toFixed(p % 1e6 ? 1 : 0) + "M";
+    if (p >= 1e3) return (p/1e3).toFixed(0) + "k";
+    return String(p);
+  }
+
+  function setupSmartSearch() {
+    if (!ssForm) return;
+    ssForm.addEventListener("submit", (e) => { e.preventDefault(); runSmartSearch(ssInput.value); });
+    ssExamples?.querySelectorAll(".ss-ex").forEach(btn => {
+      btn.addEventListener("click", () => { ssInput.value = btn.dataset.q; runSmartSearch(btn.dataset.q); });
+    });
+  }
+
+  function runSmartSearch(text) {
+    const q = (text || "").trim();
+    if (!q) { clearSmartSearch(); return; }
+    smartCriteria = parseSmartQuery(q);
+    // Reflect confident structured criteria into the dropdowns so the user
+    // sees exactly how we read their request (and can tweak it by hand).
+    fListing.value = smartCriteria.listing || "";
+    fType.value    = smartCriteria.type    || "";
+    fArea.value = (smartCriteria.area && Array.from(fArea.options).some(o => o.value === smartCriteria.area))
+      ? smartCriteria.area : "";
+    if (smartCriteria.bedrooms) {
+      const b = String(Math.min(4, smartCriteria.bedrooms));
+      fBeds.value = Array.from(fBeds.options).some(o => o.value === b) ? b : "";
+    } else fBeds.value = "";
+    // The bucketed price <select> can't express an arbitrary budget, so leave
+    // it on "any"; the numeric cap lives in smartCriteria and is applied below.
+    fPrice.value = "";
+    if (fSearch) fSearch.value = "";   // the little text box is now redundant
+    renderSmartChips();
+    apply();
+    if (ssExamples) ssExamples.hidden = true;
+    document.getElementById("housesStage")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function clearSmartSearch() {
+    smartCriteria = null;
+    matchScores.clear();
+    if (ssInput) ssInput.value = "";
+    if (ssChips) { ssChips.hidden = true; ssChips.innerHTML = ""; }
+    if (ssExamples) ssExamples.hidden = false;
+    [fListing, fType, fArea, fBeds, fPrice].forEach(el => { if (el) el.value = ""; });
+    apply();
+  }
+
+  function renderSmartChips() {
+    if (!ssChips || !smartCriteria) return;
+    const c = smartCriteria, chips = [];
+    if (c.listing)   chips.push(c.listing === "sale" ? "For sale" : "For rent");
+    if (c.type)      chips.push(({ apartment:"Apartment", house:"House", plot:"Plot", office:"Office/shop" })[c.type]);
+    if (c.bedrooms)  chips.push(`${c.bedrooms}+ bed`);
+    if (c.bathrooms) chips.push(`${c.bathrooms}+ bath`);
+    if (c.area)      chips.push(`📍 ${c.area}`);
+    if (c.priceMax)  chips.push(`≤ ${shortTzs(c.priceMax)} TZS`);
+    if (c.priceMin)  chips.push(`≥ ${shortTzs(c.priceMin)} TZS`);
+    (c.amenities || []).forEach(a => chips.push(amenityLabel(a)));
+    (c.keywords  || []).forEach(k => chips.push(`"${k}"`));
+    ssChips.innerHTML =
+      chips.filter(Boolean).map(t => `<span class="ss-chip">${esc(t)}</span>`).join("") +
+      `<span class="ss-chip ss-chip-clear" id="ssClear">Clear ✕</span>`;
+    ssChips.hidden = false;
+    document.getElementById("ssClear")?.addEventListener("click", clearSmartSearch);
+  }
+
+  function parseSmartQuery(raw) {
+    const text = " " + raw.toLowerCase().replace(/\s+/g, " ") + " ";
+    const c = { listing:null, type:null, bedrooms:null, bathrooms:null,
+                area:null, priceMax:null, priceMin:null, amenities:[], keywords:[] };
+
+    if (/\b(for sale|to buy|buying|purchase|sale)\b/.test(text)) c.listing = "sale";
+    else if (/\b(for rent|to rent|renting|rental|rent|lease)\b/.test(text)) c.listing = "rent";
+
+    if (/\b(apartment|apartments|flat|condo)\b/.test(text)) c.type = "apartment";
+    else if (/\b(house|villa|bungalow|home|nyumba)\b/.test(text)) c.type = "house";
+    else if (/\b(plot|land|kiwanja|shamba)\b/.test(text)) c.type = "plot";
+    else if (/\b(office|shop|commercial|retail|duka)\b/.test(text)) c.type = "office";
+
+    let m = text.match(/(\d+)\s*(?:\+\s*)?(?:bed|bedroom|bedrooms|br|bdr|chumba|vyumba)\b/);
+    if (m) c.bedrooms = parseInt(m[1], 10);
+    if (/\bstudio\b/.test(text)) { c.type = c.type || "apartment"; if (c.bedrooms == null) c.bedrooms = 0; }
+    m = text.match(/(\d+)\s*(?:bath|bathroom|bathrooms|ba)\b/);
+    if (m) c.bathrooms = parseInt(m[1], 10);
+
+    // Price — ceilings / floors with magnitude suffix or currency words.
+    const MON = "([\\d][\\d.,]*)\\s*(b|bn|billion|m|mil|million|k|thousand)?";
+    let pm;
+    if ((pm = text.match(new RegExp("(?:under|below|max|up to|upto|less than|within|maximum of?)\\s*(?:tzs|tsh|sh)?\\s*" + MON))))
+      c.priceMax = parseMoney(pm[1], pm[2]);
+    if ((pm = text.match(new RegExp("(?:over|above|from|min|at least|minimum of?|starting at)\\s*(?:tzs|tsh|sh)?\\s*" + MON))))
+      c.priceMin = parseMoney(pm[1], pm[2]);
+    // No explicit ceiling/floor → treat the first magnitude-suffixed (or large)
+    // figure as a budget cap. Guard against catching bedroom/bath integers.
+    if (c.priceMax == null && c.priceMin == null) {
+      const all = [...text.matchAll(new RegExp(MON, "g"))];
+      for (const a of all) {
+        const sfx = (a[2] || "").toLowerCase(), val = parseMoney(a[1], a[2]);
+        if (val != null && (sfx || val >= 50000)) { c.priceMax = val; break; }
+      }
+    }
+
+    // Area — match against the real area list from the data (longest wins).
+    let bestArea = null;
+    for (const a of areas) {
+      if (a && text.includes(" " + a.toLowerCase())) {
+        if (!bestArea || a.length > bestArea.length) bestArea = a;
+      }
+    }
+    if (bestArea) c.area = bestArea;
+
+    for (const [key, syns] of Object.entries(AMENITY_SYNONYMS)) {
+      if (syns.some(s => text.includes(s))) c.amenities.push(key);
+    }
+
+    const KW = ["sea view", "ocean view", "beachfront", "modern", "spacious",
+      "luxury", "quiet", "furnished", "unfurnished", "penthouse", "duplex",
+      "ensuite", "balcony", "tarmac", "gated", "newly built"];
+    for (const k of KW) if (text.includes(k) && !c.amenities.includes(k)) c.keywords.push(k);
+
+    return c;
+  }
+
+  function scoreHouse(h, c) {
+    let score = 0, max = 0;
+    const has = (v) => v != null && v !== "";
+    if (has(c.area)) {
+      max += 30;
+      const hay = `${h.area || ""} ${h.address || ""} ${h.region || ""}`.toLowerCase();
+      if (hay.includes(c.area.toLowerCase())) score += 30;
+    }
+    if (has(c.type))     { max += 18; if (h.type === c.type) score += 18; }
+    if (has(c.listing))  { max += 14; if (h.listing === c.listing) score += 14; }
+    if (has(c.bedrooms)) { max += 20; const b = h.bedrooms || 0;
+      if (b >= c.bedrooms) score += 20; else if (b === c.bedrooms - 1) score += 10; }
+    if (has(c.bathrooms)){ max += 8;  if ((h.bathrooms || 0) >= c.bathrooms) score += 8; }
+    if (has(c.priceMax)) { max += 25; const p = h.price_tzs || 0;
+      if (p <= c.priceMax) score += (p <= c.priceMax * 0.85 ? 25 : 20);
+      else if (p <= c.priceMax * 1.1) score += 8; }
+    if (has(c.priceMin)) { max += 6;  if ((h.price_tzs || 0) >= c.priceMin) score += 6; }
+    if (c.amenities?.length) {
+      const am = (h.amenities || []).map(x => String(x).toLowerCase());
+      for (const a of c.amenities) {
+        max += 8;
+        if (am.some(x => x.includes(a) || x.includes(amenityLabel(a).toLowerCase()))) score += 8;
+      }
+    }
+    if (c.keywords?.length) {
+      const hay = `${h.title || ""} ${h.description || ""} ${h.furnished || ""}`.toLowerCase();
+      for (const k of c.keywords) { max += 5; if (hay.includes(k)) score += 5; }
+    }
+    return max ? Math.round((score / max) * 100) : 100;
+  }
+
+  // ====================================================================
   //  Apply filters → re-render list and map markers
   // ====================================================================
   function apply() {
@@ -581,6 +779,21 @@ window.initHousesPage = async () => {
 
     if (userLoc) {
       visible.sort((a, b) => distKm(userLoc, a) - distKm(userLoc, b));
+    }
+
+    // Smart search: apply the numeric budget cap (the bucketed <select> can't),
+    // score every remaining listing, then sort best-match first. This sort
+    // intentionally wins over the proximity sort above.
+    if (smartCriteria) {
+      if (smartCriteria.priceMax)
+        visible = visible.filter(h => (h.price_tzs || 0) <= smartCriteria.priceMax * 1.1);
+      if (smartCriteria.priceMin)
+        visible = visible.filter(h => (h.price_tzs || 0) >= smartCriteria.priceMin * 0.9);
+      matchScores.clear();
+      visible.forEach(h => matchScores.set(h.id, scoreHouse(h, smartCriteria)));
+      visible.sort((a, b) => (matchScores.get(b.id) || 0) - (matchScores.get(a.id) || 0));
+    } else {
+      matchScores.clear();
     }
 
     renderList();
@@ -633,13 +846,18 @@ window.initHousesPage = async () => {
       const meta = [
         h.bedrooms ? `<span>🛏 ${h.bedrooms} bed${h.bedrooms !== 1 ? "s" : ""}</span>` : "",
         h.bathrooms ? `<span>🛁 ${h.bathrooms} bath${h.bathrooms !== 1 ? "s" : ""}</span>` : "",
-        h.size_sqm ? `<span>📐 ${h.size_sqm} m²</span>` : ""
+        h.size_sqm ? `<span>📐 ${h.size_sqm} m²</span>` : "",
+        (h.listing === "rent" && Number(h.min_months) > 1) ? `<span>🗓 ${h.min_months} mo min</span>` : ""
       ].filter(Boolean).join("");
       const loc = `${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}`;
       const dist = (userLoc && Number.isFinite(h.lat) && Number.isFinite(h.lng))
         ? ` · ${distKm(userLoc, h).toFixed(1)} km away`
         : "";
       const ariaLabel = `${esc(h.title)}, ${price.value} ${price.unit}, ${loc}`;
+      const matchPct = smartCriteria ? matchScores.get(h.id) : null;
+      const matchCls = matchPct == null ? "" : matchPct >= 75 ? "" : matchPct >= 50 ? "mid" : "low";
+      const matchBadge = matchPct == null ? ""
+        : `<span class="house-card-match ${matchCls}">✨ ${matchPct}% match</span>`;
       return `
         <div class="house-card ${activeId === h.id ? "active" : ""}" data-id="${h.id}"
              role="button" tabindex="0" aria-label="${ariaLabel}">
@@ -648,6 +866,7 @@ window.initHousesPage = async () => {
             ${verified}
           </div>
           <div class="house-card-body">
+            ${matchBadge}
             <div class="house-card-price">${price.value} <small>${price.unit}</small></div>
             <div class="house-card-title">${esc(h.title)}</div>
             <div class="house-card-meta">${meta}</div>

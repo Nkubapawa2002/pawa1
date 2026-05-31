@@ -80,7 +80,43 @@ window.initAccountingPage = async () => {
   let activePeriod = 'month';
 
   // ── auth gate ──────────────────────────────────────────────────────────────
-  async function gate() {
+  // gate() is called from: explicit init, the onAuthChange listener (which
+  // fires INITIAL_SESSION + SIGNED_IN + sometimes TOKEN_REFRESHED rapid-fire),
+  // the form-submit safety net, and signup/offline handlers.
+  //
+  // Dedup strategy: track the auth UID we LAST fully processed. Re-run only
+  // when the session changes (sign-in / sign-out). Re-runs for the SAME
+  // session (TOKEN_REFRESHED for the user who's already in) are no-ops.
+  // This avoids the older time-window approach which would silently swallow
+  // a real sign-in if the user typed/clicked fast enough.
+  //
+  // `_gateForce` lets the manual "Load Report" button bypass the dedup.
+  // Serialize gate runs in a promise chain so overlapping triggers (the boot
+  // call + onAuthChange's INITIAL_SESSION/SIGNED_IN firing milliseconds apart)
+  // can't race. The old "return the in-flight promise" dedup had a bug: a
+  // SIGNED_IN event arriving while an earlier anonymous run was still awaiting
+  // getSession() got deduped onto that anonymous run and never rendered the
+  // panel — which is exactly why sign-in only worked "after refreshing a few
+  // times". Each queued run re-reads the CURRENT session and skips only when
+  // the uid is unchanged, so a real sign-in is always picked up promptly.
+  let _gateChain   = Promise.resolve();
+  let _gateLastUid = '__init__'; // sentinel — first real call always runs
+  function gate(force = false) {
+    _gateChain = _gateChain.then(async () => {
+      const session = await window.Auth.getSession();
+      let offlineEmail = null;
+      try {
+        const s = JSON.parse(sessionStorage.getItem('fin_offline_session') || 'null');
+        offlineEmail = s?.email || null;
+      } catch { /* ignore corrupt offline session */ }
+      const uid = session?.user?.id || (offlineEmail ? 'offline:' + offlineEmail : 'anonymous');
+      if (!force && uid === _gateLastUid) return;  // same session → already rendered
+      _gateLastUid = uid;
+      await _gateInner();
+    }).catch(err => { console.error('[finance] gate failed:', err); });
+    return _gateChain;
+  }
+  async function _gateInner() {
     // Check Supabase session first, then fall back to offline session
     let session = await window.Auth.getSession();
     let offlineEmail = null;
@@ -199,7 +235,12 @@ window.initAccountingPage = async () => {
     try {
       await window.Auth.signIn(email, pass);
       sessionStorage.removeItem('fin_offline_session');
-      await gate();
+      // Safety net: fire gate() ourselves. The onAuthChange listener also
+      // fires it, but the new session-uid dedup means whichever runs first
+      // wins and the other no-ops. We do NOT await — the spinner stops the
+      // moment signIn resolves, the panel + initial fetchAll happen in the
+      // background.
+      gate();
     } catch(ex) {
       const msg = ex.message || '';
       if (msg.includes('Invalid login') || msg.includes('invalid_credentials')) {
@@ -344,7 +385,10 @@ window.initAccountingPage = async () => {
   // ── load buses ─────────────────────────────────────────────────────────────
   async function loadBuses(){
     if(!sb) return;
-    const {data}=await sb.from('buses').select('id,name').order('name');
+    // Non-fatal: a buses-table/RLS hiccup must NOT abort the gate (which would
+    // leave the panel up but empty and force a refresh). Swallow + warn.
+    const {data,error}=await sb.from('buses').select('id,name').order('name');
+    if(error){ console.warn('Buses:',error.message); return; }
     (data||[]).forEach(b=>{
       busMap[b.id]=b.name;
       [$('busFilter'),$('expBus'),$('adjBus')].forEach(sel=>{
@@ -376,14 +420,19 @@ window.initAccountingPage = async () => {
   // ── fetch ──────────────────────────────────────────────────────────────────
   async function fetchAll(sb,range,busId){
     if(!sb) return emptyData();
-    const [bookings,shipments,payments,expenses,adjustments]=await Promise.all([
+    const [bookings,shipments,payments,expenses,adjustments,ledger]=await Promise.all([
       fetchBookings(sb,range,busId),
       fetchShipments(sb,range,busId),
       fetchPayments(sb,range),
       fetchExpenses(sb,range,busId),
       fetchAdjustments(sb,range,busId),
+      fetchLedgerAdjustmentsAll(sb,range),   // 4 round-trips → 1
     ]);
-    return {bookings,shipments,payments,expenses,adjustments};
+    return {bookings,shipments,payments,expenses,adjustments,
+            bookingAdjustments:ledger.booking,
+            shipmentAdjustments:ledger.shipment,
+            paymentAdjustments:ledger.payment,
+            expenseAdjustments:ledger.expense};
   }
 
   async function fetchBookings(sb,range,busId){
@@ -437,9 +486,49 @@ window.initAccountingPage = async () => {
     return data||[];
   }
 
-  function emptyData(){ return {bookings:[],shipments:[],payments:[],expenses:[],adjustments:[]}; }
+  // Per-record corrections that overlay bookings/shipments/payments. The
+  // originals stay read-only; these rows store "what the value should be".
+  // One query for all four entity types, then grouped client-side — saves
+  // three HTTP round-trips per report load.
+  async function fetchLedgerAdjustmentsAll(sb,range){
+    const out={booking:[],shipment:[],payment:[],expense:[]};
+    const {data,error}=await sb.from('ledger_adjustments').select('*')
+      .in('entity_type',['booking','shipment','payment','expense'])
+      .gte('period_date',range.from).lt('period_date',range.to)
+      .order('created_at',{ascending:false});
+    if(error){ console.warn('LedgerAdj:',error.message); return out; }
+    for(const r of (data||[])){ if(out[r.entity_type]) out[r.entity_type].push(r); }
+    return out;
+  }
+
+  function emptyData(){
+    return {
+      bookings:[],shipments:[],payments:[],expenses:[],adjustments:[],
+      bookingAdjustments:[],shipmentAdjustments:[],paymentAdjustments:[],
+      expenseAdjustments:[]
+    };
+  }
 
   // ── calculations ───────────────────────────────────────────────────────────
+  // Per-record adjustment helper. Given an array of adjustment rows for one
+  // entity_type, build a Map keyed by entity_ref → adjusted amount. Standalone
+  // adjustments (entity_ref null/empty) are summed separately so we can add
+  // them to the total without colliding with originals.
+  function indexLedgerAdjustments(rows){
+    const byRef = new Map();
+    let standaloneSum = 0;
+    for(const r of rows||[]){
+      const amt = Number(r.amount_tzs||0);
+      if(r.entity_ref){
+        // Most-recent adjustment wins (rows already sorted desc by created_at).
+        if(!byRef.has(r.entity_ref)) byRef.set(r.entity_ref, amt);
+      } else {
+        standaloneSum += amt;
+      }
+    }
+    return { byRef, standaloneSum };
+  }
+
   function calcFinancials(data){
     // Booking funnel
     const total        = data.bookings.length;
@@ -448,18 +537,30 @@ window.initAccountingPage = async () => {
     const expired      = data.bookings.filter(b=>['expired','cancelled','refund_initiated','rescheduled'].includes(b.status));
     const convRate     = total ? (confirmed.length/total) : 0;
 
-    const ticketRev    = confirmed.reduce((s,b)=>s+(b.fare_tzs||0),0);
-    const pendingRev   = pending.reduce((s,b)=>s+(b.fare_tzs||0),0);
+    // Per-record adjustment overlays
+    const bAdj = indexLedgerAdjustments(data.bookingAdjustments);
+    const sAdj = indexLedgerAdjustments(data.shipmentAdjustments);
+    const pAdj = indexLedgerAdjustments(data.paymentAdjustments);
+    const eAdj = indexLedgerAdjustments(data.expenseAdjustments);
+    const effectiveBookingFare = b => bAdj.byRef.has(b.ticket_code) ? bAdj.byRef.get(b.ticket_code) : (b.fare_tzs||0);
+    const effectiveShipmentFreight = s => sAdj.byRef.has(s.tracking_code) ? sAdj.byRef.get(s.tracking_code) : freightCalc(s);
+    const effectivePaymentAmount   = p => pAdj.byRef.has(p.reference)     ? pAdj.byRef.get(p.reference)     : (p.amount_tzs||0);
+    // expense.id is numeric; the adjustment stores entity_ref as text, so compare as string.
+    const effectiveExpenseAmount   = e => eAdj.byRef.has(String(e.id))    ? eAdj.byRef.get(String(e.id))    : (e.amount_tzs||0);
+
+    const ticketRev    = confirmed.reduce((s,b)=>s+effectiveBookingFare(b),0) + bAdj.standaloneSum;
+    const pendingRev   = pending.reduce((s,b)=>s+effectiveBookingFare(b),0);
     const refundedRev  = data.bookings.filter(b=>b.status==='refund_initiated').reduce((s,b)=>s+(b.refund_tzs||0),0);
 
-    const cargoRev     = data.shipments.filter(s=>s.status!=='Cancelled').reduce((s,sh)=>s+freightCalc(sh),0);
+    const cargoRev     = data.shipments.filter(s=>s.status!=='Cancelled').reduce((s,sh)=>s+effectiveShipmentFreight(sh),0) + sAdj.standaloneSum;
     const totalRev     = ticketRev+cargoRev;
     const vatAmt       = totalRev*(TAX.VAT_RATE/(1+TAX.VAT_RATE));
     const netRev       = totalRev-vatAmt;
 
-    const salaryCost   = data.expenses.filter(e=>e.category==='salaries').reduce((s,e)=>s+(e.amount_tzs||0),0);
+    // Salary cost respects per-record adjustments on salary entries.
+    const salaryCost   = data.expenses.filter(e=>e.category==='salaries').reduce((s,e)=>s+effectiveExpenseAmount(e),0);
     const sdlAmt       = salaryCost*TAX.SDL_RATE;
-    const totalExp     = data.expenses.reduce((s,e)=>s+(e.amount_tzs||0),0);
+    const totalExp     = data.expenses.reduce((s,e)=>s+effectiveExpenseAmount(e),0) + eAdj.standaloneSum;
 
     // Adjustments (company-level: bonuses, deductions, corrections, etc.)
     const adjs         = data.adjustments || [];
@@ -473,42 +574,58 @@ window.initAccountingPage = async () => {
     const citProv      = Math.max(0,opProfit*TAX.CIT_RATE);
     const netProfit    = opProfit-citProv;
 
-    // Payment status — prefer payments table; fall back to bookings status
+    // Payment status — prefer payments table; fall back to bookings status.
+    // Per-record adjustments overlay the original amount.
     let payConf,payPend,payFail,payRef;
     if(data.payments.length){
-      payConf = data.payments.filter(p=>p.status==='completed').reduce((s,p)=>s+(p.amount_tzs||0),0);
-      payPend = data.payments.filter(p=>['pending','awaiting_payment','processing'].includes(p.status)).reduce((s,p)=>s+(p.amount_tzs||0),0);
-      payFail = data.payments.filter(p=>['failed','cancelled','expired'].includes(p.status)).reduce((s,p)=>s+(p.amount_tzs||0),0);
-      payRef  = data.payments.filter(p=>p.status==='refunded').reduce((s,p)=>s+(p.amount_tzs||0),0);
+      payConf = data.payments.filter(p=>p.status==='completed').reduce((s,p)=>s+effectivePaymentAmount(p),0) + pAdj.standaloneSum;
+      payPend = data.payments.filter(p=>['pending','awaiting_payment','processing'].includes(p.status)).reduce((s,p)=>s+effectivePaymentAmount(p),0);
+      payFail = data.payments.filter(p=>['failed','cancelled','expired'].includes(p.status)).reduce((s,p)=>s+effectivePaymentAmount(p),0);
+      payRef  = data.payments.filter(p=>p.status==='refunded').reduce((s,p)=>s+effectivePaymentAmount(p),0);
     } else {
       // Fall back: derive from bookings when payments table has no rows
       payConf = ticketRev;
       payPend = pendingRev;
-      payFail = expired.reduce((s,b)=>s+(b.fare_tzs||0),0);
+      payFail = expired.reduce((s,b)=>s+effectiveBookingFare(b),0);
       payRef  = refundedRev;
     }
 
-    // By bus company
+    // By bus company — use adjusted fares/freight so per-record corrections
+    // flow into per-bus revenue too.
     const byBus={};
     confirmed.forEach(b=>{
       const k=b.bus_id||'unk';
       if(!byBus[k]) byBus[k]={name:b.bus_name||busMap[k]||k,bookingCount:0,ticketRev:0,shipCount:0,cargoRev:0,expenses:0};
-      byBus[k].bookingCount++; byBus[k].ticketRev+=(b.fare_tzs||0);
+      byBus[k].bookingCount++; byBus[k].ticketRev+=effectiveBookingFare(b);
     });
     data.shipments.filter(s=>s.status!=='Cancelled').forEach(s=>{
       const mid=Object.keys(busMap).find(id=>busMap[id]===s.bus_name);
       const k=mid||('s-'+s.bus_name);
       if(!byBus[k]) byBus[k]={name:s.bus_name||k,bookingCount:0,ticketRev:0,shipCount:0,cargoRev:0,expenses:0};
-      byBus[k].shipCount++; byBus[k].cargoRev+=freightCalc(s);
+      byBus[k].shipCount++; byBus[k].cargoRev+=effectiveShipmentFreight(s);
     });
     data.expenses.forEach(e=>{
       const k=e.bus_company_id||'org';
       if(!byBus[k]) byBus[k]={name:busMap[k]||'Organisation',bookingCount:0,ticketRev:0,shipCount:0,cargoRev:0,expenses:0};
-      byBus[k].expenses+=(e.amount_tzs||0);
+      byBus[k].expenses+=effectiveExpenseAmount(e);
+    });
+    // Standalone expense adjustments (no linked original) — attribute to the
+    // bus_company_id stored in the adjustment.data overlay, falling back to org.
+    (data.expenseAdjustments||[]).forEach(a=>{
+      if(a.entity_ref) return;  // already counted via effectiveExpenseAmount
+      const k = a.data?.bus_company_id || 'org';
+      if(!byBus[k]) byBus[k]={name:busMap[k]||'Organisation',bookingCount:0,ticketRev:0,shipCount:0,cargoRev:0,expenses:0};
+      byBus[k].expenses += Number(a.amount_tzs||0);
     });
 
     const expByCat={};
-    data.expenses.forEach(e=>{ expByCat[e.category]=(expByCat[e.category]||0)+(e.amount_tzs||0); });
+    data.expenses.forEach(e=>{ expByCat[e.category]=(expByCat[e.category]||0)+effectiveExpenseAmount(e); });
+    // Bucket standalone expense adjustments by their adjustment.data.category.
+    (data.expenseAdjustments||[]).forEach(a=>{
+      if(a.entity_ref) return;
+      const c = a.data?.category || 'other';
+      expByCat[c] = (expByCat[c]||0) + Number(a.amount_tzs||0);
+    });
 
     return {
       total,confirmed:confirmed.length,pending:pending.length,
@@ -521,6 +638,7 @@ window.initAccountingPage = async () => {
       byBus,expByCat,
       shipCount:data.shipments.length,
       paymentsFallback:data.payments.length===0,
+      bAdj,sAdj,pAdj,eAdj,
     };
   }
 
@@ -536,7 +654,11 @@ window.initAccountingPage = async () => {
     renderTax(fin,range);
     renderBusTable(fin);
     renderLedger(data);
+    renderLedgerAdjustments('booking',  data.bookingAdjustments  || [], data.bookings  || []);
+    renderLedgerAdjustments('shipment', data.shipmentAdjustments || [], data.shipments || []);
+    renderLedgerAdjustments('payment',  data.paymentAdjustments  || [], data.payments  || []);
     renderExpenses(data.expenses,fin.totalExp);
+    renderLedgerAdjustments('expense',  data.expenseAdjustments  || [], data.expenses  || []);
     renderAdjustments(data.adjustments||[],fin);
     renderCashFlow(fin,range);
     renderBalanceSheet(fin,range);
@@ -867,6 +989,360 @@ window.initAccountingPage = async () => {
       :'<tr><td colspan="8" class="empty-row">No payment records in this period.</td></tr>';
   }
 
+  // ── Ledger adjustments (per-record overlay) ────────────────────────────────
+  // Generic editable table that sits beneath the read-only bookings /
+  // shipments / payments ledgers. Each row is a row in `ledger_adjustments`
+  // with a JSONB `data` overlay that mirrors the original columns. The
+  // accountant can:
+  //   • add a fresh adjustment row (blank or pre-filled from an original ref)
+  //   • inline-edit any field
+  //   • delete an adjustment
+  // Originals are never mutated.
+  const LADJ_CONFIG = {
+    booking: {
+      bodyId:    'bookingsAdjBody',
+      refLabel:  'Ticket Code',
+      refKey:    'ticket_code',
+      colspan:   9,
+      // Field list rendered as input cells, in order. `key` matches both the
+      // original row column and the adjustment.data key. `type` controls the
+      // input. `width` is optional column-width hint.
+      fields: [
+        { key: 'ticket_code',     type: 'text',   placeholder: 'e.g. PWA-1234' },
+        { key: 'travel_date',     type: 'date'   },
+        { key: 'bus_name',        type: 'text'   },
+        { key: 'route',           type: 'text', placeholder: 'Origin → Destination', virtual: true },
+        { key: 'passenger_name',  type: 'text'   },
+        { key: 'seat_number',     type: 'text'   },
+        { key: 'fare_tzs',        type: 'number', isAmount: true, placeholder: 'Adjusted fare' },
+      ],
+      // For 'route' (virtual: true) we recombine origin + destination at save.
+      derivedFromOriginal(orig){
+        return {
+          ticket_code:    orig.ticket_code,
+          travel_date:    orig.travel_date || (orig.created_at||'').slice(0,10),
+          bus_name:       orig.bus_name,
+          route:          (orig.origin||'') + ' → ' + (orig.destination||''),
+          passenger_name: orig.passenger_name,
+          seat_number:    orig.seat_number,
+          fare_tzs:       orig.fare_tzs,
+        };
+      },
+    },
+    shipment: {
+      bodyId:    'shipmentsAdjBody',
+      refLabel:  'Tracking Code',
+      refKey:    'tracking_code',
+      colspan:   10,
+      fields: [
+        { key: 'tracking_code',    type: 'text',   placeholder: 'e.g. PCG-99887' },
+        { key: 'period_date_iso',  type: 'date',   virtual: true },
+        { key: 'bus_name',         type: 'text'   },
+        { key: 'bus_route',        type: 'text'   },
+        { key: 'sender_name',      type: 'text'   },
+        { key: 'receiver_name',    type: 'text'   },
+        { key: 'product_weight_kg',type: 'number' },
+        { key: 'freight_tzs',      type: 'number', isAmount: true, placeholder: 'Adjusted freight' },
+      ],
+      derivedFromOriginal(orig){
+        return {
+          tracking_code:     orig.tracking_code,
+          period_date_iso:   (orig.created_at||'').slice(0,10),
+          bus_name:          orig.bus_name,
+          bus_route:         orig.bus_route,
+          sender_name:       orig.sender_name,
+          receiver_name:     orig.receiver_name,
+          product_weight_kg: orig.product_weight_kg,
+          freight_tzs:       Math.round(freightCalc(orig)),
+        };
+      },
+    },
+    payment: {
+      bodyId:    'paymentsAdjBody',
+      refLabel:  'Reference',
+      refKey:    'reference',
+      colspan:   9,
+      fields: [
+        { key: 'reference',       type: 'text',   placeholder: 'e.g. PAY-2026-0042' },
+        { key: 'paid_date',       type: 'date',   virtual: true },
+        { key: 'customer_name',   type: 'text'   },
+        { key: 'customer_phone',  type: 'text'   },
+        { key: 'method',          type: 'text'   },
+        { key: 'provider',        type: 'text'   },
+        { key: 'amount_tzs',      type: 'number', isAmount: true, placeholder: 'Adjusted amount' },
+      ],
+      derivedFromOriginal(orig){
+        return {
+          reference:      orig.reference,
+          paid_date:      (orig.paid_at||orig.created_at||'').slice(0,10),
+          customer_name:  orig.customer_name,
+          customer_phone: orig.customer_phone,
+          method:         orig.method,
+          provider:       orig.provider,
+          amount_tzs:     orig.amount_tzs,
+        };
+      },
+    },
+    expense: {
+      bodyId:    'expenseAdjBody',
+      refLabel:  'Expense ID',
+      refKey:    'id',
+      colspan:   9,
+      fields: [
+        { key: 'id',             type: 'text',   placeholder: 'e.g. 42' },
+        { key: 'period_date',    type: 'date'   },
+        { key: 'bus_company_id', type: 'text',   placeholder: 'Bus ID or blank for Org' },
+        { key: 'category',       type: 'text',   placeholder: 'fuel · salaries · maintenance · …' },
+        { key: 'description',    type: 'text'   },
+        { key: 'amount_tzs',     type: 'number', isAmount: true, placeholder: 'Adjusted amount' },
+        { key: 'receipt_ref',    type: 'text'   },
+      ],
+      derivedFromOriginal(orig){
+        return {
+          id:             String(orig.id),
+          period_date:    orig.period_date,
+          bus_company_id: orig.bus_company_id || '',
+          category:       orig.category,
+          description:    orig.description,
+          amount_tzs:     orig.amount_tzs,
+          receipt_ref:    orig.receipt_ref || '',
+        };
+      },
+    },
+  };
+
+  // Track in-memory pending (unsaved) adjustment rows so an "Add" click stays
+  // in place across re-renders until the user explicitly saves or cancels it.
+  const _pendingAdj = { booking: [], shipment: [], payment: [], expense: [] };
+
+  // Helpers so we don't repeat the three-way branch four times.
+  function adjListFor(entityType){
+    if(!allData) return [];
+    return entityType==='booking'  ? allData.bookingAdjustments
+         : entityType==='shipment' ? allData.shipmentAdjustments
+         : entityType==='payment'  ? allData.paymentAdjustments
+         : entityType==='expense'  ? allData.expenseAdjustments
+         : [];
+  }
+  function originalsFor(entityType){
+    if(!allData) return [];
+    return entityType==='booking'  ? allData.bookings
+         : entityType==='shipment' ? allData.shipments
+         : entityType==='payment'  ? allData.payments
+         : entityType==='expense'  ? allData.expenses
+         : [];
+  }
+
+  function renderLedgerAdjustments(entityType, adjustments, originals){
+    const cfg = LADJ_CONFIG[entityType];
+    if(!cfg) return;
+    const body = $(cfg.bodyId);
+    if(!body) return;
+
+    const allRows = [
+      ..._pendingAdj[entityType].map(p => ({...p, _pending:true})),
+      ...adjustments,
+    ];
+
+    if(!allRows.length){
+      body.innerHTML = `<tr><td colspan="${cfg.colspan}" class="empty-row">No ${entityType} adjustments for this period. Click <strong>+ Add adjustment</strong> to create one.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = allRows.map(adj => adjRowHtml(entityType, cfg, adj)).join('');
+
+    // Wire row-level handlers (save / delete / pick-from-original).
+    body.querySelectorAll('[data-act="save"]').forEach(b => {
+      b.addEventListener('click', () => saveAdjFromRow(entityType, b.closest('tr')));
+    });
+    body.querySelectorAll('[data-act="delete"]').forEach(b => {
+      b.addEventListener('click', () => deleteAdjFromRow(entityType, b.closest('tr')));
+    });
+    body.querySelectorAll('[data-act="cancel"]').forEach(b => {
+      b.addEventListener('click', () => cancelPendingAdj(entityType, b.closest('tr').dataset.tempId));
+    });
+    body.querySelectorAll('[data-act="prefill"]').forEach(inp => {
+      inp.addEventListener('change', () => prefillAdjRow(entityType, inp.closest('tr'), inp.value, originals));
+    });
+  }
+
+  function adjRowHtml(entityType, cfg, adj){
+    const data = adj.data || {};
+    const isPending = !!adj._pending;
+    const rowId = isPending ? adj._tempId : adj.id;
+    const idAttr = isPending ? `data-temp-id="${rowId}"` : `data-id="${rowId}"`;
+
+    const cells = cfg.fields.map((f, i) => {
+      const val = (i === 0 && !isPending && adj.entity_ref) ? adj.entity_ref : (data[f.key] ?? '');
+      const dataAct = (i === 0) ? `data-act="prefill"` : '';
+      const cls   = f.isAmount ? 'class="num"' : '';
+      const step  = f.type === 'number' ? 'step="any"' : '';
+      const ph    = f.placeholder ? `placeholder="${f.placeholder}"` : '';
+      return `<td ${cls}>
+        <input type="${f.type}" data-field="${f.key}" ${dataAct} ${step} ${ph}
+               value="${val == null ? '' : String(val).replace(/"/g, '&quot;')}"
+               style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;background:${isPending ? '#fffbeb' : '#fff'}">
+      </td>`;
+    }).join('');
+
+    const reason = adj.reason || '';
+    const reasonCell = `<td><input type="text" data-field="_reason" placeholder="Why was this adjusted?"
+        value="${reason.replace(/"/g, '&quot;')}"
+        style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;background:${isPending ? '#fffbeb' : '#fff'}"></td>`;
+
+    const actions = isPending
+      ? `<button class="btn-icon" data-act="save" title="Save">💾</button>
+         <button class="btn-icon" data-act="cancel" title="Cancel" style="color:#6b7280">✕</button>`
+      : (userRole !== 'auditor'
+          ? `<button class="btn-icon" data-act="save" title="Save changes">💾</button>
+             <button class="btn-icon" data-act="delete" title="Delete" style="color:#dc2626">🗑</button>`
+          : '');
+
+    return `<tr ${idAttr}>${cells}${reasonCell}<td style="white-space:nowrap">${actions}</td></tr>`;
+  }
+
+  // When the user types/picks an entity_ref in the first column, pull the
+  // original row's values into the rest of the inputs so they have a
+  // starting point to adjust from. Match as string so numeric ids work too.
+  function prefillAdjRow(entityType, tr, ref, originals){
+    if(!ref) return;
+    const cfg  = LADJ_CONFIG[entityType];
+    const orig = (originals||[]).find(o => String(o[cfg.refKey] ?? '') === String(ref));
+    if(!orig) return;
+    const derived = cfg.derivedFromOriginal(orig);
+    tr.querySelectorAll('input[data-field]').forEach(inp => {
+      const k = inp.dataset.field;
+      if (k === cfg.fields[0].key) return; // skip the ref input itself
+      if (k === '_reason') return;
+      if (derived[k] != null && inp.value === '') {
+        inp.value = derived[k];
+      }
+    });
+  }
+
+  // "+ Add adjustment" — appends a blank pending row at the top.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-add-adj]');
+    if (!btn) return;
+    const t = btn.dataset.addAdj;
+    if (!LADJ_CONFIG[t]) return;
+    const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
+    _pendingAdj[t].push({
+      _tempId: tempId,
+      data: {},
+      entity_ref: '',
+      reason: '',
+    });
+    renderLedgerAdjustments(t, adjListFor(t), originalsFor(t));
+    // Focus the first input of the new row for fast typing.
+    const newTr = $(LADJ_CONFIG[t].bodyId)?.querySelector(`tr[data-temp-id="${tempId}"]`);
+    newTr?.querySelector('input')?.focus();
+  });
+
+  function cancelPendingAdj(entityType, tempId){
+    _pendingAdj[entityType] = _pendingAdj[entityType].filter(p => p._tempId !== tempId);
+    renderLedgerAdjustments(entityType, adjListFor(entityType), originalsFor(entityType));
+  }
+
+  async function saveAdjFromRow(entityType, tr){
+    if(!tr) return;
+    const cfg = LADJ_CONFIG[entityType];
+    const isPending = !!tr.dataset.tempId;
+    const id = isPending ? null : Number(tr.dataset.id);
+
+    // Collect input values into a data object + grab the special fields.
+    const data = {};
+    let entityRef = '';
+    let amountTzs = null;
+    let reason    = '';
+    tr.querySelectorAll('input[data-field]').forEach(inp => {
+      const k = inp.dataset.field;
+      const v = inp.value.trim();
+      if (k === '_reason') { reason = v; return; }
+      // First field is the entity_ref (linked original).
+      if (k === cfg.fields[0].key) { entityRef = v; }
+      // Amount field also lives at the top level for fast aggregation.
+      const f = cfg.fields.find(x => x.key === k);
+      if (f?.isAmount) { amountTzs = v === '' ? null : Number(v); }
+      data[k] = v === '' ? null : (f?.type === 'number' ? Number(v) : v);
+    });
+
+    if (amountTzs == null) {
+      alert('Enter an adjusted amount before saving.');
+      return;
+    }
+
+    const email = (await window.Auth.currentEmail()) || 'unknown';
+    const period_date = data[cfg.fields[1]?.key] || data['travel_date'] || data['paid_date']
+                      || data['period_date_iso'] || (currentRange?.from) || new Date().toISOString().slice(0,10);
+
+    const payload = {
+      entity_type: entityType,
+      entity_ref:  entityRef || null,
+      data,
+      amount_tzs:  amountTzs,
+      reason:      reason || null,
+      recorded_by: email,
+      period_date,
+    };
+
+    try {
+      if (isPending) {
+        const { data: inserted, error } = await sb.from('ledger_adjustments').insert(payload).select().single();
+        if (error) throw error;
+        // Drop the pending entry and add the real row to allData.
+        _pendingAdj[entityType] = _pendingAdj[entityType].filter(p => p._tempId !== tr.dataset.tempId);
+        adjListFor(entityType).unshift(inserted);
+      } else {
+        const { error } = await sb.from('ledger_adjustments').update(payload).eq('id', id);
+        if (error) throw error;
+        const list = adjListFor(entityType);
+        const idx = list.findIndex(r => r.id === id);
+        if (idx >= 0) list[idx] = { ...list[idx], ...payload };
+      }
+      // Re-render this section + the dependent reports.
+      if (allData) {
+        renderLedgerAdjustments(entityType, adjListFor(entityType), originalsFor(entityType));
+        // Recompute the rolled-up figures so totals reflect the new value.
+        const fin = calcFinancials(allData);
+        renderOverview(fin, allData);
+        renderPL(fin, currentRange);
+        renderTax(fin, currentRange);
+        renderBusTable(fin);
+        // Expense adjustments also affect the Expenses section totals/summary.
+        if (entityType === 'expense') renderExpenses(allData.expenses, fin.totalExp);
+      }
+    } catch (err) {
+      alert('Save failed: ' + (err.message || err));
+    }
+  }
+
+  async function deleteAdjFromRow(entityType, tr){
+    if(!tr) return;
+    const id = Number(tr.dataset.id);
+    if(!id) return;
+    if(!confirm('Delete this adjustment? The original record stays untouched.')) return;
+    try {
+      const { error } = await sb.from('ledger_adjustments').delete().eq('id', id);
+      if (error) throw error;
+      if (allData) {
+        if (entityType==='booking')  allData.bookingAdjustments  = allData.bookingAdjustments.filter(r => r.id !== id);
+        if (entityType==='shipment') allData.shipmentAdjustments = allData.shipmentAdjustments.filter(r => r.id !== id);
+        if (entityType==='payment')  allData.paymentAdjustments  = allData.paymentAdjustments.filter(r => r.id !== id);
+        if (entityType==='expense')  allData.expenseAdjustments  = allData.expenseAdjustments.filter(r => r.id !== id);
+        renderLedgerAdjustments(entityType, adjListFor(entityType), originalsFor(entityType));
+        const fin = calcFinancials(allData);
+        renderOverview(fin, allData);
+        renderPL(fin, currentRange);
+        renderTax(fin, currentRange);
+        renderBusTable(fin);
+        if (entityType === 'expense') renderExpenses(allData.expenses, fin.totalExp);
+      }
+    } catch (err) {
+      alert('Delete failed: ' + (err.message || err));
+    }
+  }
+
   // ── Expenses ───────────────────────────────────────────────────────────────
   function catLabel(c){
     return ({fuel:'Fuel',salaries:'Salaries',maintenance:'Maintenance',insurance:'Insurance',
@@ -876,8 +1352,12 @@ window.initAccountingPage = async () => {
 
   function renderExpenses(expenses,total){
     $('expTotal').textContent=fmt(total);
+    // Originals are locked. The ID column is exposed so accountants can paste
+    // it into the "✏️ Expense Adjustments" table below to correct an amount
+    // without touching the original row.
     $('expensesBody').innerHTML=expenses.length
       ?expenses.map(e=>`<tr>
+          <td><code style="font-size:0.78rem;background:#f3f4f6;padding:1px 6px;border-radius:4px">${e.id}</code></td>
           <td>${e.period_date}</td>
           <td>${e.bus_company_id?(busMap[e.bus_company_id]||e.bus_company_id):'Organisation'}</td>
           <td>${catLabel(e.category)}</td>
@@ -885,7 +1365,6 @@ window.initAccountingPage = async () => {
           <td class="num">${fmtN(e.amount_tzs)}</td>
           <td><small>${e.receipt_ref||'—'}</small></td>
           <td><small>${e.recorded_by}</small></td>
-          <td>${userRole!=='auditor'?`<button class="btn-icon" onclick="window.deleteExpense(${e.id})" title="Delete">🗑</button>`:''}</td>
         </tr>`).join('')
       :'<tr><td colspan="8" class="empty-row">No expenses for this period.</td></tr>';
 
@@ -922,13 +1401,10 @@ window.initAccountingPage = async () => {
     btn.disabled=false; btn.textContent='Record Expense';
   });
 
-  window.deleteExpense=async(id)=>{
-    if(!confirm('Delete this expense record?')) return;
-    const {error}=await sb.from('org_expenses').delete().eq('id',id);
-    if(error){ alert('Error: '+error.message); return; }
-    if(allData){ allData.expenses=allData.expenses.filter(e=>e.id!==id);
-      renderExpenses(allData.expenses,allData.expenses.reduce((s,e)=>s+e.amount_tzs,0)); }
-  };
+  // window.deleteExpense was removed once original expenses became read-only.
+  // Corrections now flow through the Expense Adjustments table, which is
+  // audit-friendly. If something genuinely needs to be deleted, an admin can
+  // do it from the Supabase dashboard.
 
   // ── Adjustments ────────────────────────────────────────────────────────────
   const ADJ_LABELS = {

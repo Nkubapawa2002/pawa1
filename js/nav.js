@@ -92,6 +92,7 @@ window.renderNav = (active) => {
 
         <div class="nav-right">
           ${onlinePill}
+          <button id="navSignOut" class="lang-toggle nav-signout" type="button" style="display:none">${window.t("nav_logout") || "Sign out"}</button>
           <button class="lang-toggle" onclick="window.setLang('${lang === 'en' ? 'sw' : 'en'}')">${window.t("lang_toggle")}</button>
         </div>
       </div>
@@ -142,11 +143,29 @@ window.renderNav = (active) => {
   // destination pages + Supabase RLS. See mobile-nav.js for full security note.
   document.querySelectorAll(".nav-company-link, .nav-admin-link").forEach(el => el.style.display = "none");
 
+  // Universal "Sign out" — works on EVERY page that has the shared nav, so a
+  // logged-in user is never stranded without a way out (previously logout
+  // lived only on the gated dashboards). Shown only when a Supabase session
+  // actually exists; wired here so the handler survives nav re-renders.
+  const navSignOut = document.getElementById("navSignOut");
+  navSignOut?.addEventListener("click", async () => {
+    navSignOut.disabled = true;
+    try {
+      // Clear the finance page's offline bypass too, so logout is total.
+      try { sessionStorage.removeItem("fin_offline_session"); } catch (_) {}
+      await window.Auth?.signOut();
+    } catch (_) { /* sign out is best-effort — reload regardless */ }
+    location.reload();
+  });
+
   (async () => {
     if (!window.Auth) return;
     try {
       const email = await window.Auth.currentEmail();
       if (!email) return;  // not logged in → links stay hidden
+
+      // Logged in (any Supabase user) → expose the universal Sign-out button.
+      if (navSignOut) navSignOut.style.display = "";
 
       // Admin allowlist (APP_CONFIG.ADMIN_EMAILS + admins table).
       if (window.Auth.isAllowedEmail(email)) {

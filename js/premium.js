@@ -128,6 +128,50 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────
+  // 5. Auto-hide the floating chat (.pawa-fab) and call (.pawa-call-widget)
+  //    buttons 3s after the user stops scrolling. They re-appear instantly
+  //    on any scroll, touch, or pointer activity. Skip while the user has
+  //    the call panel or chat sheet open so we never yank an open dialog.
+  // ──────────────────────────────────────────────────────────────────────
+  function setupFabAutoHide() {
+    const HIDE_AFTER_MS = 3000;
+    let hideTimer = null;
+
+    const fabs = () => document.querySelectorAll(".pawa-fab, .pawa-call-widget");
+
+    function dialogOpen() {
+      // Chat sheet (fab.js) or call panel (calling-agent.js)
+      if (document.querySelector(".pawa-sheet.open")) return true;
+      const panel = document.querySelector(".pcw-panel");
+      if (panel && !panel.hidden) return true;
+      return false;
+    }
+
+    function show() {
+      fabs().forEach(el => el.classList.remove("fab-auto-hidden"));
+    }
+    function scheduleHide() {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (dialogOpen()) { scheduleHide(); return; }
+        fabs().forEach(el => el.classList.add("fab-auto-hidden"));
+      }, HIDE_AFTER_MS);
+    }
+    function bump() {
+      show();
+      scheduleHide();
+    }
+
+    // Initial: visible, then auto-hide after the same 3s window.
+    scheduleHide();
+
+    window.addEventListener("scroll", bump, { passive: true });
+    window.addEventListener("touchstart", bump, { passive: true });
+    window.addEventListener("pointerdown", bump, { passive: true });
+    window.addEventListener("wheel", bump, { passive: true });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
   // Boot
   // ──────────────────────────────────────────────────────────────────────
   function boot() {
@@ -135,6 +179,7 @@
     setupTilt();
     setupRipples();
     syncStatusBar();
+    setupFabAutoHide();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

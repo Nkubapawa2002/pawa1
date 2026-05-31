@@ -94,6 +94,9 @@ function render(h) {
   if (h.bedrooms)   stats.push(stat("🛏", h.bedrooms,   "Bedrooms"));
   if (h.bathrooms)  stats.push(stat("🛁", h.bathrooms,  "Bathrooms"));
   if (h.size_sqm)   stats.push(stat("📐", h.size_sqm + " m²", "Size"));
+  // Minimum months a renter must pay upfront (rent listings only; 1 = implied).
+  if (h.listing === "rent" && Number(h.min_months) > 1)
+    stats.push(stat("🗓", h.min_months + " mo", "Pay upfront"));
   if (h.furnished && h.furnished !== "n/a" && h.furnished !== "no")
     stats.push(stat("🛋", h.furnished === "yes" ? "Yes" : "Semi", "Furnished"));
   if (h.available_from)
@@ -185,6 +188,10 @@ function render(h) {
       <h1 class="hd-title">${esc(h.title)}</h1>
       <div class="hd-loc">📍 ${esc(h.area || "")}${h.region ? ", " + esc(h.region) : ""}${h.address ? " · " + esc(h.address) : ""}</div>
       <div class="hd-price">${price.value} <small>${price.unit}</small></div>
+      ${(h.listing === "rent" && Number(h.min_months) > 1) ? `
+        <div class="hd-min-months">🗓 Minimum <strong>${h.min_months} months</strong> upfront${
+          h.price_tzs ? ` — <strong>TZS ${(h.price_tzs * h.min_months).toLocaleString("en-US")}</strong> to move in` : ""
+        }</div>` : ""}
       ${stats.length ? `<div class="hd-stats">${stats.join("")}</div>` : ""}
     </div>
 

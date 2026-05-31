@@ -1,0 +1,147 @@
+{
+  "name": "Pawa — Dashboard Metrics (live schema)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/today-bookings-summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_tbs",
+      "name": "WH today-bookings-summary",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 200],
+      "webhookId": "wh-today-bookings-summary"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Accept either a VAPI tool call wrapper or a plain dashboard POST.\nconst body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nreturn [{ json: { tenant_slug: tenantSlug, toolCallId: tc.id || 'manual' } }];"
+      },
+      "id": "parse_tbs",
+      "name": "Parse TBS Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH tenant AS (\n  SELECT id FROM tenants WHERE slug = $1 LIMIT 1\n)\nSELECT\n  COUNT(*) FILTER (WHERE status = 'pending')                          AS held_count,\n  COUNT(*) FILTER (WHERE status IN ('confirmed','boarded','completed')) AS confirmed_count,\n  COUNT(*) FILTER (WHERE status IN ('cancelled','expired','refund_initiated')) AS cancelled_count,\n  COALESCE(SUM(fare_tzs) FILTER (WHERE status IN ('confirmed','boarded','completed')), 0)::bigint AS revenue_today\nFROM bookings\nWHERE created_at::date = CURRENT_DATE\n  AND ($1 = '' OR tenant_id = (SELECT id FROM tenant));",
+        "options": {
+          "queryReplacement": "={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db_tbs",
+      "name": "DB Today Summary",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [680, 200],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Pawa Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json || {};\nconst p = $('Parse TBS Args').first().json;\nconst result = `Muhtasari wa leo:\\nUmehifadhiwa: ${r.held_count || 0}\\nIliyothibitishwa: ${r.confirmed_count || 0}\\nIliyofutwa: ${r.cancelled_count || 0}\\nMapato: TZS ${Number(r.revenue_today || 0).toLocaleString()}`;\nreturn [{ json: { results: [{ toolCallId: p.toolCallId, result }] } }];"
+      },
+      "id": "fmt_tbs",
+      "name": "Format TBS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_tbs",
+      "name": "Respond TBS",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 200]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/pending-holds",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_ph",
+      "name": "WH pending-holds",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 440],
+      "webhookId": "wh-pending-holds"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst tenantSlug =\n  body.message?.assistantOverrides?.variableValues?.tenant_slug\n  || body.message?.variableValues?.tenant_slug\n  || body.tenant_slug\n  || 'bus-tz-pawa';\nconst tc = (body.message?.toolCalls || body.message?.toolCallList || [{}])[0] || {};\nreturn [{ json: { tenant_slug: tenantSlug, toolCallId: tc.id || 'manual' } }];"
+      },
+      "id": "parse_ph",
+      "name": "Parse PH Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 440]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH tenant AS (\n  SELECT id FROM tenants WHERE slug = $1 LIMIT 1\n)\nSELECT\n  ticket_code,\n  passenger_name,\n  passenger_phone,\n  fare_tzs,\n  COALESCE(expires_at, created_at + interval '13 minutes') AS expires_at\nFROM bookings\nWHERE status = 'pending'\n  AND COALESCE(expires_at, created_at + interval '13 minutes') > NOW()\n  AND ($1 = '' OR tenant_id = (SELECT id FROM tenant))\nORDER BY expires_at ASC\nLIMIT 20;",
+        "options": {
+          "queryReplacement": "={{ $json.tenant_slug }}"
+        }
+      },
+      "id": "db_ph",
+      "name": "DB Pending Holds",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [680, 440],
+      "credentials": {
+        "postgres": { "id": "REPLACE_PG_CREDENTIAL_ID", "name": "Pawa Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json).filter(r => r && r.ticket_code);\nconst p = $('Parse PH Args').first().json;\nlet result;\nif (!rows.length) {\n  result = 'Hakuna hifadhi inayosubiri kwa sasa.';\n} else {\n  result = 'Hifadhi zinazosubiri malipo:\\n' + rows.map((r, i) => {\n    const mins = Math.max(0, Math.round((new Date(r.expires_at) - new Date()) / 60000));\n    return `${i + 1}. ${r.ticket_code} | ${r.passenger_name || '—'} (${r.passenger_phone || '—'}) | TZS ${Number(r.fare_tzs || 0).toLocaleString()} | dakika ${mins} zimebakia`;\n  }).join('\\n');\n}\nreturn [{ json: { results: [{ toolCallId: p.toolCallId, result }] } }];"
+      },
+      "id": "fmt_ph",
+      "name": "Format PH",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 440]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "resp_ph",
+      "name": "Respond PH",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 440]
+    }
+  ],
+  "connections": {
+    "WH today-bookings-summary": { "main": [[{ "node": "Parse TBS Args",  "type": "main", "index": 0 }]] },
+    "Parse TBS Args":            { "main": [[{ "node": "DB Today Summary","type": "main", "index": 0 }]] },
+    "DB Today Summary":          { "main": [[{ "node": "Format TBS",     "type": "main", "index": 0 }]] },
+    "Format TBS":                { "main": [[{ "node": "Respond TBS",    "type": "main", "index": 0 }]] },
+
+    "WH pending-holds":          { "main": [[{ "node": "Parse PH Args",  "type": "main", "index": 0 }]] },
+    "Parse PH Args":             { "main": [[{ "node": "DB Pending Holds","type": "main", "index": 0 }]] },
+    "DB Pending Holds":          { "main": [[{ "node": "Format PH",      "type": "main", "index": 0 }]] },
+    "Format PH":                 { "main": [[{ "node": "Respond PH",     "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "notes": "Provides /webhook/vapi/today-bookings-summary and /webhook/vapi/pending-holds for the dashboard 'Booking metrics' card. Uses the live schema (bookings.ticket_code, passenger_phone, fare_tzs, lowercase status). Tenant scoping via tenant_id resolved from slug — pass empty tenant_slug for cross-tenant totals."
+  }
+}
