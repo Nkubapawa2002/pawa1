@@ -68,7 +68,22 @@ function render(h) {
   const bodyEl   = document.getElementById("hdBody");
   const stickyEl = document.getElementById("hdSticky");
 
-  const photo    = window.DataStore.housePhotoUrl(h.photo);
+  // Media: combine photos[] and videos[] into one carousel. Back-compat:
+  // if the row predates the multi-media migration, photos[] is empty so we
+  // fall back to the single `photo` column.
+  const photoList = (Array.isArray(h.photos) && h.photos.length)
+    ? h.photos
+    : (h.photo ? [h.photo] : []);
+  const videoList = Array.isArray(h.videos) ? h.videos : [];
+  const slides = [
+    ...photoList.map(p => ({ kind: "photo", url: window.DataStore.housePhotoUrl(p) })),
+    ...videoList.map(v => ({ kind: "video", url: window.DataStore.housePhotoUrl(v) })),
+  ];
+  if (!slides.length) {
+    // Placeholder so the carousel doesn't collapse to zero height.
+    slides.push({ kind: "photo", url: "data/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg" });
+  }
+
   const listing  = h.listing === "sale" ? "For sale" : "For rent";
   const price    = formatPrice(h);
   const verified = h.verified ? `<span class="hd-badge verified">✓ Verified</span>` : "";
@@ -80,15 +95,37 @@ function render(h) {
   if (h.bedrooms)   stats.push(stat("🛏", h.bedrooms,   "Bedrooms"));
   if (h.bathrooms)  stats.push(stat("🛁", h.bathrooms,  "Bathrooms"));
   if (h.size_sqm)   stats.push(stat("📐", h.size_sqm + " m²", "Size"));
-  if (h.furnished && h.furnished !== "n/a" && h.furnished !== "no")
-    stats.push(stat("🛋", h.furnished === "yes" ? "Yes" : "Semi", "Furnished"));
+  // furnished is now free text (was an enum). Treat the legacy "no"/"n/a"
+  // values as "not furnished" so we hide the stat; anything else shows up.
+  const _furn = (h.furnished || "").trim();
+  if (_furn && !/^(no|n\/a)$/i.test(_furn)) {
+    const short = _furn.length <= 14 ? _furn
+                : /^yes$/i.test(_furn) ? "Yes"
+                : /^semi/i.test(_furn) ? "Semi"
+                : "Yes";
+    stats.push(stat("🛋", short, "Furnished"));
+  }
   if (h.available_from)
     stats.push(stat("📅", formatDate(h.available_from), "Available"));
 
-  // Amenities list
+  // Amenities list — predefined chips get their canonical label/icon; any
+  // free-text amenities the agent added show as plain chips.
+  const _knownAmenityKeys = new Set([
+    "parking","security","water_tank","borehole","generator","wifi","pool",
+    "gym","garden","elevator","water_connection","electricity_connection"
+  ]);
   const amenitiesHtml = (h.amenities || []).length
-    ? `<div class="hd-chips">${h.amenities.map(a => `<span class="hd-chip">${amenityIcon(a)} ${labelAmenity(a)}</span>`).join("")}</div>`
+    ? `<div class="hd-chips">${h.amenities.map(a => {
+        if (_knownAmenityKeys.has(a)) return `<span class="hd-chip">${amenityIcon(a)} ${labelAmenity(a)}</span>`;
+        return `<span class="hd-chip">✨ ${esc(a)}</span>`;
+      }).join("")}</div>`
+       + (_furn && !/^(no|n\/a)$/i.test(_furn)
+            ? `<p class="muted" style="margin-top:10px;font-size:.9rem;"><strong>Furnishing:</strong> ${esc(_furn)}</p>`
+            : "")
     : `<p class="muted">No amenities listed.</p>`;
+
+  // Saved nearby snapshot (filled at registration time, no fetch needed).
+  const nearbyHtml = buildNearbySnapshotHtml(h.nearby);
 
   // Agent
   const agentName  = h.agent?.name  || "Listing agent";
@@ -107,10 +144,40 @@ function render(h) {
     `Could we do a live viewing? Join me on Pawa Live Meet — code ${meetCode}: ${meetUrl}`);
   const waHref     = waNumber ? `https://wa.me/${waNumber}?text=${waText}` : "";
 
+  // Build the slide and thumbnail markup.
+  const slidesHtml = slides.map((s, i) => s.kind === "video"
+    ? `<div class="hd-gallery-slide is-video" data-i="${i}">
+         <video src="${esc(s.url)}" controls playsinline preload="metadata"
+                ${i === 0 ? "" : "preload=\"none\""}></video>
+       </div>`
+    : `<div class="hd-gallery-slide" data-i="${i}">
+         <img src="${esc(s.url)}" alt="${esc(h.title)} — photo ${i + 1}"
+              loading="${i === 0 ? "eager" : "lazy"}" decoding="async">
+       </div>`).join("");
+
+  const thumbsHtml = slides.length > 1 ? `
+    <div class="hd-gallery-thumbs" id="hdGalleryThumbs" role="tablist" aria-label="Media">
+      ${slides.map((s, i) => s.kind === "video"
+        ? `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"
+                   aria-label="Open video ${i + 1 - photoList.length}">
+             <video src="${esc(s.url)}" muted playsinline preload="metadata"></video>
+             <span class="vbadge">▶</span>
+           </button>`
+        : `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"
+                   aria-label="Open photo ${i + 1}">
+             <img src="${esc(s.url)}" alt="" loading="lazy" decoding="async">
+           </button>`).join("")}
+    </div>` : "";
+
+  const dotsHtml = slides.length > 1 ? `
+    <div class="hd-gallery-dots" aria-hidden="true">
+      ${slides.map((_, i) => `<span class="hd-gallery-dot ${i === 0 ? "active" : ""}" data-i="${i}"></span>`).join("")}
+    </div>` : "";
+
   bodyEl.innerHTML = `
-    <!-- Hero photo -->
-    <div class="hd-hero" data-loading="true" style="background-image:url('${photo}')"
-         role="img" aria-label="Photo of ${esc(h.title)}">
+    <!-- Media gallery -->
+    <div class="hd-gallery">
+      <div class="hd-gallery-stage" id="hdGalleryStage">${slidesHtml}</div>
       <div class="hd-hero-badges">
         <span class="hd-badge">${listing}</span>
         ${typeBadge}
@@ -124,6 +191,17 @@ function render(h) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
       </div>
+      ${slides.length > 1 ? `
+        <button type="button" class="hd-gallery-nav prev" id="hdGalleryPrev" aria-label="Previous">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button type="button" class="hd-gallery-nav next" id="hdGalleryNext" aria-label="Next">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <div class="hd-gallery-counter" id="hdGalleryCounter">1 / ${slides.length}</div>
+        ${dotsHtml}
+      ` : ""}
+      ${thumbsHtml}
     </div>
 
     <!-- Header (title + price) -->
@@ -144,6 +222,8 @@ function render(h) {
       <h3>Amenities</h3>
       ${amenitiesHtml}
     </div>
+
+    ${nearbyHtml}
 
     <div class="hd-card">
       <h3>Where it is</h3>
@@ -171,19 +251,10 @@ function render(h) {
     </div>
   `;
 
-  // Preload hero photo so the shimmer drops once the image is ready.
-  const hero = bodyEl.querySelector(".hd-hero[data-loading]");
-  if (hero) {
-    const m = hero.getAttribute("style").match(/url\(['"]?([^'")]+)['"]?\)/);
-    if (m) {
-      const img = new Image();
-      img.decoding = "async";
-      img.onload = img.onerror = () => hero.removeAttribute("data-loading");
-      img.src = m[1];
-    } else {
-      hero.removeAttribute("data-loading");
-    }
-  }
+  // Wire up the media carousel (prev/next, dots, thumbnails, scroll-snap
+  // keeps active index in sync, videos pause when scrolled away).
+  if (slides.length > 1) wireGallery(slides.length);
+  else hookSingleVideoAutopause(bodyEl);
 
   // ---- Wire up actions ---------------------------------------------------
   // Favorite (also records save-order so the favorites page can sort by
@@ -331,6 +402,75 @@ const POI_CATS = [
 const POI_RADIUS_M     = 1500;            // 1.5 km around the property
 const POI_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+// ============================================================================
+// Media gallery — scroll-snap carousel with prev/next, dots, thumbnails.
+// Videos auto-pause when they scroll out of view to keep CPU + data usage sane.
+// ============================================================================
+function wireGallery(total) {
+  const stage   = document.getElementById("hdGalleryStage");
+  const prev    = document.getElementById("hdGalleryPrev");
+  const next    = document.getElementById("hdGalleryNext");
+  const counter = document.getElementById("hdGalleryCounter");
+  const dots    = document.querySelectorAll(".hd-gallery-dot");
+  const thumbs  = document.querySelectorAll("#hdGalleryThumbs .hd-gallery-thumb");
+  if (!stage) return;
+
+  let current = 0;
+
+  function goTo(i) {
+    current = Math.max(0, Math.min(total - 1, i));
+    const slide = stage.children[current];
+    if (slide) stage.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
+    update();
+  }
+  function update() {
+    if (counter) counter.textContent = `${current + 1} / ${total}`;
+    dots.forEach((d, i)   => d.classList.toggle("active", i === current));
+    thumbs.forEach((t, i) => t.classList.toggle("active", i === current));
+    if (prev) prev.disabled = current <= 0;
+    if (next) next.disabled = current >= total - 1;
+    // Pause every video except the active one.
+    stage.querySelectorAll("video").forEach((v, i) => {
+      if (i !== current) try { v.pause(); } catch (_) {}
+    });
+  }
+
+  prev?.addEventListener("click", () => goTo(current - 1));
+  next?.addEventListener("click", () => goTo(current + 1));
+  thumbs.forEach(t => t.addEventListener("click", () => goTo(parseInt(t.dataset.i, 10))));
+
+  // Scroll-snap on iOS triggers many `scroll` events — debounce + read the
+  // currently-snapped slide based on scrollLeft / stage width.
+  let scrollDebounce;
+  stage.addEventListener("scroll", () => {
+    clearTimeout(scrollDebounce);
+    scrollDebounce = setTimeout(() => {
+      const w = stage.clientWidth || 1;
+      const i = Math.round(stage.scrollLeft / w);
+      if (i !== current) { current = Math.max(0, Math.min(total - 1, i)); update(); }
+    }, 60);
+  }, { passive: true });
+
+  // Keyboard arrows when the stage has focus.
+  stage.tabIndex = 0;
+  stage.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft")  { e.preventDefault(); goTo(current - 1); }
+    if (e.key === "ArrowRight") { e.preventDefault(); goTo(current + 1); }
+  });
+
+  update();
+}
+
+function hookSingleVideoAutopause(rootEl) {
+  const v = rootEl.querySelector(".hd-gallery video");
+  if (!v) return;
+  // Pause when the carousel scrolls out of the viewport.
+  const io = new IntersectionObserver(([entry]) => {
+    if (!entry.isIntersecting) try { v.pause(); } catch (_) {}
+  }, { threshold: 0.1 });
+  io.observe(v);
+}
+
 function attachNearbyOverlay(map, lat, lng) {
   const mapEl = document.getElementById("hdMap");
   if (!mapEl) return;
@@ -477,6 +617,39 @@ function stat(emoji, value, label) {
     <div class="hd-stat-val">${emoji} ${esc(String(value))}</div>
     <div class="hd-stat-lbl">${esc(label)}</div>
   </div>`;
+}
+
+// Render the saved "nearby" snapshot (filled in at registration time by the
+// agent). Categories with zero items are skipped. Empty snapshot → "".
+function buildNearbySnapshotHtml(nearby) {
+  if (!nearby || typeof nearby !== "object") return "";
+  const order = ["schools","hospitals","pharmacies","worship","markets","banks","transport","food","services","leisure"];
+  const cats = order
+    .map(k => [k, nearby[k]])
+    .filter(([, g]) => g && Array.isArray(g.items) && g.items.length);
+  if (!cats.length) return "";
+  const fmtDist = m => (m == null ? "" : (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`));
+  const cards = cats.map(([, g]) => `
+    <details class="hd-nearby-cat" style="margin:6px 0;background:#fafbfc;border:1px solid #e6ebf0;border-radius:8px;padding:8px 12px;">
+      <summary style="cursor:pointer;font-size:.95rem;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:1.1rem;">${g.icon || "📍"}</span>
+        <strong>${esc(g.label || "Nearby")}</strong>
+        <span class="muted" style="margin-left:auto;font-size:.85rem;">${g.items.length}</span>
+      </summary>
+      <ul style="list-style:none;margin:8px 0 4px;padding:0 0 0 28px;font-size:.88rem;">
+        ${g.items.slice(0, 8).map(it => `<li style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;">
+          <span>${esc(it.name || "Unnamed")}</span>
+          <span class="muted" style="white-space:nowrap;">${esc(fmtDist(it.dist))}</span>
+        </li>`).join("")}
+      </ul>
+    </details>
+  `).join("");
+  return `
+    <div class="hd-card">
+      <h3>What's nearby</h3>
+      <p class="muted" style="margin:-4px 0 10px;font-size:.88rem;">Services within 1.5 km of the property pin. Sourced from OpenStreetMap.</p>
+      ${cards}
+    </div>`;
 }
 
 function stateHtml(title, body) {

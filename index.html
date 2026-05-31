@@ -27,11 +27,6 @@
       <span class="gold" data-i18n="hero_title_2">— the best way</span>
     </h1>
     <p data-i18n="hero_sub">Book your seat or send a parcel across all 26 mainland regions. Voice agent, verified bus partners, instant tickets, 80% loss insurance.</p>
-    <div class="hero-actions">
-      <a href="book-fast.html" class="btn btn-primary" data-i18n="hero_btn_book_fast">Book Seat Fast</a>
-      <a href="send.html" class="btn btn-secondary" data-i18n="hero_btn_send">Send a Parcel</a>
-      <a href="track.html" class="btn btn-outline" style="background:rgba(255,255,255,0.12);color:#fff;border-color:#fff" data-i18n="hero_btn_track">Track Order</a>
-    </div>
   </section>
 
   <!-- Stats strip with count-up animation -->
@@ -58,37 +53,23 @@
 
     <!-- Image-driven feature tiles -->
     <div class="hero-feature-grid">
-      <a href="book-fast.html" class="hero-feature" style="--feat-img:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
+      <a href="meet.html" class="hero-feature" style="--feat-img:url('data/mika-baumeister-nDciGidCdQo-unsplash.jpg')">
         <div class="hf-overlay">
-          <span class="hf-tag" data-i18n="feat_tag_flagship">★ FLAGSHIP</span>
-          <h3 data-i18n="feat_book_fast_title">Book Seat Fast</h3>
-          <p data-i18n="feat_book_fast_desc">AI agent calls, holds your seat, takes payment, sends ticket — automatically.</p>
-        </div>
-      </a>
-      <a href="ride.html" class="hero-feature" style="--feat-img:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
-        <div class="hf-overlay">
-          <span class="hf-tag gold" data-i18n="feat_tag_new">★ NEW</span>
-          <h3 data-i18n="feat_ride_title">Ride (Uber-style)</h3>
-          <p data-i18n="feat_ride_desc">Hail a car, bajaj, or bodaboda anywhere in Tanzania. Pay with mobile money. Live driver tracking.</p>
-        </div>
-      </a>
-      <a href="meet.html" class="hero-feature" style="--feat-img:url('data/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')">
-        <div class="hf-overlay">
-          <span class="hf-tag gold" data-i18n="feat_tag_new">★ NEW</span>
+          <span class="hf-tag gold" data-i18n="feat_tag_live">● LIVE</span>
           <h3 data-i18n="feat_meet_title">Meet & Locate (live GPS)</h3>
           <p data-i18n="feat_meet_desc">Share your real-time location like Uber — find each other for parcel handoffs across Tanzania.</p>
         </div>
       </a>
-      <a href="send.html" class="hero-feature" style="--feat-img:url('data/rafael-atantya-zK49QNwv8ow-unsplash.jpg')">
+      <a href="houses.html" class="hero-feature" style="--feat-img:url('data/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg')">
         <div class="hf-overlay">
-          <h3 data-i18n="feat_send_title">Send Parcel</h3>
-          <p data-i18n="feat_send_desc">Drop at one terminal, receiver collects at the other. 80% loss insurance built in.</p>
+          <h3 data-i18n="feat_houses_title">House Listings</h3>
+          <p data-i18n="feat_houses_desc">Browse verified houses across Tanzania — photos, prices, and direct contact with the owner.</p>
         </div>
       </a>
-      <a href="track.html" class="hero-feature" style="--feat-img:url('data/xt7-core-U5jCcT1ZSHs-unsplash.jpg')">
+      <a href="buses.html" class="hero-feature" style="--feat-img:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
         <div class="hf-overlay">
-          <h3 data-i18n="feat_track_title">Live Tracking</h3>
-          <p data-i18n="feat_track_desc">By code, sender, or receiver — see exactly where your parcel is, in real time.</p>
+          <h3 data-i18n="feat_companies_title">Bus Companies</h3>
+          <p data-i18n="feat_companies_desc">Every verified bus partner with photos, routes and contacts — pick the company you trust.</p>
         </div>
       </a>
     </div>
@@ -332,13 +313,16 @@
         strip.innerHTML = cards.join("");
       }
 
-      // ── Feature tiles (Book Seat Fast, Ride, etc.) ───────────────────
+      // ── Feature tiles: only swap the Bus Companies tile to a real
+      //    bus photo from the DB; leave Meet and Houses tiles alone so
+      //    they keep their intentional imagery.
       if (withPhoto.length) {
-        document.querySelectorAll(".hero-feature").forEach((tile, i) => {
-          const bus = withPhoto[i % withPhoto.length];
-          tile.style.setProperty("--feat-img",
+        const companiesTile = document.querySelector('.hero-feature[href="buses.html"]');
+        if (companiesTile) {
+          const bus = withPhoto[0];
+          companiesTile.style.setProperty("--feat-img",
             `url('${window.DataStore.busPhotoUrl(bus.photo_path)}')`);
-        });
+        }
       }
     })();
 

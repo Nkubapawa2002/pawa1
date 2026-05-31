@@ -294,6 +294,15 @@ img, svg { display: block; max-width: 100%; }
   overflow: hidden;
   isolation: isolate;
 }
+/* Homepage hero: let the photo dominate now that the action buttons
+   have moved into the feature grid below. */
+body[data-page="index"] .hero {
+  min-height: 65vh;
+  padding: 100px 20px 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 
 /* Two crossfade background layers injected by JS */
 .hero-bg {
@@ -1207,11 +1216,11 @@ td code { font-size: 0.85rem; background: var(--gray-light); padding: 2px 6px; b
   margin-left: 6px;
 }
 
-.stars { color: var(--gold-dark); letter-spacing: 1px; font-size: 1.05rem; }
+.stars { color: var(--gold-dark); letter-spacing: 0; font-size: 0.72rem; line-height: 1; white-space: nowrap; }
 .stars .star.empty { color: var(--gray-mid); }
 .stars .star.half { background: linear-gradient(90deg, var(--gold-dark) 50%, var(--gray-mid) 50%); -webkit-background-clip: text; color: transparent; }
-.rating-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
-.rating-row small { color: var(--gray); }
+.rating-row { display: flex; align-items: center; gap: 5px; margin: 2px 0 6px; flex-wrap: wrap; line-height: 1.1; }
+.rating-row small { color: var(--gray); font-size: 0.65rem; }
 
 /* Tabs (admin) */
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin: 24px 0 18px; flex-wrap: wrap; }
@@ -3366,12 +3375,16 @@ body[data-bg] .container > .page-subtitle {
    Homepage — image-driven sections
    ============================================ */
 
-/* Big feature tiles with background image */
+/* Big feature tiles with background image — exactly 3 tiles on the
+   homepage (Meet & Locate, Houses, Bus Companies). */
 .hero-feature-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   margin: 28px 0 8px;
+}
+@media (max-width: 900px) {
+  .hero-feature-grid { grid-template-columns: repeat(2, 1fr); }
 }
 .hero-feature {
   position: relative;

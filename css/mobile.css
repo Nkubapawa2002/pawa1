@@ -439,3 +439,167 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
 @media (min-width: 701px) {
   .pwa-install-btn { bottom: 16px; }
 }
+
+/* =====================================================================
+   Homepage compact: keep the desktop arrangement on phones, just scale
+   it down. Overrides the generic "1fr everywhere" rules above for
+   body[data-page="index"] only — other pages keep their stacked layout.
+   ===================================================================== */
+@media (max-width: 700px) {
+  body[data-page="index"] .container { padding: 10px 10px; }
+
+  /* Hero — big photo, just title + subtitle (action buttons removed) */
+  body[data-page="index"] .hero {
+    padding: 60px 14px 78px !important;   /* extra bottom so stats-strip can overlap */
+    min-height: 55vh !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  body[data-page="index"] .hero h1 {
+    font-size: clamp(1.35rem, 6vw, 1.8rem);
+    margin-bottom: 8px;
+  }
+  body[data-page="index"] .hero p {
+    font-size: 0.88rem;
+    margin-bottom: 0;
+  }
+
+  /* Stats strip — keep 4 columns like desktop, just compact */
+  body[data-page="index"] .stats-strip {
+    grid-template-columns: repeat(4, 1fr) !important;
+    margin: -28px 10px 0 !important;
+    padding: 10px 6px !important;
+    gap: 4px !important;
+  }
+  body[data-page="index"] .stat { padding: 0 4px; }
+  body[data-page="index"] .stat-value { font-size: 1.05rem; }
+  body[data-page="index"] .stat-label  { font-size: 0.6rem; line-height: 1.15; }
+
+  /* Feature tiles — 3 wide banners stacked on phones for a clean,
+     photo-forward feel that's still compact. */
+  body[data-page="index"] .hero-feature-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    margin: 14px 0 6px !important;
+  }
+  body[data-page="index"] .hero-feature {
+    aspect-ratio: 16 / 7;
+    border-radius: 12px;
+  }
+  body[data-page="index"] .hero-feature .hf-overlay { padding: 12px 14px; }
+  body[data-page="index"] .hero-feature h3 { font-size: 1rem; margin-bottom: 3px; line-height: 1.2; }
+  body[data-page="index"] .hero-feature p  {
+    font-size: 0.76rem; line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  body[data-page="index"] .hf-tag {
+    font-size: 0.6rem; padding: 2px 7px; margin-bottom: 5px;
+  }
+
+  /* Sections — tighter vertical rhythm */
+  body[data-page="index"] .section { padding: 22px 12px !important; }
+  body[data-page="index"] .section-title {
+    font-size: 1.05rem !important;
+    margin-bottom: 10px !important;
+  }
+
+  /* Route strip — smaller cards so 2 fit on screen */
+  body[data-page="index"] .route-strip { gap: 8px; padding: 4px 2px 10px; }
+  body[data-page="index"] .route-card  { width: 168px; height: 108px; border-radius: 10px; }
+  body[data-page="index"] .route-card .rc-overlay { padding: 8px; }
+  body[data-page="index"] .rc-from, body[data-page="index"] .rc-to { font-size: 0.78rem; }
+  body[data-page="index"] .rc-arrow { font-size: 0.95rem; margin: 1px 0; }
+  body[data-page="index"] .rc-meta  { font-size: 0.6rem; }
+  body[data-page="index"] .rc-bus   { font-size: 0.55rem; }
+
+  /* Testimonials — 2 cols instead of stacked */
+  body[data-page="index"] .testi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  body[data-page="index"] .testi-card { padding: 10px 10px 8px; border-radius: 8px; }
+  body[data-page="index"] .testi-stars { font-size: 0.85rem; margin-bottom: 4px; }
+  body[data-page="index"] .testi-card p { font-size: 0.74rem; line-height: 1.35; margin-bottom: 6px; }
+  body[data-page="index"] .testi-card footer { font-size: 0.64rem; }
+
+  /* FAQ — slimmer cards */
+  body[data-page="index"] .faq-list { gap: 5px; }
+  body[data-page="index"] .faq-list details { padding: 8px 12px; border-radius: 8px; }
+  body[data-page="index"] .faq-list summary { font-size: 0.85rem; }
+  body[data-page="index"] .faq-list details p { font-size: 0.78rem; margin-top: 6px; }
+
+  /* "How it works" — 3 cols like desktop */
+  body[data-page="index"] .steps {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+  body[data-page="index"] .step { padding: 10px 8px; border-radius: 8px; border-top-width: 3px; }
+  body[data-page="index"] .step h3 { font-size: 0.8rem; margin-bottom: 4px; }
+  body[data-page="index"] .step p  { font-size: 0.68rem; line-height: 1.3; }
+
+  /* Insurance banner — keep desktop two-column icon+text */
+  body[data-page="index"] .insurance-banner {
+    grid-template-columns: 48px 1fr !important;
+    text-align: left !important;
+    padding: 14px 14px !important;
+    gap: 12px !important;
+    align-items: center !important;
+  }
+  body[data-page="index"] .insurance-icon {
+    width: 48px; height: 48px; border-radius: 10px;
+  }
+  body[data-page="index"] .insurance-icon svg { width: 26px; height: 26px; }
+  body[data-page="index"] .insurance-banner h3 { font-size: 0.95rem; margin-bottom: 4px; }
+  body[data-page="index"] .insurance-banner p  { font-size: 0.76rem; margin-bottom: 2px; }
+  body[data-page="index"] .insurance-banner small { font-size: 0.66rem; }
+}
+
+/* =====================================================================
+   Agents directory — keep the rating row from crashing into the name
+   on narrow phones. Stack name → verified-badge → rating cleanly.
+   ===================================================================== */
+@media (max-width: 700px) {
+  body[data-page="agents"] .agent-card-head {
+    align-items: flex-start;          /* avatar pins to top, not centre */
+    gap: 10px;
+  }
+  body[data-page="agents"] .agent-avatar {
+    width: 48px; height: 48px;
+    font-size: 0.95rem;
+    border-width: 2px;
+  }
+  body[data-page="agents"] .agent-card-id { min-width: 0; flex: 1 1 auto; }
+
+  /* Name: tight line-height, room to breathe before the rating row */
+  body[data-page="agents"] .agent-card-id h3 {
+    font-size: 1rem !important;
+    line-height: 1.25 !important;
+    margin: 0 0 6px !important;
+    word-break: break-word;
+  }
+  /* Verified badge sits on its own line under the name so it never
+     pushes the rating row up under the H3 */
+  body[data-page="agents"] .agent-card-id .verified-badge {
+    display: inline-flex;
+    margin: 4px 0 0;
+    font-size: 0.66rem;
+    padding: 1px 7px;
+  }
+  /* Rating row: allow wrap, clear gap above, tiny stars so they don't
+     crowd the name on narrow phones */
+  body[data-page="agents"] .rating-row {
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0 6px !important;
+    line-height: 1;
+  }
+  body[data-page="agents"] .rating-row .stars {
+    font-size: 0.65rem !important;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  body[data-page="agents"] .rating-row small { font-size: 0.6rem !important; }
+}
