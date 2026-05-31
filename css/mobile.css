@@ -439,3 +439,23 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
 @media (min-width: 701px) {
   .pwa-install-btn { bottom: 16px; }
 }
+
+/* =====================================================================
+   Agents directory rating row — tiny stars on phones so they never push
+   the name onto a second line or crowd the verified badge.
+   ===================================================================== */
+@media (max-width: 700px) {
+  body[data-page="agents"] .rating-row {
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0 6px !important;
+    line-height: 1;
+  }
+  body[data-page="agents"] .rating-row .stars {
+    font-size: 0.65rem !important;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  body[data-page="agents"] .rating-row small { font-size: 0.6rem !important; }
+}
