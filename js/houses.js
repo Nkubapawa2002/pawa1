@@ -32,13 +32,24 @@ window.initHousesPage = async () => {
   const tabList    = document.getElementById("tabList");
   const tabMap     = document.getElementById("tabMap");
 
+  // Country-wide place search
+  const placeInput   = document.getElementById("placeSearchInput");
+  const placeResults = document.getElementById("placeSearchResults");
+  const placeClear   = document.getElementById("placeClearBtn");
+  const placeReset   = document.getElementById("placeResetBtn");
+  const placeChip    = document.getElementById("placeActiveChip");
+
   // ---- State -------------------------------------------------------------
-  let houses    = [];
-  let visible   = [];
-  let map       = null;
-  let markers   = new Map();   // id -> marker
-  let activeId  = null;
-  let userLoc   = null;
+  let houses     = [];
+  let visible    = [];
+  let map        = null;
+  let markers    = new Map();   // id -> marker
+  let activeId   = null;
+  let userLoc    = null;
+  // Active place filter — set when the user picks a Nominatim result.
+  // Properties are then restricted to within `placeRadiusKm` of that pin.
+  let activePlace    = null;       // { lat, lng, name, kind, displayName }
+  let placeRadiusKm  = 10;
 
   // ---- Load data ---------------------------------------------------------
   try {
@@ -67,6 +78,9 @@ window.initHousesPage = async () => {
 
   // ---- Geo-circle area alerts (Nominatim + GPS + draggable pin) ----------
   setupGeoAlerts();
+
+  // ---- Country-wide place search (region / district / ward / village / street) ----
+  setupPlaceSearch();
 
   // ---- Near-me -----------------------------------------------------------
   nearBtn?.addEventListener("click", () => {
@@ -562,18 +576,239 @@ window.initHousesPage = async () => {
         if (hi && p > +hi) return false;
       }
       if (q) {
-        const hay = `${h.title} ${h.area} ${h.address} ${h.region}`.toLowerCase();
+        // Extended haystack so typing "rent", "apartment", "3 bed", a price
+        // figure, or an area name in the same search box all narrow the list.
+        // Bedroom variants ("3 bed", "3br", "3 bedroom") let users phrase it
+        // however they like. Price is included as a raw int so partial
+        // matches work ("500000" hits anything between 500k and 5M).
+        const hay = [
+          h.title, h.area, h.address, h.region,
+          h.listing, h.type,
+          h.bedrooms ? `${h.bedrooms}bed ${h.bedrooms} bed ${h.bedrooms} bedroom ${h.bedrooms}br` : "",
+          h.bathrooms ? `${h.bathrooms} bath` : "",
+          h.price_tzs ? String(h.price_tzs) : ""
+        ].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
+      }
+      // Active country-wide place pick → restrict to listings within the
+      // pick's radius. Listings missing coordinates fall through (they
+      // can't be located anyway) unless the user typed an explicit area
+      // match into the regular text search.
+      if (activePlace && Number.isFinite(h.lat) && Number.isFinite(h.lng)) {
+        const d = haversineKm(h.lat, h.lng, activePlace.lat, activePlace.lng);
+        if (d > placeRadiusKm) return false;
       }
       return true;
     });
 
     if (userLoc) {
       visible.sort((a, b) => distKm(userLoc, a) - distKm(userLoc, b));
+    } else if (activePlace) {
+      // Sort by proximity to the selected place so nearest listings lead.
+      visible.sort((a, b) =>
+        haversineKm(a.lat, a.lng, activePlace.lat, activePlace.lng) -
+        haversineKm(b.lat, b.lng, activePlace.lat, activePlace.lng));
     }
 
     renderList();
     renderMarkers();
+  }
+
+  // ====================================================================
+  //  Country-wide place search (Nominatim → fly map + filter)
+  // ====================================================================
+  function setupPlaceSearch() {
+    if (!placeInput) return;
+
+    let searchTimer = null;
+    let lastResults = [];
+    let kbdIdx      = -1;
+
+    placeInput.addEventListener("input", () => {
+      const q = placeInput.value.trim();
+      placeClear.hidden = q.length === 0;
+      if (q.length < 2) { placeResults.hidden = true; return; }
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => runPlaceSearch(q), 280);
+    });
+
+    placeInput.addEventListener("keydown", (e) => {
+      if (placeResults.hidden || !lastResults.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        kbdIdx = (kbdIdx + 1) % lastResults.length;
+        focusResult(kbdIdx);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        kbdIdx = (kbdIdx - 1 + lastResults.length) % lastResults.length;
+        focusResult(kbdIdx);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (kbdIdx >= 0) pickResult(lastResults[kbdIdx]);
+        else if (lastResults[0]) pickResult(lastResults[0]);
+      } else if (e.key === "Escape") {
+        placeResults.hidden = true;
+      }
+    });
+
+    placeClear.addEventListener("click", () => {
+      placeInput.value = "";
+      placeClear.hidden = true;
+      placeResults.hidden = true;
+    });
+
+    placeReset.addEventListener("click", () => {
+      clearActivePlace();
+    });
+
+    // Click outside → close results.
+    document.addEventListener("click", (e) => {
+      if (!placeResults.hidden && !e.target.closest(".houses-placebar")) {
+        placeResults.hidden = true;
+      }
+    });
+
+    async function runPlaceSearch(q) {
+      placeResults.hidden = false;
+      placeResults.innerHTML = `<div class="hpb-result loading">Searching Tanzania…</div>`;
+      try {
+        // Nominatim — country-scoped, with address details so we can label
+        // each match by kind (region/district/ward/village/road/place).
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=8&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`;
+        const r = await fetch(url, { headers: { "Accept": "application/json" } });
+        const list = await r.json();
+        lastResults = (list || []).filter(it => it && it.lat && it.lon);
+        kbdIdx = -1;
+        if (!lastResults.length) {
+          placeResults.innerHTML = `<div class="hpb-result loading">No matches in Tanzania.</div>`;
+          return;
+        }
+        placeResults.innerHTML = lastResults.map((it, i) => {
+          const kind  = classifyPlace(it);
+          const parts = (it.display_name || "").split(",").map(s => s.trim());
+          const name  = parts[0] || it.name || "—";
+          const rest  = parts.slice(1, 4).join(", ");
+          return `<div class="hpb-result" data-i="${i}">
+            <span class="hpb-kind">${esc(kind)}</span>
+            <strong>${esc(name)}</strong>
+            ${rest ? `<small>${esc(rest)}</small>` : ""}
+          </div>`;
+        }).join("");
+        placeResults.querySelectorAll(".hpb-result[data-i]").forEach(div => {
+          div.addEventListener("click", () => pickResult(lastResults[+div.dataset.i]));
+        });
+      } catch (err) {
+        placeResults.innerHTML = `<div class="hpb-result loading">Search failed: ${esc(err.message)}</div>`;
+      }
+    }
+
+    function focusResult(i) {
+      placeResults.querySelectorAll(".hpb-result").forEach((el, idx) => {
+        el.classList.toggle("kbd", idx === i);
+      });
+    }
+
+    function pickResult(it) {
+      if (!it) return;
+      const lat  = parseFloat(it.lat), lng = parseFloat(it.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const kind = classifyPlace(it);
+      const name = (it.display_name || "").split(",")[0]?.trim() || it.name || "Selected place";
+      activePlace = { lat, lng, name, kind, displayName: it.display_name || name };
+
+      // Radius scales with the level — a region needs a much bigger ring
+      // than a single street.
+      placeRadiusKm = radiusForKind(kind);
+
+      // Fly the map.
+      if (map) {
+        // Prefer the bounding box if Nominatim returned one — it frames the
+        // full administrative area instead of a single point.
+        if (Array.isArray(it.boundingbox) && it.boundingbox.length === 4) {
+          const [s, n, w, e] = it.boundingbox.map(Number);
+          if ([s, n, w, e].every(Number.isFinite)) {
+            map.fitBounds([[w, s], [e, n]], { padding: 60, maxZoom: 15, duration: 600 });
+          } else {
+            map.easeTo({ center: [lng, lat], zoom: zoomForKind(kind), duration: 500 });
+          }
+        } else {
+          map.easeTo({ center: [lng, lat], zoom: zoomForKind(kind), duration: 500 });
+        }
+      }
+
+      // Show the active chip.
+      placeChip.hidden = false;
+      placeChip.innerHTML = `
+        📍 ${esc(name)}
+        <small>(${esc(kind)} · within ${placeRadiusKm} km)</small>
+        <button type="button" id="placeChipClose" aria-label="Clear place"
+                style="background:rgba(0,0,0,.08);border:none;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:.9rem;line-height:1;">&times;</button>`;
+      document.getElementById("placeChipClose")?.addEventListener("click", clearActivePlace);
+      placeReset.hidden = false;
+
+      placeResults.hidden = true;
+      placeInput.value = name;
+      placeClear.hidden = false;
+      apply();
+    }
+
+    function clearActivePlace() {
+      activePlace = null;
+      placeRadiusKm = 10;
+      placeChip.hidden = true; placeChip.innerHTML = "";
+      placeReset.hidden = true;
+      placeInput.value = "";
+      placeClear.hidden = true;
+      placeResults.hidden = true;
+      if (map) {
+        map.easeTo({ center: [34.888822, -6.369028], zoom: 5.4, duration: 500 });
+      }
+      apply();
+    }
+
+    // ---- Classifying Nominatim results ----
+    // Nominatim returns `type` + `class` + an `address` object. We map those
+    // into the user-visible buckets the user asked for: region, district,
+    // ward, village, street, place.
+    function classifyPlace(it) {
+      const t = (it.type || "").toLowerCase();
+      const c = (it.class || "").toLowerCase();
+      const a = it.address || {};
+      if (t === "administrative") {
+        const lvl = parseInt(a["admin_level"] || it.place_rank || "0", 10);
+        if (a.state || a.region || lvl <= 4) return "region";
+        if (a.county || a.state_district || lvl <= 6) return "district";
+        if (a.suburb || a.city_district || a.municipality || lvl <= 8) return "ward";
+      }
+      if (a.village || a.hamlet || t === "village" || t === "hamlet") return "village";
+      if (c === "highway" || t === "road" || t === "residential" || t === "street") return "street";
+      if (a.city || a.town || t === "city" || t === "town") return "town";
+      if (a.suburb || a.neighbourhood) return "ward";
+      return "place";
+    }
+
+    function radiusForKind(kind) {
+      switch (kind) {
+        case "region":   return 60;
+        case "district": return 25;
+        case "town":     return 15;
+        case "ward":     return 5;
+        case "village":  return 4;
+        case "street":   return 1.5;
+        default:         return 10;
+      }
+    }
+    function zoomForKind(kind) {
+      switch (kind) {
+        case "region":   return 8.5;
+        case "district": return 10.5;
+        case "town":     return 12;
+        case "ward":     return 13.5;
+        case "village":  return 14;
+        case "street":   return 16;
+        default:         return 12;
+      }
+    }
   }
 
   // ====================================================================
@@ -625,6 +860,7 @@ window.initHousesPage = async () => {
         h.size_sqm ? `<span>📐 ${h.size_sqm} m²</span>` : ""
       ].filter(Boolean).join("");
       const loc = `${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}`;
+      const nearbyBadge = nearbyBadgeHtml(h.nearby);
       const dist = (userLoc && Number.isFinite(h.lat) && Number.isFinite(h.lng))
         ? ` · ${distKm(userLoc, h).toFixed(1)} km away`
         : "";
@@ -641,6 +877,7 @@ window.initHousesPage = async () => {
             <div class="house-card-title">${esc(h.title)}</div>
             <div class="house-card-meta">${meta}</div>
             <div class="house-card-loc">📍 ${loc}${dist}</div>
+            ${nearbyBadge}
             <a href="house.html?id=${encodeURIComponent(h.id)}"
                class="house-card-view" aria-label="View details for ${esc(h.title)}">View details →</a>
           </div>
@@ -756,8 +993,8 @@ window.initHousesPage = async () => {
           { id: "carto_labels",   type: "raster", source: "carto_labels", minzoom: 11 }
         ]
       },
-      center: [39.2789, -6.7924],   // Dar es Salaam — most listings cluster here
-      zoom: 11,
+      center: [34.888822, -6.369028],   // Country centroid — opens nationwide
+      zoom: 5.4,                         // shows mainland + Zanzibar in one view
       maxBounds: TZ_BOUNDS,
       attributionControl: true
     });
@@ -787,7 +1024,9 @@ window.initHousesPage = async () => {
         .addTo(map);
       markers.set(h.id, mk);
     }
-    fitToVisible(mappable);
+    // Don't fit to the listings when the user has explicitly picked a place
+    // or used GPS — those choices set the map view themselves.
+    if (!activePlace && !userLoc) fitToVisible(mappable);
   }
 
   function fitToVisible(mappable) {
@@ -884,6 +1123,27 @@ window.initHousesPage = async () => {
     const R = 6371, dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
     const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
     return 2 * R * Math.asin(Math.sqrt(x));
+  }
+
+  // Compact "nearby" badge for the listings grid — shown when the agent's
+  // saved snapshot has at least one category with items.
+  function nearbyBadgeHtml(nearby) {
+    if (!nearby || typeof nearby !== "object") return "";
+    const order = [
+      ["schools","🏫"],["hospitals","🏥"],["pharmacies","💊"],
+      ["markets","🛒"],["transport","🚌"],["banks","🏧"],
+      ["worship","🕌"],["food","🍽️"],["services","🏛️"],["leisure","🌳"]
+    ];
+    const cells = order
+      .map(([k, icon]) => {
+        const g = nearby[k];
+        if (!g || !Array.isArray(g.items) || !g.items.length) return null;
+        return `<span title="${esc(g.label || k)}" style="margin-right:8px;font-size:.8rem;color:#555;">${icon}${g.items.length}</span>`;
+      })
+      .filter(Boolean)
+      .slice(0, 5);
+    if (!cells.length) return "";
+    return `<div class="house-card-nearby" style="display:flex;flex-wrap:wrap;align-items:center;margin-top:4px;">${cells.join("")}</div>`;
   }
   // 4-arg form used by the area-alert distance checks (runNewListingDiff
   // + the Realtime INSERT handler). Same maths, different signature.
