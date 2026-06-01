@@ -1051,10 +1051,7 @@ create policy "house-photos upload" on storage.objects for insert
       if (fPinFill) fPinFill.hidden = true;
     }
     try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2`
-                + `&lat=${pickedLatLng.lat}&lon=${pickedLatLng.lng}&zoom=18&addressdetails=1`;
-      const r = await fetch(url, { headers: { "Accept": "application/json" } });
-      const j = await r.json();
+      const j = await pawaGeo.reverse(`format=jsonv2&lat=${pickedLatLng.lat}&lon=${pickedLatLng.lng}&zoom=18&addressdetails=1`);
       // If the pin moved again while we were waiting, drop this stale answer.
       if (key !== geocodeKey) return;
       const a = j.address || {};

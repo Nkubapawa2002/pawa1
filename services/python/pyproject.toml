@@ -1,0 +1,11 @@
+[project]
+name = "pawa-python"
+version = "0.1.0"
+description = "Pawa polyglot stack - Python service (AI reasoning / ML / data / scripting)"
+requires-python = ">=3.11"
+dependencies = []
+
+# This is a runnable script env, not an installable package, so uv shouldn't try
+# to build it. `uv run main.py` just resolves the (currently empty) env.
+[tool.uv]
+package = false

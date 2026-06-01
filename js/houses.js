@@ -415,9 +415,7 @@ window.initHousesPage = async () => {
       if (known) combined.push({ display_name: known.name, lat: known.lat, lon: known.lng, _known: true });
       const short2 = (it) => (it.display_name || "").split(",").slice(0, 2).join(", ");
       try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`;
-        const r = await fetch(url, { headers: { "Accept": "application/json" } });
-        const list = await r.json();
+        const list = await pawaGeo.search(`format=json&limit=6&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`);
         for (const it of list) {
           if (combined.some(c => short2(c) === short2(it))) continue;
           combined.push(it);
@@ -693,9 +691,7 @@ window.initHousesPage = async () => {
     const q = (phrase || "").trim();
     if (q.length < 3) return null;
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tz&q=${encodeURIComponent(q)}`;
-      const r = await fetch(url, { headers: { "Accept": "application/json" } });
-      const list = await r.json();
+      const list = await pawaGeo.search(`format=json&limit=1&countrycodes=tz&q=${encodeURIComponent(q)}`);
       const it = list && list[0];
       if (!it) return null;
       const lat = +it.lat, lng = +it.lon;
@@ -1028,9 +1024,7 @@ window.initHousesPage = async () => {
     const known = window.resolveTzPlace && window.resolveTzPlace(q);
     if (known) out.push({ name: known.name, lat: known.lat, lng: known.lng, tag: "Known place", known: true });
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`;
-      const r = await fetch(url, { headers: { "Accept": "application/json" } });
-      const list = await r.json();
+      const list = await pawaGeo.search(`format=jsonv2&limit=8&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`);
       for (const it of list) {
         const lat = +it.lat, lng = +it.lon;
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
@@ -1045,9 +1039,7 @@ window.initHousesPage = async () => {
   // Reverse-geocode a tapped/dragged point into a nearby-area label.
   async function reverseName(lat, lng) {
     try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&addressdetails=1&lat=${lat}&lon=${lng}`;
-      const r = await fetch(url, { headers: { "Accept": "application/json" } });
-      return placeAreaLabel(await r.json());
+      return placeAreaLabel(await pawaGeo.reverse(`format=jsonv2&zoom=16&addressdetails=1&lat=${lat}&lon=${lng}`));
     } catch (_) { return null; }
   }
 

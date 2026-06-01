@@ -1,0 +1,8 @@
+# Polyglot service build artifacts & caches — keep source, not outputs.
+rust/target/
+go/bin/
+**/__pycache__/
+*.class
+*.pyc
+*.exe
+.venv/

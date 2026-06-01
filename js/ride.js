@@ -292,11 +292,7 @@ window.initRidePage = () => {
     if (q.length < 3) return;
     // Take the first Tanzania match silently — pickup is usually GPS, not typed.
     try {
-      const url = "https://nominatim.openstreetmap.org/search"
-        + `?q=${encodeURIComponent(q + ", Tanzania")}`
-        + "&format=json&limit=1&countrycodes=tz";
-      const r = await fetch(url, { headers: { "Accept-Language": "en" } });
-      const j = await r.json();
+      const j = await pawaGeo.search(`q=${encodeURIComponent(q + ", Tanzania")}&format=json&limit=1&countrycodes=tz&accept-language=en`);
       const h = (j || []).find(x => inTanzania(+x.lat, +x.lon));
       if (h) setPickup(+h.lat, +h.lon, h.display_name.split(",")[0]);
     } catch {}
@@ -304,11 +300,7 @@ window.initRidePage = () => {
 
   async function geocode(q, anchor, kind) {
     try {
-      const url = "https://nominatim.openstreetmap.org/search"
-        + `?q=${encodeURIComponent(q + ", Tanzania")}`
-        + "&format=json&addressdetails=1&limit=6&countrycodes=tz";
-      const r = await fetch(url, { headers: { "Accept-Language": "en" } });
-      const j = await r.json();
+      const j = await pawaGeo.search(`q=${encodeURIComponent(q + ", Tanzania")}&format=json&addressdetails=1&limit=6&countrycodes=tz&accept-language=en`);
       const hits = (j || []).filter(h => inTanzania(+h.lat, +h.lon));
       if (!hits.length) { searchHits.hidden = true; return; }
       searchHits.hidden = false;
@@ -369,9 +361,7 @@ window.initRidePage = () => {
 
   async function reverseGeocode(lat, lng) {
     try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`;
-      const r = await fetch(url, { headers: { "Accept-Language": "en" } });
-      const j = await r.json();
+      const j = await pawaGeo.reverse(`format=json&lat=${lat}&lon=${lng}&zoom=16&accept-language=en`);
       return j?.display_name || null;
     } catch { return null; }
   }

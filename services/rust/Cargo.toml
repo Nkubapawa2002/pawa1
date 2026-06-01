@@ -1,0 +1,9 @@
+[package]
+name = "pawa-rust"
+version = "0.1.0"
+edition = "2021"
+description = "Pawa polyglot stack - Rust service (CPU-bound / perf-critical / WASM source)"
+
+# Std-library only by design: a dependency-free /health stub that compiles
+# offline. Add crates here when real perf-critical work lands.
+[dependencies]

@@ -2090,11 +2090,7 @@ const _initMeetPageImpl = () => {
 
   async function fetchAddress(lat, lng) {
     try {
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-        { headers: { "Accept-Language": "en" } }
-      );
-      const j = await r.json();
+      const j = await pawaGeo.reverse(`format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`);
       const a = j.address || {};
       return {
         street: a.road || a.pedestrian || a.footway || a.path || a.residential || "",

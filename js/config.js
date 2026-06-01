@@ -13,6 +13,14 @@ window.APP_CONFIG = {
   BUS_PHOTOS_BUCKET: "bus-photos",
   AGENT_PHOTOS_BUCKET: "agent-photos",
 
+  // ---------- Map / geocoding gateway (services/go) ----------
+  // Public URL of the Go map gateway that fronts OpenStreetMap/Nominatim
+  // (rate-limited + cached + proper User-Agent). Leave empty to auto-use
+  // http://127.0.0.1:8091 on localhost and fall back to calling Nominatim
+  // directly everywhere else. Set this to your deployed gateway URL (no
+  // trailing slash) to route all production traffic through it.
+  GEO_GATEWAY_URL: "",
+
   // Emails allowed to log into admin.html (must also exist in `admins` table for RLS).
   ADMIN_EMAILS: ["pawa4761@gmail.com"],
 

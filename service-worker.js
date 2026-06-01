@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v70-2026-06-01-home-phone-grid";
+const VERSION = "v74-2026-06-01-geo-gateway";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -16,6 +16,7 @@ const APP_SHELL = [
   "./css/houses-pro.css",
   "./css/neon-pro.css",
   "./js/config.js",
+  "./js/geo.js",
   "./js/i18n.js",
   "./js/data.js",
   "./js/auth.js",
