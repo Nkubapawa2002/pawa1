@@ -347,12 +347,39 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
   .hero-actions { flex-direction: column; gap: 8px; align-items: stretch; }
   .hero-actions .btn { width: 100%; text-align: center; }
 
-  .hero-feature-grid, .pitch-grid, .stats-strip,
-  .stack ul, .steps, .metric-row,
+  .pitch-grid,
+  .stack ul, .metric-row,
   .form-grid, .db-grid {
     grid-template-columns: 1fr !important;
   }
   .stack ul { columns: 1; }
+
+  /* Homepage: keep the same multi-column arrangement as desktop on phones —
+     just scaled smaller (per request) instead of stacking to one column. */
+  .hero-feature-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px; margin: 18px 0 6px;
+  }
+  .hero-feature { aspect-ratio: 3 / 4; border-radius: 11px; }
+  .hero-feature .hf-overlay { padding: 9px; }
+  .hero-feature h3 { font-size: .72rem; line-height: 1.12; margin-bottom: 2px; }
+  .hero-feature p  { font-size: .58rem; line-height: 1.2; }
+  .hero-feature .hf-tag { font-size: .54rem; padding: 2px 6px; margin-bottom: 5px; }
+
+  .stats-strip {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px; padding: 14px 10px;
+  }
+  .stats-strip .stat-value { font-size: 1.2rem; }
+  .stats-strip .stat-label { font-size: .58rem; line-height: 1.15; }
+
+  .steps {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px;
+  }
+  .step { padding: 12px 10px; }
+  .step h3 { font-size: .8rem; margin-bottom: 4px; }
+  .step p  { font-size: .66rem; }
 
   /* Tables: scroll horizontally rather than overflow the screen. */
   table {

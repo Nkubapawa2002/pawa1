@@ -27,8 +27,10 @@ window.initHousesPage = async () => {
   const fSearch    = document.getElementById("filterSearch");
   const nearBtn    = document.getElementById("houseNearMeBtn");
   const alertBtn   = document.getElementById("houseAlertBtn");
+  const commuteBtn = document.getElementById("houseCommuteBtn");
   const alertBanner= document.getElementById("housesAlertBanner");
   const watchChips = document.getElementById("housesWatchChips");
+  const placesChips= document.getElementById("housesPlacesChips");
   const tabList    = document.getElementById("tabList");
   const tabMap     = document.getElementById("tabMap");
   const ssForm     = document.getElementById("smartSearch");
@@ -45,6 +47,28 @@ window.initHousesPage = async () => {
   let userLoc   = null;
   let smartCriteria = null;        // parsed natural-language query (or null)
   let matchScores   = new Map();   // house id -> match % (when smart search active)
+  let landmarkLoc   = null;        // { lat, lng, name } anchor when a known place is searched
+  let landmarkMarker= null;        // MapLibre marker for the landmark anchor
+  let myPlaces      = [];          // [{id,label,kind,name,lat,lng,mode,maxMin}] — "match to my life"
+  let commuteScores = new Map();   // house id -> { legs, total, pass } when myPlaces active
+
+  // Transport modes + place kinds for "Match to my life" (declared up here so
+  // setupMyPlaces(), which runs during init, is never in their dead zone).
+  const MODES = {
+    walk:     { label: "Walk",     icon: "🚶", kmh: 4.5 },
+    bodaboda: { label: "Bodaboda", icon: "🏍️", kmh: 22 },
+    bajaji:   { label: "Bajaji",   icon: "🛺", kmh: 18 },
+    daladala: { label: "Daladala", icon: "🚌", kmh: 16 },
+    car:      { label: "Car",      icon: "🚗", kmh: 26 }
+  };
+  const PLACE_KINDS = {
+    work:   { icon: "🏢", label: "Workplace" },
+    school: { icon: "🏫", label: "School" },
+    family: { icon: "👪", label: "Family / friends" },
+    fav:    { icon: "⭐", label: "Favourite spot" },
+    custom: { icon: "📍", label: "Place" }
+  };
+  const ROAD_DETOUR = 1.3;         // straight-line km × this ≈ road km in a TZ city
 
   // ---- Load data ---------------------------------------------------------
   try {
@@ -77,6 +101,9 @@ window.initHousesPage = async () => {
   // ---- Geo-circle area alerts (Nominatim + GPS + draggable pin) ----------
   setupGeoAlerts();
 
+  // ---- "Match to my life" — rank/filter by distance to the user's places -
+  setupMyPlaces();
+
   // ---- Near-me -----------------------------------------------------------
   nearBtn?.addEventListener("click", () => {
     if (!navigator.geolocation) { alert("Geolocation isn't supported on this device."); return; }
@@ -86,7 +113,8 @@ window.initHousesPage = async () => {
         userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         nearBtn.disabled = false;
         nearBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Sorted by distance`;
-        if (map) map.easeTo({ center: [userLoc.lng, userLoc.lat], zoom: 12 });
+        if (map && !landmarkLoc) map.easeTo({ center: [userLoc.lng, userLoc.lat], zoom: 12 });
+        updateLandmarkInfo();   // now we can show "your home is X km from <place>"
         apply();   // resort by proximity
       },
       (err) => {
@@ -379,31 +407,41 @@ window.initHousesPage = async () => {
     async function doSearch(q) {
       resultsEl.hidden = false;
       resultsEl.innerHTML = `<div class="am-search-result loading">Searching…</div>`;
+      // Known places (universities, hospitals, malls, airports…) resolve
+      // instantly from the gazetteer and float to the top of the results, so
+      // "UDSM" or "Mlimani City" drops the pin exactly on the spot.
+      const combined = [];
+      const known = window.resolveTzPlace && window.resolveTzPlace(q);
+      if (known) combined.push({ display_name: known.name, lat: known.lat, lon: known.lng, _known: true });
+      const short2 = (it) => (it.display_name || "").split(",").slice(0, 2).join(", ");
       try {
         const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`;
         const r = await fetch(url, { headers: { "Accept": "application/json" } });
         const list = await r.json();
-        if (!list.length) { resultsEl.innerHTML = `<div class="am-search-result loading">No matches in Tanzania.</div>`; return; }
-        resultsEl.innerHTML = list.map((it, i) => {
-          const short = (it.display_name || "").split(",").slice(0, 2).join(", ");
-          const rest  = (it.display_name || "").split(",").slice(2).join(", ");
-          return `<div class="am-search-result" data-i="${i}">
-            <strong>${esc(short)}</strong>
-            ${rest ? `<small>${esc(rest)}</small>` : ""}
-          </div>`;
-        }).join("");
-        resultsEl.querySelectorAll(".am-search-result").forEach(div => {
-          div.addEventListener("click", () => {
-            const it = list[+div.dataset.i];
-            if (!it) return;
-            setPin(+it.lat, +it.lon, (it.display_name || "").split(",").slice(0, 2).join(", "));
-            resultsEl.hidden = true;
-            searchIn.value = (it.display_name || "").split(",")[0];
-          });
-        });
+        for (const it of list) {
+          if (combined.some(c => short2(c) === short2(it))) continue;
+          combined.push(it);
+        }
       } catch (e) {
-        resultsEl.innerHTML = `<div class="am-search-result loading">Search failed: ${esc(e.message)}</div>`;
+        if (!combined.length) { resultsEl.innerHTML = `<div class="am-search-result loading">Search failed: ${esc(e.message)}</div>`; return; }
       }
+      if (!combined.length) { resultsEl.innerHTML = `<div class="am-search-result loading">No matches in Tanzania.</div>`; return; }
+      resultsEl.innerHTML = combined.map((it, i) => {
+        const rest = (it.display_name || "").split(",").slice(2).join(", ");
+        return `<div class="am-search-result" data-i="${i}">
+          <strong>${esc(short2(it))}${it._known ? " · known place" : ""}</strong>
+          ${rest ? `<small>${esc(rest)}</small>` : ""}
+        </div>`;
+      }).join("");
+      resultsEl.querySelectorAll(".am-search-result").forEach(div => {
+        div.addEventListener("click", () => {
+          const it = combined[+div.dataset.i];
+          if (!it) return;
+          setPin(+it.lat, +it.lon, short2(it));
+          resultsEl.hidden = true;
+          searchIn.value = (it.display_name || "").split(",")[0];
+        });
+      });
     }
 
     // Save
@@ -617,11 +655,146 @@ window.initHousesPage = async () => {
     apply();
     if (ssExamples) ssExamples.hidden = true;
     document.getElementById("housesStage")?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // Known-place anchoring (async): if the query names a university, hospital,
+    // mall, airport, etc., drop a precise pin on it and rank listings by how
+    // close they are to that place.
+    maybeAnchorLandmark(q);
+  }
+
+  // ====================================================================
+  //  Known-place anchoring
+  //  Resolve a landmark from the query (gazetteer first for instant,
+  //  reliable pins; OSM/Nominatim second to refine to the exact site),
+  //  drop a distinct pin on the map, and switch ranking to "nearest to
+  //  that place first". Distances use the haversine great-circle formula.
+  // ====================================================================
+  function extractPlacePhrase(raw) {
+    const m = String(raw || "").match(/\b(?:near|nearby|close to|next to|around|beside|by|opposite|adjacent to|at)\s+(.+)$/i);
+    return (m ? m[1] : raw || "").trim();
+  }
+
+  // Should we even try? Yes if the user wrote "near <x>", or typed a bare
+  // place name (no property criteria parsed), or the gazetteer already
+  // recognises a place inside the query.
+  function shouldAnchor(q, c) {
+    if (/\b(near|nearby|close to|next to|around|beside|opposite|adjacent to)\b/i.test(q)) return true;
+    const bare = !c.listing && !c.type && c.bedrooms == null && c.bathrooms == null &&
+                 c.priceMax == null && c.priceMin == null && !c.area &&
+                 !(c.amenities || []).length && !(c.keywords || []).length;
+    if (bare) return true;
+    return !!(window.resolveTzPlace && window.resolveTzPlace(extractPlacePhrase(q)));
+  }
+
+  // Geocode a place phrase via Nominatim (TZ-only). Returns {lat,lng,name}
+  // or null. Validated against Tanzania's bounding box so a stray match in
+  // another country never anchors the map.
+  async function geocodePlace(phrase) {
+    const q = (phrase || "").trim();
+    if (q.length < 3) return null;
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tz&q=${encodeURIComponent(q)}`;
+      const r = await fetch(url, { headers: { "Accept": "application/json" } });
+      const list = await r.json();
+      const it = list && list[0];
+      if (!it) return null;
+      const lat = +it.lat, lng = +it.lon;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (lat < -11.75 || lat > -0.99 || lng < 29.34 || lng > 40.45) return null;  // outside TZ
+      return { lat, lng, name: (it.display_name || q).split(",").slice(0, 2).join(", ") };
+    } catch (_) { return null; }
+  }
+
+  async function maybeAnchorLandmark(rawQuery) {
+    const c = smartCriteria || {};
+    if (!shouldAnchor(rawQuery, c)) { clearLandmark(); return; }
+
+    const phrase = extractPlacePhrase(rawQuery);
+    const local  = (window.resolveTzPlace && (window.resolveTzPlace(phrase) || window.resolveTzPlace(rawQuery))) || null;
+
+    // Show the gazetteer pin immediately (fast, offline-safe) if we have one.
+    if (local) setLandmark({ lat: local.lat, lng: local.lng, name: local.name });
+
+    // Then refine to the precise OSM coordinates. Only accept the remote
+    // result if it's within ~40 km of the gazetteer guess (sanity check),
+    // or if we had no gazetteer guess at all.
+    const remote = await geocodePlace(phrase);
+    if (remote) {
+      if (!local || distKm(local, remote) <= 40) {
+        setLandmark({ lat: remote.lat, lng: remote.lng, name: local ? local.name : remote.name });
+      }
+    } else if (!local) {
+      clearLandmark();
+    }
+  }
+
+  function setLandmark(loc) {
+    landmarkLoc = loc;
+    ensureLandmarkStyles();
+    if (map) {
+      if (!landmarkMarker) {
+        const el = document.createElement("div");
+        el.className = "landmark-marker";
+        el.innerHTML = `<span class="lm-pin">📍</span><span class="lm-label"></span>`;
+        landmarkMarker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+          .setLngLat([loc.lng, loc.lat]).addTo(map);
+      } else {
+        landmarkMarker.setLngLat([loc.lng, loc.lat]);
+      }
+      landmarkMarker.getElement().querySelector(".lm-label").textContent = loc.name;
+    }
+    renderSmartChips();
+    updateLandmarkInfo();
+    apply();   // re-rank by distance to the landmark
+  }
+
+  function clearLandmark() {
+    if (!landmarkLoc && !landmarkMarker) return;
+    landmarkLoc = null;
+    if (landmarkMarker) { landmarkMarker.remove(); landmarkMarker = null; }
+    const info = document.getElementById("housesAlertBanner");
+    if (info && info.dataset.kind === "landmark") info.hidden = true;
+  }
+
+  function landmarkShort(name) {
+    return String(name || "").split(",")[0].trim();
+  }
+
+  function updateLandmarkInfo() {
+    if (!landmarkLoc) return;
+    const name = landmarkShort(landmarkLoc.name);
+    const body = userLoc
+      ? `Your location is ${distKm(userLoc, landmarkLoc).toFixed(1)} km from ${name} · listings below are sorted nearest-first`
+      : `Tap “Near me” to measure how far ${name} is from where you live · listings below are sorted nearest-first`;
+    alertBanner.innerHTML = `
+      <span class="ab-icon">📍</span>
+      <div class="ab-body">
+        <strong>${esc(name)}</strong>
+        <small>${esc(body)}</small>
+      </div>
+      <button id="lmBannerDismiss" type="button" aria-label="Dismiss" style="background:transparent;padding:6px 8px">✕</button>`;
+    alertBanner.hidden = false;
+    alertBanner.dataset.kind = "landmark";
+    document.getElementById("lmBannerDismiss")?.addEventListener("click", () => { alertBanner.hidden = true; });
+  }
+
+  function ensureLandmarkStyles() {
+    if (document.getElementById("lmMarkerStyles")) return;
+    const s = document.createElement("style");
+    s.id = "lmMarkerStyles";
+    s.textContent = `
+      .landmark-marker{display:flex;align-items:center;gap:4px;transform:translateY(2px);pointer-events:none}
+      .landmark-marker .lm-pin{font-size:26px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+      .landmark-marker .lm-label{background:#0a6f4d;color:#fff;font:600 11px/1.2 system-ui,sans-serif;
+        padding:3px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3);max-width:160px;
+        overflow:hidden;text-overflow:ellipsis}`;
+    document.head.appendChild(s);
   }
 
   function clearSmartSearch() {
     smartCriteria = null;
     matchScores.clear();
+    clearLandmark();
     if (ssInput) ssInput.value = "";
     if (ssChips) { ssChips.hidden = true; ssChips.innerHTML = ""; }
     if (ssExamples) ssExamples.hidden = false;
@@ -632,6 +805,7 @@ window.initHousesPage = async () => {
   function renderSmartChips() {
     if (!ssChips || !smartCriteria) return;
     const c = smartCriteria, chips = [];
+    if (landmarkLoc) chips.push(`📍 near ${landmarkShort(landmarkLoc.name)}`);
     if (c.listing)   chips.push(c.listing === "sale" ? "For sale" : "For rent");
     if (c.type)      chips.push(({ apartment:"Apartment", house:"House", plot:"Plot", office:"Office/shop" })[c.type]);
     if (c.bedrooms)  chips.push(`${c.bedrooms}+ bed`);
@@ -737,6 +911,381 @@ window.initHousesPage = async () => {
   }
 
   // ====================================================================
+  //  "Match to my life" — personalised distance / commute matching
+  //
+  //  The user lists the places that matter to them (workplace, a child's
+  //  school, a favourite area). For every listing we estimate, per place:
+  //    road_km  = haversine(listing, place) × DETOUR  (straight-line → road)
+  //    minutes  = road_km / mode_speed × 60           (per transport mode)
+  //  A listing is kept only if it satisfies every place's max-time limit
+  //  (when one is set), and the list is ranked by the *total* estimated
+  //  travel time across all places — i.e. the home that fits your life best
+  //  sits at the top. Everything runs client-side (no routing API needed).
+  //  (MODES / PLACE_KINDS / ROAD_DETOUR are declared near the top of the file.)
+  // ====================================================================
+  function getMyPlaces() {
+    try { return JSON.parse(localStorage.getItem("pawa_house_my_places") || "[]"); }
+    catch { return []; }
+  }
+  function saveMyPlaces(arr) {
+    localStorage.setItem("pawa_house_my_places", JSON.stringify(arr));
+  }
+  function modeOf(m)  { return MODES[m] || MODES.car; }
+  function kindOf(k)  { return PLACE_KINDS[k] || PLACE_KINDS.custom; }
+  function roadKm(a, b) { return distKm(a, b) * ROAD_DETOUR; }
+  function travelMin(km, mode) { return km / modeOf(mode).kmh * 60; }
+  function fmtMin(min) {
+    if (min < 1) return "<1 min";
+    if (min < 60) return Math.round(min) + " min";
+    const h = Math.floor(min / 60), mm = Math.round(min % 60);
+    return mm ? `${h}h ${mm}m` : `${h}h`;
+  }
+
+  // Per-listing commute breakdown, or null when it can't be evaluated.
+  function commuteFor(h) {
+    if (!myPlaces.length || !Number.isFinite(h.lat) || !Number.isFinite(h.lng)) return null;
+    const legs = myPlaces.map(p => {
+      const km = roadKm(p, h);
+      const min = travelMin(km, p.mode);
+      return { place: p, km, min, ok: p.maxMin ? min <= p.maxMin : true };
+    });
+    return { legs, total: legs.reduce((s, l) => s + l.min, 0), pass: legs.every(l => l.ok) };
+  }
+
+  function setupMyPlaces() {
+    myPlaces = getMyPlaces();
+    commuteBtn?.addEventListener("click", openPlacesModal);
+    renderPlacesChips();
+  }
+
+  function renderPlacesChips() {
+    if (!placesChips) return;
+    if (!myPlaces.length) { placesChips.hidden = true; placesChips.innerHTML = ""; return; }
+    placesChips.hidden = false;
+    placesChips.innerHTML =
+      `<span style="font-size:.8rem;font-weight:600;color:var(--c-text-muted,#6b6960);align-self:center;margin-right:2px">Matching your life:</span>` +
+      myPlaces.map(p => `
+        <span class="hp-place-chip" title="${esc(p.name || "")}">
+          ${kindOf(p.kind).icon} ${esc(p.label)} <small>${modeOf(p.mode).icon}${p.maxMin ? ` ≤${p.maxMin}m` : ""}</small>
+          <button type="button" data-id="${esc(p.id)}" aria-label="Remove ${esc(p.label)}">&times;</button>
+        </span>`).join("") +
+      `<span class="hp-place-chip clear" id="mpEditChip">Edit ✎</span>`;
+    placesChips.querySelectorAll("button[data-id]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        myPlaces = myPlaces.filter(x => x.id !== btn.dataset.id);
+        saveMyPlaces(myPlaces);
+        renderPlacesChips();
+        apply();
+      });
+    });
+    document.getElementById("mpEditChip")?.addEventListener("click", openPlacesModal);
+  }
+
+  // Classify an OSM/Nominatim result into a short human tag: an
+  // administrative level (Region → District → Ward → Village → Area) or the
+  // kind of community service (School, Hospital, Market, Bank, …).
+  function resultTag(it) {
+    const at = (it.addresstype || "").toLowerCase();
+    const ADMIN = {
+      state: "Region", region: "Region", county: "District", state_district: "District",
+      municipality: "District", district: "District", city: "City", town: "Town",
+      suburb: "Suburb", neighbourhood: "Area", quarter: "Area", residential: "Area",
+      village: "Village", hamlet: "Village", ward: "Ward", administrative: "Area"
+    };
+    if (ADMIN[at]) return ADMIN[at];
+    const cls = (it.class || "").toLowerCase(), type = (it.type || "").toLowerCase();
+    const SERVICE = {
+      school: "School", college: "College", university: "University", kindergarten: "School",
+      hospital: "Hospital", clinic: "Clinic", doctors: "Clinic", pharmacy: "Pharmacy",
+      marketplace: "Market", supermarket: "Supermarket", mall: "Mall", bank: "Bank", atm: "ATM",
+      fuel: "Fuel", bus_station: "Bus station", taxi: "Taxi rank", ferry_terminal: "Ferry",
+      place_of_worship: "Worship", police: "Police", fire_station: "Fire", post_office: "Post",
+      restaurant: "Restaurant", cafe: "Cafe", hotel: "Hotel", stadium: "Stadium",
+      airport: "Airport", aerodrome: "Airport"
+    };
+    if (SERVICE[type]) return SERVICE[type];
+    if (["amenity", "shop", "leisure", "tourism", "office", "healthcare", "building"].includes(cls))
+      return (type || cls).replace(/_/g, " ").replace(/\b\w/, c => c.toUpperCase());
+    return "Place";
+  }
+
+  // Friendly "nearby area" name from a reverse-geocode address — used when
+  // the exact spot isn't a named place (a map tap, drag or GPS fix).
+  function placeAreaLabel(j) {
+    const a = (j && j.address) || {};
+    const near  = a.suburb || a.neighbourhood || a.quarter || a.village || a.hamlet ||
+                  a.ward || a.residential || a.city_district;
+    const wider = a.city || a.town || a.municipality || a.county || a.state_district || a.state;
+    const parts = [...new Set([near, wider].filter(Boolean))].slice(0, 2);
+    if (parts.length) return parts.join(", ");
+    return (j && j.display_name || "").split(",").slice(0, 2).join(", ");
+  }
+
+  // Search: gazetteer first (instant, known landmarks), then OSM/Nominatim
+  // for regions, districts, wards, villages, famous areas and services.
+  async function searchPlaces(q) {
+    const out = [];
+    const known = window.resolveTzPlace && window.resolveTzPlace(q);
+    if (known) out.push({ name: known.name, lat: known.lat, lng: known.lng, tag: "Known place", known: true });
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`;
+      const r = await fetch(url, { headers: { "Accept": "application/json" } });
+      const list = await r.json();
+      for (const it of list) {
+        const lat = +it.lat, lng = +it.lon;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        const name = (it.display_name || "").split(",").slice(0, 2).join(", ");
+        if (out.some(o => o.name === name)) continue;
+        out.push({ name, full: it.display_name, lat, lng, tag: resultTag(it) });
+      }
+    } catch (_) { /* offline / rate-limited — gazetteer result still stands */ }
+    return out.slice(0, 8);
+  }
+
+  // Reverse-geocode a tapped/dragged point into a nearby-area label.
+  async function reverseName(lat, lng) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&addressdetails=1&lat=${lat}&lon=${lng}`;
+      const r = await fetch(url, { headers: { "Accept": "application/json" } });
+      return placeAreaLabel(await r.json());
+    } catch (_) { return null; }
+  }
+
+  // Map-driven place picker. Each place is a row (kind / label / mode / max
+  // time); a shared Leaflet map + search box write to whichever row is
+  // selected. Pick by search (admin areas + services), by tapping the map,
+  // by dragging a pin, or by GPS — unknown spots are reverse-geocoded to a
+  // nearby-area name.
+  function openPlacesModal() {
+    const backdrop = document.getElementById("placesModalBackdrop");
+    const listEl   = document.getElementById("mpList");
+    const addBtn   = document.getElementById("mpAddBtn");
+    const saveBtn  = document.getElementById("mpSaveBtn");
+    const cancelBtn= document.getElementById("mpCancelBtn");
+    const closeBtn = document.getElementById("mpCloseBtn");
+    const clearBtn = document.getElementById("mpClearBtn");
+    const searchIn = document.getElementById("mpSearchInput");
+    const gpsBtn   = document.getElementById("mpGpsBtn");
+    const resultsEl= document.getElementById("mpSearchResults");
+    const coordsEl = document.getElementById("mpCoords");
+    if (!backdrop) return;
+
+    const blank = () => ({ id: "mp-" + Math.random().toString(36).slice(2, 8),
+      kind: "work", label: "", name: "", lat: null, lng: null, mode: "daladala", maxMin: null });
+    let draft = myPlaces.length ? myPlaces.map(p => ({ ...p })) : [blank()];
+    let activeId = draft[0].id;
+    let mpMap = null, mpMarkers = {};
+
+    backdrop.hidden = false;
+    if (searchIn) searchIn.value = "";
+    if (resultsEl) { resultsEl.hidden = true; resultsEl.innerHTML = ""; }
+    renderRows();
+    updateCoords();
+
+    let isOpen = true;
+    const initTimer = setTimeout(() => { if (isOpen) initMap(); }, 130);
+
+    function hasUsable()   { return draft.some(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)); }
+    function syncSave()    { saveBtn.disabled = !hasUsable(); }
+    function activePlace() { return draft.find(p => p.id === activeId) || draft[0]; }
+
+    function renderRows() {
+      listEl.innerHTML = "";
+      draft.forEach(p => listEl.appendChild(buildRow(p)));
+      syncSave();
+    }
+
+    function buildRow(p) {
+      const row = document.createElement("div");
+      row.className = "mp-row" + (p.id === activeId ? " is-active" : "");
+      row.innerHTML = `
+        <div class="mp-row-top">
+          <select class="mp-kind" aria-label="Kind of place">
+            ${Object.entries(PLACE_KINDS).map(([k, v]) => `<option value="${k}"${p.kind === k ? " selected" : ""}>${v.icon} ${v.label}</option>`).join("")}
+          </select>
+          <input class="mp-label" type="text" maxlength="40" placeholder="Label (e.g. My office)" value="${esc(p.label)}" />
+          <button class="mp-remove" type="button" title="Remove this place" aria-label="Remove">&times;</button>
+        </div>
+        <div class="mp-row-bottom">
+          <label class="mp-mode-lbl">By
+            <select class="mp-mode" aria-label="Transport mode">
+              ${Object.entries(MODES).map(([k, v]) => `<option value="${k}"${p.mode === k ? " selected" : ""}>${v.icon} ${v.label}</option>`).join("")}
+            </select>
+          </label>
+          <label class="mp-max-lbl">Max
+            <select class="mp-max" aria-label="Maximum travel time">
+              <option value="">any time</option>
+              ${[10, 15, 20, 30, 45, 60, 90].map(m => `<option value="${m}"${+p.maxMin === m ? " selected" : ""}>${m} min</option>`).join("")}
+            </select>
+          </label>
+          <span class="mp-status${p.lat != null ? " set" : ""}">${p.lat != null ? "📍 " + esc(p.name || "location set") : "tap map / search →"}</span>
+        </div>`;
+
+      const labelIn = row.querySelector(".mp-label");
+      row.querySelector(".mp-kind").addEventListener("change", (e) => {
+        p.kind = e.target.value;
+        if (!labelIn.value.trim()) { labelIn.value = kindOf(p.kind).label; p.label = labelIn.value; }
+        refreshMarker(p);
+      });
+      labelIn.addEventListener("input", () => { p.label = labelIn.value; });
+      row.querySelector(".mp-mode").addEventListener("change", (e) => { p.mode = e.target.value; });
+      row.querySelector(".mp-max").addEventListener("change", (e) => { p.maxMin = e.target.value ? +e.target.value : null; });
+      row.querySelector(".mp-remove").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (mpMarkers[p.id]) { mpMarkers[p.id].remove(); delete mpMarkers[p.id]; }
+        draft = draft.filter(x => x !== p);
+        if (!draft.length) draft.push(blank());
+        if (activeId === p.id) activeId = draft[0].id;
+        renderRows(); updateCoords();
+      });
+      // Selecting a row makes the search / GPS / map taps target it.
+      row.addEventListener("click", (e) => {
+        if (e.target.closest("select,input,button")) return;
+        setActive(p.id);
+      });
+      return row;
+    }
+
+    function setActive(id) {
+      activeId = id;
+      const rows = listEl.querySelectorAll(".mp-row");
+      draft.forEach((p, i) => { if (rows[i]) rows[i].classList.toggle("is-active", p.id === id); });
+      const p = activePlace();
+      if (mpMap && Number.isFinite(p.lat) && Number.isFinite(p.lng))
+        mpMap.setView([p.lat, p.lng], Math.max(mpMap.getZoom(), 14));
+      updateCoords();
+    }
+
+    function updateCoords() {
+      if (!coordsEl) return;
+      const p = activePlace(), k = kindOf(p.kind);
+      coordsEl.textContent = Number.isFinite(p.lat)
+        ? `${k.icon} ${p.label || k.label}: ${p.name || (p.lat.toFixed(4) + ", " + p.lng.toFixed(4))}`
+        : `Setting ${k.icon} ${p.label || k.label} — search or tap the map`;
+      coordsEl.classList.toggle("has-pin", Number.isFinite(p.lat));
+    }
+
+    // Write a location onto the active place, refresh its pin, and (when no
+    // name is known) reverse-geocode the nearby area.
+    async function setActiveLocation(lat, lng, name) {
+      const p = activePlace();
+      p.lat = lat; p.lng = lng;
+      if (name) p.name = name;
+      if (!p.label || !p.label.trim()) p.label = kindOf(p.kind).label;
+      refreshMarker(p);
+      renderRows(); setActive(p.id); syncSave();
+      if (!name) {
+        const near = await reverseName(lat, lng);
+        if (near && p.lat === lat && p.lng === lng) { p.name = near; renderRows(); setActive(p.id); }
+      }
+    }
+
+    function refreshMarker(p) {
+      if (!mpMap) return;
+      if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) {
+        if (mpMarkers[p.id]) { mpMarkers[p.id].remove(); delete mpMarkers[p.id]; }
+        return;
+      }
+      const icon = L.divIcon({ className: "mp-pin", html: kindOf(p.kind).icon, iconSize: [26, 26], iconAnchor: [13, 26] });
+      if (mpMarkers[p.id]) {
+        mpMarkers[p.id].setLatLng([p.lat, p.lng]).setIcon(icon);
+      } else {
+        const mk = L.marker([p.lat, p.lng], { draggable: true, icon }).addTo(mpMap);
+        mk.on("dragend", () => { const ll = mk.getLatLng(); setActive(p.id); setActiveLocation(ll.lat, ll.lng, null); });
+        mk.on("click", () => setActive(p.id));
+        mpMarkers[p.id] = mk;
+      }
+    }
+
+    function initMap() {
+      if (mpMap) { mpMap.invalidateSize(); return; }
+      try {
+        mpMap = L.map("mpModalMap", { center: [-6.7924, 39.2789], zoom: 11,
+          maxBounds: [[-11.75, 29.34], [-0.99, 40.45]], zoomControl: false });
+        L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          { attribution: "Tiles © Esri", maxZoom: 19 }).addTo(mpMap);
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+          { attribution: "© CARTO", maxZoom: 19, opacity: 0.9, subdomains: "abcd" }).addTo(mpMap);
+        L.control.zoom({ position: "topright" }).addTo(mpMap);
+        mpMap.on("click", (e) => setActiveLocation(e.latlng.lat, e.latlng.lng, null));
+        mpMap.whenReady(() => mpMap.invalidateSize());
+        draft.forEach(refreshMarker);
+        const first = draft.find(p => Number.isFinite(p.lat));
+        if (first) mpMap.setView([first.lat, first.lng], 13);
+      } catch (err) {
+        const el = document.getElementById("mpModalMap");
+        if (el) el.innerHTML = `<div style="padding:20px;color:#b91c1c;font-size:.85rem">Map error: ${esc(String(err))}</div>`;
+      }
+    }
+
+    // ---- shared search box (admin areas + community services) ----
+    let searchTimer;
+    if (searchIn) searchIn.oninput = () => {
+      clearTimeout(searchTimer);
+      const q = searchIn.value.trim();
+      if (q.length < 2) { resultsEl.hidden = true; return; }
+      searchTimer = setTimeout(async () => {
+        resultsEl.hidden = false;
+        resultsEl.innerHTML = `<div class="am-search-result loading">Searching…</div>`;
+        const hits = await searchPlaces(q);
+        if (!hits.length) { resultsEl.innerHTML = `<div class="am-search-result loading">No matches — tap the map to drop a pin.</div>`; return; }
+        resultsEl.innerHTML = hits.map((it, i) => {
+          const rest = it.full ? it.full.split(",").slice(2, 4).join(",").trim() : "";
+          return `<div class="am-search-result" data-i="${i}">
+            <strong>${esc(it.name)}</strong> <span class="am-tag${it.known ? " known" : ""}">${esc(it.tag || "Place")}</span>
+            ${rest ? `<small>${esc(rest)}</small>` : ""}
+          </div>`;
+        }).join("");
+        resultsEl.querySelectorAll(".am-search-result[data-i]").forEach(div => {
+          div.addEventListener("click", () => {
+            const it = hits[+div.dataset.i];
+            if (!it) return;
+            setActiveLocation(it.lat, it.lng, it.name);
+            if (mpMap) mpMap.setView([it.lat, it.lng], 15);
+            resultsEl.hidden = true; searchIn.value = "";
+          });
+        });
+      }, 320);
+    };
+
+    if (gpsBtn) gpsBtn.onclick = () => {
+      if (!navigator.geolocation) { alert("Geolocation isn't supported."); return; }
+      gpsBtn.disabled = true; gpsBtn.textContent = "📍 …";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS";
+          setActiveLocation(pos.coords.latitude, pos.coords.longitude, null);
+          if (mpMap) mpMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+        },
+        () => { gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS"; alert("Couldn't get your GPS location."); },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    };
+
+    const close = () => {
+      isOpen = false; clearTimeout(initTimer);
+      backdrop.hidden = true; listEl.innerHTML = "";
+      Object.values(mpMarkers).forEach(m => m.remove()); mpMarkers = {};
+      if (mpMap) { mpMap.remove(); mpMap = null; }
+    };
+    addBtn.onclick    = () => { const b = blank(); draft.push(b); activeId = b.id; renderRows(); setActive(b.id); updateCoords(); };
+    clearBtn.onclick  = () => { Object.values(mpMarkers).forEach(m => m.remove()); mpMarkers = {}; const b = blank(); draft = [b]; activeId = b.id; renderRows(); updateCoords(); };
+    closeBtn.onclick  = close;
+    cancelBtn.onclick = close;
+    backdrop.onclick  = (e) => { if (e.target === backdrop) close(); };
+    saveBtn.onclick = () => {
+      myPlaces = draft
+        .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+        .map(p => ({ ...p, label: (p.label || "").trim() || kindOf(p.kind).label }));
+      saveMyPlaces(myPlaces);
+      renderPlacesChips();
+      apply();
+      close();
+      document.getElementById("housesStage")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+  }
+
+  // ====================================================================
   //  Apply filters → re-render list and map markers
   // ====================================================================
   function apply() {
@@ -777,13 +1326,8 @@ window.initHousesPage = async () => {
       return true;
     });
 
-    if (userLoc) {
-      visible.sort((a, b) => distKm(userLoc, a) - distKm(userLoc, b));
-    }
-
-    // Smart search: apply the numeric budget cap (the bucketed <select> can't),
-    // score every remaining listing, then sort best-match first. This sort
-    // intentionally wins over the proximity sort above.
+    // Smart search: apply the numeric budget cap (the bucketed <select> can't)
+    // and score every remaining listing for the "% match" badge.
     if (smartCriteria) {
       if (smartCriteria.priceMax)
         visible = visible.filter(h => (h.price_tzs || 0) <= smartCriteria.priceMax * 1.1);
@@ -791,9 +1335,36 @@ window.initHousesPage = async () => {
         visible = visible.filter(h => (h.price_tzs || 0) >= smartCriteria.priceMin * 0.9);
       matchScores.clear();
       visible.forEach(h => matchScores.set(h.id, scoreHouse(h, smartCriteria)));
-      visible.sort((a, b) => (matchScores.get(b.id) || 0) - (matchScores.get(a.id) || 0));
     } else {
       matchScores.clear();
+    }
+
+    // "Match to my life": annotate every listing with its commute breakdown,
+    // and drop any that bust a per-place max-time limit (homes without map
+    // coordinates can't be evaluated, so they're kept rather than hidden).
+    commuteScores.clear();
+    if (myPlaces.length) {
+      visible = visible.filter(h => {
+        const c = commuteFor(h);
+        if (c) commuteScores.set(h.id, c);
+        return !c || c.pass;
+      });
+    }
+
+    // Ranking precedence:
+    //   1. distance to the searched place (when a landmark is anchored),
+    //   2. total estimated travel time to the user's places,
+    //   3. smart-search match score,
+    //   4. distance from the user ("Near me").
+    if (landmarkLoc) {
+      visible.sort((a, b) => distToLandmark(a) - distToLandmark(b));
+    } else if (myPlaces.length) {
+      const tot = id => (commuteScores.get(id) ? commuteScores.get(id).total : Infinity);
+      visible.sort((a, b) => tot(a.id) - tot(b.id));
+    } else if (smartCriteria) {
+      visible.sort((a, b) => (matchScores.get(b.id) || 0) - (matchScores.get(a.id) || 0));
+    } else if (userLoc) {
+      visible.sort((a, b) => distKm(userLoc, a) - distKm(userLoc, b));
     }
 
     renderList();
@@ -819,14 +1390,36 @@ window.initHousesPage = async () => {
     updateBentoCounts();
 
     if (!visible.length) {
+      // Build a human-readable description of what was searched so the
+      // "not found" message is specific rather than a generic fallback.
+      const c = smartCriteria;
+      const textQ = fSearch?.value.trim();
+      let notFoundTitle = "No properties match";
+      let notFoundSub   = "Widen your filters, clear the search box, or browse all listings.";
+      if (c || textQ) {
+        const parts = [];
+        if (textQ) parts.push(`"${textQ}"`);
+        if (c) {
+          if (c.bedrooms != null) parts.push(`${c.bedrooms} bedroom${c.bedrooms !== 1 ? "s" : ""}`);
+          if (c.type)    parts.push(({ apartment:"apartment", house:"house", plot:"plot", office:"office/shop" })[c.type] || c.type);
+          if (c.listing) parts.push(c.listing === "sale" ? "for sale" : "for rent");
+          if (c.area)    parts.push(`in ${c.area}`);
+          if (c.priceMax) parts.push(`under ${shortTzs(c.priceMax)} TZS`);
+        }
+        const desc = parts.length ? parts.join(", ") : (ssInput?.value.trim() || "");
+        notFoundTitle = desc
+          ? `No property found: ${esc(desc)}`
+          : "No matching property found";
+        notFoundSub = "Such a property does not exist in our current listings. Try different criteria or clear the search to browse all available properties.";
+      }
       listEl.innerHTML = `<div class="hp-empty" role="status">
         <div class="hp-empty__art" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>
           </svg>
         </div>
-        <div class="hp-empty__title">No properties match</div>
-        <div class="hp-empty__sub">Widen your filters, clear the search box, or pan the map to a different area.</div>
+        <div class="hp-empty__title">${notFoundTitle}</div>
+        <div class="hp-empty__sub">${notFoundSub}</div>
         <button class="hp-empty__cta" type="button" id="hpClearFilters">Clear all filters</button>
       </div>`;
       const clearBtn = document.getElementById("hpClearFilters");
@@ -850,27 +1443,35 @@ window.initHousesPage = async () => {
         (h.listing === "rent" && Number(h.min_months) > 1) ? `<span>🗓 ${h.min_months} mo min</span>` : ""
       ].filter(Boolean).join("");
       const loc = `${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}`;
-      const dist = (userLoc && Number.isFinite(h.lat) && Number.isFinite(h.lng))
-        ? ` · ${distKm(userLoc, h).toFixed(1)} km away`
-        : "";
+      const hasCoords = Number.isFinite(h.lat) && Number.isFinite(h.lng);
+      const dist = (landmarkLoc && hasCoords)
+        ? ` · ${distKm(landmarkLoc, h).toFixed(1)} km to ${esc(landmarkShort(landmarkLoc.name))}`
+        : (userLoc && hasCoords)
+          ? ` · ${distKm(userLoc, h).toFixed(1)} km away`
+          : "";
       const ariaLabel = `${esc(h.title)}, ${price.value} ${price.unit}, ${loc}`;
       const matchPct = smartCriteria ? matchScores.get(h.id) : null;
       const matchCls = matchPct == null ? "" : matchPct >= 75 ? "" : matchPct >= 50 ? "mid" : "low";
       const matchBadge = matchPct == null ? ""
         : `<span class="house-card-match ${matchCls}">✨ ${matchPct}% match</span>`;
+      const commute = commuteScores.get(h.id);
+      const commuteHtml = commute ? `<div class="house-card-commute">${
+        commute.legs.map(l => `<span class="hc-leg${l.ok ? "" : " over"}">${kindOf(l.place.kind).icon} ${esc(l.place.label)} · ${l.km.toFixed(1)} km · ~${fmtMin(l.min)} ${modeOf(l.place.mode).icon}</span>`).join("")
+      }</div>` : "";
       return `
         <div class="house-card ${activeId === h.id ? "active" : ""}" data-id="${h.id}"
              role="button" tabindex="0" aria-label="${ariaLabel}">
           <div class="house-card-photo" data-loading="true" style="background-image:url('${photo}')">
             <span class="badge">${listing}</span>
             ${verified}
+            ${matchBadge}
           </div>
           <div class="house-card-body">
-            ${matchBadge}
             <div class="house-card-price">${price.value} <small>${price.unit}</small></div>
             <div class="house-card-title">${esc(h.title)}</div>
             <div class="house-card-meta">${meta}</div>
             <div class="house-card-loc">📍 ${loc}${dist}</div>
+            ${commuteHtml}
             <a href="house.html?id=${encodeURIComponent(h.id)}"
                class="house-card-view" aria-label="View details for ${esc(h.title)}">View details →</a>
           </div>
@@ -1021,12 +1622,26 @@ window.initHousesPage = async () => {
   }
 
   function fitToVisible(mappable) {
-    if (!map || !mappable?.length) return;
-    const lngs = mappable.map(h => h.lng), lats = mappable.map(h => h.lat);
+    if (!map) return;
+    // Include the landmark anchor in the viewport so the searched place and
+    // the nearby listings are visible together.
+    const pts = (mappable || []).map(h => [h.lng, h.lat]);
+    if (landmarkLoc) pts.push([landmarkLoc.lng, landmarkLoc.lat]);
+    if (!pts.length) return;
+    if (pts.length === 1) {
+      map.easeTo({ center: pts[0], zoom: Math.max(13, map.getZoom()), duration: 500 });
+      return;
+    }
+    const lngs = pts.map(p => p[0]), lats = pts.map(p => p[1]);
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
       { padding: 60, maxZoom: 14, duration: 500 }
     );
+  }
+
+  function distToLandmark(h) {
+    if (!landmarkLoc || !Number.isFinite(h.lat) || !Number.isFinite(h.lng)) return Infinity;
+    return distKm(landmarkLoc, h);
   }
 
   function focusHouse(id, opts = {}) {

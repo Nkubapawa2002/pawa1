@@ -83,17 +83,19 @@
     }
     .ss-ex:hover { background: rgba(255,255,255,.16); }
 
-    /* Match-score badge on cards (only shown while a smart search is active) */
+    /* Match-score badge — overlays the photo bottom-left (never disrupts card body layout) */
     .house-card-match {
-      align-self: flex-start;
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: .72rem; font-weight: 800; letter-spacing: .3px;
+      position: absolute; bottom: 8px; left: 8px;
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: .70rem; font-weight: 800; letter-spacing: .3px;
       padding: 3px 9px; border-radius: 999px;
       color: #fff; background: var(--c-success, #0d8050);
-      margin-bottom: 2px;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 1px 4px rgba(0,0,0,.28);
+      pointer-events: none;
     }
-    .house-card-match.mid  { background: var(--c-accent, #bc5c00); }
-    .house-card-match.low  { background: #6b6960; }
+    .house-card-match.mid { background: var(--c-accent, #bc5c00); }
+    .house-card-match.low { background: #6b6960; }
     @media (max-width: 600px) {
       .ss-row button { padding: 13px 14px; }
     }
@@ -123,6 +125,52 @@
     .houses-toolbar input:focus,
     .houses-toolbar select:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
     .houses-toolbar .ht-actions { display: flex; gap: 6px; align-items: center; }
+
+    /* ---- "Match to my life" chips + per-card commute ---- */
+    .houses-places-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+    .houses-places-chips[hidden] { display: none; }
+    .hp-place-chip { display: inline-flex; align-items: center; gap: 5px; background: #eef6f2;
+      color: #0a6f4d; border: 1px solid #cfe6db; border-radius: 999px; padding: 4px 10px;
+      font-size: .8rem; font-weight: 600; }
+    .hp-place-chip button { background: transparent; border: none; color: #0a6f4d; cursor: pointer;
+      font-size: 1rem; line-height: 1; padding: 0 0 0 2px; }
+    .hp-place-chip.clear { background: #fff; cursor: pointer; }
+    .house-card-commute { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+    .hc-leg { font-size: .78rem; color: #4b5563; }
+    .hc-leg.over { color: #b91c1c; font-weight: 600; }
+
+    /* ---- My-places modal (reuses .alert-modal shell) ---- */
+    .mp-row { border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; margin-bottom: 10px; background: #fafafa; }
+    .mp-row-top { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .mp-row-top .mp-kind { flex: 0 0 auto; max-width: 46%; }
+    .mp-row-top .mp-label { flex: 1 1 auto; min-width: 0; }
+    .mp-remove { flex: 0 0 auto; background: #fee2e2; color: #b91c1c; border: none; border-radius: 8px;
+      width: 30px; height: 30px; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+    .mp-search-wrap { position: relative; display: flex; gap: 6px; }
+    .mp-search-wrap .mp-place { flex: 1 1 auto; min-width: 0; }
+    .mp-gps { flex: 0 0 auto; border: 1px solid #d1d5db; background: #fff; border-radius: 8px; padding: 0 10px; cursor: pointer; }
+    .mp-suggest { position: absolute; top: 100%; left: 0; right: 0; z-index: 30; background: #fff;
+      border: 1px solid #e5e7eb; border-radius: 10px; margin-top: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      max-height: 230px; overflow: auto; }
+    .mp-suggest[hidden] { display: none; }
+    .mp-sg { padding: 8px 10px; cursor: pointer; font-size: .85rem; }
+    .mp-sg:hover { background: #f0fdf4; }
+    .mp-sg small { display: block; color: #6b7280; font-size: .75rem; }
+    .mp-sg .known { color: #0a6f4d; font-weight: 700; }
+    .mp-row-bottom { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px;
+      font-size: .82rem; color: #374151; }
+    .mp-row-bottom select { padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 8px; }
+    .mp-status { margin-left: auto; font-size: .78rem; color: #6b7280; }
+    .mp-status.set { color: #0a6f4d; font-weight: 600; }
+    .mp-add { background: #eef6f2; color: #0a6f4d; border: 1px dashed #0a6f4d; border-radius: 10px;
+      padding: 9px; width: 100%; cursor: pointer; font-weight: 600; }
+    .mp-row { cursor: pointer; }
+    .mp-row.is-active { border-color: #0a6f4d; box-shadow: 0 0 0 2px rgba(10,111,77,.15); background: #f3faf6; }
+    .am-tag { display: inline-block; font-size: .68rem; font-weight: 700; color: #0a6f4d; background: #eef6f2;
+      border: 1px solid #cfe6db; border-radius: 6px; padding: 1px 6px; vertical-align: middle; }
+    .am-tag.known { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .mp-pin { background: none !important; border: none !important; font-size: 22px; line-height: 1;
+      text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
     .houses-near-me, .houses-alert-btn {
       flex-shrink: 0; padding: 10px 14px;
       background: var(--c-brand, #0a6f4d); color: #fff;
@@ -314,6 +362,15 @@
       color: #fff;
       font-weight: 600;
     }
+
+    /* "Match to my life" modal — wider shell, a big map, and children that
+       keep their size so the body scrolls *inside* the modal (nothing spills
+       off the page). The map no longer collapses inside the flex column. */
+    #placesModalBackdrop .alert-modal { max-width: 760px; }
+    #placesModalBackdrop .am-body > * { flex: 0 0 auto; }
+    #placesModalBackdrop .am-map-wrap { flex: 0 0 auto; }
+    #placesModalBackdrop .am-map { height: clamp(340px, 52vh, 560px); }
+    #mpList { display: flex; flex-direction: column; gap: 10px; }
 
     .am-radius-row label {
       display: flex; justify-content: space-between; align-items: center;
@@ -638,11 +695,18 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span>Alert me about an area</span>
         </button>
+        <button id="houseCommuteBtn" class="houses-alert-btn" title="Rank homes by distance & travel time to your workplace, school or favourite places">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+          <span>Match to my life</span>
+        </button>
       </div>
     </div>
 
     <!-- Active watched areas (chips with delete buttons) -->
     <div id="housesWatchChips" class="houses-watch-chips" hidden></div>
+
+    <!-- Active "match to my life" places (chips) -->
+    <div id="housesPlacesChips" class="houses-places-chips" hidden></div>
 
     <!-- New-listing toast (shown when alerts fire) -->
     <div id="housesAlertBanner" class="houses-alert-banner" hidden></div>
@@ -692,6 +756,51 @@
         <footer class="am-foot">
           <button id="alertCancelBtn" class="am-btn" type="button">Cancel</button>
           <button id="alertSaveBtn"   class="am-btn am-btn-brand" type="button" disabled>Save alert</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- ===========================================================
+         "Match to my life" modal: list the places that matter to you
+         (work, school, favourite spots), pick transport + a max travel
+         time, and we rank/filter listings by how close they are.
+         =========================================================== -->
+    <div id="placesModalBackdrop" class="alert-modal-backdrop" hidden>
+      <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="placesModalTitle">
+        <header class="am-head">
+          <h3 id="placesModalTitle">Match homes to your life</h3>
+          <button id="mpCloseBtn" class="am-close" type="button" aria-label="Close">&times;</button>
+        </header>
+
+        <div class="am-body">
+          <p class="am-help">
+            Add the places that matter to you — your workplace, your child's school,
+            a favourite area. Pick a row, then <strong>search</strong> (region, district,
+            ward, village, or a service like a school, hospital or market), tap the
+            <strong>map</strong>, or use <strong>GPS</strong>. If the exact spot isn't
+            found we'll name the nearby area for you. We then rank the homes that fit your
+            life best — set a max travel time to hide the ones too far.
+          </p>
+          <div id="mpList"></div>
+          <button id="mpAddBtn" type="button" class="mp-add">+ Add another place</button>
+
+          <div class="am-search-row" style="margin-top:12px">
+            <input id="mpSearchInput" type="search" autocomplete="off"
+                   placeholder="Search region, district, ward, village, or a place / service…" />
+            <button id="mpGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS">📍 GPS</button>
+          </div>
+          <div id="mpSearchResults" class="am-search-results" hidden></div>
+
+          <div class="am-map-wrap">
+            <div id="mpModalMap" class="am-map"></div>
+            <div class="am-coords" id="mpCoords">Pick a place above, then search or tap the map</div>
+          </div>
+        </div>
+
+        <footer class="am-foot">
+          <button id="mpClearBtn"  class="am-btn" type="button">Clear all</button>
+          <button id="mpCancelBtn" class="am-btn" type="button">Cancel</button>
+          <button id="mpSaveBtn"   class="am-btn am-btn-brand" type="button" disabled>Apply</button>
         </footer>
       </div>
     </div>
@@ -752,6 +861,7 @@
   <script src="js/data.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
+  <script src="js/tz-places.js"></script>
   <script src="js/houses.js"></script>
   <script>
     window.renderNav("houses.html");

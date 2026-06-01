@@ -58,3 +58,35 @@ window.TZ_UNIVERSITIES = [
   { name: "Kampala International University - Bukoba",            kind: "college",    city: "Bukoba",        lat: -1.3300, lng: 31.8120 },
   { name: "Tabora Teachers College",                              kind: "college",    city: "Tabora",        lat: -5.0200, lng: 32.8030 },
 ];
+
+// ----------------------------------------------------------------------------
+//  Resolve a free-text place name to coordinates, gazetteer-first.
+//  Returns { lat, lng, name, kind } or null. Matches the full institution
+//  name, the same name without its parenthetical, and the abbreviation in
+//  parentheses (e.g. "UDSM", "UDOM", "SAUT"). The longest token that appears
+//  in the query wins, so "University of Dar es Salaam" beats a bare "Dar".
+//  Used by the Houses page to drop an exact pin on a searched landmark and
+//  measure how far listings (and the user's home) are from it.
+// ----------------------------------------------------------------------------
+window.resolveTzPlace = function (query) {
+  const t = String(query || "").toLowerCase().replace(/[.,()]/g, " ").replace(/\s+/g, " ").trim();
+  if (t.length < 2) return null;
+  let best = null;
+  for (const p of (window.TZ_UNIVERSITIES || [])) {
+    if (!p || !p.name || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+    const tokens = new Set();
+    tokens.add(p.name.toLowerCase().replace(/[.,()]/g, " ").replace(/\s+/g, " ").trim());
+    const abbr = (p.name.match(/\(([^)]+)\)/) || [])[1];
+    if (abbr) tokens.add(abbr.toLowerCase().trim());
+    const noParen = p.name.replace(/\s*\([^)]*\)\s*/g, " ").toLowerCase().replace(/\s+/g, " ").trim();
+    if (noParen) tokens.add(noParen);
+    for (const tok of tokens) {
+      if (!tok || tok.length < 2) continue;
+      const hit = t === tok || t.includes(tok) || (tok.length >= 4 && tok.includes(t));
+      if (!hit) continue;
+      const score = Math.min(t.length, tok.length);
+      if (!best || score > best._score) best = { lat: p.lat, lng: p.lng, name: p.name, kind: p.kind, _score: score };
+    }
+  }
+  return best;
+};
