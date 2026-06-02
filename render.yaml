@@ -1,0 +1,29 @@
+# Render blueprint for the Pawa map gateway (services/go).
+#
+# Render serves the static frontend via GitHub Pages already; this deploys ONLY
+# the Go geocoding/boundary gateway as an HTTPS web service so the live site can
+# call it (browsers block plain-HTTP calls from an HTTPS page).
+#
+# Two ways to use this:
+#   A) Blueprint  — Render Dashboard → New + → Blueprint → pick the pawa1 repo.
+#      Render reads this file and creates the service automatically.
+#   B) Manual     — New + → Web Service → pick pawa1 → Root Directory: services/go
+#      (Render auto-detects the Dockerfile). This file is then optional.
+#
+# Free plan note: the instance sleeps after ~15 min idle, so the first request
+# after a quiet spell is slow. The frontend (js/geo.js) falls back to calling
+# Nominatim directly whenever the gateway is slow/unreachable, so the map keeps
+# working either way — the gateway just makes it faster and politer when warm.
+
+services:
+  - type: web
+    name: pawa-map-gateway
+    runtime: docker
+    repo: https://github.com/Nkubapawa2002/pawa1
+    branch: main
+    rootDir: services/go
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt        # closest free Render region to Tanzania
+    healthCheckPath: /health
+    autoDeploy: true
