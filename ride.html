@@ -116,6 +116,20 @@
             <h3 data-i18n="ride_pick_title">Where to?</h3>
             <p class="muted" data-i18n="ride_pick_sub">Tap the map or type a place. Pickup defaults to your current location.</p>
 
+            <!-- AI trip box — hidden until ai-search is configured (see ride.js).
+                 Type a whole trip in plain English/Swahili and Claude fills in
+                 pickup, dropoff and vehicle below. -->
+            <label class="meet-label ride-ai-box" id="rideAiBox" hidden>
+              <span data-i18n="ride_ai_label">✨ Tell us your trip</span>
+              <div class="addr-row">
+                <input id="rideAiInput" type="text"
+                  data-i18n-placeholder="ride_ai_ph"
+                  placeholder="e.g. bajaji from here to Mwenge" />
+                <button id="rideAiBtn" type="button" class="btn btn-primary btn-xs" data-i18n="ride_ai_go">Go</button>
+              </div>
+              <small id="rideAiNote" class="muted" hidden></small>
+            </label>
+
             <label class="meet-label">
               <span data-i18n="ride_pickup">Pickup</span>
               <div class="addr-row">
@@ -504,6 +518,7 @@
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/payments.js"></script>
+  <script src="js/ai-search.js"></script>
   <script src="js/ride.js"></script>
   <script>
     window.renderNav("ride.html");

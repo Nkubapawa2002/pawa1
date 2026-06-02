@@ -298,6 +298,93 @@ window.initRidePage = () => {
     } catch {}
   });
 
+  // ====================================================================
+  //  AI trip box — natural-language pickup / dropoff / vehicle
+  //  "bajaji from here to Mwenge", "nipeleke Kariakoo", "car to the airport".
+  //  Powered by the ai-search brain (js/ai-search.js → Edge Function / key).
+  //  Hidden entirely unless an endpoint is configured; on any failure it just
+  //  tells the rider to use the fields below — the manual flow always works.
+  // ====================================================================
+  const rideAiBox   = $("#rideAiBox");
+  const rideAiInput = $("#rideAiInput");
+  const rideAiBtn   = $("#rideAiBtn");
+  const rideAiNote  = $("#rideAiNote");
+
+  if (rideAiBox && window.AISearch && AISearch.configured()) {
+    rideAiBox.hidden = false;
+    const runAi = () => handleAiTrip(rideAiInput.value);
+    rideAiBtn?.addEventListener("click", runAi);
+    rideAiInput?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); runAi(); }
+    });
+  }
+
+  function setAiNote(msg, isErr) {
+    if (!rideAiNote) return;
+    rideAiNote.textContent = msg || "";
+    rideAiNote.hidden = !msg;
+    rideAiNote.style.color = isErr ? "var(--danger, #c0392b)" : "";
+  }
+
+  function selectVehicle(veh) {
+    const btn = $$(".ride-veh", panels.rider).find(b => b.dataset.veh === veh);
+    if (btn) btn.click();   // reuses the existing handler (active class + fare)
+  }
+
+  // Geocode a single place name to {lat,lng,label} (TZ-only), or null.
+  async function geocodeOne(name) {
+    const q = (name || "").trim();
+    if (q.length < 3) return null;
+    try {
+      const j = await pawaGeo.search(`q=${encodeURIComponent(q + ", Tanzania")}&format=json&limit=1&countrycodes=tz&accept-language=en`);
+      const h = (j || []).find(x => inTanzania(+x.lat, +x.lon));
+      return h ? { lat: +h.lat, lng: +h.lon, label: h.display_name.split(",")[0] } : null;
+    } catch { return null; }
+  }
+
+  async function handleAiTrip(text) {
+    const q = (text || "").trim();
+    if (!q) return;
+    setAiNote(t("ride_ai_thinking", "Reading your trip…"));
+    if (rideAiBtn) rideAiBtn.disabled = true;
+    let res;
+    try {
+      res = await AISearch.parseRide(q, {
+        origin: lastFix ? { lat: lastFix.lat, lng: lastFix.lng } : null,
+        vehicleTypes: ["car", "bajaj", "bodaboda", "van", "pickup"],
+        lang: window.getLang?.() || null,
+      });
+    } catch { res = null; }
+    if (rideAiBtn) rideAiBtn.disabled = false;
+
+    if (!res || res.domain === "house") {
+      setAiNote(t("ride_ai_fail", "Couldn't read that — set pickup and dropoff below."), true);
+      return;
+    }
+
+    // Vehicle (snapped to our whitelist by the model).
+    if (res.vehicleType) selectVehicle(res.vehicleType);
+
+    // Pickup: a named place → geocode it; "near me" / unspecified → GPS fix.
+    if (res.pickup && res.pickup.name) {
+      const p = await geocodeOne(res.pickup.name);
+      if (p) setPickup(p.lat, p.lng, p.label);
+    } else if ((res.nearMe || !res.pickup) && lastFix) {
+      setPickup(lastFix.lat, lastFix.lng, t("ride_my_location", "My current location"));
+    }
+
+    // Dropoff: a named place → geocode it.
+    let dropFailed = false;
+    if (res.dropoff && res.dropoff.name) {
+      const d = await geocodeOne(res.dropoff.name);
+      if (d) setDropoff(d.lat, d.lng, d.label);
+      else dropFailed = true;
+    }
+
+    if (dropFailed) setAiNote(t("ride_ai_no_drop", "Couldn't find that dropoff — type it below."), true);
+    else setAiNote(res.answer || t("ride_ai_done", "Done — check the details below."));
+  }
+
   async function geocode(q, anchor, kind) {
     try {
       const j = await pawaGeo.search(`q=${encodeURIComponent(q + ", Tanzania")}&format=json&addressdetails=1&limit=6&countrycodes=tz&accept-language=en`);

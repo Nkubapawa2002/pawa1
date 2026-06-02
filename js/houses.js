@@ -46,6 +46,7 @@ window.initHousesPage = async () => {
   let activeId  = null;
   let userLoc   = null;
   let smartCriteria = null;        // parsed natural-language query (or null)
+  let smartAiNote   = null;        // AI's one-line confirmation when AI parsed it
   let matchScores   = new Map();   // house id -> match % (when smart search active)
   let landmarkLoc   = null;        // { lat, lng, name } anchor when a known place is searched
   let landmarkMarker= null;        // MapLibre marker for the landmark anchor
@@ -86,12 +87,19 @@ window.initHousesPage = async () => {
     fArea.appendChild(opt);
   });
 
+  // Warm up the Rust→WASM matching engine while the map/filters render, so
+  // the first ranked search is instant.
+  window.HouseMatch?.warmup?.();
+
   // ---- Map setup ---------------------------------------------------------
   initMap();
 
   // ---- Filters & render --------------------------------------------------
-  [fListing, fType, fArea, fBeds, fPrice].forEach(el => el?.addEventListener("change", apply));
-  fSearch?.addEventListener("input", () => { clearTimeout(window._hf); window._hf = setTimeout(apply, 180); });
+  [fListing, fType, fArea, fBeds].forEach(el => el?.addEventListener("change", apply));
+  // Free-text inputs (budget + search) filter live, debounced as the user types.
+  [fPrice, fSearch].forEach(el => el?.addEventListener("input", () => {
+    clearTimeout(window._hf); window._hf = setTimeout(apply, 180);
+  }));
 
   apply();
 
@@ -490,12 +498,28 @@ window.initHousesPage = async () => {
           alertPicked = { ...alertPicked, lat: ll.lat, lng: ll.lng };
           updateCoords();
           drawRadiusCircle();
+          updateAlertBoundary(ll.lat, ll.lng);
         });
       } else {
         alertPinMarker.setLatLng([lat, lng]);
       }
       alertModalMap.setView([lat, lng], Math.max(alertModalMap.getZoom(), 14));
       drawRadiusCircle();
+      updateAlertBoundary(lat, lng);
+    }
+
+    // Shade the administrative area the dropped pin falls within, so the user
+    // sees exactly which ward/suburb their watched area covers. No-ops without
+    // the gateway/boundary module; the pin + radius work regardless.
+    async function updateAlertBoundary(lat, lng) {
+      if (!alertModalMap || !window.AreaBoundary || !window.pawaGeo || !pawaGeo.boundary) return;
+      const b = await pawaGeo.boundary({ lat, lng });
+      if (!alertModalMap) return;   // modal closed while we were fetching
+      if (b && AreaBoundary.isAreal(b.geojson)) {
+        AreaBoundary.showOnLeaflet(alertModalMap, b.geojson, { fit: false });
+      } else {
+        AreaBoundary.clearLeaflet(alertModalMap);
+      }
     }
 
     function updateCoords() {
@@ -623,6 +647,41 @@ window.initHousesPage = async () => {
     return String(p);
   }
 
+  // Parse a free-typed budget phrase into { priceMin, priceMax } in TZS, so a
+  // user can filter by writing their own words instead of picking a bucket:
+  //   "900k"            → max 900,000
+  //   "under 2m"        → max 2,000,000      "over 500k" → min 500,000
+  //   "min 1m max 3m"   → 1,000,000 – 3,000,000
+  //   "500k - 1.5m"     → 500,000 – 1,500,000   ("to" works too)
+  // Shared by the budget filter box and the smart natural-language search.
+  // Longest suffixes first + a "not followed by a letter" guard so the "b" in
+  // "bedroom" (or "m" in "modern") is never read as billions/millions.
+  const MONEY_RE = "([\\d][\\d.,]*)\\s*(billion|bn|b|million|mil|m|thousand|k)?(?![a-z])";
+  function parsePriceText(raw) {
+    const text = " " + String(raw || "").toLowerCase().replace(/\s+/g, " ") + " ";
+    const out = { priceMin: null, priceMax: null };
+    let m;
+    if ((m = text.match(new RegExp("(?:under|below|max|up to|upto|less than|within|maximum of?|budget of?)\\s*(?:tzs|tsh|sh)?\\s*" + MONEY_RE)))) out.priceMax = parseMoney(m[1], m[2]);
+    if ((m = text.match(new RegExp("(?:over|above|from|min|at least|minimum of?|starting at)\\s*(?:tzs|tsh|sh)?\\s*" + MONEY_RE)))) out.priceMin = parseMoney(m[1], m[2]);
+    // Range "a - b" / "a to b" when no explicit bound word was found.
+    if (out.priceMin == null && out.priceMax == null) {
+      const r = text.match(new RegExp(MONEY_RE + "\\s*(?:-|–|—|to)\\s*" + MONEY_RE));
+      if (r) {
+        const a = parseMoney(r[1], r[2]), b = parseMoney(r[3], r[4]);
+        if (a != null && b != null) { out.priceMin = Math.min(a, b); out.priceMax = Math.max(a, b); }
+      }
+    }
+    // Bare figure → treat as a budget ceiling. Skip small unsuffixed integers so
+    // a stray "3" (bedrooms) never becomes a price.
+    if (out.priceMin == null && out.priceMax == null) {
+      for (const a of text.matchAll(new RegExp(MONEY_RE, "g"))) {
+        const sfx = (a[2] || "").toLowerCase(), val = parseMoney(a[1], a[2]);
+        if (val != null && (sfx || val >= 50000)) { out.priceMax = val; break; }
+      }
+    }
+    return out;
+  }
+
   function setupSmartSearch() {
     if (!ssForm) return;
     ssForm.addEventListener("submit", (e) => { e.preventDefault(); runSmartSearch(ssInput.value); });
@@ -634,23 +693,11 @@ window.initHousesPage = async () => {
   function runSmartSearch(text) {
     const q = (text || "").trim();
     if (!q) { clearSmartSearch(); return; }
+    smartAiNote = null;                       // reset any prior AI confirmation
+    // Instant regex baseline — the page reacts immediately, even offline or
+    // before (or without) the AI brain. The AI pass below upgrades it.
     smartCriteria = parseSmartQuery(q);
-    // Reflect confident structured criteria into the dropdowns so the user
-    // sees exactly how we read their request (and can tweak it by hand).
-    fListing.value = smartCriteria.listing || "";
-    fType.value    = smartCriteria.type    || "";
-    fArea.value = (smartCriteria.area && Array.from(fArea.options).some(o => o.value === smartCriteria.area))
-      ? smartCriteria.area : "";
-    if (smartCriteria.bedrooms) {
-      const b = String(Math.min(4, smartCriteria.bedrooms));
-      fBeds.value = Array.from(fBeds.options).some(o => o.value === b) ? b : "";
-    } else fBeds.value = "";
-    // The bucketed price <select> can't express an arbitrary budget, so leave
-    // it on "any"; the numeric cap lives in smartCriteria and is applied below.
-    fPrice.value = "";
-    if (fSearch) fSearch.value = "";   // the little text box is now redundant
-    renderSmartChips();
-    apply();
+    applySmartCriteria(smartCriteria);
     if (ssExamples) ssExamples.hidden = true;
     document.getElementById("housesStage")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -658,6 +705,72 @@ window.initHousesPage = async () => {
     // mall, airport, etc., drop a precise pin on it and rank listings by how
     // close they are to that place.
     maybeAnchorLandmark(q);
+
+    // AI upgrade (async, no-op unless the ai-search Edge Function + key are
+    // configured): replaces the regex criteria with Claude's richer reading.
+    enhanceSmartSearchWithAI(q);
+  }
+
+  // Reflect a criteria object into the dropdowns + chips and re-rank. Shared by
+  // the regex baseline and the AI pass so both render identically.
+  function applySmartCriteria(c) {
+    fListing.value = c.listing || "";
+    fType.value    = c.type    || "";
+    fArea.value = (c.area && Array.from(fArea.options).some(o => o.value === c.area)) ? c.area : "";
+    if (c.bedrooms) {
+      const b = String(Math.min(4, c.bedrooms));
+      fBeds.value = Array.from(fBeds.options).some(o => o.value === b) ? b : "";
+    } else fBeds.value = "";
+    // The bucketed price <select> can't express an arbitrary budget, so leave
+    // it on "any"; the numeric cap lives in smartCriteria and is applied later.
+    fPrice.value = "";
+    if (fSearch) fSearch.value = "";   // the little text box is now redundant
+    renderSmartChips();
+    apply();
+  }
+
+  // Ask the AI brain (ai-search Edge Function) to parse the query, then adopt
+  // its result if it's still the active query. Silently does nothing when the
+  // endpoint/key isn't set, the call fails, or the query turned out to be a
+  // ride — so the regex baseline always stands as the safety net.
+  async function enhanceSmartSearchWithAI(q) {
+    if (!window.AISearch || !AISearch.available()) return;
+    let res;
+    try {
+      res = await AISearch.parseHouse(q, {
+        origin: userLoc || null,
+        areas,
+        lang: window.getLang?.() || null,
+      });
+    } catch (_) { return; }
+    if (!res) return;
+    // The user may have typed a new query while we waited — don't clobber it.
+    if ((ssInput?.value || "").trim() !== q) return;
+    if (res.domain === "ride") return;        // not a housing query → keep regex result
+
+    smartCriteria = res.criteria;
+    smartAiNote = (res.answer || "").trim() || null;
+    applySmartCriteria(smartCriteria);
+
+    // The AI's anchor wins over the regex one: an explicit place, or the
+    // device's GPS when the user said "near me".
+    if (res.anchor) {
+      if (res.anchor.name === "__me__") nearBtn?.click();
+      else anchorByName(res.anchor.name);
+    }
+  }
+
+  // Geocode an explicit place name (gazetteer first, OSM second) and anchor the
+  // map on it — the AI-driven twin of maybeAnchorLandmark()'s phrase logic.
+  async function anchorByName(name) {
+    const phrase = (name || "").trim();
+    if (phrase.length < 3) return;
+    const local = (window.resolveTzPlace && window.resolveTzPlace(phrase)) || null;
+    if (local) setLandmark({ lat: local.lat, lng: local.lng, name: local.name });
+    const remote = await geocodePlace(phrase);
+    if (remote && (!local || distKm(local, remote) <= 40)) {
+      setLandmark({ lat: remote.lat, lng: remote.lng, name: local ? local.name : remote.name });
+    }
   }
 
   // ====================================================================
@@ -742,14 +855,41 @@ window.initHousesPage = async () => {
     renderSmartChips();
     updateLandmarkInfo();
     apply();   // re-rank by distance to the landmark
+    drawAreaBoundary(loc);   // shade the actual area this place sits within
   }
 
   function clearLandmark() {
     if (!landmarkLoc && !landmarkMarker) return;
     landmarkLoc = null;
     if (landmarkMarker) { landmarkMarker.remove(); landmarkMarker = null; }
+    if (map && window.AreaBoundary) AreaBoundary.clearMapLibre(map);
+    boundaryKey = null;
     const info = document.getElementById("housesAlertBanner");
     if (info && info.dataset.kind === "landmark") info.hidden = true;
+  }
+
+  // Fetch + shade the administrative outline of the area a landmark falls in.
+  // Tries the named area's own polygon first (most precise for "Mikocheni"),
+  // then the area enclosing the point (best for a POI like a university).
+  // No-ops cleanly when the gateway, the boundary module, or a polygon is
+  // unavailable — the pin still works without an outline.
+  let boundaryKey = null;
+  async function drawAreaBoundary(loc) {
+    if (!map || !window.AreaBoundary || !window.pawaGeo || !pawaGeo.boundary) return;
+    const key = `${landmarkShort(loc.name)}|${loc.lat.toFixed(3)},${loc.lng.toFixed(3)}`;
+    if (key === boundaryKey) return;      // same area already drawn
+    boundaryKey = key;
+    let b = null;
+    if (loc.name) b = await pawaGeo.boundary({ q: landmarkShort(loc.name) });
+    if (!(b && AreaBoundary.isAreal(b.geojson)) && Number.isFinite(loc.lat)) {
+      b = await pawaGeo.boundary({ lat: loc.lat, lng: loc.lng });
+    }
+    if (boundaryKey !== key) return;      // a newer search superseded this one
+    if (b && AreaBoundary.isAreal(b.geojson)) {
+      AreaBoundary.showOnMapLibre(map, b.geojson, { bbox: b.bbox, fit: true });
+    } else {
+      AreaBoundary.clearMapLibre(map);
+    }
   }
 
   function landmarkShort(name) {
@@ -789,6 +929,7 @@ window.initHousesPage = async () => {
 
   function clearSmartSearch() {
     smartCriteria = null;
+    smartAiNote = null;
     matchScores.clear();
     clearLandmark();
     if (ssInput) ssInput.value = "";
@@ -801,6 +942,7 @@ window.initHousesPage = async () => {
   function renderSmartChips() {
     if (!ssChips || !smartCriteria) return;
     const c = smartCriteria, chips = [];
+    if (smartAiNote) chips.push(`✨ ${smartAiNote}`);
     if (landmarkLoc) chips.push(`📍 near ${landmarkShort(landmarkLoc.name)}`);
     if (c.listing)   chips.push(c.listing === "sale" ? "For sale" : "For rent");
     if (c.type)      chips.push(({ apartment:"Apartment", house:"House", plot:"Plot", office:"Office/shop" })[c.type]);
@@ -837,22 +979,10 @@ window.initHousesPage = async () => {
     m = text.match(/(\d+)\s*(?:bath|bathroom|bathrooms|ba)\b/);
     if (m) c.bathrooms = parseInt(m[1], 10);
 
-    // Price — ceilings / floors with magnitude suffix or currency words.
-    const MON = "([\\d][\\d.,]*)\\s*(b|bn|billion|m|mil|million|k|thousand)?";
-    let pm;
-    if ((pm = text.match(new RegExp("(?:under|below|max|up to|upto|less than|within|maximum of?)\\s*(?:tzs|tsh|sh)?\\s*" + MON))))
-      c.priceMax = parseMoney(pm[1], pm[2]);
-    if ((pm = text.match(new RegExp("(?:over|above|from|min|at least|minimum of?|starting at)\\s*(?:tzs|tsh|sh)?\\s*" + MON))))
-      c.priceMin = parseMoney(pm[1], pm[2]);
-    // No explicit ceiling/floor → treat the first magnitude-suffixed (or large)
-    // figure as a budget cap. Guard against catching bedroom/bath integers.
-    if (c.priceMax == null && c.priceMin == null) {
-      const all = [...text.matchAll(new RegExp(MON, "g"))];
-      for (const a of all) {
-        const sfx = (a[2] || "").toLowerCase(), val = parseMoney(a[1], a[2]);
-        if (val != null && (sfx || val >= 50000)) { c.priceMax = val; break; }
-      }
-    }
+    // Price — ceilings / floors / ranges, via the shared budget parser.
+    const pp = parsePriceText(raw);
+    c.priceMax = pp.priceMax;
+    c.priceMin = pp.priceMin;
 
     // Area — match against the real area list from the data (longest wins).
     let bestArea = null;
@@ -1294,11 +1424,12 @@ window.initHousesPage = async () => {
       if (area    && h.area    !== area)    return false;
       if (beds    && (h.bedrooms || 0) < beds) return false;
       if (price) {
-        const [pl, lo, hi] = price.split("_");
-        if (h.listing !== pl) return false;
+        // Free-typed budget ("900k", "under 2m", "500k - 1.5m"). A tiny 5%
+        // grace on the ceiling keeps a listing that's only just over budget.
+        const { priceMin, priceMax } = parsePriceText(price);
         const p = h.price_tzs || 0;
-        if (lo && p < +lo) return false;
-        if (hi && p > +hi) return false;
+        if (priceMax != null && p > priceMax * 1.05) return false;
+        if (priceMin != null && p < priceMin) return false;
       }
       if (q) {
         // Extended haystack so typing "rent", "apartment", "3 bed", a price
@@ -1343,11 +1474,46 @@ window.initHousesPage = async () => {
       });
     }
 
-    // Ranking precedence:
-    //   1. distance to the searched place (when a landmark is anchored),
-    //   2. total estimated travel time to the user's places,
-    //   3. smart-search match score,
-    //   4. distance from the user ("Near me").
+    // Hand off final ranking + render. The composite ranker runs in WASM
+    // (async), so it lives in its own function; the four tuned modes below
+    // keep their existing order.
+    rankAndRender();
+  }
+
+  // Final ranking + render. Ranking precedence:
+  //   1. distance to the searched place (when a landmark is anchored),
+  //   2. total estimated travel time to the user's places,
+  //   3. smart-search match score,
+  //   4. distance from the user ("Near me").
+  // The default near-me / landmark case is upgraded to the Rust→WASM
+  // composite score (proximity + budget fit + spec fit) so "best matches near
+  // me" beats a raw distance list when the user also set a budget or bedrooms.
+  async function rankAndRender() {
+    const anchor = landmarkLoc || userLoc || null;
+    const useComposite = !!(anchor && !myPlaces.length && !smartCriteria && window.HouseMatch);
+    if (useComposite) {
+      try {
+        const scores = await HouseMatch.rank(visible, {
+          anchor,
+          maxBudget: budgetCapFromFilter(),
+          minBedrooms: parseInt(fBeds.value || "0", 10) || 0,
+          listing: fListing.value || "",
+          type: fType.value || ""
+        });
+        // Drop anything the engine hard-filtered (over budget / wrong kind),
+        // then order by composite score, breaking ties by distance.
+        visible = visible.filter(h => (scores.get(h.id)?.score ?? 0) >= 0);
+        visible.sort((a, b) => {
+          const sa = scores.get(a.id)?.score ?? 0, sb = scores.get(b.id)?.score ?? 0;
+          if (sb !== sa) return sb - sa;
+          const da = scores.get(a.id)?.distKm ?? Infinity, db = scores.get(b.id)?.distKm ?? Infinity;
+          return da - db;
+        });
+        renderList();
+        renderMarkers();
+        return;
+      } catch (_) { /* fall through to the classic sorts */ }
+    }
     if (landmarkLoc) {
       visible.sort((a, b) => distToLandmark(a) - distToLandmark(b));
     } else if (myPlaces.length) {
@@ -1361,6 +1527,12 @@ window.initHousesPage = async () => {
 
     renderList();
     renderMarkers();
+  }
+
+  // The budget box is free text ("900k", "under 2m", "1m - 3m"); its ceiling is
+  // the cap the composite ranker treats as the budget. Empty / no figure → 0.
+  function budgetCapFromFilter() {
+    return parsePriceText(fPrice.value).priceMax || 0;
   }
 
   // ====================================================================
@@ -1412,7 +1584,11 @@ window.initHousesPage = async () => {
         </div>
         <div class="hp-empty__title">${notFoundTitle}</div>
         <div class="hp-empty__sub">${notFoundSub}</div>
-        <button class="hp-empty__cta" type="button" id="hpClearFilters">Clear all filters</button>
+        <div class="hp-empty__actions">
+          <button class="hp-empty__cta" type="button" id="hpClearFilters">Clear all filters</button>
+          <button class="hp-empty__cta hp-empty__cta--ghost" type="button" id="hpPinArea">📌 Pin this area &amp; get alerted</button>
+        </div>
+        <div id="hpPinForm" hidden></div>
       </div>`;
       const clearBtn = document.getElementById("hpClearFilters");
       clearBtn?.addEventListener("click", () => {
@@ -1420,6 +1596,7 @@ window.initHousesPage = async () => {
         if (fSearch) fSearch.value = "";
         apply();
       });
+      wireDemandCta();
       return;
     }
 
@@ -1715,6 +1892,161 @@ window.initHousesPage = async () => {
     if (p >= 1_000_000)     return (p / 1_000_000).toFixed(p % 1_000_000 === 0 ? 0 : 1) + "M";
     if (p >= 1_000)         return (p / 1_000).toFixed(0) + "k";
     return String(p);
+  }
+
+  // ====================================================================
+  //  Demand pins — "no room here yet? pin the area, get alerted"
+  //
+  //  When a search comes up empty, the renter can drop a server-side demand
+  //  pin: their wanted spot + budget + specs + phone. It persists to
+  //  public.house_demand_pins (RLS: they own it). Later, when an agent posts
+  //  a property near that spot, the agent dashboard surfaces the waiting
+  //  renters and their numbers (see js/agent-houses.js + the house_demand_near
+  //  RPC). This is the persistent, agent-reaching cousin of the localStorage
+  //  geo-alerts above — those only notify the same browser; a demand pin
+  //  reaches the person who can actually post the room.
+  // ====================================================================
+  // Resolve a point to pin. Order of preference:
+  //   1. an anchored landmark ("near UDSM"),
+  //   2. the user's GPS ("Near me"),
+  //   3. PIN BY NAME — geocode whatever area/place the search names, so a
+  //      renter can pin "Tegeta" or "Mbezi Beach" without dropping a GPS pin.
+  //      Gazetteer first (instant, offline-safe), then Nominatim (TZ-only).
+  // The `approx` flag widens the acceptance radius since a centroid is coarse.
+  async function anchorForPin() {
+    if (landmarkLoc) return { lat: landmarkLoc.lat, lng: landmarkLoc.lng, label: landmarkShort(landmarkLoc.name) };
+    if (userLoc)     return { lat: userLoc.lat, lng: userLoc.lng, label: "your current location" };
+
+    const name = (fArea.value || smartCriteria?.area ||
+                  (fSearch?.value || "").trim() || (ssInput?.value || "").trim());
+    if (name && name.length >= 2) {
+      const known = window.resolveTzPlace && window.resolveTzPlace(name);
+      if (known) return { lat: known.lat, lng: known.lng, label: known.name, approx: true };
+      const geo = await geocodePlace(name);
+      if (geo) return { lat: geo.lat, lng: geo.lng, label: landmarkShort(geo.name), approx: true };
+    }
+    return null;
+  }
+
+  function wireDemandCta() {
+    ensureDemandStyles();
+    const btn = document.getElementById("hpPinArea");
+    const formWrap = document.getElementById("hpPinForm");
+    if (!btn || !formWrap) return;
+    btn.addEventListener("click", async () => {
+      const origLabel = btn.textContent;
+      btn.disabled = true; btn.textContent = "📍 Finding the area…";
+      let anchor = null;
+      try { anchor = await anchorForPin(); } catch (_) {}
+      btn.disabled = false; btn.textContent = origLabel;
+      if (!anchor) {
+        flashBanner("📍", "Which area?",
+          "Type an area or place name in the search box (or tap “Near me”), then pin again — we need a spot to alert agents about.");
+        return;
+      }
+      const budget = budgetCapFromFilter() || (smartCriteria?.priceMax || 0);
+      const beds   = parseInt(fBeds.value || "0", 10) || (smartCriteria?.bedrooms || 0);
+      const wants  = [];
+      if (beds)   wants.push(`${beds}+ bed`);
+      if (budget) wants.push(`≤ ${shortTzs(budget)} TZS`);
+      formWrap.hidden = false;
+      btn.hidden = true;
+      formWrap.innerHTML = `
+        <div class="hp-pin-form">
+          <p class="hp-pin-form__lead">We'll alert agents who post near <strong>${esc(anchor.label)}</strong>
+            ${wants.length ? `for <strong>${esc(wants.join(" · "))}</strong>` : ""} that you're waiting.
+            Leave a phone so they can reach you:</p>
+          <div class="hp-pin-form__row">
+            <input id="hpPinPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+255 7XX XXX XXX">
+            <input id="hpPinName" type="text" autocomplete="name" placeholder="Your name (optional)">
+          </div>
+          <button type="button" id="hpPinSubmit" class="hp-empty__cta">🔔 Notify me when a room appears</button>
+          <div id="hpPinMsg" class="hp-pin-form__msg" hidden></div>
+        </div>`;
+      const phoneEl = document.getElementById("hpPinPhone");
+      const nameEl  = document.getElementById("hpPinName");
+      const subEl   = document.getElementById("hpPinSubmit");
+      const msgEl   = document.getElementById("hpPinMsg");
+      phoneEl?.focus();
+      subEl?.addEventListener("click", async () => {
+        msgEl.hidden = true;
+        subEl.disabled = true; subEl.textContent = "Saving…";
+        try {
+          await createDemandPin(anchor, { phone: phoneEl.value, name: nameEl.value });
+          formWrap.innerHTML = `<div class="hp-pin-form hp-pin-form--done">
+            ✅ <strong>You're on the waiting list for ${esc(anchor.label)}.</strong>
+            <span>The moment an agent posts a matching room nearby, they'll see your number and call you.</span>
+          </div>`;
+        } catch (err) {
+          subEl.disabled = false; subEl.textContent = "🔔 Notify me when a room appears";
+          msgEl.hidden = false;
+          msgEl.textContent = err.message || "Couldn't save your pin — please try again.";
+        }
+      });
+    });
+  }
+
+  async function createDemandPin(anchor, { phone, name }) {
+    const digits = String(phone || "").replace(/[^\d+]/g, "");
+    if (digits.replace(/\D/g, "").length < 9) throw new Error("Please enter a valid phone number.");
+    const area = (landmarkLoc && landmarkShort(landmarkLoc.name)) || fArea.value || (smartCriteria?.area) || null;
+    const allowedTypes = new Set(["apartment", "house", "plot", "office"]);
+    const wantType = fType.value || smartCriteria?.type || null;
+    const pin = {
+      id: "dp-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      lat: anchor.lat,
+      lng: anchor.lng,
+      area: area || anchor.label || null,
+      // A name-geocoded centroid is coarse, so accept a wider ring around it.
+      radius_m: anchor.approx ? 3500 : 2000,
+      listing: (fListing.value || smartCriteria?.listing || "rent") === "sale" ? "sale" : "rent",
+      type: allowedTypes.has(wantType) ? wantType : null,
+      min_bedrooms: parseInt(fBeds.value || "0", 10) || (smartCriteria?.bedrooms || 0) || 0,
+      max_budget_tzs: budgetCapFromFilter() || (smartCriteria?.priceMax || 0) || 0,
+      phone: digits,
+      name: (name || "").trim() || null
+    };
+    const sb = window.DataStore?.sb;
+    if (!sb) {
+      // No backend wired — keep it locally so the intent isn't lost.
+      const local = JSON.parse(localStorage.getItem("pawa_demand_pins") || "[]");
+      local.push(pin); localStorage.setItem("pawa_demand_pins", JSON.stringify(local));
+      return pin;
+    }
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      pin.user_id = session?.user?.id || null;
+    } catch (_) { pin.user_id = null; }
+    const { error } = await sb.from("house_demand_pins").insert(pin);
+    if (error) {
+      if (/relation .* does not exist|schema cache/i.test(error.message || ""))
+        throw new Error("Waiting lists aren't set up yet on this server. Run supabase/setup_house_demand.sql.");
+      throw error;
+    }
+    const mine = JSON.parse(localStorage.getItem("pawa_my_demand_pins") || "[]");
+    mine.push({ id: pin.id, area: pin.area, lat: pin.lat, lng: pin.lng, at: Date.now() });
+    localStorage.setItem("pawa_my_demand_pins", JSON.stringify(mine));
+    return pin;
+  }
+
+  function ensureDemandStyles() {
+    if (document.getElementById("hpDemandStyles")) return;
+    const s = document.createElement("style");
+    s.id = "hpDemandStyles";
+    s.textContent = `
+      .hp-empty__actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+      .hp-empty__cta--ghost{background:transparent;color:#0a6f4d;box-shadow:inset 0 0 0 1.5px #0a6f4d}
+      .hp-pin-form{margin:14px auto 0;max-width:380px;text-align:left;background:#f7faf8;
+        border:1px solid #d8e6df;border-radius:14px;padding:14px 16px}
+      .hp-pin-form__lead{margin:0 0 10px;font-size:.86rem;line-height:1.45;color:#33403a}
+      .hp-pin-form__row{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+      .hp-pin-form input{width:100%;padding:10px 12px;border:1px solid #cdd9d3;border-radius:9px;font-size:.92rem}
+      .hp-pin-form input:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
+      .hp-pin-form .hp-empty__cta{width:100%}
+      .hp-pin-form__msg{margin-top:8px;font-size:.82rem;color:#b91c1c}
+      .hp-pin-form--done{display:flex;flex-direction:column;gap:3px;font-size:.88rem;color:#0a6f4d}
+      .hp-pin-form--done span{color:#33403a}`;
+    document.head.appendChild(s);
   }
 
   function distKm(a, b) {

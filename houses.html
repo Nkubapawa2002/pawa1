@@ -124,7 +124,19 @@
     }
     .houses-toolbar input:focus,
     .houses-toolbar select:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
-    .houses-toolbar .ht-actions { display: flex; gap: 6px; align-items: center; }
+    /* The free-text budget box has a longer placeholder — give it two columns
+       so "Budget — e.g. 900k, 1.5m, under 2m" stays readable (collapses to one
+       column on narrow screens where auto-fit drops to a single column). */
+    .houses-toolbar .ht-budget { grid-column: span 2; }
+    /* Span the full toolbar width and wrap, so the action buttons (incl.
+       "Match to my life") never overflow the card / page margin on narrow
+       screens — they flow onto the next line instead. */
+    .houses-toolbar .ht-actions {
+      display: flex; gap: 6px; align-items: center;
+      flex-wrap: wrap;
+      grid-column: 1 / -1;
+    }
+    .houses-toolbar .ht-actions > button { flex: 0 1 auto; }
 
     /* ---- "Match to my life" chips + per-card commute ---- */
     .houses-places-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
@@ -343,7 +355,8 @@
       border: 1px solid var(--c-border, #e7e4dd);
     }
     .am-map {
-      height: 280px;
+      /* Big enough to comfortably pan/zoom and judge an area's boundary. */
+      height: clamp(360px, 50vh, 560px);
     }
     .am-coords {
       position: absolute; bottom: 8px; left: 8px; right: 8px;
@@ -420,10 +433,10 @@
     /* Split view */
     .houses-stage {
       display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
       gap: 14px;
-      height: calc(100vh - 360px);
-      min-height: 520px;
+      height: calc(100vh - 300px);
+      min-height: 600px;
     }
     .houses-list {
       overflow-y: auto;
@@ -675,16 +688,8 @@
         <option value="3">3+ beds</option>
         <option value="4">4+ beds</option>
       </select>
-      <select id="filterPrice">
-        <option value="">Price: any</option>
-        <option value="rent_0_750000">Rent ≤ 750k/mo</option>
-        <option value="rent_750000_1500000">Rent 750k – 1.5M</option>
-        <option value="rent_1500000_3000000">Rent 1.5M – 3M</option>
-        <option value="rent_3000000_">Rent 3M+</option>
-        <option value="sale_0_100000000">Sale ≤ 100M</option>
-        <option value="sale_100000000_300000000">Sale 100M – 300M</option>
-        <option value="sale_300000000_">Sale 300M+</option>
-      </select>
+      <input type="text" id="filterPrice" class="ht-budget" inputmode="text"
+             placeholder="Budget — e.g. 900k, 1.5m, under 2m" title="Type your budget in your own words" />
       <input type="text" id="filterSearch" placeholder="Search title or area…" />
       <div class="ht-actions">
         <button id="houseNearMeBtn" class="houses-near-me" title="Use my GPS location">
@@ -863,6 +868,9 @@
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/tz-places.js"></script>
+  <script src="js/house-match.js"></script>
+  <script src="js/area-boundary.js"></script>
+  <script src="js/ai-search.js"></script>
   <script src="js/houses.js"></script>
   <script>
     window.renderNav("houses.html");

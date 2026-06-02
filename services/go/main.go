@@ -9,6 +9,8 @@
 //	GET  /health                         → liveness + role
 //	GET  /geocode?q=Mlimani+City[&limit] → []Place  (TZ-filtered, cached)
 //	GET  /reverse?lat=-6.77&lng=39.24    → {lat,lng,area}
+//	GET  /boundary?q=Mikocheni           → {name,tag,bbox,geojson} area outline
+//	GET  /boundary?lat=-6.77&lng=39.24   → outline of the area enclosing a point
 //	POST /match  {places:[…], listings:[…]} → listings ranked by total commute
 //
 // Dependency-free: standard library only.  Run with:  go run .
@@ -39,7 +41,11 @@ func main() {
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/geocode", handleGeocode)
 	mux.HandleFunc("/reverse", handleReverse)
+	mux.HandleFunc("/boundary", handleBoundary)
 	mux.HandleFunc("/match", handleMatch)
+	// Demand-pin notify gateway (renter demand → agent reach). See demand.go.
+	mux.HandleFunc("/demand/near", handleDemandNear)
+	mux.HandleFunc("/demand/pin", handleDemandPin)
 	// Raw passthrough — same params & response shape as Nominatim, but cached,
 	// rate-limited and User-Agent'd. Lets the existing frontend parsers swap
 	// the base URL with zero parsing changes.

@@ -240,7 +240,8 @@
     /* Map pin picker */
     .ah-pin-picker {
       position: relative;
-      height: 280px;
+      /* Roomy enough to drag the pin precisely and see the surrounding area. */
+      height: clamp(360px, 48vh, 520px);
       border-radius: 10px;
       overflow: hidden;
       border: 1px solid var(--c-border, #e7e4dd);
@@ -679,6 +680,7 @@
   <script src="js/data.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
+  <script src="js/area-boundary.js"></script>
   <script src="js/agent-houses.js"></script>
   <script>
     window.renderNav("agent-houses.html");

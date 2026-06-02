@@ -990,6 +990,8 @@ create policy "house-photos upload" on storage.objects for insert
       if (fPinPlace) fPinPlace.hidden = true;
       drawAccuracyCircle(null);
       renderNearbyPanel();
+      if (pinMap && window.AreaBoundary) AreaBoundary.clearMapLibre(pinMap);
+      pinBoundaryKey = null;
       return;
     }
     const acc = accuracyBadge();
@@ -997,6 +999,25 @@ create policy "house-photos upload" on storage.objects for insert
       `📍 ${pickedLatLng.lat.toFixed(5)}, ${pickedLatLng.lng.toFixed(5)}${acc}`;
     scheduleNearbyRefresh();
     scheduleReverseGeocode();
+    drawPinBoundary();
+  }
+
+  // Shade the administrative area (ward/suburb) the dropped pin falls within so
+  // the agent can confirm the listing sits in the right neighbourhood. Keyed so
+  // it only re-fetches when the pin actually moves to a new ~100 m cell.
+  let pinBoundaryKey = null;
+  async function drawPinBoundary() {
+    if (!pinMap || !pickedLatLng || !window.AreaBoundary || !window.pawaGeo || !pawaGeo.boundary) return;
+    const key = `${pickedLatLng.lat.toFixed(3)},${pickedLatLng.lng.toFixed(3)}`;
+    if (key === pinBoundaryKey) return;
+    pinBoundaryKey = key;
+    const b = await pawaGeo.boundary({ lat: pickedLatLng.lat, lng: pickedLatLng.lng });
+    if (pinBoundaryKey !== key) return;   // pin moved again before this returned
+    if (b && AreaBoundary.isAreal(b.geojson)) {
+      AreaBoundary.showOnMapLibre(pinMap, b.geojson, { fit: false });
+    } else {
+      AreaBoundary.clearMapLibre(pinMap);
+    }
   }
 
   // Pretty accuracy chip appended to the coords readout. `null` means the pin
@@ -1596,6 +1617,16 @@ create policy "house-photos upload" on storage.objects for insert
       formMsg.className = "ah-msg success";
       formMsg.textContent = editingId ? tr("ah_msg_saved_edit") : tr("ah_msg_saved_new");
       formMsg.hidden = false;
+
+      // Who's been waiting for a room here? Surface renters who pinned this
+      // area (with budget/specs matching this listing) and their phones, so
+      // the agent can reach them the instant the listing goes live.
+      const waiting = await notifyWaitingRenters(saved || row).catch(() => []);
+      if (waiting.length) {
+        renderWaitingPanel(waiting, saved || row);
+        return;   // keep the form open so the agent can call them; "Done" closes it
+      }
+
       setTimeout(() => {
         closeForm();
         loadMyListings();
@@ -1610,6 +1641,104 @@ create policy "house-photos upload" on storage.objects for insert
       saveBtn.textContent = tr("ah_save");
     }
   });
+
+  // ---- Waiting renters (demand pins) --------------------------------------
+  // After a listing saves, ask Supabase who pinned this area waiting for a
+  // matching room. The house_demand_near RPC is SECURITY DEFINER, so it can
+  // return the renters' phone numbers near this exact spot (and nowhere else).
+  async function notifyWaitingRenters(listing) {
+    if (!sb || listing.lat == null || listing.lng == null) return [];
+    const { data, error } = await sb.rpc("house_demand_near", {
+      p_lat: Number(listing.lat),
+      p_lng: Number(listing.lng),
+      p_radius_m: 1500,
+      p_listing: listing.listing || "rent",
+      p_type: listing.type || null,
+      p_price: Number(listing.price_tzs) || 0,
+      p_bedrooms: Number(listing.bedrooms) || 0
+    });
+    if (error) {
+      // RPC missing (setup SQL not run yet) → silently skip; it's an add-on.
+      if (!/function .* does not exist|schema cache|could not find/i.test(error.message || ""))
+        console.warn("[agent-houses] demand lookup failed:", error.message);
+      return [];
+    }
+    return Array.isArray(data) ? data : [];
+  }
+
+  function fmtTzs(p) {
+    p = Number(p) || 0;
+    if (p >= 1e9) return (p / 1e9).toFixed(p % 1e9 ? 1 : 0) + "B";
+    if (p >= 1e6) return (p / 1e6).toFixed(p % 1e6 ? 1 : 0) + "M";
+    if (p >= 1e3) return (p / 1e3).toFixed(0) + "k";
+    return String(p);
+  }
+
+  function renderWaitingPanel(rows, listing) {
+    ensureWaitStyles();
+    let panel = document.getElementById("ahWaitingPanel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "ahWaitingPanel";
+      formSection.appendChild(panel);
+    }
+    const area = listing.area || "this area";
+    const items = rows.map(r => {
+      const phone  = String(r.phone || "").trim();
+      const digits = phone.replace(/\D/g, "");
+      const intl   = digits.startsWith("0") ? "255" + digits.slice(1) : digits;
+      const bits = [];
+      if (r.max_budget_tzs) bits.push(`≤ ${fmtTzs(r.max_budget_tzs)} TZS`);
+      if (r.min_bedrooms)   bits.push(`${r.min_bedrooms}+ bed`);
+      if (r.distance_m != null)
+        bits.push(`${r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km"} away`);
+      return `<div class="ah-wait-row">
+        <div class="ah-wait-who">
+          <strong>${esc(r.name || "Waiting renter")}</strong>
+          <small>${esc(bits.join(" · "))}</small>
+        </div>
+        <div class="ah-wait-cta">
+          <a class="ah-wait-btn call" href="tel:${esc(phone)}">📞 Call</a>
+          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+    panel.innerHTML = `
+      <div class="ah-wait-card">
+        <div class="ah-wait-head">🔔 ${rows.length} ${rows.length === 1 ? "person is" : "people are"} waiting near ${esc(area)}</div>
+        <div class="ah-wait-sub">They pinned this area for a ${listing.listing === "sale" ? "property to buy" : "place to rent"} matching your new listing. Reach out before someone else does.</div>
+        ${items}
+        <button type="button" id="ahWaitDone" class="ah-wait-done">Done — back to my listings</button>
+      </div>`;
+    panel.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById("ahWaitDone")?.addEventListener("click", () => {
+      panel.remove();
+      closeForm();
+      loadMyListings();
+    });
+  }
+
+  function ensureWaitStyles() {
+    if (document.getElementById("ahWaitStyles")) return;
+    const s = document.createElement("style");
+    s.id = "ahWaitStyles";
+    s.textContent = `
+      #ahWaitingPanel{margin-top:16px}
+      .ah-wait-card{background:#f0f8f4;border:1px solid #bfe0cf;border-radius:16px;padding:16px 18px}
+      .ah-wait-head{font-weight:700;font-size:1.02rem;color:#0a6f4d;margin-bottom:2px}
+      .ah-wait-sub{font-size:.85rem;color:#41504a;margin-bottom:12px;line-height:1.45}
+      .ah-wait-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+        padding:10px 0;border-top:1px solid #d6e8de}
+      .ah-wait-who strong{display:block;font-size:.92rem}
+      .ah-wait-who small{color:#6b7a73;font-size:.78rem}
+      .ah-wait-cta{display:flex;gap:6px;flex-shrink:0}
+      .ah-wait-btn{font-size:.82rem;font-weight:600;text-decoration:none;padding:7px 12px;border-radius:8px;white-space:nowrap}
+      .ah-wait-btn.call{background:#0a6f4d;color:#fff}
+      .ah-wait-btn.wa{background:#fff;color:#0a6f4d;box-shadow:inset 0 0 0 1.5px #0a6f4d}
+      .ah-wait-done{margin-top:12px;width:100%;padding:10px;border:0;border-radius:9px;
+        background:#0a6f4d;color:#fff;font-weight:600;font-size:.9rem;cursor:pointer}`;
+    document.head.appendChild(s);
+  }
 
   // Upload helpers — both write into the `house-photos` bucket (which since
   // schema section 34c also accepts video MIME types). Return the storage

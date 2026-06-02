@@ -177,7 +177,9 @@ func (g *geocoder) doFetch(ctx context.Context, fullURL string) ([]byte, error) 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	// 4 MB cap: search/reverse are tiny, but a /boundary polygon (even
+	// simplified) for a district can run to a few hundred KB — don't truncate it.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<22))
 	if err != nil {
 		return nil, err
 	}

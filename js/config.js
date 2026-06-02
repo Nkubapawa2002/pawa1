@@ -41,9 +41,20 @@ window.APP_CONFIG = {
   ANTHROPIC_API_URL: "https://api.anthropic.com/v1/messages",
 
   // Edge Function endpoints (paths are appended to SUPABASE_URL at call time).
-  AI_CHAT_PATH:  "/functions/v1/ai-chat",           // generic conversational replies
-  AI_THINK_PATH: "/functions/v1/ai-think",          // structured decision / algorithm
-  AI_MAP_PATH:   "/functions/v1/ai-map",            // NL → map intent
+  AI_CHAT_PATH:   "/functions/v1/ai-chat",          // generic conversational replies
+  AI_THINK_PATH:  "/functions/v1/ai-think",         // structured decision / algorithm
+  AI_MAP_PATH:    "/functions/v1/ai-map",           // NL → map intent
+  AI_SEARCH_PATH: "/functions/v1/ai-search",        // NL → house/ride/near-me search intent
+  // Master switch for the AI search brain (houses smart-search + ride trip box).
+  // Leave FALSE until you've set the Anthropic key and deployed the function:
+  //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+  //   supabase functions deploy ai-search
+  // Then flip to true. Everything works without it (regex parser fallback).
+  AI_SEARCH_ENABLED: false,
+  // Optional full-URL override for ai-search (e.g. a self-hosted Python server
+  // at services/python). Setting this auto-enables AI regardless of the flag
+  // above — handy for local testing. Leave empty to use SUPABASE_URL + path.
+  AI_SEARCH_URL: "",
 
   // ---------- Insurance ----------
   INSURANCE_COVERAGE_PERCENT: 80,
@@ -92,6 +103,36 @@ window.APP_CONFIG = {
   //   window.APP_CONFIG.MAPBOX_TOKEN = "pk....";
   // The meet / ride / track pages read it from APP_CONFIG at runtime.
   MAPBOX_TOKEN: "",
+
+  // ---------- WebRTC (Meet & Locate voice/video) ----------
+  // STUN punches through most home/Wi-Fi NATs, but on Tanzanian MOBILE-carrier
+  // networks (CGNAT / symmetric NAT) STUN-only calls can't connect — ICE goes
+  // to "failed" and the call drops ("crashes"). A TURN relay fixes this by
+  // forwarding the media. Use a managed TURN provider (no server to run):
+  //   • metered.ca (free tier) · Cloudflare Realtime TURN · Twilio NTS
+  // Paste the credentials they give you below. Leave TURN_URLS empty to stay
+  // STUN-only (Wi-Fi-only reliability). The two Google STUN servers are always
+  // included automatically. For secrets you don't want committed, set them in
+  // js/config.local.js instead:  window.APP_CONFIG.TURN_CREDENTIAL = "...";
+  //
+  // FOR NOW: a FREE shared public TURN relay (Metered "OpenRelay" — no signup,
+  // no VPS). It works immediately but is a best-effort shared service (can be
+  // slow/rate-limited at busy times), so use it to get calls connecting today.
+  //
+  // NEXT TIME (recommended for reliability): get your OWN free credentials
+  // (metered.ca gives 50 GB/mo free, or Cloudflare Realtime TURN) and replace
+  // the three values below — or set them in js/config.local.js (gitignored):
+  //   window.APP_CONFIG.TURN_URLS      = ["turn:<app>.metered.live:443", "turns:<app>.metered.live:443?transport=tcp"];
+  //   window.APP_CONFIG.TURN_USERNAME  = "<your-username>";
+  //   window.APP_CONFIG.TURN_CREDENTIAL = "<your-credential>";
+  TURN_URLS: [
+    "turn:openrelay.metered.ca:80",
+    "turn:openrelay.metered.ca:443",
+    "turn:openrelay.metered.ca:443?transport=tcp",
+  ],
+  TURN_USERNAME: "openrelayproject",
+  TURN_CREDENTIAL: "openrelayproject",
+  STUN_URLS: [],          // optional extra STUN servers (added to Google's)
 
   // ---------- Support Contacts ----------
   SUPPORT_CONTACTS: [
