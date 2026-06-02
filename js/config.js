@@ -19,7 +19,7 @@ window.APP_CONFIG = {
   // http://127.0.0.1:8091 on localhost and fall back to calling Nominatim
   // directly everywhere else. Set this to your deployed gateway URL (no
   // trailing slash) to route all production traffic through it.
-  GEO_GATEWAY_URL: "",
+  GEO_GATEWAY_URL: "https://pawa-map-gateway.onrender.com",
 
   // Emails allowed to log into admin.html (must also exist in `admins` table for RLS).
   ADMIN_EMAILS: ["pawa4761@gmail.com"],
