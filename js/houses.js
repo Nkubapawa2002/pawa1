@@ -71,7 +71,14 @@ window.initHousesPage = async () => {
   };
   const ROAD_DETOUR = 1.3;         // straight-line km × this ≈ road km in a TZ city
 
-  // ---- Load data ---------------------------------------------------------
+  // ---- Map opens immediately, independent of data/network speed ----------
+  // (initMap is hoisted; it only needs the static container, not the listings.)
+  // A slow Supabase/data fetch must never leave the user staring at a blank map.
+  initMap();
+  // Warm up the Rust→WASM matching engine while data + tiles load.
+  window.HouseMatch?.warmup?.();
+
+  // ---- Load data (the map is already visible while this resolves) ---------
   try {
     houses = await window.DataStore.getHouses();
   } catch (e) {
@@ -86,13 +93,6 @@ window.initHousesPage = async () => {
     opt.value = a; opt.textContent = a;
     fArea.appendChild(opt);
   });
-
-  // Warm up the Rust→WASM matching engine while the map/filters render, so
-  // the first ranked search is instant.
-  window.HouseMatch?.warmup?.();
-
-  // ---- Map setup ---------------------------------------------------------
-  initMap();
 
   // ---- Filters & render --------------------------------------------------
   [fListing, fType, fArea, fBeds].forEach(el => el?.addEventListener("change", apply));

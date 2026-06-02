@@ -16,6 +16,26 @@
 
   const NOMINATIM = "https://nominatim.openstreetmap.org";
 
+  // The gateway runs on a free tier that SLEEPS after ~15 min idle, so a cold
+  // request can take 30–50 s to wake. We never want the UI to hang that long:
+  // every gateway call is given a short timeout, and on timeout/failure we fall
+  // straight through to Nominatim (which is fast). When the gateway is warm it
+  // wins easily; when it's cold the user just gets the direct path with a brief
+  // delay. Boundary polygons are heavier, so they get a longer budget.
+  const GATEWAY_TIMEOUT_MS = 3500;
+  const GATEWAY_BOUNDARY_TIMEOUT_MS = 6000;
+
+  // fetch() with an abort-based timeout. Throws on timeout so callers fall back.
+  async function fetchTimeout(url, ms, opts = {}) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), ms);
+    try {
+      return await fetch(url, { ...opts, signal: ac.signal });
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
   // Resolve the gateway base URL (no trailing slash), or "" for direct mode.
   function gatewayBase() {
     const cfg = (window.APP_CONFIG && window.APP_CONFIG.GEO_GATEWAY_URL) || "";
@@ -25,17 +45,29 @@
     return ""; // production with no gateway configured → call Nominatim directly
   }
 
+  // Wake a sleeping free-tier gateway in the background once per page, so the
+  // user's first real lookup is more likely to hit a warm instance. Fire-and-
+  // forget; failures are ignored. Skipped for localhost (always-on dev gateway).
+  let warmed = false;
+  function warmup() {
+    if (warmed) return;
+    warmed = true;
+    const base = gatewayBase();
+    if (!base || /127\.0\.0\.1|localhost/.test(base)) return;
+    fetchTimeout(`${base}/health`, GATEWAY_TIMEOUT_MS).catch(() => {});
+  }
+
   async function call(kind, qs) {
     qs = String(qs || "").replace(/^\?/, "");
     const base = gatewayBase();
 
-    // Prefer the gateway; on any failure fall back to Nominatim so a missing
-    // or sleeping gateway never breaks the map.
+    // Prefer the gateway; on timeout or any failure fall back to Nominatim so a
+    // missing or sleeping gateway never hangs (or breaks) the map.
     if (base) {
       try {
-        const r = await fetch(`${base}/osm/${kind}?${qs}`, { headers: { Accept: "application/json" } });
+        const r = await fetchTimeout(`${base}/osm/${kind}?${qs}`, GATEWAY_TIMEOUT_MS, { headers: { Accept: "application/json" } });
         if (r.ok) return r.json();
-      } catch (_) { /* fall through to direct */ }
+      } catch (_) { /* timed out / failed — fall through to direct */ }
     }
     const r = await fetch(`${NOMINATIM}/${kind}?${qs}`, { headers: { Accept: "application/json" } });
     return r.json();
@@ -61,7 +93,7 @@
         const qs = q
           ? `q=${encodeURIComponent(q)}`
           : `lat=${opts.lat}&lng=${opts.lng}`;
-        const r = await fetch(`${base}/boundary?${qs}`, { headers: { Accept: "application/json" } });
+        const r = await fetchTimeout(`${base}/boundary?${qs}`, GATEWAY_BOUNDARY_TIMEOUT_MS, { headers: { Accept: "application/json" } });
         if (r.ok) {
           const b = await r.json();
           return b && b.geojson ? b : null;
@@ -107,10 +139,15 @@
     }
   }
 
+  // Kick the gateway awake as soon as this script loads, so it's warming up
+  // while the user reads the page — before their first search/pin.
+  warmup();
+
   window.pawaGeo = {
     search: (qs) => call("search", qs),
     reverse: (qs) => call("reverse", qs),
     boundary,
+    warmup,
     gatewayBase,
   };
 })();
