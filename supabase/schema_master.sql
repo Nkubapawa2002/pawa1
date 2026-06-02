@@ -1221,13 +1221,17 @@ begin
   select 'AG' || lpad((coalesce(max(substring(id from 3)::int), 0) + 1)::text, 3, '0')
     into new_id from agents where id ~ '^AG[0-9]+$';
   if new_id is null then new_id := 'AG001'; end if;
+  -- tenant_id MUST be carried from the application, otherwise agents.tenant_id
+  -- falls back to its demo-tenant default and approved agents vanish from the
+  -- approving tenant's dashboard (see supabase/fix_approve_agent_overload.sql).
   insert into agents
     (id, name, phone, region, terminal, buses,
      email, national_id, experience_years, about, verified, photo_path,
-     rating_avg, rating_count)
+     tenant_id, rating_avg, rating_count)
   values
     (new_id, app.full_name, app.phone, app.region, app.terminal, app.buses,
      app.email, app.national_id, app.experience_years, app.about, true, app.photo_path,
+     app.tenant_id,
      coalesce(p_initial_rating, 0),
      case when p_initial_rating is not null then 1 else 0 end);
   update agent_applications

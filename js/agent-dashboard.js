@@ -205,12 +205,9 @@ window.initAgentDashboard = async () => {
     let pending = [];
     if (sb) {
       try {
-        const { data } = await sb
-          .from("cash_retargets")
-          .select("*")
-          .eq("retarget_status", "pending_record")
-          .order("created_at", { ascending: false })
-          .limit(20);
+        // Read via SECURITY DEFINER RPC — the cash_retargets table is no longer
+        // directly readable by the anon role (agents aren't authenticated).
+        const { data } = await sb.rpc("cash_retargets_pending", { p_limit: 20 });
         pending = data || [];
       } catch {}
     } else {
@@ -274,15 +271,13 @@ window.initAgentDashboard = async () => {
         btn.disabled = true;
         try {
           if (sb) {
-            await sb.from("cash_retargets")
-              .update({
-                customer_name: name,
-                customer_phone: phone,
-                retarget_status: "recorded",
-                recorded_by: agent.id || agent.name,
-                recorded_at: new Date().toISOString()
-              })
-              .eq("ticket_code", ticket);
+            // Write via SECURITY DEFINER RPC (table is closed to anon update).
+            await sb.rpc("cash_retargets_record", {
+              p_ticket: ticket,
+              p_name: name,
+              p_phone: phone,
+              p_recorded_by: agent.id || agent.name
+            });
           } else {
             const list = JSON.parse(localStorage.getItem("cash_retargets_local") || "[]");
             const idx = list.findIndex(r => r.ticket_code === ticket);

@@ -7,3 +7,18 @@ description = "Pawa polyglot stack - Rust service (CPU-bound / perf-critical / W
 # Std-library only by design: a dependency-free /health stub that compiles
 # offline. Add crates here when real perf-critical work lands.
 [dependencies]
+
+# Two targets from one crate:
+#   * the bin (src/main.rs)  → the native /health service stub
+#   * the lib (src/lib.rs)   → the Houses matching engine, compiled to WASM:
+#       cargo build --release --target wasm32-unknown-unknown --lib
+#     The prebuilt artifact is committed to js/house-match.wasm (no root build).
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Keep the WASM tiny — it ships to every browser that opens houses.html.
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+strip = true

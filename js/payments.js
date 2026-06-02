@@ -95,9 +95,12 @@
     return new Promise((resolve, reject) => {
       const tick = async () => {
         if (Date.now() - start > timeoutMs) return reject(new Error("timeout"));
-        const { data, error } = await conn.from("payments")
-          .select("id,status,provider,provider_ref,external_ref,amount_tzs,reference,paid_at,error_message,payment_url")
-          .eq("id", payment_id).maybeSingle();
+        // Read this one payment's status via a SECURITY DEFINER RPC. The
+        // payments table is no longer world-readable (finance users only);
+        // this RPC returns ONLY the row whose id the caller already holds, so
+        // public checkout can still poll without exposing every payment.
+        const { data: rows, error } = await conn.rpc("payment_status", { p_id: payment_id });
+        const data = Array.isArray(rows) ? rows[0] : rows;
         if (error)             return reject(error);
         if (!data)             return reject(new Error("payment row missing"));
         if (["completed","failed","cancelled","expired","refunded"].includes(data.status)) {

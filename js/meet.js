@@ -772,16 +772,42 @@ const _initMeetPageImpl = () => {
   // ── WebRTC voice + video ───────────────────────────────────────────────
   // Real-time bidirectional video + audio between everyone in the room.
   // Signaling (SDP + ICE) rides on the existing Supabase Realtime channel
-  // via `rtc_*` broadcast events. STUN-only — good enough for most users;
-  // add TURN later if Tanzanian carrier NAT blocks ICE.
-  const RTC_CONFIG = {
-    iceServers: [
+  // via `rtc_*` broadcast events.
+  //
+  // ICE servers are built from APP_CONFIG: always the two Google STUN servers,
+  // plus any TURN relay configured (TURN_URLS/USERNAME/CREDENTIAL). TURN is
+  // what makes calls survive Tanzanian mobile-carrier NAT — without it,
+  // STUN-only calls there fail and the call "crashes". See js/config.js.
+  function buildIceServers() {
+    const cfg = window.APP_CONFIG || {};
+    const servers = [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-    ],
+    ];
+    (cfg.STUN_URLS || []).forEach(u => { if (u) servers.push({ urls: u }); });
+    const turnUrls = (cfg.TURN_URLS || []).filter(Boolean);
+    if (turnUrls.length && cfg.TURN_USERNAME && cfg.TURN_CREDENTIAL) {
+      servers.push({
+        urls: turnUrls,
+        username: cfg.TURN_USERNAME,
+        credential: cfg.TURN_CREDENTIAL,
+      });
+    }
+    return servers;
+  }
+  const RTC_CONFIG = {
+    iceServers: buildIceServers(),
     bundlePolicy: "max-bundle",      // single transport — faster
     rtcpMuxPolicy: "require",
+    iceCandidatePoolSize: 2,         // pre-gather a few candidates → faster connect
   };
+  // True once a TURN relay is configured — gates the "STUN-only" warning.
+  const HAS_TURN = RTC_CONFIG.iceServers.some(s =>
+    [].concat(s.urls).some(u => /^turns?:/i.test(u)));
+  if (!HAS_TURN) {
+    console.warn("[meet] No TURN server configured — calls may fail on mobile " +
+      "(carrier NAT). Add TURN_URLS/TURN_USERNAME/TURN_CREDENTIAL in js/config.js.");
+  }
   const peerConns  = new Map();   // user_id -> RTCPeerConnection
   let camMuted = false;
   const camMuteBtn = document.getElementById("chatCameraMuteBtn");
@@ -837,7 +863,22 @@ const _initMeetPageImpl = () => {
     };
 
     pc.onconnectionstatechange = () => {
-      if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
+      const st = pc.connectionState;
+      // "disconnected" is usually a transient blip (network hiccup, brief
+      // signal loss) that recovers on its own — DON'T tear the call down for
+      // it, or every passing glitch kills the call. Only act on a real
+      // "failed"/"closed".
+      if (st === "failed") {
+        // One ICE restart before giving up — rescues flaky mobile networks.
+        // The initiator (lower userId) re-offers with iceRestart; the answerer
+        // waits for that new offer.
+        if (!pc._iceRestarted && myUserId < remoteId) {
+          pc._iceRestarted = true;
+          rtcMaybeInitiate(remoteId, true);
+          return;
+        }
+      }
+      if (st === "failed" || st === "closed") {
         closePeer(remoteId);
         cameraStreams.delete(remoteId);
         renderLiveCameras();
@@ -919,12 +960,13 @@ const _initMeetPageImpl = () => {
   }
 
   // Lower userId initiates to avoid simultaneous offers ("glare").
-  async function rtcMaybeInitiate(remoteId) {
+  // iceRestart=true re-gathers ICE on an existing connection that failed.
+  async function rtcMaybeInitiate(remoteId, iceRestart = false) {
     if (!camStream) return;            // we're not sharing → don't call out
     if (myUserId >= remoteId) return;  // they'll call us instead
     const pc = getPeer(remoteId);
     try {
-      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true, iceRestart });
       await pc.setLocalDescription(offer);
       rtcTuneSenders(pc);
       await realtimeCh.send({
