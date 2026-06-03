@@ -1145,13 +1145,29 @@ create policy "house-photos upload" on storage.objects for insert
       return [];
     }
   }
+  // Country-wide place search across every admin level (village/ward/district…).
+  // Uses the shared Nominatim helper so it works with no Mapbox token; if a token
+  // is set, Mapbox autocomplete is merged in first for snappier typeahead.
+  async function pinSearch(q) {
+    let rows = [];
+    if (mapboxToken()) { try { rows = await mapboxSearch(q); } catch (_) {} }
+    try {
+      const hits = await pawaGeo.suggest(q, { limit: 25 });
+      for (const h of hits) {
+        if (rows.some(r => r.name === h.name)) continue;
+        rows.push({ name: h.name, tag: h.tag, context: h.context, lat: h.lat, lng: h.lng });
+      }
+    } catch (_) { /* offline — Mapbox rows (if any) still stand */ }
+    return rows;
+  }
   function renderSearchResults(rows) {
     if (!fPinSearchResults) return;
     if (!rows.length) { fPinSearchResults.style.display = "none"; return; }
     fPinSearchResults.innerHTML = rows.map((r, i) => `
       <button type="button" class="ah-search-row" data-i="${i}"
               style="display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 14px;border-bottom:1px solid #eef1f4;cursor:pointer;font-size:.9rem;">
-        ${esc(r.name)}
+        <strong style="font-weight:600;">${esc(r.name)}</strong>${r.tag ? ` <span style="color:#0a6f4d;font-size:.74rem;">${esc(r.tag)}</span>` : ""}
+        ${r.context ? `<br><small style="color:#6b7a73;font-size:.78rem;">${esc(r.context)}</small>` : ""}
       </button>
     `).join("");
     fPinSearchResults.style.display = "block";
@@ -1174,7 +1190,7 @@ create policy "house-photos upload" on storage.objects for insert
     const q = fPinSearch.value.trim();
     if (!q) { fPinSearchResults.style.display = "none"; return; }
     searchTimer = setTimeout(async () => {
-      const rows = await mapboxSearch(q);
+      const rows = await pinSearch(q);
       renderSearchResults(rows);
     }, 280);
   });

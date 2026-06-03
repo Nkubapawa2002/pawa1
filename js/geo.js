@@ -151,9 +151,92 @@
   // while the user reads the page — before their first search/pin.
   warmup();
 
+  // ---- suggest(): rich country-wide autocomplete ---------------------------
+  // One place that turns a typed query into MANY distinguishable suggestions
+  // spanning every admin level — village, hamlet, ward, suburb, town, district,
+  // region — anywhere in Tanzania. Used by every "search a place → see it on the
+  // map" box (houses, ride, agent pin) so they all behave the same.
+  //
+  // Why it returns more than the raw boxes did:
+  //   • limit is high (default 25) so same-named places everywhere show up;
+  //   • dedupe=0 tells Nominatim to keep near-duplicates instead of trimming;
+  //   • we DON'T collapse by name — "Mikocheni" in Kinondoni, Karatu and Tanga
+  //     are three different answers, each shown with its district + region so
+  //     the user can pick the right one.
+  //
+  // Returns: [{ name, tag, context, lat, lng, full, id }]
+  //   name    — the place itself (first part of the display name)
+  //   tag     — human label for the kind (Village / Ward / District / …)
+  //   context — the wider area, e.g. "Kinondoni, Dar es Salaam" (for disambiguation)
+  //   full    — the complete display name
+
+  const ADMIN_TAG = {
+    state: "Region", region: "Region", state_district: "District", county: "District",
+    municipality: "District", district: "District", city: "City", town: "Town",
+    suburb: "Suburb", neighbourhood: "Area", quarter: "Area", residential: "Area",
+    village: "Village", hamlet: "Village", ward: "Ward", subward: "Area",
+    administrative: "Area", isolated_dwelling: "Settlement", locality: "Locality",
+    borough: "District", city_district: "District",
+  };
+  const SERVICE_TAG = {
+    school: "School", college: "College", university: "University",
+    hospital: "Hospital", clinic: "Clinic", pharmacy: "Pharmacy",
+    marketplace: "Market", supermarket: "Supermarket", mall: "Mall", bank: "Bank",
+    fuel: "Fuel", bus_station: "Bus station", ferry_terminal: "Ferry",
+    place_of_worship: "Worship", police: "Police", restaurant: "Restaurant",
+    cafe: "Cafe", hotel: "Hotel", stadium: "Stadium", airport: "Airport",
+    aerodrome: "Airport",
+  };
+  function tagOf(it) {
+    const at = (it.addresstype || "").toLowerCase();
+    if (ADMIN_TAG[at]) return ADMIN_TAG[at];
+    const ty = (it.type || "").toLowerCase();
+    if (SERVICE_TAG[ty]) return SERVICE_TAG[ty];
+    const cls = (it.class || it.category || "").toLowerCase();
+    if (["amenity", "shop", "leisure", "tourism", "office", "healthcare", "building"].includes(cls)) {
+      const s = (ty || cls).replace(/_/g, " ");
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    return "Place";
+  }
+
+  async function suggest(q, opts = {}) {
+    q = String(q || "").trim();
+    if (q.length < 2) return [];
+    const limit = opts.limit || 25;
+    let list;
+    try {
+      list = await call("search",
+        `format=jsonv2&limit=${limit}&countrycodes=tz&addressdetails=1&dedupe=0&accept-language=en&q=${encodeURIComponent(q)}`);
+    } catch (_) {
+      return [];
+    }
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const it of list) {
+      const lat = +it.lat, lng = +it.lon;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const parts = (it.display_name || "").split(",").map(s => s.trim()).filter(Boolean);
+      const name = (it.name && it.name.trim()) || parts[0] || q;
+      // Wider area = the parts between the name and the country, trimmed to the
+      // 3 most telling (district / region / zone) so rows stay one line.
+      const context = parts.slice(1).filter(p => p !== "Tanzania").slice(0, 3).join(", ");
+      // De-dupe on identity, not on name: same name + same wider area + same
+      // ~100 m spot is a true duplicate; same name elsewhere is kept.
+      const key = it.place_id ||
+        `${name}|${context}|${lat.toFixed(3)}|${lng.toFixed(3)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name, tag: tagOf(it), context, lat, lng, full: it.display_name || name, id: key });
+    }
+    return out;
+  }
+
   window.pawaGeo = {
     search: (qs) => call("search", qs),
     reverse: (qs) => call("reverse", qs),
+    suggest,
     boundary,
     warmup,
     gatewayBase,

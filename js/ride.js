@@ -390,20 +390,21 @@ window.initRidePage = () => {
 
   async function geocode(q, anchor, kind) {
     try {
-      const j = await pawaGeo.search(`q=${encodeURIComponent(q + ", Tanzania")}&format=json&addressdetails=1&limit=6&countrycodes=tz&accept-language=en`);
-      const hits = (j || []).filter(h => inTanzania(+h.lat, +h.lon));
+      // Country-wide suggestions across every admin level (village/ward/district…).
+      const all = await pawaGeo.suggest(q, { limit: 20 });
+      const hits = all.filter(h => inTanzania(h.lat, h.lng));
       if (!hits.length) { searchHits.hidden = true; return; }
       searchHits.hidden = false;
       searchHits.innerHTML = hits.map((h, i) => `
         <button type="button" class="ride-hit" data-i="${i}">
-          <strong>${esc(h.display_name.split(",")[0])}</strong>
-          <small class="muted">${esc(h.display_name)}</small>
+          <strong>${esc(h.name)}</strong>
+          <small class="muted">${esc([h.tag, h.context].filter(Boolean).join(" · "))}</small>
         </button>`).join("");
       $$(".ride-hit", searchHits).forEach((btn, i) => {
         btn.addEventListener("click", () => {
           const h = hits[i];
-          if (kind === "pickup") setPickup(+h.lat, +h.lon, h.display_name.split(",")[0]);
-          else                   setDropoff(+h.lat, +h.lon, h.display_name.split(",")[0]);
+          if (kind === "pickup") setPickup(h.lat, h.lng, h.name);
+          else                   setDropoff(h.lat, h.lng, h.name);
           searchHits.hidden = true;
         });
       });

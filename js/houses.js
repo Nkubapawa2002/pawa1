@@ -411,35 +411,33 @@ window.initHousesPage = async () => {
       resultsEl.innerHTML = `<div class="am-search-result loading">Searching…</div>`;
       // Known places (universities, hospitals, malls, airports…) resolve
       // instantly from the gazetteer and float to the top of the results, so
-      // "UDSM" or "Mlimani City" drops the pin exactly on the spot.
+      // "UDSM" or "Mlimani City" drops the pin exactly on the spot. Below them
+      // we list every matching village / ward / district / area in the country.
       const combined = [];
       const known = window.resolveTzPlace && window.resolveTzPlace(q);
-      if (known) combined.push({ display_name: known.name, lat: known.lat, lon: known.lng, _known: true });
-      const short2 = (it) => (it.display_name || "").split(",").slice(0, 2).join(", ");
+      if (known) combined.push({ name: known.name, tag: "Known place", context: "", lat: known.lat, lng: known.lng, _known: true });
       try {
-        const list = await pawaGeo.search(`format=json&limit=6&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`);
-        for (const it of list) {
-          if (combined.some(c => short2(c) === short2(it))) continue;
-          combined.push(it);
+        const hits = await pawaGeo.suggest(q, { limit: 25 });
+        for (const h of hits) {
+          if (combined.some(c => c.name === h.name && c.context === h.context)) continue;
+          combined.push(h);
         }
       } catch (e) {
         if (!combined.length) { resultsEl.innerHTML = `<div class="am-search-result loading">Search failed: ${esc(e.message)}</div>`; return; }
       }
       if (!combined.length) { resultsEl.innerHTML = `<div class="am-search-result loading">No matches in Tanzania.</div>`; return; }
-      resultsEl.innerHTML = combined.map((it, i) => {
-        const rest = (it.display_name || "").split(",").slice(2).join(", ");
-        return `<div class="am-search-result" data-i="${i}">
-          <strong>${esc(short2(it))}${it._known ? " · known place" : ""}</strong>
-          ${rest ? `<small>${esc(rest)}</small>` : ""}
-        </div>`;
-      }).join("");
-      resultsEl.querySelectorAll(".am-search-result").forEach(div => {
+      resultsEl.innerHTML = combined.map((it, i) =>
+        `<div class="am-search-result" data-i="${i}">
+          <strong>${esc(it.name)}</strong> <span class="am-tag${it._known ? " known" : ""}">${esc(it.tag || "Place")}</span>
+          ${it.context ? `<small>${esc(it.context)}</small>` : ""}
+        </div>`).join("");
+      resultsEl.querySelectorAll(".am-search-result[data-i]").forEach(div => {
         div.addEventListener("click", () => {
           const it = combined[+div.dataset.i];
           if (!it) return;
-          setPin(+it.lat, +it.lon, short2(it));
+          setPin(it.lat, it.lng, it.name);
           resultsEl.hidden = true;
-          searchIn.value = (it.display_name || "").split(",")[0];
+          searchIn.value = it.name;
         });
       });
     }
@@ -1146,18 +1144,17 @@ window.initHousesPage = async () => {
   async function searchPlaces(q) {
     const out = [];
     const known = window.resolveTzPlace && window.resolveTzPlace(q);
-    if (known) out.push({ name: known.name, lat: known.lat, lng: known.lng, tag: "Known place", known: true });
+    if (known) out.push({ name: known.name, lat: known.lat, lng: known.lng, tag: "Known place", context: "", known: true });
     try {
-      const list = await pawaGeo.search(`format=jsonv2&limit=8&countrycodes=tz&addressdetails=1&q=${encodeURIComponent(q)}`);
-      for (const it of list) {
-        const lat = +it.lat, lng = +it.lon;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-        const name = (it.display_name || "").split(",").slice(0, 2).join(", ");
-        if (out.some(o => o.name === name)) continue;
-        out.push({ name, full: it.display_name, lat, lng, tag: resultTag(it) });
+      // Country-wide: every matching village / ward / district / area, each kept
+      // distinct (same name in different districts all show), not just the top 8.
+      const hits = await pawaGeo.suggest(q, { limit: 25 });
+      for (const h of hits) {
+        if (out.some(o => o.name === h.name && o.context === h.context)) continue;
+        out.push(h);
       }
     } catch (_) { /* offline / rate-limited — gazetteer result still stands */ }
-    return out.slice(0, 8);
+    return out;
   }
 
   // Reverse-geocode a tapped/dragged point into a nearby-area label.
@@ -1346,7 +1343,7 @@ window.initHousesPage = async () => {
         const hits = await searchPlaces(q);
         if (!hits.length) { resultsEl.innerHTML = `<div class="am-search-result loading">No matches — tap the map to drop a pin.</div>`; return; }
         resultsEl.innerHTML = hits.map((it, i) => {
-          const rest = it.full ? it.full.split(",").slice(2, 4).join(",").trim() : "";
+          const rest = it.context || "";
           return `<div class="am-search-result" data-i="${i}">
             <strong>${esc(it.name)}</strong> <span class="am-tag${it.known ? " known" : ""}">${esc(it.tag || "Place")}</span>
             ${rest ? `<small>${esc(rest)}</small>` : ""}
