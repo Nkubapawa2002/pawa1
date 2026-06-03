@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>List your truck — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <style>
+    .at-card { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+    .at-auth-card { max-width: 420px; margin: 0 auto; }
+    .at-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+    .at-tabs button { flex: 1; padding: 10px; border: 1px solid var(--c-border,#e7e4dd); background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915); }
+    .at-tabs button.active { background: var(--c-brand,#0a6f4d); color: #fff; border-color: transparent; }
+    .at-field { margin-bottom: 12px; }
+    .at-field label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: 5px; }
+    .at-field input, .at-field select, .at-field textarea {
+      width: 100%; padding: 11px 12px; border: 1px solid var(--c-border,#e7e4dd);
+      border-radius: 10px; font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text,#1a1915);
+    }
+    .at-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .at-checks { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 12px; }
+    .at-checks label { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; font-weight: 600; }
+    .at-checks input { width: auto; }
+    .at-btn { padding: 11px 18px; border: 1px solid var(--c-border,#e7e4dd); background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .at-btn-brand { background: var(--c-brand,#0a6f4d); color: #fff; border-color: transparent; }
+    .at-btn-danger { background: #fce4e4; color: #b91c1c; border-color: #f5b3b3; }
+    .at-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .at-msg { padding: 10px 12px; border-radius: 10px; font-size: .88rem; margin-top: 10px; }
+    .at-msg.error { background: #fce4e4; color: #b91c1c; }
+    .at-msg.success { background: #e6f6ec; color: #0d8050; }
+    .at-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .at-tile { border: 1px solid var(--c-border,#e7e4dd); border-radius: 12px; overflow: hidden; background: #fff; }
+    .at-tile-photo { aspect-ratio: 4/3; background: #dfe7e2 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+    .at-tile-body { padding: 10px 12px; }
+    .at-tile-body h4 { margin: 0 0 4px; font-size: .92rem; }
+    .at-tile-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .at-tile-actions button { flex: 1; padding: 7px; font-size: .8rem; border-radius: 8px; cursor: pointer; border: 1px solid var(--c-border,#e7e4dd); background: #fff; color: var(--c-text,#1a1915); }
+    .at-photo-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .at-photo-cell { position: relative; width: 88px; height: 66px; border-radius: 8px; background: #dfe7e2 center/cover no-repeat; }
+    .at-photo-cell button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: none; background: #b91c1c; color: #fff; cursor: pointer; font-size: .8rem; line-height: 1; }
+    .at-photo-add { display: inline-flex; align-items: center; justify-content: center; width: 88px; height: 66px; border: 2px dashed var(--c-border,#bbb); border-radius: 8px; cursor: pointer; color: var(--c-muted,#888); font-size: 1.5rem; }
+    .at-pin-wrap { position: relative; }
+    .at-pin-map { height: 280px; border-radius: 12px; overflow: hidden; border: 1px solid var(--c-border,#e7e4dd); }
+    .at-pin-search { position: relative; margin-bottom: 8px; }
+    .at-pin-results { position: absolute; z-index: 1000; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid var(--c-border,#e7e4dd); border-radius: 10px; max-height: 240px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .at-pin-results[hidden] { display: none; }
+    .at-pin-results button { display: block; width: 100%; text-align: left; padding: 9px 12px; border: none; background: #fff; cursor: pointer; border-bottom: 1px solid #f0eee8; font-size: .86rem; color: var(--c-text,#1a1915); }
+    .at-pin-results button:hover { background: #f6f5f0; }
+    .at-pin-coords { font-size: .82rem; color: var(--c-muted,#6b6960); margin-top: 6px; }
+    .at-setup pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 10px; overflow: auto; font-size: .76rem; max-height: 320px; }
+    .at-hint { font-size: .82rem; color: var(--c-muted,#6b6960); margin: 2px 0 10px; }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')" data-page="agent-trucks">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="at_title">List your moving truck</h1>
+      <p class="page-subtitle" data-i18n="at_sub">Register your truck so people moving house can find you and call you directly.</p>
+    </div>
+  </section>
+
+  <main id="atMain" class="container" style="padding-top:18px; padding-bottom:60px; max-width:880px;">
+
+    <!-- Auth -->
+    <section id="atAuthCard" class="at-card at-auth-card" hidden>
+      <div class="at-tabs">
+        <button id="tabSignIn" class="active" type="button">Sign in</button>
+        <button id="tabSignUp" type="button">Create account</button>
+      </div>
+      <form id="atAuthForm" autocomplete="on">
+        <div class="at-field">
+          <label for="atEmail">Email</label>
+          <input id="atEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+        </div>
+        <div class="at-field">
+          <label for="atPassword">Password</label>
+          <input id="atPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
+        </div>
+        <button id="atAuthSubmit" class="at-btn at-btn-brand" type="submit" style="width:100%;justify-content:center;">Sign in</button>
+        <p id="atAuthMsg" class="at-msg" hidden></p>
+      </form>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="atDashboard" hidden>
+      <div id="atWarn"></div>
+      <div class="at-card">
+        <div class="at-head">
+          <div>Signed in as <strong id="atUserEmail">—</strong></div>
+          <div style="display:flex;gap:8px;">
+            <button id="atNewBtn" class="at-btn at-btn-brand" type="button">+ New truck</button>
+            <button id="atSignOut" class="at-btn" type="button">Sign out</button>
+          </div>
+        </div>
+        <div id="atList" class="at-list" aria-busy="true"></div>
+      </div>
+    </section>
+
+    <!-- Form -->
+    <section id="atFormSection" hidden>
+      <form id="atForm" class="at-card" autocomplete="off">
+        <h2 id="atFormTitle" style="margin-top:0;">Add a truck</h2>
+
+        <div class="at-field">
+          <label>Photos <span class="at-hint" style="display:inline">(first photo is the cover)</span></label>
+          <div class="at-photo-grid" id="atPhotoGrid"></div>
+          <label class="at-photo-add" for="atPhotoInput" id="atPhotoAdd">+</label>
+          <input id="atPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+        </div>
+
+        <div class="at-field">
+          <label for="atTitle">Title *</label>
+          <input id="atTitle" type="text" required maxlength="120" placeholder="e.g. Toyota Dyna Canter — house moves in Dar" />
+        </div>
+
+        <div class="at-row">
+          <div class="at-field">
+            <label for="atType">Truck type *</label>
+            <select id="atType" required>
+              <option value="pickup">Pickup</option>
+              <option value="canter" selected>Canter</option>
+              <option value="3ton">3-tonne</option>
+              <option value="7ton">7-tonne lorry</option>
+              <option value="10ton_plus">10-tonne+ lorry</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="at-field">
+            <label for="atCapacity">Capacity (tonnes)</label>
+            <input id="atCapacity" type="number" min="0" step="0.5" placeholder="e.g. 3" />
+          </div>
+        </div>
+
+        <div class="at-row">
+          <div class="at-field">
+            <label for="atPrice">Price from (TZS / trip) *</label>
+            <input id="atPrice" type="number" min="0" step="5000" required placeholder="e.g. 80000" />
+          </div>
+          <div class="at-field">
+            <label for="atService">Coverage *</label>
+            <select id="atService" required>
+              <option value="within_city">Within city</option>
+              <option value="region_wide" selected>Region-wide</option>
+              <option value="cross_region">Cross-region</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="at-checks">
+          <label><input id="atNegotiable" type="checkbox" checked /> Price negotiable</label>
+          <label><input id="atDriver" type="checkbox" checked /> Driver included</label>
+          <label><input id="atLoaders" type="checkbox" /> Loaders included</label>
+        </div>
+
+        <div class="at-row">
+          <div class="at-field">
+            <label for="atRegion">Region</label>
+            <select id="atRegion"><option value="">Select region</option></select>
+          </div>
+          <div class="at-field">
+            <label for="atArea">Area / ward</label>
+            <input id="atArea" type="text" placeholder="e.g. Mikocheni" />
+          </div>
+        </div>
+
+        <div class="at-field">
+          <label for="atAddress">Base location (address)</label>
+          <input id="atAddress" type="text" placeholder="e.g. Mikocheni B, near Regent Estate" />
+        </div>
+
+        <!-- Location pin -->
+        <div class="at-field">
+          <label>Where the truck is based (drop a pin) *</label>
+          <p class="at-hint">Search a place, tap the map, or use GPS. Users find the truck nearest them by this pin.</p>
+          <div class="at-pin-search">
+            <input id="atPinSearch" type="search" autocomplete="off" placeholder="Search a place (e.g. Mikocheni, Sakina…)" />
+            <div id="atPinResults" class="at-pin-results" hidden></div>
+          </div>
+          <div class="at-pin-wrap">
+            <div id="atPinMap" class="at-pin-map"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
+            <button type="button" id="atPinGps" class="at-btn">📍 Use my GPS</button>
+            <span id="atPinCoords" class="at-pin-coords">No pin set</span>
+          </div>
+        </div>
+
+        <div class="at-field">
+          <label for="atDescription">Description</label>
+          <textarea id="atDescription" rows="4" maxlength="800" placeholder="What can you move, what's included (driver, loaders, cover), areas you serve…"></textarea>
+        </div>
+
+        <h3 style="margin:14px 0 8px;">Owner contact</h3>
+        <div class="at-row">
+          <div class="at-field">
+            <label for="atOwnerName">Name / business *</label>
+            <input id="atOwnerName" type="text" required placeholder="e.g. Juma Hauliers" />
+          </div>
+          <div class="at-field">
+            <label for="atOwnerPhone">Phone *</label>
+            <input id="atOwnerPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
+          </div>
+        </div>
+        <div class="at-field">
+          <label for="atOwnerWa">WhatsApp (if different)</label>
+          <input id="atOwnerWa" type="tel" placeholder="+255 7XX XXX XXX" />
+        </div>
+
+        <p id="atFormMsg" class="at-msg" hidden></p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;">
+          <button type="button" id="atCancelBtn" class="at-btn">Cancel</button>
+          <button type="submit" id="atSaveBtn" class="at-btn at-btn-brand">Save truck</button>
+        </div>
+      </form>
+    </section>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/geolocate.js"></script>
+  <script src="js/agent-trucks.js"></script>
+  <script>
+    window.renderNav("agent-trucks.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initAgentTrucksPage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

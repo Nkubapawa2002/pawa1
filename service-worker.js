@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v93-2026-06-03-houses-area-bg-finance-list-tables";
+const VERSION = "v97-2026-06-03-moving-trucks-feature";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 

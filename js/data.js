@@ -282,6 +282,24 @@
       }, opts);
     },
 
+    // Trucks — public moving-truck listings (the "move my goods to the new
+    // home" companion to houses). Same pattern as getHouses: Supabase first,
+    // falling back to data/trucks.json when the table isn't applied yet.
+    async getTrucks(opts = {}) {
+      return cached("trucks", TTL.houses, async () => {
+        if (sb) {
+          try {
+            const { data, error } = await sb.from("trucks").select("*").order("created_at", { ascending: false });
+            if (error) throw error;
+            if (Array.isArray(data) && data.length) return data;
+          } catch (e) {
+            console.warn("[trucks] Supabase query failed, falling back to JSON:", e?.message || e);
+          }
+        }
+        return loadJSON("trucks");
+      }, opts);
+    },
+
     // Manual cache controls — admin pages can call these after a write
     // so the next read goes straight to Postgres instead of returning stale.
     invalidateCache(keys) { kcacheInvalidate(keys); },
@@ -292,6 +310,15 @@
       if (path.startsWith("http") || path.startsWith("data/")) return path;
       if (!sb) return `data/${path}`;
       const bucket = (window.APP_CONFIG && window.APP_CONFIG.HOUSE_PHOTOS_BUCKET) || "house-photos";
+      const { data } = sb.storage.from(bucket).getPublicUrl(path);
+      return data.publicUrl;
+    },
+
+    truckPhotoUrl(path) {
+      if (!path) return "";
+      if (path.startsWith("http") || path.startsWith("data/")) return path;
+      if (!sb) return `data/${path}`;
+      const bucket = (window.APP_CONFIG && window.APP_CONFIG.TRUCK_PHOTOS_BUCKET) || "truck-photos";
       const { data } = sb.storage.from(bucket).getPublicUrl(path);
       return data.publicUrl;
     },

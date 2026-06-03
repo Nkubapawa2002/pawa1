@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Moving trucks for hire — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <style>
+    /* Filter toolbar */
+    .trucks-toolbar {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .trucks-toolbar select,
+    .trucks-toolbar input {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px; font-size: 16px; font-family: inherit;
+      background: #fff; color: var(--c-text, #1a1915);
+    }
+    .tt-actions { display: flex; gap: 8px; grid-column: 1 / -1; flex-wrap: wrap; }
+    .trucks-near-me {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 16px; border: none; border-radius: 10px; cursor: pointer;
+      background: var(--c-brand, #0a6f4d); color: #fff; font-weight: 700; font-size: .9rem;
+    }
+    .trucks-near-me svg { width: 18px; height: 18px; }
+    .trucks-near-me:disabled { opacity: .6; cursor: default; }
+    .trucks-list-cta {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 16px; border-radius: 10px; font-weight: 700; font-size: .9rem;
+      background: var(--c-accent, #bc5c00); color: #fff; text-decoration: none;
+    }
+
+    .trucks-result-count { font-size: .9rem; color: var(--c-muted, #6b6960); margin: 6px 2px 10px; }
+
+    /* Mobile list/map tabs */
+    .trucks-mobile-tabs { display: none; gap: 8px; margin-bottom: 10px; }
+    .trucks-mobile-tabs button {
+      flex: 1; padding: 10px; border: 1px solid var(--c-border, #e7e4dd);
+      background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915);
+    }
+    .trucks-mobile-tabs button.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: transparent; }
+
+    /* Split list + map */
+    .trucks-stage { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; align-items: start; }
+    .trucks-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+    .trucks-map-wrap { position: sticky; top: 14px; }
+    .trucks-map { height: 72vh; min-height: 420px; border-radius: 14px; overflow: hidden; border: 1px solid var(--c-border, #e7e4dd); }
+
+    /* Truck card */
+    .truck-card {
+      background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px; overflow: hidden; cursor: pointer; text-decoration: none; color: inherit;
+      display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .truck-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
+    .truck-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eceae4 center/cover no-repeat; }
+    .truck-card-badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+    .tc-badge {
+      font-size: .68rem; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px;
+      color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
+    }
+    .tc-badge.verified { background: var(--c-success, #0d8050); }
+    .tc-badge.dist { background: var(--c-brand, #0a6f4d); }
+    .truck-card-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 5px; }
+    .truck-card-price { font-weight: 800; color: var(--c-brand, #0a6f4d); font-size: 1.02rem; }
+    .truck-card-price small { font-weight: 600; color: var(--c-muted, #6b6960); font-size: .72rem; }
+    .truck-card-title { font-weight: 700; font-size: .92rem; line-height: 1.25; }
+    .truck-card-meta { font-size: .8rem; color: var(--c-muted, #6b6960); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+    .truck-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .truck-card-tags span {
+      font-size: .68rem; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+      background: var(--c-surface-2, #f3f1ea); color: var(--c-muted, #555);
+    }
+    .trucks-empty { padding: 40px 16px; text-align: center; color: var(--c-muted, #6b6960); }
+
+    @media (max-width: 860px) {
+      .trucks-stage { grid-template-columns: 1fr; }
+      .trucks-mobile-tabs { display: flex; }
+      .trucks-stage[data-view="list"] .trucks-map-wrap { display: none; }
+      .trucks-stage[data-view="map"] .trucks-list { display: none; }
+      .trucks-map-wrap { position: static; }
+      .trucks-map { height: 64vh; }
+      .trucks-list-cta { margin-left: 0; }
+    }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')" data-page="trucks">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="trucks_title">Moving trucks for hire</h1>
+      <p class="page-subtitle" data-i18n="trucks_sub">Find a truck near you to move your goods to your new home. Filter by size and area, or sort by distance.</p>
+    </div>
+  </section>
+
+  <main id="trucksMain" class="container" style="padding-top:18px;">
+
+    <!-- Filter bar -->
+    <div class="trucks-toolbar">
+      <select id="filterType">
+        <option value="">Truck type: any</option>
+        <option value="pickup">Pickup</option>
+        <option value="canter">Canter</option>
+        <option value="3ton">3-tonne</option>
+        <option value="7ton">7-tonne lorry</option>
+        <option value="10ton_plus">10-tonne+ lorry</option>
+        <option value="other">Other</option>
+      </select>
+      <input type="text" id="filterArea" list="filterAreaList" autocomplete="off"
+             placeholder="Area — type e.g. Mikocheni, Sakina…" title="Type any area, ward or neighbourhood" />
+      <datalist id="filterAreaList"></datalist>
+      <select id="filterService">
+        <option value="">Coverage: any</option>
+        <option value="within_city">Within city</option>
+        <option value="region_wide">Region-wide</option>
+        <option value="cross_region">Cross-region</option>
+      </select>
+      <select id="filterCapacity">
+        <option value="">Capacity: any</option>
+        <option value="1">1+ tonne</option>
+        <option value="3">3+ tonnes</option>
+        <option value="7">7+ tonnes</option>
+        <option value="10">10+ tonnes</option>
+      </select>
+      <input type="text" id="filterSearch" placeholder="Search title, area or owner…" />
+      <div class="tt-actions">
+        <button id="truckNearMeBtn" class="trucks-near-me" title="Use my GPS location">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          <span data-i18n="trucks_near_me">Near me</span>
+        </button>
+        <a href="agent-trucks.html" class="trucks-list-cta" data-i18n="trucks_list_cta">+ List your truck</a>
+      </div>
+    </div>
+
+    <div id="trucksCount" class="trucks-result-count" role="status" aria-live="polite"></div>
+
+    <!-- Mobile tab switcher -->
+    <div class="trucks-mobile-tabs">
+      <button id="tabList" class="active" type="button" data-i18n="trucks_tab_list">List</button>
+      <button id="tabMap"  type="button" data-i18n="trucks_tab_map">Map</button>
+    </div>
+
+    <!-- Split list + map -->
+    <div class="trucks-stage" id="trucksStage" data-view="list">
+      <div id="trucksList" class="trucks-list" aria-busy="true"></div>
+      <div class="trucks-map-wrap">
+        <div id="trucksMap" class="trucks-map"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/geolocate.js"></script>
+  <script src="js/trucks.js"></script>
+  <script>
+    window.renderNav("trucks.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initTrucksPage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

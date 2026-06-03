@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
 </head>
-<body data-bg style="--page-bg:url('data/juan-encalada-6mcVaoGNz1w-unsplash.jpg')" data-page="index">
+<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/juan-encalada-6mcVaoGNz1w-unsplash.jpg')" data-page="index">
   <div id="nav-slot"></div>
 
   <section class="hero" id="hero">
@@ -66,10 +66,16 @@
           <p data-i18n="feat_houses_desc">Browse verified houses across Tanzania — photos, prices, and direct contact with the owner.</p>
         </div>
       </a>
-      <a href="buses.html" class="hero-feature" style="--feat-img:url('data/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
+      <a href="buses.html" class="hero-feature" style="--feat-img:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')">
         <div class="hf-overlay">
           <h3 data-i18n="feat_companies_title">Bus Companies</h3>
           <p data-i18n="feat_companies_desc">Every verified bus partner with photos, routes and contacts — pick the company you trust.</p>
+        </div>
+      </a>
+      <a href="trucks.html" class="hero-feature" style="--feat-img:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
+        <div class="hf-overlay">
+          <h3 data-i18n="feat_trucks_title">Moving Trucks</h3>
+          <p data-i18n="feat_trucks_desc">Find a truck near you to move your goods to the new home — by size, area and distance.</p>
         </div>
       </a>
     </div>
@@ -78,7 +84,7 @@
     <section class="section">
       <h2 class="section-title" data-i18n="popular_routes_title">Popular routes</h2>
       <div class="route-strip">
-        <a href="book-fast.html?from=Dar%20es%20Salaam&to=Mwanza" class="route-card" style="--route-img:url('data/habib-ilmi-nTwn_5qYWgw-unsplash.jpg')">
+        <a href="book-fast.html?from=Dar%20es%20Salaam&to=Mwanza" class="route-card" style="--route-img:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/habib-ilmi-nTwn_5qYWgw-unsplash.jpg')">
           <div class="rc-overlay">
             <div class="rc-from">Dar es Salaam</div>
             <div class="rc-arrow">→</div>
@@ -86,7 +92,7 @@
             <div class="rc-meta">~14 hr · from TZS 45,000</div>
           </div>
         </a>
-        <a href="book-fast.html?from=Dar%20es%20Salaam&to=Mbeya" class="route-card" style="--route-img:url('data/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg')">
+        <a href="book-fast.html?from=Dar%20es%20Salaam&to=Mbeya" class="route-card" style="--route-img:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg')">
           <div class="rc-overlay">
             <div class="rc-from">Dar es Salaam</div>
             <div class="rc-arrow">→</div>
@@ -94,7 +100,7 @@
             <div class="rc-meta">~12 hr · from TZS 35,000</div>
           </div>
         </a>
-        <a href="book-fast.html?from=Arusha&to=Dodoma" class="route-card" style="--route-img:url('data/jalal-kelink-ugzSzSG7CFA-unsplash.jpg')">
+        <a href="book-fast.html?from=Arusha&to=Dodoma" class="route-card" style="--route-img:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/jalal-kelink-ugzSzSG7CFA-unsplash.jpg')">
           <div class="rc-overlay">
             <div class="rc-from">Arusha</div>
             <div class="rc-arrow">→</div>
@@ -102,7 +108,7 @@
             <div class="rc-meta">~9 hr · from TZS 28,000</div>
           </div>
         </a>
-        <a href="book-fast.html?from=Mwanza&to=Kigoma" class="route-card" style="--route-img:url('data/hardial-aujla-rJ4tFb4F-DE-unsplash.jpg')">
+        <a href="book-fast.html?from=Mwanza&to=Kigoma" class="route-card" style="--route-img:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/hardial-aujla-rJ4tFb4F-DE-unsplash.jpg')">
           <div class="rc-overlay">
             <div class="rc-from">Mwanza</div>
             <div class="rc-arrow">→</div>
@@ -110,7 +116,7 @@
             <div class="rc-meta">~10 hr · from TZS 32,000</div>
           </div>
         </a>
-        <a href="book-fast.html?from=Dodoma&to=Iringa" class="route-card" style="--route-img:url('data/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
+        <a href="book-fast.html?from=Dodoma&to=Iringa" class="route-card" style="--route-img:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
           <div class="rc-overlay">
             <div class="rc-from">Dodoma</div>
             <div class="rc-arrow">→</div>
@@ -236,8 +242,9 @@
         "patrick-tomasso-5hvn-2WW6rY-unsplash.jpg"
       ];
       const cfg = window.APP_CONFIG || {};
-      const base = (cfg.SUPABASE_URL && cfg.BUS_PHOTOS_BUCKET)
-        ? `${cfg.SUPABASE_URL}/storage/v1/object/public/${cfg.BUS_PHOTOS_BUCKET}/`
+      const bucket = cfg.SITE_PHOTOS_BUCKET || "site-photos";
+      const base = cfg.SUPABASE_URL
+        ? `${cfg.SUPABASE_URL}/storage/v1/object/public/${bucket}/`
         : "data/";
 
       const hero = document.getElementById("hero");
@@ -278,11 +285,11 @@
 
       // ── Popular route cards ──────────────────────────────────────────
       const ROUTES = [
-        { from: "Dar es Salaam", to: "Mwanza",  hrs: 14, fare: 45000, fb: "data/habib-ilmi-nTwn_5qYWgw-unsplash.jpg" },
-        { from: "Dar es Salaam", to: "Mbeya",   hrs: 12, fare: 35000, fb: "data/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg" },
-        { from: "Arusha",        to: "Dodoma",  hrs: 9,  fare: 28000, fb: "data/jalal-kelink-ugzSzSG7CFA-unsplash.jpg" },
-        { from: "Mwanza",        to: "Kigoma",  hrs: 10, fare: 32000, fb: "data/hardial-aujla-rJ4tFb4F-DE-unsplash.jpg" },
-        { from: "Dodoma",        to: "Iringa",  hrs: 6,  fare: 22000, fb: "data/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg" }
+        { from: "Dar es Salaam", to: "Mwanza",  hrs: 14, fare: 45000, fb: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/habib-ilmi-nTwn_5qYWgw-unsplash.jpg" },
+        { from: "Dar es Salaam", to: "Mbeya",   hrs: 12, fare: 35000, fb: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg" },
+        { from: "Arusha",        to: "Dodoma",  hrs: 9,  fare: 28000, fb: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/jalal-kelink-ugzSzSG7CFA-unsplash.jpg" },
+        { from: "Mwanza",        to: "Kigoma",  hrs: 10, fare: 32000, fb: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/hardial-aujla-rJ4tFb4F-DE-unsplash.jpg" },
+        { from: "Dodoma",        to: "Iringa",  hrs: 6,  fare: 22000, fb: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg" }
       ];
       const strip = document.querySelector(".route-strip");
       if (strip) {

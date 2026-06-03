@@ -12,6 +12,9 @@ window.APP_CONFIG = {
   // Public bucket names
   BUS_PHOTOS_BUCKET: "bus-photos",
   AGENT_PHOTOS_BUCKET: "agent-photos",
+  SITE_PHOTOS_BUCKET: "site-photos",
+  HOUSE_PHOTOS_BUCKET: "house-photos",
+  TRUCK_PHOTOS_BUCKET: "truck-photos",
 
   // ---------- Map / geocoding gateway (services/go) ----------
   // Public URL of the Go map gateway that fronts OpenStreetMap/Nominatim
