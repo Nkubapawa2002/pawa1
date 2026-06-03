@@ -107,10 +107,7 @@ func handleReverse(w http.ResponseWriter, r *http.Request) {
 // (same query string, same raw JSON back) through the cache + rate limiter.
 func handleOSM(kind string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u := nominatimBase + "/" + kind
-		if r.URL.RawQuery != "" {
-			u += "?" + r.URL.RawQuery
-		}
+		u := upstreamURL(kind, r.URL.RawQuery)
 		body, err := geo.fetch(r.Context(), u)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})

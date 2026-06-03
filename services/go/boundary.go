@@ -36,8 +36,6 @@ type boundaryHit struct {
 	AddressType string          `json:"addresstype"`
 	Type        string          `json:"type"`
 	Class       string          `json:"class"`
-	OSMType     string          `json:"osm_type"`
-	OSMID       int64           `json:"osm_id"`
 	BoundingBox []string        `json:"boundingbox"` // [south, north, west, east]
 	GeoJSON     json.RawMessage `json:"geojson"`     // a GeoJSON geometry, or absent
 }
@@ -52,8 +50,8 @@ type Boundary struct {
 
 // boundaryByName resolves a named area to its outline (TZ-filtered).
 func (g *geocoder) boundaryByName(ctx context.Context, q string) (*Boundary, error) {
-	u := fmt.Sprintf("%s/search?format=jsonv2&limit=1&countrycodes=tz&addressdetails=1&polygon_geojson=1&polygon_threshold=%s&q=%s",
-		nominatimBase, polygonThreshold, url.QueryEscape(q))
+	u := upstreamURL("search", fmt.Sprintf("format=jsonv2&limit=1&countrycodes=tz&addressdetails=1&polygon_geojson=1&polygon_threshold=%s&q=%s",
+		polygonThreshold, url.QueryEscape(q)))
 	body, err := g.fetch(ctx, u)
 	if err != nil {
 		return nil, err
@@ -75,8 +73,8 @@ func (g *geocoder) boundaryByName(ctx context.Context, q string) (*Boundary, err
 // the narrow area first (e.g. "Mikocheni") and fall back to the wider one
 // (e.g. "Kinondoni") if the narrow one has no polygon in OSM.
 func (g *geocoder) boundaryByPoint(ctx context.Context, lat, lng float64) (*Boundary, error) {
-	u := fmt.Sprintf("%s/reverse?format=jsonv2&zoom=16&addressdetails=1&lat=%f&lon=%f",
-		nominatimBase, lat, lng)
+	u := upstreamURL("reverse", fmt.Sprintf("format=jsonv2&zoom=16&addressdetails=1&lat=%f&lon=%f",
+		lat, lng))
 	body, err := g.fetch(ctx, u)
 	if err != nil {
 		return nil, err

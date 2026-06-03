@@ -27,6 +27,14 @@ services:
     region: frankfurt        # closest free Render region to Tanzania
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      # LocationIQ (hosted Nominatim) API key. REQUIRED in production: the public
+      # Nominatim server 429s this box's shared free-tier IP, so without a key the
+      # map's place search/boundary lookups fail. Get a free key (5k/day) at
+      # locationiq.com and set the value in the Render dashboard (kept secret).
+      # Unset → the gateway falls back to public Nominatim (dev/self-host only).
+      - key: LOCATIONIQ_KEY
+        sync: false
 
   # Python service: AI search brain + video faststart remux (ffmpeg). The
   # houses uploader (js/agent-houses.js) POSTs each video here before storing it,

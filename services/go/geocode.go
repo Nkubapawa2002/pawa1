@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,40 @@ const (
 	cacheTTL   = 6 * time.Hour
 	upstreamRT = 8 * time.Second
 )
+
+// ---- upstream provider ----------------------------------------------------
+//
+// The public Nominatim server rate-limits (429) by IP, and this gateway runs on
+// a shared free-tier IP, so it gets blocked no matter how polite we are. When
+// LOCATIONIQ_KEY is set we instead talk to LocationIQ — a hosted Nominatim with
+// an IDENTICAL request/response shape — which gives us our own quota and ends
+// the 429s. No key → fall back to public Nominatim (dev / self-host).
+var (
+	locationIQKey  = os.Getenv("LOCATIONIQ_KEY")
+	locationIQBase = firstNonEmpty(os.Getenv("LOCATIONIQ_BASE"), "https://us1.locationiq.com/v1")
+)
+
+func usingLocationIQ() bool { return locationIQKey != "" }
+
+// upstreamURL builds a full upstream URL for a Nominatim-style endpoint
+// ("search" or "reverse") and its query string. When LocationIQ is configured
+// it swaps the base host, normalises format=jsonv2→json (LocationIQ speaks v1),
+// and appends the API key.
+func upstreamURL(kind, rawQuery string) string {
+	if usingLocationIQ() {
+		q := strings.ReplaceAll(rawQuery, "format=jsonv2", "format=json")
+		if q != "" {
+			q += "&"
+		}
+		q += "key=" + url.QueryEscape(locationIQKey)
+		return locationIQBase + "/" + kind + "?" + q
+	}
+	u := nominatimBase + "/" + kind
+	if rawQuery != "" {
+		u += "?" + rawQuery
+	}
+	return u
+}
 
 // ---- Place: the clean shape we hand back to the frontend ------------------
 
@@ -221,8 +256,8 @@ func (g *geocoder) search(ctx context.Context, q string, limit int) ([]Place, er
 	if len(q) < 3 {
 		return []Place{}, nil
 	}
-	u := fmt.Sprintf("%s/search?format=jsonv2&limit=%d&countrycodes=tz&addressdetails=1&q=%s",
-		nominatimBase, limit, url.QueryEscape(q))
+	u := upstreamURL("search", fmt.Sprintf("format=jsonv2&limit=%d&countrycodes=tz&addressdetails=1&q=%s",
+		limit, url.QueryEscape(q)))
 	body, err := g.fetch(ctx, u)
 	if err != nil {
 		return nil, err
@@ -253,8 +288,8 @@ func (g *geocoder) search(ctx context.Context, q string, limit int) ([]Place, er
 
 // reverse → friendly "nearby area" label for a tapped point (ports reverseName).
 func (g *geocoder) reverse(ctx context.Context, lat, lng float64) (string, error) {
-	u := fmt.Sprintf("%s/reverse?format=jsonv2&zoom=16&addressdetails=1&lat=%f&lon=%f",
-		nominatimBase, lat, lng)
+	u := upstreamURL("reverse", fmt.Sprintf("format=jsonv2&zoom=16&addressdetails=1&lat=%f&lon=%f",
+		lat, lng))
 	body, err := g.fetch(ctx, u)
 	if err != nil {
 		return "", err
@@ -308,6 +343,11 @@ func resultTag(h nominatimHit) string {
 	}
 	typ := strings.ToLower(h.Type)
 	if t, ok := serviceTag[typ]; ok {
+		return t
+	}
+	// LocationIQ (format=json) omits addresstype; for place/boundary results the
+	// `type` field carries the same admin kind, so fall back to it.
+	if t, ok := adminTag[typ]; ok {
 		return t
 	}
 	cls := strings.ToLower(h.Class)

@@ -192,6 +192,10 @@
     if (ADMIN_TAG[at]) return ADMIN_TAG[at];
     const ty = (it.type || "").toLowerCase();
     if (SERVICE_TAG[ty]) return SERVICE_TAG[ty];
+    // LocationIQ's format=json omits addresstype, but for place/boundary results
+    // the `type` field carries the same admin kind (village, ward, suburb, …),
+    // so fall back to it before giving up to the generic label.
+    if (ADMIN_TAG[ty]) return ADMIN_TAG[ty];
     const cls = (it.class || it.category || "").toLowerCase();
     if (["amenity", "shop", "leisure", "tourism", "office", "healthcare", "building"].includes(cls)) {
       const s = (ty || cls).replace(/_/g, " ");
