@@ -86,18 +86,21 @@ window.initHousesPage = async () => {
     return;
   }
 
-  // Populate the area filter from the data so it stays in sync.
+  // Populate the area autocomplete from the data so it stays in sync. The area
+  // filter is a free-text box (with this datalist as suggestions) so a user can
+  // simply TYPE the area they want — it matches by substring, not exact value.
+  const areaList = document.getElementById("filterAreaList");
   const areas = Array.from(new Set(houses.map(h => h.area).filter(Boolean))).sort();
   areas.forEach(a => {
     const opt = document.createElement("option");
-    opt.value = a; opt.textContent = a;
-    fArea.appendChild(opt);
+    opt.value = a;
+    (areaList || fArea).appendChild(opt);
   });
 
   // ---- Filters & render --------------------------------------------------
-  [fListing, fType, fArea, fBeds].forEach(el => el?.addEventListener("change", apply));
-  // Free-text inputs (budget + search) filter live, debounced as the user types.
-  [fPrice, fSearch].forEach(el => el?.addEventListener("input", () => {
+  [fListing, fType, fBeds].forEach(el => el?.addEventListener("change", apply));
+  // Free-text inputs (area + budget + search) filter live, debounced as you type.
+  [fArea, fPrice, fSearch].forEach(el => el?.addEventListener("input", () => {
     clearTimeout(window._hf); window._hf = setTimeout(apply, 180);
   }));
 
@@ -708,7 +711,7 @@ window.initHousesPage = async () => {
   function applySmartCriteria(c) {
     fListing.value = c.listing || "";
     fType.value    = c.type    || "";
-    fArea.value = (c.area && Array.from(fArea.options).some(o => o.value === c.area)) ? c.area : "";
+    fArea.value = c.area || "";   // free-text box — just drop the parsed area in
     if (c.bedrooms) {
       const b = String(Math.min(4, c.bedrooms));
       fBeds.value = Array.from(fBeds.options).some(o => o.value === b) ? b : "";
@@ -1403,7 +1406,7 @@ window.initHousesPage = async () => {
   function apply() {
     const listing = fListing.value;
     const type    = fType.value;
-    const area    = fArea.value;
+    const area    = fArea.value.trim().toLowerCase();
     const beds    = parseInt(fBeds.value || "0", 10);
     const price   = fPrice.value;
     const q       = fSearch.value.toLowerCase().trim();
@@ -1411,7 +1414,12 @@ window.initHousesPage = async () => {
     visible = houses.filter(h => {
       if (listing && h.listing !== listing) return false;
       if (type    && h.type    !== type)    return false;
-      if (area    && h.area    !== area)    return false;
+      if (area) {
+        // Typed area: match anywhere in area / address / region (substring) so
+        // "mbezi" finds "Mbezi Beach", "Mbezi Luis", etc. — not just an exact label.
+        const areaHay = [h.area, h.address, h.region].filter(Boolean).join(" ").toLowerCase();
+        if (!areaHay.includes(area)) return false;
+      }
       if (beds    && (h.bedrooms || 0) < beds) return false;
       if (price) {
         // Free-typed budget ("900k", "under 2m", "500k - 1.5m"). A tiny 5%
@@ -1696,17 +1704,10 @@ window.initHousesPage = async () => {
     });
   });
 
-  // ---- Sticky filter bar on scroll --------------------------------------
-  const toolbar = document.querySelector(".houses-toolbar");
-  if (toolbar && "IntersectionObserver" in window) {
-    const sentinel = document.createElement("div");
-    sentinel.style.cssText = "height:1px;width:100%;";
-    toolbar.parentNode.insertBefore(sentinel, toolbar);
-    const obs = new IntersectionObserver(([entry]) => {
-      toolbar.classList.toggle("is-sticky", !entry.isIntersecting);
-    }, { rootMargin: "-1px 0px 0px 0px", threshold: 0 });
-    obs.observe(sentinel);
-  }
+  // ---- Filter bar -------------------------------------------------------
+  // (Previously the toolbar turned sticky on scroll, but it then floated over
+  //  the list + map and hid listings as you scrolled. It now scrolls away with
+  //  the rest of the page so the list and map stay fully visible.)
 
   // ====================================================================
   //  Map

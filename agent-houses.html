@@ -84,6 +84,54 @@
 
     /* ---- Listings grid (my own properties) ---- */
     .ah-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+
+    /* ---- Listings TABLE (one row per property) ---- */
+    .ah-list.ah-table-mode {
+      display: block;
+      overflow-x: auto;          /* horizontal scroll on narrow phones */
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .ah-table { width: 100%; border-collapse: collapse; font-size: .9rem; min-width: 640px; }
+    .ah-table thead th {
+      text-align: left;
+      font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+      color: var(--c-text-muted, #6b6960);
+      background: var(--c-bg-elev, #f4f3ee);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--c-border, #e7e4dd);
+      white-space: nowrap;
+    }
+    .ah-table tbody td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--c-border, #e7e4dd);
+      vertical-align: middle;
+    }
+    .ah-table tbody tr:last-child td { border-bottom: none; }
+    .ah-table tbody tr:hover { background: var(--c-brand-faint, #f0f7f2); }
+    .ah-td-photo { width: 64px; }
+    .ah-thumb {
+      display: block; width: 56px; height: 42px;
+      border-radius: 8px;
+      background: #ece9e1 center/cover no-repeat;
+    }
+    .ah-row-title { font-weight: 600; color: var(--c-text, #1a1915); }
+    .ah-td-type  { color: var(--c-text-soft, #3f3d36); white-space: nowrap; }
+    .ah-td-area  { color: var(--c-text-muted, #6b6960); }
+    .ah-td-price { white-space: nowrap; }
+    .ah-td-price strong { color: var(--c-brand-deep, #064a33); font-family: var(--c-font-display, serif); font-size: 1rem; }
+    .ah-td-price small  { color: var(--c-text-muted, #6b6960); font-size: .7rem; }
+    .ah-pill {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+      white-space: nowrap;
+    }
+    .ah-pill-rent { background: var(--c-brand-faint, #f0f7f2); color: var(--c-brand-deep, #064a33); }
+    .ah-pill-sale { background: #fdf4e3; color: #b45309; }
+    .ah-td-actions { white-space: nowrap; text-align: right; }
+    .ah-td-actions .ah-btn { padding: 6px 12px; font-size: .82rem; }
     .ah-card {
       background: var(--c-surface, #fff);
       border: 1px solid var(--c-border, #e7e4dd);

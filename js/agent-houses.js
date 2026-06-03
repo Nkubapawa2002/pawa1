@@ -405,7 +405,9 @@ create policy "house-photos upload" on storage.objects for insert
 
   // ---- Load my listings ----------------------------------------------------
   async function loadMyListings() {
-    // Skeleton (or keep the one already in HTML on first load).
+    // Skeleton (or keep the one already in HTML on first load). Reset to the
+    // grid layout — only the populated-listings branch switches to table mode.
+    listEl.classList.remove("ah-table-mode");
     listEl.setAttribute("aria-busy", "true");
     listEl.innerHTML = `
       <div class="hp-sk-card" style="grid-template-columns:1fr;grid-template-rows:160px auto" aria-hidden="true">
@@ -467,33 +469,52 @@ create policy "house-photos upload" on storage.objects for insert
       document.getElementById("ahEmptyNew")?.addEventListener("click", () => openForm(null));
       return;
     }
-    listEl.innerHTML = data.map(h => {
+    // Listings render as a compact table (one row per property) so an agent
+    // can scan/manage many listings at a glance, like the parcel dashboard.
+    listEl.classList.add("ah-table-mode");
+    const typeLabel = t => ({ apartment: "Apartment", house: "House", plot: "Plot", office: "Office / shop" }[t] || (t || "—"));
+    const rows = data.map(h => {
       const photo = window.DataStore.housePhotoUrl(h.photo);
       const listing = h.listing === "sale" ? tr("ah_for_sale") : tr("ah_for_rent");
       const price = formatPrice(h);
-      return `<div class="ah-card" data-id="${h.id}">
-        <div class="ah-card-photo" data-loading="true" style="background-image:url('${photo}')">
-          <span class="badge">${esc(listing)}</span>
-        </div>
-        <div class="ah-card-body">
-          <div class="ah-card-title">${esc(h.title)}</div>
-          <div class="ah-card-price">${price.value} <small style="font-size:.72rem;font-weight:500;color:#6b6960">${price.unit}</small></div>
-          <div class="ah-card-meta">📍 ${esc(h.area || "—")}${h.region ? ", " + esc(h.region) : ""}</div>
-        </div>
-        <div class="ah-card-actions">
+      const where = esc(h.area || "—") + (h.region ? ", " + esc(h.region) : "");
+      return `<tr data-id="${h.id}">
+        <td class="ah-td-photo">
+          <span class="ah-thumb" data-loading="true" style="background-image:url('${photo}')"></span>
+        </td>
+        <td class="ah-td-title"><span class="ah-row-title">${esc(h.title)}</span></td>
+        <td class="ah-td-type">${esc(typeLabel(h.type))}</td>
+        <td class="ah-td-listing"><span class="ah-pill ah-pill-${h.listing === "sale" ? "sale" : "rent"}">${esc(listing)}</span></td>
+        <td class="ah-td-price"><strong>${price.value}</strong> <small>${price.unit}</small></td>
+        <td class="ah-td-area">${where}</td>
+        <td class="ah-td-actions">
           <button class="ah-btn ah-edit-btn" aria-label="Edit ${esc(h.title)}">${esc(tr("ah_edit"))}</button>
           <button class="ah-btn ah-btn-danger ah-delete-btn" aria-label="Delete ${esc(h.title)}">${esc(tr("ah_delete"))}</button>
-        </div>
-      </div>`;
+        </td>
+      </tr>`;
     }).join("");
-    listEl.querySelectorAll(".ah-card").forEach(card => {
-      const id = card.dataset.id;
+    listEl.innerHTML = `<table class="ah-table">
+      <thead>
+        <tr>
+          <th class="ah-td-photo"></th>
+          <th>Property</th>
+          <th>Type</th>
+          <th>Listing</th>
+          <th>Price</th>
+          <th>Area</th>
+          <th class="ah-td-actions"></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+    listEl.querySelectorAll("tr[data-id]").forEach(tr => {
+      const id = tr.dataset.id;
       const row = data.find(x => x.id === id);
-      card.querySelector(".ah-edit-btn").addEventListener("click", () => openForm(row));
-      card.querySelector(".ah-delete-btn").addEventListener("click", () => deleteListing(row));
+      tr.querySelector(".ah-edit-btn").addEventListener("click", () => openForm(row));
+      tr.querySelector(".ah-delete-btn").addEventListener("click", () => deleteListing(row));
     });
-    // Drop shimmer on each card photo when its image is ready.
-    listEl.querySelectorAll(".ah-card-photo[data-loading]").forEach(el => {
+    // Drop shimmer on each row thumbnail when its image is ready.
+    listEl.querySelectorAll(".ah-thumb[data-loading]").forEach(el => {
       const m = el.getAttribute("style").match(/url\(['"]?([^'")]+)['"]?\)/);
       if (!m) { el.removeAttribute("data-loading"); return; }
       const img = new Image();

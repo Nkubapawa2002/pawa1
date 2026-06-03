@@ -441,7 +441,7 @@
     .houses-list {
       overflow-y: auto;
       padding-right: 6px;
-      display: flex; flex-direction: column; gap: 12px;
+      display: flex; flex-direction: column; gap: 8px;
     }
     .houses-map-wrap {
       position: relative;
@@ -452,13 +452,16 @@
     .houses-map { position: absolute; inset: 0; }
 
     /* House card */
+    /* Compact "table-like" list rows: small thumbnail + a tight info column,
+       so the list reads as a dense house list (not big marketing cards) while
+       staying in sync with the map. */
     .house-card {
       background: var(--c-surface, #fff);
       border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 14px;
+      border-radius: 12px;
       overflow: hidden;
       display: grid;
-      grid-template-columns: 240px 1fr;
+      grid-template-columns: 120px 1fr;
       gap: 0;
       cursor: pointer;
       transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
@@ -467,7 +470,7 @@
     .house-card.active { border-color: var(--c-brand, #0a6f4d); box-shadow: 0 6px 18px rgba(10,111,77,.12); transform: translateY(-1px); }
     .house-card-photo {
       background: #ece9e1 center/cover no-repeat;
-      min-height: 200px;
+      min-height: 100px;
       position: relative;
     }
     .house-card-photo .badge {
@@ -484,10 +487,10 @@
       padding: 2px 7px; border-radius: 999px;
       font-size: .65rem; font-weight: 700;
     }
-    .house-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+    .house-card-body { padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; }
     .house-card-price {
       font-family: var(--c-font-display, serif);
-      font-size: 1.25rem; font-weight: 700;
+      font-size: 1.1rem; font-weight: 700;
       color: var(--c-brand-deep, #064a33);
       line-height: 1.1;
     }
@@ -501,8 +504,8 @@
     }
     .house-card-view {
       align-self: flex-start;
-      margin-top: 8px;
-      font-size: .8rem; font-weight: 700;
+      margin-top: 5px;
+      font-size: .78rem; font-weight: 700;
       color: var(--c-brand-deep, #064a33);
       background: var(--c-brand-faint, #f0f7f2);
       border: 1px solid var(--c-brand-soft, #d9ecdf);
@@ -583,13 +586,13 @@
         box-shadow: 0 1px 4px rgba(0,0,0,.08);
       }
 
-      .house-card { grid-template-columns: 170px 1fr; }
-      .house-card-photo { min-height: 160px; }
-      .house-card-price { font-size: 1.1rem; }
+      .house-card { grid-template-columns: 112px 1fr; }
+      .house-card-photo { min-height: 92px; }
+      .house-card-price { font-size: 1.05rem; }
     }
     @media (max-width: 480px) {
-      .house-card { grid-template-columns: 140px 1fr; }
-      .house-card-photo { min-height: 140px; }
+      .house-card { grid-template-columns: 96px 1fr; }
+      .house-card-photo { min-height: 84px; }
       .house-card-title { font-size: .85rem; }
     }
   </style>
@@ -678,9 +681,9 @@
         <option value="plot">Plot</option>
         <option value="office">Office / shop</option>
       </select>
-      <select id="filterArea">
-        <option value="">Area: any</option>
-      </select>
+      <input type="text" id="filterArea" list="filterAreaList" autocomplete="off"
+             placeholder="Area — type e.g. Masaki, Mbezi…" title="Type any area, ward or neighbourhood" />
+      <datalist id="filterAreaList"></datalist>
       <select id="filterBeds">
         <option value="">Bedrooms: any</option>
         <option value="1">1+ bed</option>

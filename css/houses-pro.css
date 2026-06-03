@@ -26,6 +26,21 @@
 }
 
 /* =====================================================================
+   0. Full-page photo backdrop — keep it FAINT on these content-heavy pages.
+   The shared body[data-bg] rule only lays a light 20-32% white wash over the
+   hero photo, which on a listings/map page reads as a loud, zoomed-in image
+   that fights the UI and "blocks" the content as you scroll. Here we drop a
+   near-opaque warm scrim so the photo becomes a barely-there texture and the
+   page reads as a clean, professional light surface.
+   ===================================================================== */
+body[data-houses-pro][data-bg] {
+  background-image:
+    linear-gradient(rgba(248, 247, 243, 0.94), rgba(248, 247, 243, 0.985)),
+    var(--page-bg);
+  background-position: center top;
+}
+
+/* =====================================================================
    1. Skip link (Quick Reference §1 — skip-links)
    ===================================================================== */
 .hp-skip-link {

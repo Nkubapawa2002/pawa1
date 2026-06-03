@@ -131,9 +131,21 @@ window.initAccountingPage = async () => {
     }
 
     const email = offlineEmail || session.user.email;
-    let row = null;
 
-    // Try the admins DB table first
+    // Fast path: an email in ADMIN_EMAILS (config.js) is authorised locally, so
+    // reveal the panel WITHOUT waiting on an admins-table round-trip — that
+    // round-trip (plus an awaited report fetch) was the main reason sign-in
+    // felt sluggish. We grant access immediately, then refine the exact role
+    // (accountant / auditor) from the DB in the background.
+    if (window.Auth.isAllowedEmail(email)) {
+      grantAccess(email, { role: 'admin', full_name: '' }, offlineEmail);
+      refineRoleFromDb(email, offlineEmail);
+      return;
+    }
+
+    // Not in the config list — the only way in is a row in the admins table, so
+    // that lookup IS on the critical path here.
+    let row = null;
     if (sb) {
       try {
         const { data } = await sb.from('admins')
@@ -141,12 +153,7 @@ window.initAccountingPage = async () => {
           .eq('email', email)
           .maybeSingle();
         row = data;
-      } catch (_) { /* table may not exist — fall through to ADMIN_EMAILS check */ }
-    }
-
-    // Fallback: if email is in ADMIN_EMAILS config, grant admin access
-    if (!row && window.Auth.isAllowedEmail(email)) {
-      row = { role: 'admin', full_name: '' };
+      } catch (_) { /* table may not exist */ }
     }
 
     if (!row) {
@@ -157,18 +164,43 @@ window.initAccountingPage = async () => {
       show('forbidden'); hide('loginGate'); hide('financePanel'); return;
     }
 
-    userRole = row.role;
+    grantAccess(email, row, offlineEmail);
+  }
+
+  // Reveal the finance panel for an authorised user. Data loads are fired
+  // without awaiting so the panel is interactive immediately after sign-in.
+  function grantAccess(email, row, offlineEmail) {
+    userRole = row.role || 'admin';
     const emailDisplay = offlineEmail
       ? `${email} · offline mode`
       : (row.full_name ? `${row.full_name} (${email})` : email);
     $('finEmail').textContent = emailDisplay;
+    applyRoleBadge();
+    hide('loginGate'); hide('forbidden'); show('financePanel');
+    loadBuses().then(() => { showSection('overview'); loadReport(); });
+  }
+
+  function applyRoleBadge() {
     $('roleBadge').textContent = {admin:'Admin',accountant:'Accountant',auditor:'Auditor'}[userRole]||userRole;
     $('roleBadge').className = 'fin-role-badge role-'+userRole;
-    if (userRole==='auditor') { const c=$('addExpenseCard'); if(c) c.hidden=true; }
-    hide('loginGate'); hide('forbidden'); show('financePanel');
-    await loadBuses();
-    showSection('overview');
-    await loadReport();
+    const c = $('addExpenseCard'); if (c) c.hidden = (userRole === 'auditor');
+  }
+
+  // Background role check: if the admins table says this config-listed user is
+  // actually an accountant/auditor, downgrade the badge + UI to match. (Write
+  // actions are RLS-protected server-side, so the brief optimistic "admin"
+  // badge can't grant real write access it shouldn't have.)
+  async function refineRoleFromDb(email, offlineEmail) {
+    if (!sb || offlineEmail) return;
+    try {
+      const { data } = await sb.from('admins')
+        .select('role,full_name')
+        .eq('email', email)
+        .maybeSingle();
+      if (!data) return;
+      if (data.role && data.role !== userRole) { userRole = data.role; applyRoleBadge(); }
+      if (data.full_name) $('finEmail').textContent = `${data.full_name} (${email})`;
+    } catch (_) { /* ignore — optimistic role stands */ }
   }
 
   function show(id){const el=$(id);if(el)el.hidden=false;}
