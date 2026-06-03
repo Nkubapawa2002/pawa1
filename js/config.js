@@ -28,7 +28,7 @@ window.APP_CONFIG = {
   // back to the original file if this is unset/unreachable. Leave empty to
   // auto-use http://127.0.0.1:8094 on localhost. Set to your deployed URL (no
   // trailing slash) to enable it in production.
-  VIDEO_GATEWAY_URL: "https://pawa-video-gateway.onrender.com",
+  VIDEO_GATEWAY_URL: "https://pawa-video-gateway-oymf.onrender.com",
 
   // Emails allowed to log into admin.html (must also exist in `admins` table for RLS).
   ADMIN_EMAILS: ["pawa4761@gmail.com"],
