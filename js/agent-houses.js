@@ -104,7 +104,7 @@ window.initAgentHousesPage = async () => {
   let geocodeTimer    = null;       // debounce timer for reverse-geocode lookups
   let geocodeKey      = null;       // lat/lng we last reverse-geocoded for
   let resolvedPlace   = null;       // { road, area, region, label } from reverse geocode
-  let gpsWatchId      = null;       // active watchPosition id (best-fix capture)
+  let gpsAbort        = null;       // AbortController for an in-progress GPS capture
 
   // ---- Media state (multi-photo + multi-video) -----------------------------
   // Each tile carries one of:
@@ -935,6 +935,9 @@ create policy "house-photos upload" on storage.objects for insert
       maxBounds: [[29.34, -11.75], [40.45, -0.99]]
     });
     pinMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    // Maximize / minimize the pin map in place (shared helper). Grow the picker
+    // wrapper (the map fills it via inset:0) so the absolute map follows.
+    window.pawaMapExpand && window.pawaMapExpand(".ah-pin-picker", () => pinMap);
 
     // GPS-accuracy circle (filled when a device fix arrives) — shows buyers
     // and the agent how tight the location lock is.
@@ -1398,61 +1401,48 @@ create policy "house-photos upload" on storage.objects for insert
     }
   });
 
-  // GPS pinning with "best-fix" capture: a single getCurrentPosition often
-  // returns a coarse cell-tower fix first. We watch for a few seconds and keep
-  // the tightest reading, stopping early once it's precise enough (≤12 m).
-  fPinGps.addEventListener("click", () => {
-    if (!navigator.geolocation) { alert(tr("ah_err_no_geo")); return; }
-    // A second tap cancels an in-progress lock.
-    if (gpsWatchId != null) { stopGpsWatch(); return; }
+  // GPS pinning with "best-fix" capture (via the shared pawaLocate helper): it
+  // fires a prompt-safe one-shot first (so iOS actually asks), then keeps the
+  // tightest reading for a few seconds, showing progress as it sharpens.
+  const applyFix = (fix) => {
+    pickedLatLng = { lat: fix.lat, lng: fix.lng };
+    gpsAccuracyM = fix.accuracy ?? null;
+    if (pinMarker) pinMarker.setLngLat([pickedLatLng.lng, pickedLatLng.lat]);
+    if (pinMap) {
+      // Zoom tighter for precise fixes, looser when accuracy is poor.
+      const z = gpsAccuracyM == null ? 17 : gpsAccuracyM <= 25 ? 18 : gpsAccuracyM <= 80 ? 16 : 15;
+      pinMap.easeTo({ center: [pickedLatLng.lng, pickedLatLng.lat], zoom: z });
+    }
+    drawAccuracyCircle(gpsAccuracyM);
+    updatePinReadout();
+  };
 
+  fPinGps.addEventListener("click", async () => {
+    if (!pawaLocate.supported()) { alert(tr("ah_err_no_geo")); return; }
+    // A second tap cancels an in-progress lock.
+    if (gpsAbort) { stopGpsWatch(); return; }
+
+    gpsAbort = new AbortController();
     fPinGps.disabled = false;            // keep tappable so it can cancel
     fPinGps.textContent = tr("ah_pin_locating");
-    let best = null;
-    const GOOD_ENOUGH_M = 12;
-    const MAX_WAIT_MS    = 8000;
-
-    const applyFix = (pos) => {
-      pickedLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      gpsAccuracyM = pos.coords.accuracy ?? null;
-      if (pinMarker) pinMarker.setLngLat([pickedLatLng.lng, pickedLatLng.lat]);
-      if (pinMap) {
-        // Zoom tighter for precise fixes, looser when accuracy is poor.
-        const z = gpsAccuracyM == null ? 17 : gpsAccuracyM <= 25 ? 18 : gpsAccuracyM <= 80 ? 16 : 15;
-        pinMap.easeTo({ center: [pickedLatLng.lng, pickedLatLng.lat], zoom: z });
-      }
-      drawAccuracyCircle(gpsAccuracyM);
-      updatePinReadout();
-    };
-
-    const finish = () => {
-      stopGpsWatch();
-      if (best) applyFix(best);
-    };
-
-    gpsWatchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        if (!best || (pos.coords.accuracy ?? 1e9) < (best.coords.accuracy ?? 1e9)) {
-          best = pos;
-          applyFix(pos);     // show progress as it tightens
-        }
-        if ((pos.coords.accuracy ?? 1e9) <= GOOD_ENOUGH_M) finish();
-      },
-      (err) => {
-        stopGpsWatch();
-        if (!best) alert(tr("ah_err_geo") + err.message);
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: MAX_WAIT_MS }
-    );
-    // Hard stop so the button never gets stuck spinning.
-    setTimeout(finish, MAX_WAIT_MS);
+    try {
+      const fix = await pawaLocate.best({
+        targetAccuracy: 12, maxWaitMs: 8000,
+        signal: gpsAbort.signal,
+        onProgress: applyFix,            // show progress as it tightens
+      });
+      applyFix(fix);
+    } catch (err) {
+      if (err.code !== "aborted") alert(tr("ah_err_geo") + pawaLocate.message(err));
+    } finally {
+      gpsAbort = null;
+      fPinGps.disabled = false;
+      fPinGps.textContent = tr("ah_pin_gps");
+    }
   });
 
   function stopGpsWatch() {
-    if (gpsWatchId != null) {
-      try { navigator.geolocation.clearWatch(gpsWatchId); } catch (_) {}
-      gpsWatchId = null;
-    }
+    if (gpsAbort) { try { gpsAbort.abort(); } catch (_) {} gpsAbort = null; }
     fPinGps.disabled = false;
     fPinGps.textContent = tr("ah_pin_gps");
   }

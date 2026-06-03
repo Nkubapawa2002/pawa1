@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v89-2026-06-03-video-gateway-url";
+const VERSION = "v90-2026-06-03-geolocate-map-expand";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -17,6 +17,8 @@ const APP_SHELL = [
   "./css/neon-pro.css",
   "./js/config.js",
   "./js/geo.js",
+  "./js/geolocate.js",
+  "./js/map-expand.js",
   "./js/i18n.js",
   "./js/data.js",
   "./js/auth.js",

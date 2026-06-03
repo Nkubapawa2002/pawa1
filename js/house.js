@@ -329,6 +329,8 @@ function render(h) {
       maxBounds: [[29.34, -11.75], [40.45, -0.99]]
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    // Maximize / minimize the map in place (shared helper).
+    window.pawaMapExpand && window.pawaMapExpand("hdMap", () => map);
 
     const pin = document.createElement("div");
     pin.innerHTML = `

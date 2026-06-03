@@ -48,7 +48,7 @@ window.initRidePage = () => {
   const driverMarkers = new Map(); // driver_id -> marker (idle drivers near rider)
 
   let lastFix = null;           // {lat,lng,accuracy}
-  let watchId = null;
+  let geoStop = null;
   let driverHeartbeatTimer = null;
   let driverPositionWatch = null;
 
@@ -203,11 +203,15 @@ window.initRidePage = () => {
   //  Rider Geolocation (own pulse pin)
   // ====================================================================
   function startGeolocate() {
-    if (!navigator.geolocation) return;
+    if (geoStop) return;                 // already watching
     let lastGeoLat = null, lastGeoLng = null;
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng, accuracy, heading: hdg, speed } = pos.coords;
+    // pawaLocate.watch fires a prompt-safe one-shot first (so iOS actually asks
+    // for permission) and then streams fixes; on denial/error it hands back a
+    // normalised error we can log/surface.
+    geoStop = pawaLocate.watch({
+      highAccuracy: true, timeout: 15000, maximumAge: 5000,
+      onFix: (f) => {
+        const { lat, lng, accuracy, heading: hdg, speed } = f;
         // Heading in degrees; some devices return null when standing still.
         // Fall back to bearing-from-previous-fix so the arrow still rotates.
         let heading = (hdg != null && !isNaN(hdg)) ? hdg : null;
@@ -231,9 +235,8 @@ window.initRidePage = () => {
         // Forward to driver heartbeat if driver is online
         if (driverState === "online" && driverProfile) pushDriverHeartbeat();
       },
-      (e) => console.warn("geo", e),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-    );
+      onError: (e) => console.warn("geo", e),
+    });
   }
 
   // ====================================================================

@@ -4475,4 +4475,41 @@ body[data-bg] .container > .page-subtitle {
   50%      { transform: scale(1.1); opacity: 1; }
 }
 
+/* ===================================================================
+   Shared map maximize / minimize (js/map-expand.js)
+   A floating chevron button grows an inline map in place and back.
+   =================================================================== */
+.pawa-map-expand-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;          /* top-left: zoom/nav controls sit top-right */
+  z-index: 650;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0a6f4d;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.pawa-map-expand-btn:hover  { background: #fff; }
+.pawa-map-expand-btn:active { transform: scale(0.96); }
+.pawa-map-expand-btn svg    { display: block; }
+
+/* The grow-in-place state. Height transitions so the map eases open; the JS
+   re-measures the map after the transition so tiles fill the new size. */
+.pawa-map-expanded {
+  height: 80vh !important;
+  transition: height 0.32s ease;
+}
+
 

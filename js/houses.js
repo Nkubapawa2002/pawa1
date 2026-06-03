@@ -113,25 +113,22 @@ window.initHousesPage = async () => {
   setupMyPlaces();
 
   // ---- Near-me -----------------------------------------------------------
-  nearBtn?.addEventListener("click", () => {
-    if (!navigator.geolocation) { alert("Geolocation isn't supported on this device."); return; }
+  nearBtn?.addEventListener("click", async () => {
+    const idle = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Near me`;
     nearBtn.disabled = true; nearBtn.textContent = "Locating…";
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        nearBtn.disabled = false;
-        nearBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Sorted by distance`;
-        if (map && !landmarkLoc) map.easeTo({ center: [userLoc.lng, userLoc.lat], zoom: 12 });
-        updateLandmarkInfo();   // now we can show "your home is X km from <place>"
-        apply();   // resort by proximity
-      },
-      (err) => {
-        nearBtn.disabled = false;
-        nearBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Near me`;
-        alert("Couldn't get your location: " + err.message);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    try {
+      const fix = await pawaLocate.best({ targetAccuracy: 50 });
+      userLoc = { lat: fix.lat, lng: fix.lng };
+      nearBtn.disabled = false;
+      nearBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Sorted by distance`;
+      if (map && !landmarkLoc) map.easeTo({ center: [userLoc.lng, userLoc.lat], zoom: 12 });
+      updateLandmarkInfo();   // now we can show "your home is X km from <place>"
+      apply();   // resort by proximity
+    } catch (err) {
+      nearBtn.disabled = false;
+      nearBtn.innerHTML = idle;
+      alert(pawaLocate.message(err));
+    }
   });
 
   // ====================================================================
@@ -388,20 +385,17 @@ window.initHousesPage = async () => {
     };
 
     // GPS button
-    gpsBtn.onclick = () => {
-      if (!navigator.geolocation) { alert("Geolocation isn't supported."); return; }
+    gpsBtn.onclick = async () => {
       gpsBtn.disabled = true; gpsBtn.textContent = "📍 Locating…";
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setPin(pos.coords.latitude, pos.coords.longitude, "My current location");
-          gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS";
-        },
-        (err) => {
-          gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS";
-          alert("Couldn't get GPS: " + err.message);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
+      try {
+        const fix = await pawaLocate.best({ targetAccuracy: 20,
+          onProgress: (f) => setPin(f.lat, f.lng, "My current location") });
+        setPin(fix.lat, fix.lng, "My current location");
+      } catch (err) {
+        alert(pawaLocate.message(err));
+      } finally {
+        gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS";
+      }
     };
 
     // Nominatim search (debounced 350 ms)
@@ -1370,18 +1364,17 @@ window.initHousesPage = async () => {
       }, 320);
     };
 
-    if (gpsBtn) gpsBtn.onclick = () => {
-      if (!navigator.geolocation) { alert("Geolocation isn't supported."); return; }
+    if (gpsBtn) gpsBtn.onclick = async () => {
       gpsBtn.disabled = true; gpsBtn.textContent = "📍 …";
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS";
-          setActiveLocation(pos.coords.latitude, pos.coords.longitude, null);
-          if (mpMap) mpMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
-        },
-        () => { gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS"; alert("Couldn't get your GPS location."); },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
+      try {
+        const fix = await pawaLocate.best({ targetAccuracy: 20 });
+        setActiveLocation(fix.lat, fix.lng, null);
+        if (mpMap) mpMap.setView([fix.lat, fix.lng], 15);
+      } catch (err) {
+        alert(pawaLocate.message(err));
+      } finally {
+        gpsBtn.disabled = false; gpsBtn.textContent = "📍 GPS";
+      }
     };
 
     const close = () => {
