@@ -516,6 +516,7 @@ create policy "house-photos upload" on storage.objects for insert
     editingId = row?.id || null;
     formTitle.textContent = row ? tr("ah_form_title_edit") : tr("ah_form_title_new");
     formMsg.hidden = true;
+    warmVideoGateway();  // wake the faststart service while the agent fills the form
 
     // Reset fields
     form.reset();
@@ -1502,7 +1503,7 @@ create policy "house-photos upload" on storage.objects for insert
       const videoPaths = [];
       for (const t of videoTiles) {
         if (t.kind === "existing")          videoPaths.push(t.path);
-        else if (t.kind === "staged-video") videoPaths.push(await uploadFile(t.file, uid));
+        else if (t.kind === "staged-video") videoPaths.push(await uploadFile(await faststart(t.file), uid));
       }
       const coverPath = photoPaths[0] || null;
 
@@ -1738,6 +1739,55 @@ create policy "house-photos upload" on storage.objects for insert
       .ah-wait-done{margin-top:12px;width:100%;padding:10px;border:0;border-radius:9px;
         background:#0a6f4d;color:#fff;font-weight:600;font-size:.9rem;cursor:pointer}`;
     document.head.appendChild(s);
+  }
+
+  // ---- Video faststart gateway (services/python) ---------------------------
+  // Phone/Windows recorders put the MP4 `moov` index at the END of the file, so
+  // the clip stutters until the whole thing downloads. We remux it to faststart
+  // (moov to the front, lossless) via the python service before upload. If that
+  // service is unset/asleep/unreachable we just upload the original — the listing
+  // never fails to save over a video-optimisation step.
+  function _videoGatewayBase() {
+    const cfg = (window.APP_CONFIG && window.APP_CONFIG.VIDEO_GATEWAY_URL) || "";
+    if (cfg) return cfg.replace(/\/+$/, "");
+    const h = location.hostname;
+    if (h === "localhost" || h === "127.0.0.1" || h === "") return "http://127.0.0.1:8094";
+    return "";
+  }
+
+  // Wake a sleeping free-tier gateway when the form opens, so it's warm by the
+  // time the agent finishes filling in the listing and hits save. Fire-and-forget.
+  let _videoWarmed = false;
+  function warmVideoGateway() {
+    if (_videoWarmed) return;
+    _videoWarmed = true;
+    const base = _videoGatewayBase();
+    if (!base || /127\.0\.0\.1|localhost/.test(base)) return;
+    fetch(`${base}/health`).catch(() => {});
+  }
+
+  async function faststart(file) {
+    const base = _videoGatewayBase();
+    if (!base || !file) return file;
+    try {
+      const r = await fetch(`${base}/faststart`, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "video/mp4" },
+        body: file,
+      });
+      if (!r.ok) return file;
+      const blob = await r.blob();
+      if (!blob || !blob.size) return file;
+      // When the server actually remuxed it, the result is MP4 — rename so the
+      // stored path/extension matches (e.g. an iPhone .mov becomes .mp4).
+      if (r.headers.get("X-Faststart") === "applied") {
+        const name = (file.name || "video").replace(/\.[^.]+$/, "") + ".mp4";
+        return new File([blob], name, { type: "video/mp4" });
+      }
+      return file;
+    } catch (_) {
+      return file; // gateway down / cold — upload the original untouched
+    }
   }
 
   // Upload helpers — both write into the `house-photos` bucket (which since

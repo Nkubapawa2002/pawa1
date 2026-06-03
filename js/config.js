@@ -21,6 +21,15 @@ window.APP_CONFIG = {
   // trailing slash) to route all production traffic through it.
   GEO_GATEWAY_URL: "https://pawa-map-gateway.onrender.com",
 
+  // ---------- Video faststart gateway (services/python) ----------
+  // Public URL of the Python service that remuxes uploaded house videos to MP4
+  // "faststart" (moov atom to the front) so they stream without stutter. The
+  // houses uploader POSTs each clip here before storing it, and silently falls
+  // back to the original file if this is unset/unreachable. Leave empty to
+  // auto-use http://127.0.0.1:8094 on localhost. Set to your deployed URL (no
+  // trailing slash) to enable it in production.
+  VIDEO_GATEWAY_URL: "https://pawa-video-gateway.onrender.com",
+
   // Emails allowed to log into admin.html (must also exist in `admins` table for RLS).
   ADMIN_EMAILS: ["pawa4761@gmail.com"],
 

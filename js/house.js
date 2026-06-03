@@ -139,7 +139,7 @@ function render(h) {
       ${slides.map((s, i) => s.kind === "video"
         ? `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"
                    aria-label="Open video ${i + 1 - photoList.length}">
-             <video src="${esc(s.url)}" muted playsinline preload="metadata"></video>
+             <video src="${esc(s.url)}" muted playsinline preload="none"></video>
              <span class="vbadge">▶</span>
            </button>`
         : `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"

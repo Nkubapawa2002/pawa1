@@ -27,3 +27,20 @@ services:
     region: frankfurt        # closest free Render region to Tanzania
     healthCheckPath: /health
     autoDeploy: true
+
+  # Python service: AI search brain + video faststart remux (ffmpeg). The
+  # houses uploader (js/agent-houses.js) POSTs each video here before storing it,
+  # so the MP4 streams without stutter. Bytes-in → bytes-out: no Supabase creds
+  # live here. Free plan sleeps after ~15 min idle; the uploader warms it when
+  # the new-listing form opens and falls back to the original file if it's cold.
+  - type: web
+    name: pawa-video-gateway
+    runtime: docker
+    repo: https://github.com/Nkubapawa2002/pawa1
+    branch: main
+    rootDir: services/python
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
