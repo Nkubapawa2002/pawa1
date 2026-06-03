@@ -1,0 +1,42 @@
+# Keep the Render free-tier map gateway (services/go) awake.
+#
+# Render's free plan sleeps a web service after ~15 min idle, and a cold wake
+# takes ~30–50 s — far longer than the frontend's gateway timeout (js/geo.js),
+# so a sleeping gateway gets bypassed and every lookup falls back to calling
+# Nominatim directly from the browser (no shared cache, no rate limit → risk of
+# the site's IP being blocked). Pinging /health on a schedule keeps it warm so
+# the gateway stays the real path. Free: GitHub-hosted runner, no secrets.
+#
+# Note: scheduled workflows can be delayed under GitHub load and are disabled
+# automatically after 60 days with no repo activity — re-enable from the Actions
+# tab if that happens. The ~10 min cadence stays under Render's 15 min sleep.
+
+name: Keep map gateway warm
+
+on:
+  schedule:
+    # Every 10 minutes (under Render's ~15 min idle-sleep threshold).
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}        # allow manual "Run workflow" from the Actions tab
+
+# If a previous ping is somehow still running, don't stack another on top.
+concurrency:
+  group: keep-gateway-warm
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health (tolerate cold-start latency)
+        run: |
+          URL="https://pawa-map-gateway.onrender.com/health"
+          echo "Pinging $URL"
+          # --max-time 90 outlasts a cold spin-up; --retry covers a flaky wake.
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+                   --max-time 90 --retry 2 --retry-delay 10 --retry-all-errors \
+                   "$URL") || true
+          echo "HTTP $code"
+          # A wake attempt that returns anything is success enough to keep warm;
+          # only a total failure (000) is worth failing the run over.
+          [ "$code" != "000" ]

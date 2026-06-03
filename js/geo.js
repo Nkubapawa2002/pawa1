@@ -24,6 +24,10 @@
   // delay. Boundary polygons are heavier, so they get a longer budget.
   const GATEWAY_TIMEOUT_MS = 3500;
   const GATEWAY_BOUNDARY_TIMEOUT_MS = 6000;
+  // Cold-waking a sleeping free-tier instance takes ~30–50 s. The warmup ping
+  // must outlast that, otherwise it aborts the connection before the box is up
+  // and never actually wakes it — leaving every real lookup on the slow path.
+  const GATEWAY_WARMUP_TIMEOUT_MS = 60000;
 
   // fetch() with an abort-based timeout. Throws on timeout so callers fall back.
   async function fetchTimeout(url, ms, opts = {}) {
@@ -48,13 +52,17 @@
   // Wake a sleeping free-tier gateway in the background once per page, so the
   // user's first real lookup is more likely to hit a warm instance. Fire-and-
   // forget; failures are ignored. Skipped for localhost (always-on dev gateway).
+  //
+  // Crucially this uses a long (60 s) timeout, not the 3.5 s lookup timeout: a
+  // cold instance needs that long to spin up, and an early abort would tear down
+  // the connection before the wake completes — so the ping would never warm it.
   let warmed = false;
   function warmup() {
     if (warmed) return;
     warmed = true;
     const base = gatewayBase();
     if (!base || /127\.0\.0\.1|localhost/.test(base)) return;
-    fetchTimeout(`${base}/health`, GATEWAY_TIMEOUT_MS).catch(() => {});
+    fetchTimeout(`${base}/health`, GATEWAY_WARMUP_TIMEOUT_MS).catch(() => {});
   }
 
   async function call(kind, qs) {
