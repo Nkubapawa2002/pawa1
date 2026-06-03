@@ -80,7 +80,7 @@ function render(h) {
     ...videoList.map(v => ({ kind: "video", url: window.DataStore.housePhotoUrl(v) })),
   ];
   if (!slides.length) {
-    slides.push({ kind: "photo", url: "data/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg" });
+    slides.push({ kind: "photo", url: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg" });
   }
 
   const listing  = h.listing === "sale" ? "For sale" : "For rent";
