@@ -119,6 +119,16 @@ window.APP_CONFIG = {
   // The meet / ride / track pages read it from APP_CONFIG at runtime.
   MAPBOX_TOKEN: "",
 
+  // ---------- Approximate location fallback (js/geolocate.js) ----------
+  // When precise browser GPS is denied / blocked / unavailable (e.g. desktop
+  // with no GPS, location turned off, or served over plain http), the app
+  // falls back to a coarse, city-level location so "Near me" still works.
+  // Order: (1) Google Geolocation API if a key is set here, (2) free no-key
+  // IP geolocation. Leave empty to use the free IP services only.
+  //   Get a key: Google Cloud → enable "Geolocation API" → API key (restrict
+  //   it by your domain). It bills per request, so restrict it.
+  GOOGLE_GEOLOCATION_KEY: "",
+
   // ---------- WebRTC (Meet & Locate voice/video) ----------
   // STUN punches through most home/Wi-Fi NATs, but on Tanzanian MOBILE-carrier
   // networks (CGNAT / symmetric NAT) STUN-only calls can't connect — ICE goes
@@ -162,7 +172,20 @@ window.APP_CONFIG = {
   FREIGHT_SIZE_MULTIPLIERS: { small: 1.0, medium: 1.5, large: 2.5 },
 
   // ---------- Currency ----------
-  CURRENCY: "TZS"
+  CURRENCY: "TZS",
+
+  // ---------- Live FX rates (js/fx.js) ----------
+  // Adds an "≈ $X" foreign equivalent next to TZS prices for diaspora /
+  // international users. Source: open.er-api.com (free, no key, CORS, daily
+  // updates) — from the public-apis list. Rates are cached in localStorage
+  // and only refetched when older than CACHE_HOURS. Degrades silently: if
+  // disabled or the fetch fails, prices simply show TZS only.
+  FX: {
+    ENABLED: true,
+    ENDPOINT: "https://open.er-api.com/v6/latest/USD",
+    DISPLAY_CURRENCY: "USD",   // what formatTZSWithUSD() appends
+    CACHE_HOURS: 12
+  }
 };
 
 // Format a number as TZS currency

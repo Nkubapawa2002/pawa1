@@ -120,10 +120,11 @@ window.initHousesPage = async () => {
     const idle = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Near me`;
     nearBtn.disabled = true; nearBtn.textContent = "Locating…";
     try {
-      const fix = await pawaLocate.best({ targetAccuracy: 50 });
+      const fix = await pawaLocate.bestOrApprox({ targetAccuracy: 50 });
       userLoc = { lat: fix.lat, lng: fix.lng };
       nearBtn.disabled = false;
-      nearBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Sorted by distance`;
+      const locLabel = fix.approximate ? "Approx. location" : "Sorted by distance";
+      nearBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> ${locLabel}`;
       if (map && !landmarkLoc) map.easeTo({ center: [userLoc.lng, userLoc.lat], zoom: 12 });
       updateLandmarkInfo();   // now we can show "your home is X km from <place>"
       apply();   // resort by proximity

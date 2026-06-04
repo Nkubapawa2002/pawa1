@@ -126,11 +126,17 @@ window.initSendPage = async () => {
     const sizeM    = (cfg.FREIGHT_SIZE_MULTIPLIERS || {})[size] || 1.0;
     const maintPct = cfg.FREIGHT_MAINTENANCE_PCT || 10;
     _suggestedFee  = Math.round((base + kg * perKg) * sizeM * (1 + maintPct / 100));
-    if (freightEl) freightEl.textContent = `~${window.formatTZS(_suggestedFee)} (${kg} kg, ${size})`;
+    if (freightEl) {
+      const fx = window.PawaFX ? window.PawaFX.format(_suggestedFee) : "";
+      freightEl.textContent =
+        `~${window.formatTZS(_suggestedFee)}${fx ? " " + fx : ""} (${kg} kg, ${size})`;
+    }
   };
 
   weightInput?.addEventListener("input", updateFreight);
   sizeCategoryEl?.addEventListener("change", updateFreight);
+  // Re-render the estimate once live FX rates finish loading.
+  if (window.PawaFX && window.PawaFX.ready) window.PawaFX.ready.then(updateFreight);
 
   // ── Bus route hint ────────────────────────────────────────
   const updateBusHint = () => {

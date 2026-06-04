@@ -17,6 +17,31 @@
     <link rel="stylesheet" href="css/premium.css" />
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
+  <style>
+    /* All Agents (monetization tracker) tab */
+    .aa-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .aa-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .aa-stat { background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; padding: 12px 14px; }
+    .aa-stat .num { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--c-brand, #0a6f4d); }
+    .aa-stat .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted, #6b6960); margin-top: 5px; font-weight: 700; }
+    .aa-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .aa-controls input, .aa-controls select { padding: 9px 11px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 9px; font-size: 15px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915); }
+    .aa-controls input { flex: 1; min-width: 180px; }
+    .aa-role-tag { display: inline-block; font-size: .66rem; font-weight: 800; letter-spacing: .3px; padding: 2px 7px; border-radius: 999px; color: #fff; margin-right: 3px; }
+    .aa-role-tag.bus   { background: #1e40af; }
+    .aa-role-tag.house { background: var(--c-brand, #0a6f4d); }
+    .aa-role-tag.truck { background: var(--c-accent, #bc5c00); }
+    .aa-reg-rel { color: var(--c-muted, #6b6960); font-size: .76rem; display: block; }
+    .aa-stat.pay .num { color: var(--c-success, #0d8050); }
+    .aa-stat.rev .num { color: var(--c-accent, #bc5c00); font-size: 1.25rem; }
+    .aa-controls input[type="number"], .aa-controls input[type="date"] { font-size: 14px; }
+    #allAgentsList .aa-bill-input { padding: 5px 7px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 7px; font-family: inherit; font-size: 13px; background: #fff; color: var(--c-text, #1a1915); }
+    /* Subtle left-border accent by billing status */
+    #allAgentsList tr.aa-bill-paid     td:first-child { box-shadow: inset 3px 0 0 var(--c-success, #0d8050); }
+    #allAgentsList tr.aa-bill-overdue  td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
+    #allAgentsList tr.aa-bill-trial    td:first-child { box-shadow: inset 3px 0 0 #1e40af; }
+    #allAgentsList tr.aa-bill-cancelled td:first-child { opacity: .6; }
+  </style>
 </head>
 <body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="admin">
   <div id="nav-slot"></div>
@@ -91,6 +116,7 @@
         <button class="tab-btn" data-tab="pending">Approvals <span id="pendingBadge" class="badge"></span></button>
         <button class="tab-btn" data-tab="applications">Agent applications <span id="appBadge" class="badge"></span></button>
         <button class="tab-btn" data-tab="agents">Agents</button>
+        <button class="tab-btn" data-tab="allagents">All Agents <span id="allAgentsBadge" class="badge"></span></button>
         <button class="tab-btn" data-tab="routes">Routes</button>
         <button class="tab-btn" data-tab="manual">Manual Booking</button>
         <button class="tab-btn" data-tab="collect">Collect Payment</button>
@@ -126,6 +152,41 @@
       <!-- Agents tab -->
       <div class="tab-panel" id="tab-agents" hidden>
         <div id="agentsAdminList"></div>
+      </div>
+
+      <!-- All Agents tab — unified monetization tracker (bus + house + truck) -->
+      <div class="tab-panel" id="tab-allagents" hidden>
+        <div class="aa-head">
+          <div>
+            <h3 style="margin:0;">All agents — monetization tracker</h3>
+            <p class="hint" style="margin:2px 0 0;">Every agent across the platform: bus/cargo agents, house-listing agents and truck owners, de-duplicated by phone/account and sorted by when they registered.</p>
+          </div>
+          <button id="aaExportBtn" class="btn btn-outline btn-sm" type="button">⬇ Export CSV</button>
+        </div>
+        <div id="aaSummary" class="aa-summary"></div>
+        <p id="aaBillingNote" class="banner error" hidden style="margin:0 0 12px;"></p>
+        <div class="aa-controls">
+          <input type="text" id="aaSearch" placeholder="Search name, phone or region…" />
+          <select id="aaRole">
+            <option value="">All roles</option>
+            <option value="bus">Bus / cargo agents</option>
+            <option value="house">House agents</option>
+            <option value="truck">Truck owners</option>
+          </select>
+          <select id="aaBilling">
+            <option value="">All billing</option>
+            <option value="paid">Paying</option>
+            <option value="trial">Trial</option>
+            <option value="overdue">Overdue</option>
+            <option value="free">Free</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <select id="aaSort">
+            <option value="newest">Registered: newest first</option>
+            <option value="oldest">Registered: oldest first</option>
+          </select>
+        </div>
+        <div id="allAgentsList"></div>
       </div>
 
       <!-- Routes tab -->

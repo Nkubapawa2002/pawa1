@@ -185,9 +185,9 @@
     nearBtn.disabled = true;
     nearBtn.querySelector("span").textContent = "Locating…";
     try {
-      const fix = await window.pawaLocate.best({ targetAccuracy: 50, hardTimeout: 12000 });
+      const fix = await window.pawaLocate.bestOrApprox({ targetAccuracy: 50, maxWaitMs: 12000 });
       userLoc = { lat: fix.lat, lng: fix.lng };
-      nearBtn.querySelector("span").textContent = "Sorted by distance";
+      nearBtn.querySelector("span").textContent = fix.approximate ? "Approx. location" : "Sorted by distance";
       if (map) {
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.circleMarker([userLoc.lat, userLoc.lng], {

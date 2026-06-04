@@ -342,7 +342,7 @@ body[data-houses-pro][data-bg] {
   padding: 14px;
   display: flex; flex-direction: column; justify-content: space-between;
   text-decoration: none;
-  color: inherit;
+  color: var(--c-text, #1a1915);
   transition: transform var(--hp-dur-1) var(--hp-ease),
               box-shadow var(--hp-dur-1) var(--hp-ease),
               border-color var(--hp-dur-1) var(--hp-ease);
@@ -354,7 +354,7 @@ body[data-houses-pro][data-bg] {
   border-color: var(--c-brand-soft, #d9ecdf);
   box-shadow: var(--hp-shadow-2);
   text-decoration: none;
-  color: inherit;
+  color: var(--c-text, #1a1915);
 }
 .hp-bento__cell:active { transform: translateY(0); }
 .hp-bento__cell--brand {

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Near me — rooms &amp; trucks around you — Pawa Bus Cargo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <style>
+    /* Filter toolbar */
+    .nm-toolbar {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px; padding: 12px; margin-bottom: 12px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;
+    }
+    .nm-toolbar select {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px; font-size: 16px; font-family: inherit;
+      background: #fff; color: var(--c-text, #1a1915);
+    }
+    .nm-toolbar select:disabled { opacity: .5; }
+    .nm-actions { display: flex; gap: 8px; grid-column: 1 / -1; flex-wrap: wrap; align-items: center; }
+    .nm-near-me {
+      display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px;
+      border: none; border-radius: 10px; cursor: pointer;
+      background: var(--c-brand, #0a6f4d); color: #fff; font-weight: 700; font-size: .92rem;
+    }
+    .nm-near-me svg { width: 18px; height: 18px; }
+    .nm-near-me:disabled { opacity: .6; cursor: default; }
+
+    .nm-hint { font-size: .85rem; color: var(--c-muted, #6b6960); margin: 2px 2px 8px; }
+    .nm-result-count { font-size: .9rem; color: var(--c-muted, #6b6960); margin: 4px 2px 10px; font-weight: 600; }
+
+    /* Mobile list/map tabs */
+    .nm-mobile-tabs { display: none; gap: 8px; margin-bottom: 10px; }
+    .nm-mobile-tabs button {
+      flex: 1; padding: 10px; border: 1px solid var(--c-border, #e7e4dd);
+      background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915);
+    }
+    .nm-mobile-tabs button.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: transparent; }
+
+    /* Split list + map */
+    .nm-stage { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; align-items: start; }
+    .nm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+    .nm-map-wrap { position: sticky; top: 14px; }
+    .nm-map { height: 72vh; min-height: 420px; border-radius: 14px; overflow: hidden; border: 1px solid var(--c-border, #e7e4dd); }
+
+    /* Unified card (room or truck) */
+    .nm-card {
+      background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px; overflow: hidden; cursor: pointer; text-decoration: none; color: inherit;
+      display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .nm-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
+    .nm-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eceae4 center/cover no-repeat; }
+    .nm-card-emoji { display: flex; height: 100%; align-items: center; justify-content: center; font-size: 2.4rem; }
+    .nm-card-badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+    .nm-badge {
+      font-size: .68rem; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px;
+      color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
+    }
+    .nm-badge.kind.room  { background: var(--c-brand, #0a6f4d); }
+    .nm-badge.kind.truck { background: var(--c-accent, #bc5c00); }
+    .nm-badge.dist     { background: rgba(0,0,0,.62); }
+    .nm-badge.verified { background: var(--c-success, #0d8050); }
+    .nm-card-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 5px; }
+    .nm-card-price { font-weight: 800; color: var(--c-brand, #0a6f4d); font-size: 1.02rem; }
+    .nm-card-price small { font-weight: 600; color: var(--c-muted, #6b6960); font-size: .72rem; }
+    .nm-card-price small.nm-fx { color: var(--c-accent, #bc5c00); font-weight: 700; }
+    .nm-card-title { font-weight: 700; font-size: .92rem; line-height: 1.25; }
+    .nm-card-meta { font-size: .8rem; color: var(--c-muted, #6b6960); }
+    .nm-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .nm-card-tags span {
+      font-size: .68rem; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+      background: var(--c-surface-2, #f3f1ea); color: var(--c-muted, #555);
+    }
+    .nm-empty { padding: 40px 16px; text-align: center; color: var(--c-muted, #6b6960); grid-column: 1 / -1; }
+
+    /* Map pins */
+    .nm-pin-dot {
+      width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 16px; border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.4); background: var(--c-brand, #0a6f4d);
+    }
+    .nm-pin-dot.truck { background: var(--c-accent, #bc5c00); }
+
+    @media (max-width: 860px) {
+      .nm-stage { grid-template-columns: 1fr; }
+      .nm-mobile-tabs { display: flex; }
+      .nm-stage[data-view="list"] .nm-map-wrap { display: none; }
+      .nm-stage[data-view="map"] .nm-list { display: none; }
+      .nm-map-wrap { position: static; }
+      .nm-map { height: 64vh; }
+    }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')" data-page="near-me">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title" data-i18n="nearme_title">What's near me</h1>
+      <p class="page-subtitle" data-i18n="nearme_sub">From your location, see available rooms and moving trucks around you — sorted by distance.</p>
+    </div>
+  </section>
+
+  <main id="nearMeMain" class="container" style="padding-top:18px;">
+
+    <!-- Filter bar -->
+    <div class="nm-toolbar">
+      <select id="nmKind" title="What to show">
+        <option value="all">Show: rooms &amp; trucks</option>
+        <option value="rooms">Rooms only</option>
+        <option value="trucks">Trucks only</option>
+      </select>
+      <select id="nmListing" title="For rooms: rent or sale">
+        <option value="">Rooms: rent &amp; sale</option>
+        <option value="rent">Rooms for rent</option>
+        <option value="sale">Rooms for sale</option>
+      </select>
+      <select id="nmRadius" title="Search radius">
+        <option value="2">Within 2 km</option>
+        <option value="5">Within 5 km</option>
+        <option value="10" selected>Within 10 km</option>
+        <option value="25">Within 25 km</option>
+        <option value="50">Within 50 km</option>
+        <option value="0">Any distance</option>
+      </select>
+      <div class="nm-actions">
+        <button id="nmNearBtn" class="nm-near-me" title="Use my GPS location">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          <span data-i18n="nearme_locate">Use my location</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="nmHint" class="nm-hint" role="status"></div>
+    <div id="nmCount" class="nm-result-count" role="status" aria-live="polite"></div>
+
+    <!-- Mobile tab switcher -->
+    <div class="nm-mobile-tabs">
+      <button id="tabList" class="active" type="button" data-i18n="trucks_tab_list">List</button>
+      <button id="tabMap"  type="button" data-i18n="trucks_tab_map">Map</button>
+    </div>
+
+    <!-- Split list + map -->
+    <div class="nm-stage" id="nmStage" data-view="list">
+      <div id="nmList" class="nm-list" aria-busy="true"></div>
+      <div class="nm-map-wrap">
+        <div id="nmMap" class="nm-map"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/geolocate.js"></script>
+  <script src="js/near-me.js"></script>
+  <script>
+    window.renderNav("near-me.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initNearMePage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

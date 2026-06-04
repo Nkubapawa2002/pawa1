@@ -110,11 +110,19 @@ window.initAdminPage = async () => {
       });
     });
 
+    // All Agents tab controls (filter / sort / export) — listeners once.
+    $("aaSearch") ?.addEventListener("input", _aaDraw);
+    $("aaRole")   ?.addEventListener("change", _aaDraw);
+    $("aaBilling")?.addEventListener("change", _aaDraw);
+    $("aaSort")   ?.addEventListener("change", _aaDraw);
+    $("aaExportBtn")?.addEventListener("click", _aaExportCsv);
+
     await Promise.all([
       renderShipments(),
       renderPendingChanges(),
       renderApplications(),
       renderAgentsAdmin(),
+      renderAllAgents(),
       renderRoutesEditor(),
       renderManualBooking(),
       renderCollectPayment(),
@@ -571,6 +579,294 @@ window.initAdminPage = async () => {
             </tr>`).join("")}
         </tbody>
       </table></div>`;
+  }
+
+  // ---------- All Agents tab — unified monetization tracker ----------
+  // Aggregates every "agent" on the platform into one de-duplicated list:
+  //   • bus / cargo agents          → public.agents (one row per agent)
+  //   • house-listing agents        → derived from public.houses (agent jsonb)
+  //   • truck owners                → derived from public.trucks (owner jsonb)
+  // House/truck agents aren't a registered entity — they live embedded on
+  // their listings — so we group them by account (owner_user_id) or phone and
+  // take their EARLIEST listing date as "registered". One person who lists
+  // both houses and trucks (and/or is a bus agent) collapses into a single
+  // agent carrying multiple role tags.
+  let _aaUnified = null;          // cached unified list so controls don't refetch
+  let _aaTotals  = null;
+  let _aaBillingMissing = false;  // true when the agent_billing table isn't applied yet
+  let _aaByKey = new Map();        // agent_key -> unified agent (for billing saves)
+  const AA_BILLING_STATUSES = ["free", "trial", "paid", "overdue", "cancelled"];
+  const _aaEscHtml = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+  function _aaNormPhone(p) {
+    const d = String(p || "").replace(/\D/g, "");
+    return d ? d.slice(-9) : "";          // last 9 digits — robust to +255 / 0 prefixes
+  }
+  function _aaIdentity(owner_user_id, phone, name) {
+    if (owner_user_id) return "uid:" + owner_user_id;
+    const ph = _aaNormPhone(phone);
+    if (ph) return "ph:" + ph;
+    return "nm:" + String(name || "unknown").toLowerCase().trim();
+  }
+  function _aaRelTime(iso) {
+    if (!iso) return "";
+    const ms = Date.now() - new Date(iso).getTime();
+    const s = ms / 1000;
+    if (s < 60) return "just now";
+    const m = s / 60; if (m < 60) return Math.round(m) + " min ago";
+    const h = m / 60; if (h < 24) return Math.round(h) + "h ago";
+    const d = h / 24; if (d < 30) return Math.round(d) + "d ago";
+    const mo = d / 30; if (mo < 12) return Math.round(mo) + "mo ago";
+    return (mo / 12).toFixed(1) + "y ago";
+  }
+  function _aaEarlier(a, b) {
+    if (!a) return b; if (!b) return a;
+    return new Date(a).getTime() <= new Date(b).getTime() ? a : b;
+  }
+
+  async function renderAllAgents() {
+    const list = $("allAgentsList");
+    if (!list) return;
+    list.innerHTML = `<div class="empty"><p>Loading agents…</p></div>`;
+
+    // Fetch the three sources; any single failure (e.g. trucks table not yet
+    // applied) degrades to an empty set rather than blanking the whole tab.
+    const [agRes, hRes, tRes, bRes] = await Promise.allSettled([
+      sb.from("agents").select("id,name,phone,email,region,buses,experience_years,rating_avg,rating_count,verified,created_at"),
+      sb.from("houses").select("id,agent,owner_user_id,region,verified,created_at"),
+      sb.from("trucks").select("id,owner,owner_user_id,region,verified,created_at"),
+      sb.from("agent_billing").select("*"),
+    ]);
+    const busAgents = agRes.status === "fulfilled" && Array.isArray(agRes.value.data) ? agRes.value.data : [];
+    const houses    = hRes.status  === "fulfilled" && Array.isArray(hRes.value.data)  ? hRes.value.data  : [];
+    const trucks    = tRes.status  === "fulfilled" && Array.isArray(tRes.value.data)  ? tRes.value.data  : [];
+    // Billing table may not be applied yet — degrade to "everyone free".
+    _aaBillingMissing = !(bRes.status === "fulfilled" && !bRes.value.error);
+    const billingRows = (bRes.status === "fulfilled" && Array.isArray(bRes.value.data)) ? bRes.value.data : [];
+    const billingMap = new Map(billingRows.map((b) => [b.agent_key, b]));
+
+    const map = new Map();
+    const get = (key) => {
+      let u = map.get(key);
+      if (!u) {
+        u = { key, name: "", phone: "", email: "", regions: new Set(), roles: new Set(),
+              busCount: 0, houseCount: 0, truckCount: 0, registered: null, verified: false,
+              experience: null, rating: null };
+        map.set(key, u);
+      }
+      return u;
+    };
+
+    busAgents.forEach((a) => {
+      const u = get(_aaIdentity(null, a.phone, a.name));
+      if (a.name && !u.name) u.name = a.name;
+      if (a.phone && !u.phone) u.phone = a.phone;
+      if (a.email && !u.email) u.email = a.email;
+      if (a.region) u.regions.add(a.region);
+      u.roles.add("bus"); u.busCount += 1;
+      u.experience = a.experience_years;
+      u.rating = a.rating_avg;
+      if (a.verified) u.verified = true;
+      u.registered = _aaEarlier(u.registered, a.created_at);
+    });
+
+    houses.forEach((h) => {
+      const ag = h.agent || {};
+      const u = get(_aaIdentity(h.owner_user_id, ag.phone, ag.name));
+      if (ag.name && (!u.name || u.name === "Agent")) u.name = ag.name;
+      if (ag.phone && !u.phone) u.phone = ag.phone;
+      if (h.region) u.regions.add(h.region);
+      u.roles.add("house"); u.houseCount += 1;
+      if (h.verified) u.verified = true;
+      u.registered = _aaEarlier(u.registered, h.created_at);
+    });
+
+    trucks.forEach((t) => {
+      const ow = t.owner || {};
+      const u = get(_aaIdentity(t.owner_user_id, ow.phone, ow.name));
+      if (ow.name && (!u.name || u.name === "Agent")) u.name = ow.name;
+      if (ow.phone && !u.phone) u.phone = ow.phone;
+      if (t.region) u.regions.add(t.region);
+      u.roles.add("truck"); u.truckCount += 1;
+      if (t.verified) u.verified = true;
+      u.registered = _aaEarlier(u.registered, t.created_at);
+    });
+
+    _aaUnified = Array.from(map.values()).map((u) => ({
+      ...u, regions: Array.from(u.regions), roles: Array.from(u.roles),
+      billing: billingMap.get(u.key) || { status: "free", plan: "", amount_tzs: 0, paid_until: null },
+    }));
+    _aaByKey = new Map(_aaUnified.map((u) => [u.key, u]));
+    _aaTotals = {
+      houseListings: houses.length,
+      truckListings: trucks.length,
+    };
+
+    _aaRenderSummary();
+    _aaDraw();
+  }
+
+  // Summary cards — recomputed whenever billing changes so the paying/revenue
+  // figures stay live without a refetch.
+  function _aaRenderSummary() {
+    if (!_aaUnified) return;
+    const isPaying = (u) => u.billing && u.billing.status === "paid";
+    const totals = {
+      total: _aaUnified.length,
+      paying: _aaUnified.filter(isPaying).length,
+      revenue: _aaUnified.filter(isPaying).reduce((s, u) => s + (Number(u.billing.amount_tzs) || 0), 0),
+      bus:   _aaUnified.filter((u) => u.roles.includes("bus")).length,
+      house: _aaUnified.filter((u) => u.roles.includes("house")).length,
+      truck: _aaUnified.filter((u) => u.roles.includes("truck")).length,
+    };
+
+    const badge = $("allAgentsBadge");
+    if (badge) badge.textContent = totals.total ? String(totals.total) : "";
+
+    const sum = $("aaSummary");
+    if (sum) {
+      sum.innerHTML = [
+        ["Total agents", totals.total, ""],
+        ["Paying",       totals.paying, "pay"],
+        ["Revenue (paid)", window.formatTZS(totals.revenue), "rev"],
+        ["Bus / cargo",  totals.bus, ""],
+        ["House agents", totals.house, ""],
+        ["Truck owners", totals.truck, ""],
+      ].map(([lbl, num, cls]) => `<div class="aa-stat ${cls}"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
+    }
+
+    const note = $("aaBillingNote");
+    if (note) {
+      note.hidden = !_aaBillingMissing;
+      if (_aaBillingMissing) note.textContent = "Billing not saved yet: run supabase/agent_billing.sql in Supabase to enable paid-status tracking. (Showing everyone as Free for now.)";
+    }
+  }
+
+  function _aaDraw() {
+    const list = $("allAgentsList");
+    if (!list || !_aaUnified) return;
+    const q    = ($("aaSearch")?.value || "").toLowerCase().trim();
+    const role = $("aaRole")?.value || "";
+    const bill = $("aaBilling")?.value || "";
+    const sort = $("aaSort")?.value || "newest";
+
+    let rows = _aaUnified.filter((u) => {
+      if (role && !u.roles.includes(role)) return false;
+      if (bill && (u.billing?.status || "free") !== bill) return false;
+      if (q) {
+        const hay = `${u.name} ${u.phone} ${u.regions.join(" ")} ${u.email}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    rows.sort((a, b) => {
+      const ta = a.registered ? new Date(a.registered).getTime() : 0;
+      const tb = b.registered ? new Date(b.registered).getTime() : 0;
+      return sort === "oldest" ? ta - tb : tb - ta;
+    });
+
+    if (!rows.length) { list.innerHTML = `<div class="empty"><p>No agents match.</p></div>`; return; }
+
+    const roleTags = (u) => u.roles.map((r) =>
+      `<span class="aa-role-tag ${r}">${r === "bus" ? "Bus" : r === "house" ? "House" : "Truck"}</span>`).join("");
+    const statusSel = (b) => `<select class="aa-bill-input aa-bill-status" data-field="status">${
+      AA_BILLING_STATUSES.map((s) => `<option value="${s}" ${(b.status || "free") === s ? "selected" : ""}>${s}</option>`).join("")
+    }</select>`;
+
+    list.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr>
+          <th>Name</th><th>Roles</th><th>Phone</th><th>Region(s)</th>
+          <th>Houses</th><th>Trucks</th><th>Buses</th><th>Verified</th><th>Registered</th>
+          <th>Billing</th><th>Plan</th><th>Amount (TZS)</th><th>Paid until</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((u) => {
+            const b = u.billing || {};
+            return `
+            <tr data-key="${_aaEscHtml(u.key)}" class="aa-bill-${b.status || "free"}">
+              <td>${u.name ? _aaEscHtml(u.name) : "<em>Unnamed</em>"}</td>
+              <td>${roleTags(u)}</td>
+              <td>${u.phone ? _aaEscHtml(u.phone) : "—"} ${u.phone ? window.DataStore.renderCallButtons(u.phone) : ""}</td>
+              <td>${u.regions.map(_aaEscHtml).join(", ") || "—"}</td>
+              <td>${u.houseCount || "—"}</td>
+              <td>${u.truckCount || "—"}</td>
+              <td>${u.busCount || "—"}</td>
+              <td>${u.verified ? "✓" : "—"}</td>
+              <td>${u.registered ? new Date(u.registered).toLocaleString() : "—"}
+                  <span class="aa-reg-rel">${_aaRelTime(u.registered)}</span></td>
+              <td>${statusSel(b)}</td>
+              <td><input class="aa-bill-input" data-field="plan" type="text" value="${_aaEscHtml(b.plan || "")}" placeholder="—" style="width:78px"></td>
+              <td><input class="aa-bill-input" data-field="amount_tzs" type="number" min="0" value="${Number(b.amount_tzs) || 0}" style="width:90px"></td>
+              <td><input class="aa-bill-input" data-field="paid_until" type="date" value="${b.paid_until ? String(b.paid_until).slice(0, 10) : ""}"></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table></div>`;
+
+    // Inline billing edits — save the whole billing row for that agent on change.
+    list.querySelectorAll(".aa-bill-input").forEach((inp) => {
+      inp.addEventListener("change", (e) => {
+        const tr = e.target.closest("tr");
+        if (!tr) return;
+        const key = tr.getAttribute("data-key");
+        const patch = {
+          status:     tr.querySelector('[data-field="status"]').value,
+          plan:       tr.querySelector('[data-field="plan"]').value.trim() || null,
+          amount_tzs: Number(tr.querySelector('[data-field="amount_tzs"]').value) || 0,
+          paid_until: tr.querySelector('[data-field="paid_until"]').value || null,
+        };
+        _aaSaveBilling(key, patch);
+      });
+    });
+  }
+
+  async function _aaSaveBilling(key, patch) {
+    if (_aaBillingMissing) {
+      alert("Billing isn't enabled yet. Run supabase/agent_billing.sql in your Supabase SQL editor, then reload this tab.");
+      return;
+    }
+    const u = _aaByKey.get(key);
+    let email = null;
+    try { const s = await window.Auth.getSession(); email = s?.user?.email || null; } catch (_) {}
+    const payload = { agent_key: key, name: u ? u.name : null, phone: u ? u.phone : null, updated_by: email, ...patch };
+    const { error } = await sb.from("agent_billing").upsert(payload, { onConflict: "agent_key" });
+    if (error) { alert("Billing save failed: " + error.message); return; }
+    if (u) { u.billing = { ...u.billing, ...patch }; }
+    _aaRenderSummary();
+    // If a billing filter is active the row may need to drop out — redraw.
+    if ($("aaBilling")?.value) _aaDraw();
+  }
+
+  function _aaExportCsv() {
+    if (!_aaUnified || !_aaUnified.length) { alert("No agents to export yet."); return; }
+    const esc = (v) => {
+      const s = String(v == null ? "" : v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ["Name", "Phone", "Email", "Roles", "Regions", "House listings", "Truck listings", "Bus records", "Verified", "Registered (ISO)", "Registered (local)", "Billing status", "Plan", "Amount (TZS)", "Paid until"];
+    const lines = _aaUnified
+      .slice()
+      .sort((a, b) => (new Date(b.registered || 0)) - (new Date(a.registered || 0)))
+      .map((u) => {
+        const b = u.billing || {};
+        return [
+          u.name, u.phone, u.email, u.roles.join("|"), u.regions.join("|"),
+          u.houseCount, u.truckCount, u.busCount, u.verified ? "yes" : "no",
+          u.registered || "", u.registered ? new Date(u.registered).toLocaleString() : "",
+          b.status || "free", b.plan || "", Number(b.amount_tzs) || 0, b.paid_until || "",
+        ].map(esc).join(",");
+      });
+    const csv = [header.join(","), ...lines].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pawa-agents-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // ---------- routes editor ----------

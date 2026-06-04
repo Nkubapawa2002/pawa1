@@ -10,7 +10,7 @@ window.renderNav = (active) => {
   const groupActive = (pages) => pages.includes(active) ? "active" : "";
 
   const SERVICES = ["send.html", "track.html", "book-fast.html", "chat.html", "meet.html", "ride.html"];
-  const NETWORK  = ["buses.html", "agents.html", "houses.html", "trucks.html", "favorites.html"];
+  const NETWORK  = ["buses.html", "agents.html", "houses.html", "trucks.html", "near-me.html", "favorites.html"];
   const ACCOUNT  = ["agent-register.html", "agent.html", "agent-houses.html", "agent-trucks.html", "dashboard.html", "admin.html", "accounting.html", "super-admin.html"];
   const SAAS_PAGES = ["saas.html", "signup.html"];
 
@@ -70,6 +70,7 @@ window.renderNav = (active) => {
               ${link("agents.html",    "nav_agents")}
               ${link("houses.html",    "nav_houses")}
               ${link("trucks.html",    "nav_trucks")}
+              ${link("near-me.html",   "nav_near_me")}
               ${link("favorites.html", "nav_favorites")}
             </div>
           </li>

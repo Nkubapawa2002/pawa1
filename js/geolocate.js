@@ -158,6 +158,72 @@
     });
   }
 
+  // Approximate location — a coarse, ALWAYS-available fallback for when precise
+  // GPS is denied / unavailable / blocked (desktop without GPS, location off,
+  // or a plain-http page). City-level accuracy (~1–50 km). Order of attempts:
+  //   1. Google Geolocation API — only if APP_CONFIG.GOOGLE_GEOLOCATION_KEY is
+  //      set. With an empty body it geolocates from the request IP.
+  //   2. Free, no-key IP geolocation services (HTTPS + CORS), tried in turn.
+  // Returns the same shape as best() plus { source, approximate:true, city }.
+  async function approximate() {
+    const cfg  = (typeof window !== "undefined" && window.APP_CONFIG) || {};
+    const gkey = cfg.GOOGLE_GEOLOCATION_KEY;
+
+    if (gkey) {
+      try {
+        const r = await fetch(
+          "https://www.googleapis.com/geolocation/v1/geolocate?key=" + encodeURIComponent(gkey),
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+        );
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.location && isFinite(d.location.lat) && isFinite(d.location.lng)) {
+            return { lat: d.location.lat, lng: d.location.lng,
+                     accuracy: d.accuracy || 5000, source: "google", approximate: true };
+          }
+        }
+      } catch (_) { /* fall through to free IP services */ }
+    }
+
+    const providers = [
+      { url: "https://ipwho.is/",                 pick: (d) => (d && d.success !== false && d.latitude != null) ? d : null },
+      { url: "https://ipapi.co/json/",            pick: (d) => (d && d.latitude != null) ? d : null },
+      { url: "https://get.geojs.io/v1/ip/geo.json", pick: (d) => (d && d.latitude != null) ? d : null },
+    ];
+    for (const p of providers) {
+      try {
+        const r = await fetch(p.url);
+        if (!r.ok) continue;
+        const d = await r.json();
+        const hit = p.pick(d);
+        if (!hit) continue;
+        const lat = parseFloat(hit.latitude), lng = parseFloat(hit.longitude);
+        if (isFinite(lat) && isFinite(lng)) {
+          return { lat, lng, accuracy: 10000, city: hit.city || null, source: "ip", approximate: true };
+        }
+      } catch (_) { /* try the next provider */ }
+    }
+    throw err("unavailable", "Couldn't determine even an approximate location.");
+  }
+
+  // Precise GPS first; on ANY failure fall back to approximate (Google/IP) so
+  // location-dependent features still work. The returned fix carries
+  // approximate:true (and the original GPS error on _gpsError) when it fell
+  // back, so callers can show "approximate / city-level" if they want.
+  async function bestOrApprox(opts = {}) {
+    try {
+      return await best(opts);
+    } catch (gpsErr) {
+      try {
+        const a = await approximate();
+        a._gpsError = gpsErr;
+        return a;
+      } catch (_) {
+        throw gpsErr;   // surface the actionable GPS error if even IP fails
+      }
+    }
+  }
+
   // Continuous tracking (ride / meet style). Prompt-safe kick, then watch.
   // Returns a stop() that tears everything down.
   function watch(opts = {}) {
@@ -196,5 +262,5 @@
     };
   }
 
-  window.pawaLocate = { supported, secure, best, watch, message, permissionState };
+  window.pawaLocate = { supported, secure, best, bestOrApprox, approximate, watch, message, permissionState };
 })();

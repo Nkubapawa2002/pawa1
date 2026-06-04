@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v99-2026-06-03-geocode-direct-locationiq-no-gateway";
+const VERSION = "v105-2026-06-04-location-google-ip-fallback";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -16,6 +16,8 @@ const APP_SHELL = [
   "./css/houses-pro.css",
   "./css/neon-pro.css",
   "./js/config.js",
+  "./js/fx.js",
+  "./js/near-me.js",
   "./js/geo.js",
   "./js/geolocate.js",
   "./js/map-expand.js",
