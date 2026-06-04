@@ -39,6 +39,15 @@
           </svg>
           <span data-i18n="chat_tab_ai">AI Assistant</span>
         </button>
+        <button class="chat-tab" id="tabVoice" onclick="window.switchChatTab('voice')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <span>Voice AI</span>
+        </button>
         <button class="chat-tab" id="tabSupport" onclick="window.switchChatTab('support')">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.35 2 2 0 0 1 3.6 1.13h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.73a16 16 0 0 0 6 6l.96-.96a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16z"/>
@@ -55,13 +64,75 @@
             <div style="font-weight:700" data-i18n="chat_title">Chat with Pawa Assistant</div>
             <small style="opacity:0.85" data-i18n="chat_sub">Ask about sending, tracking, agents, or buses.</small>
           </div>
+          <button type="button" id="voiceModeBtn" class="chat-voice-toggle" title="Enable voice mode">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+            <span class="vmt-label">Voice</span>
+          </button>
+        </div>
+        <div class="voice-listening-banner" id="voiceBanner">
+          <span class="voice-listen-dot"></span>
+          <span id="voiceBannerText">Listening…</span>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
         <div class="suggestions" id="suggestions"></div>
         <form class="chat-input-bar" id="chatForm">
+          <button type="button" id="chatMicBtn" class="chat-mic-btn" title="Voice input">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </button>
           <input type="text" id="chatInput" data-i18n-placeholder="chat_placeholder" placeholder="Type your question..." autocomplete="off" />
           <button type="submit" data-i18n="chat_send">Send</button>
         </form>
+      </div>
+
+      <!-- Voice AI panel (Gemini Live) -->
+      <div id="panelVoice" class="chat-panel">
+        <div class="va-panel">
+
+          <!-- Status bar -->
+          <div class="va-status-bar">
+            <span class="va-state-badge" id="vaStateBadge">IDLE</span>
+            <span class="va-model-tag">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+              Gemini Live · Pawa AI
+            </span>
+          </div>
+
+          <!-- Big mic button (same style as Jarvis) -->
+          <div class="va-mic-area">
+            <div class="mic-wrapper">
+              <div class="mic-rings" id="vaMicRings"></div>
+              <button class="mic-btn" id="vaMicBtn" title="Start voice conversation">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              </button>
+            </div>
+            <p class="va-hint" id="vaHint">Tap to start voice conversation with Pawa</p>
+          </div>
+
+          <!-- Live transcript -->
+          <div class="va-transcript chat-messages" id="vaMessages"></div>
+
+          <!-- Text fallback while connected -->
+          <form class="va-text-bar" id="vaTextBar">
+            <input type="text" id="vaTextInput" placeholder="Or type a message…" autocomplete="off" />
+            <button type="submit">Send</button>
+          </form>
+
+        </div>
       </div>
 
       <!-- Support Contacts panel -->
@@ -92,6 +163,8 @@
   <script src="js/nav.js"></script>
   <script src="js/tenant.js"></script>
   <script src="js/ai.js"></script>
+  <script src="js/gemini-chat.js"></script>
+  <script src="js/gemini-voice.js"></script>
   <script src="js/chat.js"></script>
   <script>
     window.renderNav("chat.html");
@@ -99,7 +172,8 @@
     window.applyTranslations();
     (async () => {
       await (window.loadTenantContext && window.loadTenantContext());
-      window.initChatPage();
+      const sysPrompt = await window.initChatPage();   // returns the system prompt
+      window.initVoiceTab(sysPrompt || "");
       window.renderSupportContacts();
     })();
   </script>

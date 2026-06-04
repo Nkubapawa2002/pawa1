@@ -1,9 +1,11 @@
-// Tab switching between AI chat and Support contacts
+// Tab switching — AI / Voice AI / Support
 window.switchChatTab = (tab) => {
   document.querySelectorAll(".chat-tab").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".chat-panel").forEach(p => p.classList.remove("active"));
-  document.getElementById(tab === "ai" ? "tabAi" : "tabSupport").classList.add("active");
-  document.getElementById(tab === "ai" ? "panelAi" : "panelSupport").classList.add("active");
+  const tabMap   = { ai: "tabAi", voice: "tabVoice", support: "tabSupport" };
+  const panelMap = { ai: "panelAi", voice: "panelVoice", support: "panelSupport" };
+  document.getElementById(tabMap[tab])?.classList.add("active");
+  document.getElementById(panelMap[tab])?.classList.add("active");
 };
 
 // Render support contacts list
@@ -53,7 +55,7 @@ window.initChatPage = async () => {
   const form = document.getElementById("chatForm");
   const input = document.getElementById("chatInput");
   const suggestions = document.getElementById("suggestions");
-  const sendBtn = form.querySelector("button");
+  const sendBtn = form.querySelector("button[type=submit]");
 
   let agents = [], buses = [], regions = [], shipments = [];
   try {
@@ -106,29 +108,40 @@ window.initChatPage = async () => {
       `- ${a.name} in ${a.region} (${a.terminal || "—"}): ${a.phone}`
     ).join("\n");
     const replyLang = lang === "sw" ? "Swahili (Kiswahili)" : "English";
-    return `You are PAWA, the AI assistant for a Tanzania bus cargo and passenger ticketing platform.
+    return `You are PAWA — the AI travel assistant for Pawa Bus Cargo, Tanzania's leading bus cargo and passenger ticketing platform.
 
-Reply in ${replyLang} by default; switch language if the user writes in the other one. Keep replies short — a sentence or two, or a tight bulleted list. Use **bold** sparingly.
+LANGUAGE: Always reply in the SAME language the user's latest message is written in — Swahili for Swahili, English for English. If a message mixes both or is unclear (greetings, numbers, place names only), reply in ${replyLang}. Stay in one language per reply — never mix the two, and never mention language.
 
-You can help with:
-- Finding a bus on a route
-- Finding an agent in a region
-- Tracking a parcel (codes look like TZ-XXX-XXX-YYYYMMDD-NNN)
-- Registering a shipment (point the user to the Send Parcel page)
-- Explaining insurance (default cover ${cfg.INSURANCE_COVERAGE_PERCENT || 80}% of declared value)
+PERSONALITY: Direct, warm, knowledgeable. Like a trusted conductor who knows every route, every agent, every price by heart. Answer in 1-3 sentences or a tight bulleted list. No filler words. No "Sure!" or "Of course!". Get straight to the answer.
 
-Pricing reference (TZS): base ${cfg.FREIGHT_BASE_TZS || 2000}, per kg ${cfg.FREIGHT_PER_KG_TZS || 500}, size multipliers small=1, medium=1.5, large=2.5.
+CAPABILITIES — handle all of these autonomously:
+• Find buses for any route (use the BUS COMPANIES data below)
+• Find agents in any region (use the AGENTS data below)
+• Track parcels by code (format: TZ-XXX-XXX-YYYYMMDD-NNN)
+• Register shipments → direct user to the Send Parcel page
+• Explain pricing: base ${cfg.FREIGHT_BASE_TZS || 2000} TZS + ${cfg.FREIGHT_PER_KG_TZS || 500} TZS/kg; size: small×1, medium×1.5, large×2.5
+• Explain insurance: covers ${cfg.INSURANCE_COVERAGE_PERCENT || 80}% of declared value
+• Answer travel questions (departure times, duration, what to bring)
+• Help with booking — tell user to go to the Book page or call the bus company directly
 
-REGIONS:
-${regionList}
+RULES:
+1. Never guess a price — use the pricing formula above.
+2. For parcel tracking codes, extract and parse them exactly.
+3. For route questions, search the BUS COMPANIES list first. If no direct route exists, suggest alternatives or connections.
+4. If a region has no agents, say so and offer the nearest region.
+5. When voice mode is active, keep replies to 2 sentences max — spoken replies must be concise.
+6. Never say "as an AI" or break character.
+
+REGIONS: ${regionList}
 
 BUS COMPANIES:
 ${busLines || "(none loaded)"}
 
-AGENTS:
+AGENTS (first 40):
 ${agentLines || "(none loaded)"}`;
   };
   const systemPrompt = buildSystemPrompt();
+  window._pawaChatSystemPrompt = systemPrompt;
 
   const SUGGESTIONS = lang === "sw"
     ? [
@@ -152,27 +165,54 @@ ${agentLines || "(none loaded)"}`;
     suggestions.appendChild(chip);
   });
 
-  // Stateless ai-chat call: pass full conversation each turn.
-  const callAI = async (userText) => {
-    if (!haveAI) return demoReply(userText);
+  // Brain priority: (1) Gemini via secure proxy, (2) Supabase ai-chat,
+  // (3) local regex demo. Each turn passes the full conversation.
+  const haveGemini = !!window.GeminiChat && window.GeminiChat.available();
 
+  const callAI = async (userText) => {
     conversation.push({ role: "user", content: userText });
 
-    try {
-      const data = await window.AI.chat({
-        messages: conversation,
-        system: systemPrompt,
-        max_tokens: 1024,
-        temperature: 0.6
-      });
-      const reply = data.reply || "(no reply)";
-      conversation.push({ role: "assistant", content: reply });
-      return reply;
-    } catch (e) {
-      console.error(e);
-      conversation.pop();   // drop the failed user turn so retry isn't stale
-      return demoReply(userText);
+    // 1) Gemini — primary brain, via the gemini-chat Edge Function (the key
+    //    stays server-side; the function runs the model-fallback chain).
+    if (haveGemini) {
+      try {
+        const reply = await window.GeminiChat.chat({
+          models:      cfg.GEMINI_TEXT_MODELS,
+          system:      systemPrompt,
+          messages:    conversation,
+          maxTokens:   1024,
+          temperature: 0.6
+        });
+        if (reply) {
+          conversation.push({ role: "assistant", content: reply });
+          return reply;
+        }
+      } catch (e) {
+        console.warn("[Gemini chat] falling back:", e.message);
+      }
     }
+
+    // 2) Supabase ai-chat (Anthropic) — secondary brain.
+    if (haveAI) {
+      try {
+        const data = await window.AI.chat({
+          messages: conversation,
+          system: systemPrompt,
+          max_tokens: 1024,
+          temperature: 0.6
+        });
+        const reply = data.reply || "(no reply)";
+        conversation.push({ role: "assistant", content: reply });
+        return reply;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // 3) Local regex demo — last resort. Drop the failed user turn so a
+    //    retry isn't stale.
+    conversation.pop();
+    return demoReply(userText);
   };
 
   // /map <query> — structured map intent via ai-map.
@@ -242,7 +282,8 @@ ${agentLines || "(none loaded)"}`;
   };
 
   const demoReply = (text) => {
-    const q = text.toLowerCase();
+    const q  = text.toLowerCase();
+    const sw = lang === "sw";
 
     const codeMatch = text.match(/TZ-[A-Z]{3}-[A-Z]{3}-\d{8}-\d{3}/i);
     if (codeMatch) {
@@ -251,14 +292,14 @@ ${agentLines || "(none loaded)"}`;
         const cov = Math.round((s.product.value_tzs || 0) * 0.8);
         return `**${s.tracking_code}**\n**Status:** ${s.status}\n**Route:** ${s.bus.route}\n**Bus:** ${s.bus.name}\n**Sender:** ${s.sender.name} (${s.sender.phone})\n**Receiver:** ${s.receiver.name} (${s.receiver.phone})\n**Value:** ${window.formatTZS(s.product.value_tzs)} | **Insured:** ${window.formatTZS(cov)}\n**Origin Agent:** ${s.agent_origin.name} - ${s.agent_origin.phone}\n**Dest Agent:** ${s.agent_destination.name} - ${s.agent_destination.phone}`;
       }
-      return "No shipment found with that code.";
+      return sw ? "Hakuna mzigo wenye namba hiyo." : "No shipment found with that code.";
     }
 
     const region = regions.find(r => q.includes(r.toLowerCase()));
     if ((q.includes("agent") || q.includes("wakala") || q.includes("mawakala")) && region) {
       const found = window.DataStore.findAgentsByRegion(agents, region);
-      if (found.length === 0) return `No agents listed in ${region} yet.`;
-      return `**Agents in ${region}:**\n` + found.map(a => `- ${a.name} (${a.terminal}) - ${a.phone}`).join("\n");
+      if (found.length === 0) return sw ? `Hakuna wakala ${region} kwa sasa.` : `No agents listed in ${region} yet.`;
+      return `**${sw ? "Mawakala" : "Agents in"} ${region}:**\n` + found.map(a => `- ${a.name} (${a.terminal}) - ${a.phone}`).join("\n");
     }
 
     if (q.includes("send") || q.includes("tuma") || q.includes("from") || q.includes("kutoka")) {
@@ -266,37 +307,293 @@ ${agentLines || "(none loaded)"}`;
       if (found.length >= 2) {
         const [from, to] = found;
         const matchingBuses = window.DataStore.findBusesForRoute(buses, from, to);
-        if (matchingBuses.length === 0) return `No bus found for ${from} → ${to}.`;
-        return `**Buses for ${from} → ${to}:**\n` + matchingBuses.map(b => {
+        if (matchingBuses.length === 0) return sw ? `Hakuna basi la ${from} → ${to}.` : `No bus found for ${from} → ${to}.`;
+        return `**${sw ? "Mabasi" : "Buses for"} ${from} → ${to}:**\n` + matchingBuses.map(b => {
           const r = b.routes.find(x => x.from === from && x.to === to);
           return `- ${b.name} (${r.departure}, ~${r.duration_hours}h) - ${b.contact}`;
-        }).join("\n") + "\n\nClick **Send Parcel** to register.";
+        }).join("\n") + (sw ? "\n\nBofya **Tuma Mzigo** kusajili." : "\n\nClick **Send Parcel** to register.");
       }
-      return "Tell me the origin and destination — e.g. 'Send from Dar to Mwanza'.";
+      return sw
+        ? "Niambie mahali pa kuanzia na pa kufikia — mfano 'Tuma kutoka Dar kwenda Mwanza'."
+        : "Tell me the origin and destination — e.g. 'Send from Dar to Mwanza'.";
     }
 
     if ((q.includes("bus") || q.includes("basi")) && region) {
       const matching = buses.filter(b => (b.routes || []).some(r => r.to === region || r.from === region));
-      if (matching.length === 0) return `No buses found serving ${region}.`;
-      return `**Buses serving ${region}:**\n` + matching.map(b => `- ${b.name} - ${b.contact}`).join("\n");
+      if (matching.length === 0) return sw ? `Hakuna mabasi yanayohudumia ${region}.` : `No buses found serving ${region}.`;
+      return `**${sw ? "Mabasi ya" : "Buses serving"} ${region}:**\n` + matching.map(b => `- ${b.name} - ${b.contact}`).join("\n");
     }
 
-    return "I can help with: finding a bus, finding an agent, tracking a parcel, registering a shipment, or explaining insurance. What would you like?";
+    return lang === "sw"
+      ? "Naweza kukusaidia: kupata basi, kupata wakala, kufuatilia mzigo, au kusajili usafirishaji. Unahitaji nini?"
+      : "I can help with: finding a bus, finding an agent, tracking a parcel, registering a shipment, or explaining insurance. What would you like?";
   };
+
+  // ── Voice assistant (Jarvis-inspired) ───────────────────────────────
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn       = document.getElementById("chatMicBtn");
+  const voiceModeBtn = document.getElementById("voiceModeBtn");
+  const voiceBanner  = document.getElementById("voiceBanner");
+  const voiceBannerText = document.getElementById("voiceBannerText");
+
+  let recognition       = null;
+  let voiceMode         = false;
+  let voiceOutputOn     = false;
+  let isListening       = false;
+  let suppressAutoListen = false;
+
+  const listeningLabel = lang === "sw" ? "Inasikiliza…" : "Listening…";
+  const speakingLabel  = lang === "sw" ? "Pawa anasema…" : "Pawa is speaking…";
+
+  function setBanner(text) {
+    if (!voiceBanner) return;
+    if (text) { voiceBannerText.textContent = text; voiceBanner.classList.add("show"); }
+    else       { voiceBanner.classList.remove("show"); }
+  }
+
+  function speakReply(text, onDone) {
+    if (!window.speechSynthesis || !voiceOutputOn) { onDone && onDone(); return; }
+    window.speechSynthesis.cancel();
+    const clean = text
+      .replace(/\*\*/g, "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\n/g, " ")
+      .trim()
+      .substring(0, 500);
+    const u = new SpeechSynthesisUtterance(clean);
+    u.lang  = lang === "sw" ? "sw-TZ" : "en-US";
+    u.rate  = 1.05;
+    u.onstart = () => setBanner(speakingLabel);
+    u.onend = () => {
+      setBanner(null);
+      onDone && onDone();
+      if (voiceMode && recognition && !isListening && !suppressAutoListen) {
+        setTimeout(() => { if (voiceMode) recognition.start(); }, 500);
+      }
+    };
+    window.speechSynthesis.speak(u);
+  }
+
+  if (!SpeechRec) {
+    micBtn && micBtn.classList.add("no-support");
+  } else {
+    recognition = new SpeechRec();
+    recognition.lang = lang === "sw" ? "sw-TZ" : "en-US";
+    recognition.continuous    = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      isListening = true;
+      micBtn && micBtn.classList.add("listening");
+      setBanner(listeningLabel);
+    };
+
+    recognition.onresult = (e) => {
+      const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
+      input.value = transcript;
+      if (e.results[e.results.length - 1].isFinal) {
+        input.value = transcript;
+        form.requestSubmit();
+      }
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error !== "no-speech") console.warn("[Voice]", e.error);
+      isListening = false;
+      micBtn && micBtn.classList.remove("listening");
+      setBanner(null);
+    };
+
+    recognition.onend = () => {
+      isListening = false;
+      micBtn && micBtn.classList.remove("listening");
+      if (!voiceMode || suppressAutoListen) setBanner(null);
+    };
+
+    micBtn && micBtn.addEventListener("click", () => {
+      if (isListening) { recognition.stop(); }
+      else             { input.value = ""; recognition.start(); }
+    });
+  }
+
+  voiceModeBtn && voiceModeBtn.addEventListener("click", () => {
+    voiceMode    = !voiceMode;
+    voiceOutputOn = voiceMode;
+    voiceModeBtn.classList.toggle("active", voiceMode);
+    voiceModeBtn.querySelector(".vmt-label").textContent =
+      voiceMode
+        ? (lang === "sw" ? "Sauti ON" : "Voice ON")
+        : (lang === "sw" ? "Sauti" : "Voice");
+    voiceModeBtn.title = voiceMode
+      ? (lang === "sw" ? "Washa/zima hali ya sauti" : "Voice mode ON — click to disable")
+      : (lang === "sw" ? "Washa hali ya sauti" : "Enable voice mode");
+
+    if (voiceMode) {
+      const greeting = lang === "sw"
+        ? "Karibu! Hali ya sauti imewashwa. Niambie unachohitaji."
+        : "Voice mode on. I'm Pawa — your Tanzania travel assistant. Ask me anything.";
+      addMessage("assistant", greeting);
+      speakReply(greeting);
+    } else {
+      window.speechSynthesis && window.speechSynthesis.cancel();
+      recognition && recognition.stop();
+      setBanner(null);
+    }
+  });
+  // ── End voice assistant ──────────────────────────────────────────────
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text) return;
+    suppressAutoListen = true;
+    if (isListening) recognition && recognition.stop();
     addMessage("user", text);
     input.value = "";
     sendBtn.disabled = true;
     sendBtn.textContent = "...";
     suggestions.style.display = "none";
+    setBanner(null);
 
     const reply = await dispatch(text);
     addMessage("assistant", reply);
     sendBtn.disabled = false;
     sendBtn.textContent = window.t("chat_send");
+    suppressAutoListen = false;
+    speakReply(reply);
   });
+
+  return systemPrompt;
+};
+
+// =============================================================
+// Voice AI Tab — Gemini Live (Jarvis engine)
+// =============================================================
+window.initVoiceTab = (systemPrompt) => {
+  const cfg        = window.APP_CONFIG || {};
+  const baseUrl    = (cfg.SUPABASE_URL || "").replace(/\/$/, "");
+  const anonKey    = cfg.SUPABASE_ANON_KEY || "";
+  const tokenUrl   = baseUrl + (cfg.GEMINI_TOKEN_PATH || "/functions/v1/gemini-token");
+  const model      = cfg.GEMINI_LIVE_MODEL;
+  const lang       = window.getLang ? window.getLang() : "en";
+
+  // Voice-specific addendum: the model hears speech, so anchor it to the
+  // SPOKEN language and keep replies short (long spoken answers feel laggy).
+  const voicePrompt = (systemPrompt || "") + `
+
+VOICE MODE:
+- Reply in the SAME language the user is SPEAKING. If they speak Swahili, answer in Swahili; if English, answer in English. Never switch languages mid-conversation unless the user does.
+- Keep every spoken reply to 1-2 short sentences. Ask one question at a time.
+- Speak numbers naturally (e.g. "tisini elfu shilingi", not "90000").`;
+
+  const micBtn     = document.getElementById("vaMicBtn");
+  const micRings   = document.getElementById("vaMicRings");
+  const stateBadge = document.getElementById("vaStateBadge");
+  const hintEl     = document.getElementById("vaHint");
+  const messages   = document.getElementById("vaMessages");
+  const textBar    = document.getElementById("vaTextBar");
+  const textInput  = document.getElementById("vaTextInput");
+
+  let assistant = null;
+
+  // State labels
+  const LABELS = {
+    idle:       { en: "Tap to start voice conversation with Pawa", sw: "Bonyeza kuanza mazungumzo ya sauti" },
+    connecting: { en: "Connecting to Pawa AI…",                    sw: "Inaunganika na Pawa AI…" },
+    listening:  { en: "Listening — speak now",                     sw: "Inasikiliza — sema sasa" },
+    thinking:   { en: "Pawa is thinking…",                         sw: "Pawa anafikiri…" },
+    speaking:   { en: "Pawa is speaking…",                         sw: "Pawa anasema…" },
+    error:      { en: "Connection error — tap to retry",           sw: "Hitilafu ya muunganiko — bonyeza tena" },
+  };
+
+  function addMsg(role, text) {
+    if (!text || !messages) return;
+    const d = document.createElement("div");
+    d.className = `msg ${role}`;
+    d.innerHTML = `<div class="msg-bubble">${text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>`;
+    messages.appendChild(d);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function setState(state) {
+    if (!stateBadge) return;
+
+    // Badge text + class
+    stateBadge.className = `va-state-badge ${state}`;
+    stateBadge.textContent = state.toUpperCase();
+
+    // Hint text
+    const hint = (LABELS[state] || LABELS.idle)[lang] || LABELS[state]?.en || "";
+    if (hintEl) hintEl.textContent = hint;
+
+    // Mic button visual
+    if (!micBtn) return;
+    micBtn.classList.remove("calling", "active-call");
+    if (micRings) micRings.classList.remove("active");
+
+    if (state === "listening" || state === "thinking") {
+      micBtn.classList.add("calling");
+      if (micRings) micRings.classList.add("active");
+    } else if (state === "speaking") {
+      micBtn.classList.add("active-call");
+    }
+
+    // Show text input once connected
+    if (textBar) {
+      textBar.classList.toggle("show", state !== "idle" && state !== "connecting" && state !== "error");
+    }
+
+    // Mic button icon: stop when active, mic when idle/error
+    const stopIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
+    const micIcon  = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`;
+    micBtn.innerHTML = (state === "idle" || state === "error") ? micIcon : stopIcon;
+  }
+
+  // Tap mic = toggle on/off
+  micBtn && micBtn.addEventListener("click", async () => {
+    if (assistant) {
+      assistant.stop();
+      assistant = null;
+      setState("idle");
+      return;
+    }
+
+    if (!baseUrl || !anonKey) {
+      addMsg("system", lang === "sw"
+        ? "Huduma ya sauti haijawekwa (Supabase haijaundwa)."
+        : "Voice service not configured (Supabase not set up).");
+      return;
+    }
+    if (!window.PawaVoice) {
+      addMsg("system", "gemini-voice.js not loaded.");
+      return;
+    }
+
+    addMsg("assistant", lang === "sw"
+      ? "Habari! Mimi ni Pawa. Ninaunganika…"
+      : "Hello! I'm Pawa. Connecting…");
+
+    assistant = new window.PawaVoice({
+      tokenUrl,
+      anonKey,
+      model,
+      systemPrompt: voicePrompt,
+      onTranscript: (role, text) => addMsg(role, text),
+      onState:      (s)          => setState(s),
+    });
+
+    await assistant.start();
+  });
+
+  // Text fallback input while session is live
+  textBar && textBar.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const t = textInput.value.trim();
+    if (!t || !assistant) return;
+    addMsg("user", t);
+    textInput.value = "";
+    assistant.sendText(t);
+  });
+
+  setState("idle");
 };

@@ -109,6 +109,30 @@ window.APP_CONFIG = {
     "card","cash"
   ],
 
+  // ---------- Gemini AI (voice + text chat on chat.html) ----------
+  // The GEMINI_API_KEY is NEVER in the browser — it lives only as a Supabase
+  // Edge Function secret. The browser calls two functions instead:
+  //   • gemini-chat   → text replies for the AI Assistant tab
+  //   • gemini-token  → mints a short-lived ephemeral token for the Voice tab,
+  //                     so the browser can open a Gemini Live session without
+  //                     the real key. (See supabase/functions/gemini-*.)
+  // Deploy:  supabase secrets set GEMINI_API_KEY=AQ.Ab8...
+  //          supabase functions deploy gemini-chat gemini-token
+  GEMINI_CHAT_PATH:  "/functions/v1/gemini-chat",
+  GEMINI_TOKEN_PATH: "/functions/v1/gemini-token",
+  // The browser still needs the Live model name to open the session (the
+  // ephemeral token authorises it, but the client picks the model).
+  GEMINI_LIVE_MODEL: "gemini-2.5-flash-native-audio-preview-09-2025",
+  // Model-fallback chain for the text proxy (free tier is ~20 req/day PER
+  // model; the function advances on a 429 so replies stay on real AI).
+  GEMINI_TEXT_MODELS: [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite"
+  ],
+
   // ---------- Maps / Weather ----------
   // Leaflet uses OpenStreetMap (no key needed).
   // Open-Meteo provides current conditions (no key needed).
