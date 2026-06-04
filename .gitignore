@@ -41,3 +41,6 @@ test-screenshots/
 
 # Migration files staged for one-off application (kept out of history)
 supabase/_migration_section*.sql
+
+# Supabase CLI local scratch (project link, cached CLI version) — not source
+supabase/.temp/
