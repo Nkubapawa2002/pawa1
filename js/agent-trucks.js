@@ -68,6 +68,7 @@ create policy "truck-photos upload" on storage.objects for insert
   const warnEl = $("atWarn"), listEl = $("atList"), userEmailEl = $("atUserEmail");
   const tabSignIn = $("tabSignIn"), tabSignUp = $("tabSignUp");
   const authForm = $("atAuthForm"), authEmail = $("atEmail"), authPassword = $("atPassword");
+  const authPasswordConfirm = $("atPasswordConfirm"), authPasswordConfirmRow = $("atPasswordConfirmRow");
   const authSubmit = $("atAuthSubmit"), authMsg = $("atAuthMsg");
   const newBtn = $("atNewBtn"), signOutBtn = $("atSignOut");
   const form = $("atForm"), formTitle = $("atFormTitle"), formMsg = $("atFormMsg");
@@ -136,11 +137,15 @@ create policy "truck-photos upload" on storage.objects for insert
 
   tabSignIn.addEventListener("click", () => {
     authMode = "signin"; tabSignIn.classList.add("active"); tabSignUp.classList.remove("active");
-    authSubmit.textContent = "Sign in"; authPassword.autocomplete = "current-password"; authMsg.hidden = true;
+    authSubmit.textContent = "Sign in"; authPassword.autocomplete = "current-password";
+    if (authPasswordConfirmRow) authPasswordConfirmRow.hidden = true;
+    authMsg.hidden = true;
   });
   tabSignUp.addEventListener("click", () => {
     authMode = "signup"; tabSignUp.classList.add("active"); tabSignIn.classList.remove("active");
-    authSubmit.textContent = "Create account"; authPassword.autocomplete = "new-password"; authMsg.hidden = true;
+    authSubmit.textContent = "Create account"; authPassword.autocomplete = "new-password";
+    if (authPasswordConfirmRow) { authPasswordConfirmRow.hidden = false; authPasswordConfirm.value = ""; }
+    authMsg.hidden = true;
   });
 
   authForm.addEventListener("submit", async (e) => {
@@ -149,19 +154,33 @@ create policy "truck-photos upload" on storage.objects for insert
     const email = authEmail.value.trim(), password = authPassword.value;
     try {
       if (authMode === "signup") {
+        // Require the re-entered password to match — a typo otherwise creates an
+        // account with a password the owner can never reproduce.
+        const confirm = authPasswordConfirm ? authPasswordConfirm.value : password;
+        if (password !== confirm) {
+          authMsg.className = "at-msg error";
+          authMsg.textContent = "The two passwords don't match. Please re-enter them.";
+          authMsg.hidden = false;
+          return;
+        }
         const { data, error } = await sb.auth.signUp({ email, password });
         if (error) {
+          // Account already exists: don't silently sign in with the sign-up
+          // password — send them to Sign in to use their real password.
           if (/already registered|already been registered|user already/i.test(error.message || "")) {
-            const { error: siErr } = await sb.auth.signInWithPassword({ email, password });
-            if (siErr) throw siErr;
+            authMode = "signin"; tabSignIn.click();
+            authMsg.className = "at-msg error";
+            authMsg.innerHTML = `An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`;
+            authMsg.hidden = false;
             return;
           }
           throw error;
         }
         if (data?.session) return;
+        authMode = "signin"; tabSignIn.click();
         authMsg.className = "at-msg success";
         authMsg.innerHTML = `Account created. Check <strong>${esc(email)}</strong> for a verification link, then sign in.`;
-        authMsg.hidden = false; tabSignIn.click();
+        authMsg.hidden = false;
       } else {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;

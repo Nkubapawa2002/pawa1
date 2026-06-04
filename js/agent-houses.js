@@ -26,6 +26,8 @@ window.initAgentHousesPage = async () => {
   const authForm      = document.getElementById("ahAuthForm");
   const authEmail     = document.getElementById("ahEmail");
   const authPassword  = document.getElementById("ahPassword");
+  const authPasswordConfirm    = document.getElementById("ahPasswordConfirm");
+  const authPasswordConfirmRow = document.getElementById("ahPasswordConfirmRow");
   const authSubmit    = document.getElementById("ahAuthSubmit");
   const authMsg       = document.getElementById("ahAuthMsg");
 
@@ -329,6 +331,7 @@ create policy "house-photos upload" on storage.objects for insert
     tabSignUp.classList.remove("active");
     authSubmit.textContent = tr("ah_tab_signin");
     authPassword.autocomplete = "current-password";
+    if (authPasswordConfirmRow) authPasswordConfirmRow.hidden = true;
     authMsg.hidden = true;
   });
   tabSignUp.addEventListener("click", () => {
@@ -337,6 +340,7 @@ create policy "house-photos upload" on storage.objects for insert
     tabSignIn.classList.remove("active");
     authSubmit.textContent = tr("ah_tab_signup");
     authPassword.autocomplete = "new-password";
+    if (authPasswordConfirmRow) { authPasswordConfirmRow.hidden = false; authPasswordConfirm.value = ""; }
     authMsg.hidden = true;
   });
 
@@ -348,13 +352,27 @@ create policy "house-photos upload" on storage.objects for insert
     const password = authPassword.value;
     try {
       if (authMode === "signup") {
+        // Require the re-entered password to match — stops a typo from creating
+        // an account with a password the owner can never reproduce.
+        const confirm = authPasswordConfirm ? authPasswordConfirm.value : password;
+        if (password !== confirm) {
+          authMsg.className = "ah-msg error";
+          authMsg.textContent = tr("ah_err_pw_mismatch");
+          authMsg.hidden = false;
+          return;
+        }
         const { data, error } = await sb.auth.signUp({ email, password });
         if (error) {
-          // If the account already exists, treat the click as a sign-in attempt.
+          // Account already exists: do NOT silently sign in with the sign-up
+          // password (that conflates creating an account with logging into an
+          // existing one). Send them to the Sign-in tab to enter their real
+          // password instead.
           if (/already registered|already been registered|user already/i.test(error.message || "")) {
-            const { error: siErr } = await sb.auth.signInWithPassword({ email, password });
-            if (siErr) throw siErr;
-            return; // onAuthStateChange routes us into the dashboard.
+            authMode = "signin"; tabSignIn.click();
+            authMsg.className = "ah-msg error";
+            authMsg.innerHTML = tr("ah_err_email_exists").replace("{email}", `<strong>${esc(email)}</strong>`);
+            authMsg.hidden = false;
+            return;
           }
           throw error;
         }
@@ -363,14 +381,15 @@ create policy "house-photos upload" on storage.objects for insert
           return;
         }
         // No session returned → Supabase has confirm-email turned ON.
-        // Be explicit so they don't try to sign in next and hit "Email not confirmed".
+        // Switch to the Sign-in tab FIRST (its handler clears the message), then
+        // show the confirmation note so it isn't immediately hidden.
+        authMode = "signin";
+        tabSignIn.click();
         authMsg.className = "ah-msg success";
         authMsg.innerHTML =
           `Account created. Check <strong>${esc(email)}</strong> for a ` +
           `verification link, then come back here and sign in.`;
         authMsg.hidden = false;
-        authMode = "signin";
-        tabSignIn.click();
       } else {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;

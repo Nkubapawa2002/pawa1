@@ -458,6 +458,10 @@
           <label for="ahPassword" data-i18n="ah_password">Password</label>
           <input id="ahPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
         </div>
+        <div class="ah-form-row" id="ahPasswordConfirmRow" hidden>
+          <label for="ahPasswordConfirm" data-i18n="ah_password_confirm">Re-enter password</label>
+          <input id="ahPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="••••••••" />
+        </div>
         <button id="ahAuthSubmit" class="ah-btn-primary" type="submit" data-i18n="ah_tab_signin">Sign in</button>
         <p id="ahAuthMsg" class="ah-msg" hidden></p>
       </form>
