@@ -16,12 +16,15 @@ window.APP_CONFIG = {
   HOUSE_PHOTOS_BUCKET: "house-photos",
   TRUCK_PHOTOS_BUCKET: "truck-photos",
 
-  // ---------- Map / geocoding gateway (services/go) ----------
-  // Public URL of the Go map gateway that fronts OpenStreetMap/Nominatim
-  // (rate-limited + cached + proper User-Agent). Leave empty to auto-use
-  // http://127.0.0.1:8091 on localhost and fall back to calling Nominatim
-  // directly everywhere else. Set this to your deployed gateway URL (no
-  // trailing slash) to route all production traffic through it.
+  // ---------- Map / geocoding (LocationIQ, called directly by js/geo.js) ------
+  // The browser geocodes through LocationIQ (hosted, CORS-enabled). This is a
+  // CLIENT-SIDE key: restrict it to your domain(s) in the LocationIQ dashboard
+  // (Account → restrict by referer) so it can't be reused elsewhere — the same
+  // pattern as a Mapbox/Google Maps browser key. Free tier: 5,000 lookups/day.
+  LOCATIONIQ_KEY: "pk.3ed6d1197fc3f49a728d0135030d3d89",
+
+  // Legacy: the old self-hosted Go map gateway. No longer used by js/geo.js
+  // (the browser now calls LocationIQ directly). Kept for reference only.
   GEO_GATEWAY_URL: "https://pawa-map-gateway.onrender.com",
 
   // ---------- Video faststart gateway (services/python) ----------

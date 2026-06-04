@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v98-2026-06-03-agent-signup-confirm-password";
+const VERSION = "v99-2026-06-03-geocode-direct-locationiq-no-gateway";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
