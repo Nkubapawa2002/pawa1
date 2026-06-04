@@ -66,11 +66,16 @@ func main() {
 // ---- handlers -------------------------------------------------------------
 
 func handleHealth(w http.ResponseWriter, _ *http.Request) {
+	upstream := "nominatim"
+	if usingLocationIQ() {
+		upstream = "locationiq"
+	}
 	writeJSON(w, http.StatusOK, map[string]string{
-		"lang":   "go",
-		"status": "ok",
-		"role":   "map area-fetching gateway (geocode + commute match)",
-		"port":   firstNonEmpty(os.Getenv("PORT"), defaultPort),
+		"lang":     "go",
+		"status":   "ok",
+		"role":     "map area-fetching gateway (geocode + commute match)",
+		"port":     firstNonEmpty(os.Getenv("PORT"), defaultPort),
+		"upstream": upstream,
 	})
 }
 
