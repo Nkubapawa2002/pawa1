@@ -559,12 +559,48 @@ window.initAdminPage = async () => {
   // ---------- agents admin tab ----------
   async function renderAgentsAdmin() {
     const list = $("agentsAdminList");
-    const { data, error } = await sb.from("agents").select("*").order("region");
+    // Agents + their original applications (so we can show BOTH the moment they
+    // applied and the moment they were approved/registered). Matching is by phone.
+    const [agRes, appRes] = await Promise.all([
+      sb.from("agents").select("*").order("created_at", { ascending: false }),
+      sb.from("agent_applications").select("full_name,phone,phones,status,created_at"),
+    ]);
+    const { data, error } = agRes;
     if (error) { list.innerHTML = `<div class="banner error">${error.message}</div>`; return; }
     if (!data.length) { list.innerHTML = `<div class="empty"><p>No agents.</p></div>`; return; }
+
+    // Map every application phone → earliest submission date for that person.
+    const appByPhone = new Map();
+    const apps = (appRes && Array.isArray(appRes.data)) ? appRes.data : [];
+    apps.forEach((ap) => {
+      [ap.phone, ...(ap.phones || [])].filter(Boolean).forEach((p) => {
+        const k = _aaNormPhone(p);
+        if (!k) return;
+        const prev = appByPhone.get(k);
+        if (!prev || new Date(ap.created_at) < new Date(prev)) appByPhone.set(k, ap.created_at);
+      });
+    });
+    const appliedAt = (a) => {
+      for (const p of [a.phone, ...(a.phones || [])].filter(Boolean)) {
+        const hit = appByPhone.get(_aaNormPhone(p));
+        if (hit) return hit;
+      }
+      return null;
+    };
+
+    // Exact moment (date · time · year) for both timestamps.
+    const fmtWhen = (iso) => {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      if (isNaN(d)) return "—";
+      return d.toLocaleString(undefined, {
+        year: "numeric", month: "short", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+      });
+    };
     list.innerHTML = `
       <div class="table-wrap"><table>
-        <thead><tr><th>ID</th><th>Name</th><th>Region</th><th>Phone</th><th>Buses</th><th>Exp</th><th>Rating</th><th>Verified</th></tr></thead>
+        <thead><tr><th>ID</th><th>Name</th><th>Region</th><th>Phone</th><th>Buses</th><th>Exp</th><th>Rating</th><th>Verified</th><th>Applied on</th><th>Registered on</th></tr></thead>
         <tbody>
           ${data.map(a => `
             <tr>
@@ -576,6 +612,8 @@ window.initAdminPage = async () => {
               <td>${a.experience_years || 0}y</td>
               <td>${(Number(a.rating_avg) || 0).toFixed(2)} (${a.rating_count || 0})</td>
               <td>${a.verified ? "✓" : "—"}</td>
+              <td>${fmtWhen(appliedAt(a))}</td>
+              <td>${fmtWhen(a.created_at)}</td>
             </tr>`).join("")}
         </tbody>
       </table></div>`;
@@ -596,6 +634,40 @@ window.initAdminPage = async () => {
   let _aaBillingMissing = false;  // true when the agent_billing table isn't applied yet
   let _aaByKey = new Map();        // agent_key -> unified agent (for billing saves)
   const AA_BILLING_STATUSES = ["free", "trial", "paid", "overdue", "cancelled"];
+  // Standard monthly subscription every agent is expected to pay. "Pay +1 month"
+  // uses this when the agent has no custom amount set yet.
+  const AA_MONTHLY_FEE = (window.APP_CONFIG && window.APP_CONFIG.AGENT_MONTHLY_FEE_TZS) || 10000;
+  // Subscription state from a billing row (mirrors the SQL auto-suspend rule).
+  function _aaSubInfo(b) {
+    b = b || {};
+    const status = b.status || "free";
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pu = b.paid_until ? new Date(String(b.paid_until).slice(0, 10) + "T00:00:00") : null;
+    if (status === "cancelled") return { label: "Suspended (cancelled)", cls: "sub-exp" };
+    if (status === "overdue")   return { label: "Suspended (overdue)",   cls: "sub-exp" };
+    if (pu) {
+      const days = Math.round((pu - today) / 86400000);
+      if (days < 0)  return { label: `Expired ${-days}d ago`, cls: "sub-exp" };
+      if (status === "paid" || status === "trial")
+        return { label: `Active · ${days}d left`, cls: days <= 5 ? "sub-due" : "sub-ok" };
+      return { label: `Until ${String(b.paid_until).slice(0, 10)}`, cls: "sub-ok" };
+    }
+    if (status === "paid") return { label: "Active (no expiry)", cls: "sub-ok" };
+    return { label: "Not enrolled", cls: "sub-none" };
+  }
+  // Record one month's subscription: paid, +1 month from today (or extend from a
+  // still-active expiry), at the standard fee unless a custom amount is set.
+  function _aaPayMonth(key) {
+    const u = _aaByKey.get(key);
+    const b = (u && u.billing) || {};
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pu = b.paid_until ? new Date(String(b.paid_until).slice(0, 10) + "T00:00:00") : null;
+    const base = (pu && pu > today) ? pu : today;     // extend if still active, else start today
+    const next = new Date(base); next.setMonth(next.getMonth() + 1);
+    const amount = Number(b.amount_tzs) > 0 ? Number(b.amount_tzs) : AA_MONTHLY_FEE;
+    _aaSaveBilling(key, { status: "paid", amount_tzs: amount, paid_until: next.toISOString().slice(0, 10) })
+      .then(() => _aaDraw());
+  }
   const _aaEscHtml = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -742,6 +814,54 @@ window.initAdminPage = async () => {
       note.hidden = !_aaBillingMissing;
       if (_aaBillingMissing) note.textContent = "Billing not saved yet: run supabase/agent_billing.sql in Supabase to enable paid-status tracking. (Showing everyone as Free for now.)";
     }
+
+    _aaRenderBreakdown();
+  }
+
+  // Paid-vs-unpaid + amount collected, broken down by category (bus agents /
+  // house owners / truck owners) with a true unique overall total.
+  function _aaRenderBreakdown() {
+    const el = $("aaBreakdown");
+    if (!el || !_aaUnified) return;
+    const isPaid = (u) => (u.billing && u.billing.status === "paid");
+    const amt    = (u) => Number(u.billing && u.billing.amount_tzs) || 0;
+
+    const cat = (role) => {
+      const inRole = _aaUnified.filter((u) => u.roles.includes(role));
+      const paid   = inRole.filter(isPaid);
+      return { total: inRole.length, paid: paid.length,
+               unpaid: inRole.length - paid.length,
+               collected: paid.reduce((s, u) => s + amt(u), 0) };
+    };
+    const bus = cat("bus"), house = cat("house"), truck = cat("truck");
+    const paidAll = _aaUnified.filter(isPaid);
+    const overall = { total: _aaUnified.length, paid: paidAll.length,
+                      unpaid: _aaUnified.length - paidAll.length,
+                      collected: paidAll.reduce((s, u) => s + amt(u), 0) };
+
+    const row = (label, c, cls) => `
+      <tr class="${cls || ""}">
+        <td class="aa-bd-cat">${label}</td>
+        <td>${c.total}</td>
+        <td class="aa-paid">${c.paid}</td>
+        <td class="aa-unpaid">${c.unpaid}</td>
+        <td class="aa-collected">${window.formatTZS(c.collected)}</td>
+      </tr>`;
+
+    el.innerHTML = `
+      <h4 style="margin:0 0 8px;font-size:.95rem;">Paid vs unpaid — by category</h4>
+      <table>
+        <thead><tr>
+          <th>Category</th><th>Total</th><th>Paid</th><th>Unpaid</th><th>Collected (TZS)</th>
+        </tr></thead>
+        <tbody>
+          ${row("Bus / cargo agents", bus)}
+          ${row("House owners", house)}
+          ${row("Truck owners", truck)}
+          ${row("Overall (unique people)", overall, "aa-bd-total")}
+        </tbody>
+      </table>
+      <p class="hint" style="margin:6px 0 0;">Someone listed in more than one category is counted once per category here, but only once in the Overall row — so the Overall total can be lower than the categories added up. Use the Billing filter below to list everyone Paid or Unpaid by name.</p>`;
   }
 
   function _aaDraw() {
@@ -754,7 +874,11 @@ window.initAdminPage = async () => {
 
     let rows = _aaUnified.filter((u) => {
       if (role && !u.roles.includes(role)) return false;
-      if (bill && (u.billing?.status || "free") !== bill) return false;
+      if (bill) {
+        const st = u.billing?.status || "free";
+        if (bill === "unpaid") { if (st === "paid") return false; }
+        else if (st !== bill) return false;
+      }
       if (q) {
         const hay = `${u.name} ${u.phone} ${u.regions.join(" ")} ${u.email}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -781,6 +905,7 @@ window.initAdminPage = async () => {
           <th>Name</th><th>Roles</th><th>Phone</th><th>Region(s)</th>
           <th>Houses</th><th>Trucks</th><th>Buses</th><th>Verified</th><th>Registered</th>
           <th>Billing</th><th>Plan</th><th>Amount (TZS)</th><th>Paid until</th>
+          <th>Subscription</th>
         </tr></thead>
         <tbody>
           ${rows.map((u) => {
@@ -801,10 +926,17 @@ window.initAdminPage = async () => {
               <td><input class="aa-bill-input" data-field="plan" type="text" value="${_aaEscHtml(b.plan || "")}" placeholder="—" style="width:78px"></td>
               <td><input class="aa-bill-input" data-field="amount_tzs" type="number" min="0" value="${Number(b.amount_tzs) || 0}" style="width:90px"></td>
               <td><input class="aa-bill-input" data-field="paid_until" type="date" value="${b.paid_until ? String(b.paid_until).slice(0, 10) : ""}"></td>
+              <td class="aa-sub-cell">${(() => { const s = _aaSubInfo(b); return `<span class="aa-sub ${s.cls}">${s.label}</span>`; })()}
+                  <button type="button" class="aa-pay-btn" data-key="${_aaEscHtml(u.key)}" title="Record one month's subscription (${window.formatTZS(AA_MONTHLY_FEE)})">+1 month</button></td>
             </tr>`;
           }).join("")}
         </tbody>
       </table></div>`;
+
+    // "Pay +1 month" — record a month's subscription for that agent.
+    list.querySelectorAll(".aa-pay-btn").forEach((btn) => {
+      btn.addEventListener("click", () => _aaPayMonth(btn.getAttribute("data-key")));
+    });
 
     // Inline billing edits — save the whole billing row for that agent on change.
     list.querySelectorAll(".aa-bill-input").forEach((inp) => {

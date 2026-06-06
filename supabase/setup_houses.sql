@@ -23,6 +23,7 @@ create table if not exists public.houses (
   photo             text,
   photos            text[] not null default '{}'::text[],
   videos            text[] not null default '{}'::text[],
+  extra_costs       jsonb not null default '[]'::jsonb,  -- [{label,amount,billing}] bills shown to clients
   description       text,
   verified          boolean not null default false,
   available_from    date,
@@ -35,6 +36,7 @@ create table if not exists public.houses (
 -- Idempotent column adds for older databases that pre-date these fields.
 alter table public.houses add column if not exists photos text[] not null default '{}'::text[];
 alter table public.houses add column if not exists videos text[] not null default '{}'::text[];
+alter table public.houses add column if not exists extra_costs jsonb not null default '[]'::jsonb;
 alter table public.houses add column if not exists min_months int not null default 1;
 alter table public.houses add column if not exists owner_user_id uuid references auth.users(id) on delete set null;
 

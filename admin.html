@@ -34,6 +34,27 @@
     .aa-reg-rel { color: var(--c-muted, #6b6960); font-size: .76rem; display: block; }
     .aa-stat.pay .num { color: var(--c-success, #0d8050); }
     .aa-stat.rev .num { color: var(--c-accent, #bc5c00); font-size: 1.25rem; }
+    /* Subscription state + pay button (All Agents table) */
+    .aa-sub { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .aa-sub.sub-ok   { background: #f0fdf4; color: #0d8050; }
+    .aa-sub.sub-due  { background: #fff7ed; color: #b45309; }
+    .aa-sub.sub-exp  { background: #fef2f2; color: #b91c1c; }
+    .aa-sub.sub-none { background: var(--c-bg-elev, #f4f3ee); color: #6b6960; }
+    .aa-pay-btn { margin-left: 6px; padding: 3px 9px; font-size: .72rem; font-weight: 700; cursor: pointer; border: 1px solid var(--c-brand, #0a6f4d); background: var(--c-brand, #0a6f4d); color: #fff; border-radius: 7px; }
+    .aa-pay-btn:hover { filter: brightness(1.05); }
+    .aa-sub-cell { white-space: nowrap; }
+    /* Paid-vs-unpaid breakdown by category */
+    .aa-breakdown { margin-bottom: 16px; overflow-x: auto; }
+    .aa-breakdown table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; overflow: hidden; }
+    .aa-breakdown th, .aa-breakdown td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--c-border, #e7e4dd); }
+    .aa-breakdown th:first-child, .aa-breakdown td:first-child { text-align: left; }
+    .aa-breakdown thead th { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted, #6b6960); font-weight: 700; }
+    .aa-breakdown tbody tr:last-child td { border-bottom: none; }
+    .aa-breakdown tr.aa-bd-total td { font-weight: 800; border-top: 2px solid var(--c-border, #e7e4dd); background: var(--c-bg-elev, #f7f6f2); }
+    .aa-breakdown td.aa-paid { color: var(--c-success, #0d8050); font-weight: 700; }
+    .aa-breakdown td.aa-unpaid { color: #b91c1c; font-weight: 700; }
+    .aa-breakdown td.aa-collected { color: var(--c-accent, #bc5c00); font-weight: 800; }
+    .aa-bd-cat { font-weight: 700; }
     .aa-controls input[type="number"], .aa-controls input[type="date"] { font-size: 14px; }
     #allAgentsList .aa-bill-input { padding: 5px 7px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 7px; font-family: inherit; font-size: 13px; background: #fff; color: var(--c-text, #1a1915); }
     /* Subtle left-border accent by billing status */
@@ -164,6 +185,7 @@
           <button id="aaExportBtn" class="btn btn-outline btn-sm" type="button">⬇ Export CSV</button>
         </div>
         <div id="aaSummary" class="aa-summary"></div>
+        <div id="aaBreakdown" class="aa-breakdown"></div>
         <p id="aaBillingNote" class="banner error" hidden style="margin:0 0 12px;"></p>
         <div class="aa-controls">
           <input type="text" id="aaSearch" placeholder="Search name, phone or region…" />
@@ -176,6 +198,7 @@
           <select id="aaBilling">
             <option value="">All billing</option>
             <option value="paid">Paying</option>
+            <option value="unpaid">Unpaid (not paying)</option>
             <option value="trial">Trial</option>
             <option value="overdue">Overdue</option>
             <option value="free">Free</option>

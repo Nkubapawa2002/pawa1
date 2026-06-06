@@ -2746,7 +2746,9 @@ create policy "house-photos admin write" on storage.objects for all
 alter table public.houses
   add column if not exists photos text[] not null default '{}'::text[],
   add column if not exists videos text[] not null default '{}'::text[],
-  add column if not exists nearby jsonb  not null default '{}'::jsonb;
+  add column if not exists nearby jsonb  not null default '{}'::jsonb,
+  -- Additional costs/bills shown to clients: [{label, amount, billing}].
+  add column if not exists extra_costs jsonb not null default '[]'::jsonb;
 
 -- Allow free-text furnishing notes (e.g. "fridge, gas cooker"). If an older
 -- CHECK constraint still exists on a re-run database, drop it.

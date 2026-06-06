@@ -130,9 +130,31 @@ create policy "truck-photos upload" on storage.objects for insert
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
       userEmailEl.textContent = s.user.email || "—";
       await loadMyTrucks();
+      checkSubscription();
     } else {
       authCard.hidden = false; dashboard.hidden = true; formSection.hidden = true;
     }
+  }
+
+  // Monthly subscription guard: lapsed → RLS hides the owner's trucks from the
+  // public, so show a paywall prompting them to renew.
+  async function checkSubscription() {
+    if (!sb) return;
+    try {
+      const { data } = await sb.rpc("my_agent_subscription");
+      const sub = Array.isArray(data) ? data[0] : data;
+      if (sub && sub.active === false) {
+        if (document.getElementById("atSubPaywall")) return;
+        const when = sub.paid_until ? ` on ${sub.paid_until}` : "";
+        const el = document.createElement("div");
+        el.id = "atSubPaywall";
+        el.style.cssText = "margin:0 0 16px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
+        el.innerHTML = `<strong>⚠️ Subscription expired${when}.</strong> Your trucks are hidden from clients until you renew. Please pay <strong>TZS 10,000/month</strong> to reactivate — contact the Pawa admin.`;
+        dashboard.insertBefore(el, dashboard.firstChild);
+      } else {
+        document.getElementById("atSubPaywall")?.remove();
+      }
+    } catch (_) { /* RPC not deployed yet — ignore */ }
   }
 
   tabSignIn.addEventListener("click", () => {
@@ -148,19 +170,59 @@ create policy "truck-photos upload" on storage.objects for insert
     authMsg.hidden = true;
   });
 
+  function setAuthMsg(html, kind /* "error" | "success" */) {
+    authMsg.className = "at-msg" + (kind ? " " + kind : "");
+    authMsg.innerHTML = html;
+    authMsg.hidden = !html;
+  }
+  // Reject anything that isn't a syntactically valid address before we call
+  // Supabase. (Real deliverability is proven by the verification email.)
+  function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }
+
+  async function resendVerification(email) {
+    try {
+      const { error } = await sb.auth.resend({ type: "signup", email });
+      if (error) throw error;
+      setAuthMsg(`Verification link re-sent to <strong>${esc(email)}</strong>. Check your inbox (and spam folder).`, "success");
+    } catch (err) {
+      const m = err?.message || "";
+      if (/rate limit|too many|over_email_send_rate_limit/i.test(m)) {
+        setAuthMsg("Please wait a minute before requesting another verification email.", "error");
+      } else {
+        setAuthMsg("Couldn't resend the link: " + esc(m || "please try again later."), "error");
+      }
+    }
+  }
+
+  function showVerifyNotice(email, lead, kind) {
+    setAuthMsg(
+      `${lead} We sent a verification link to <strong>${esc(email)}</strong>. ` +
+      `Open it to activate your account, then sign in. ` +
+      `<button type="button" id="atResendVerify" class="at-btn" style="margin-top:8px;">Resend verification email</button>`,
+      kind || "success"
+    );
+    $("atResendVerify")?.addEventListener("click", () => resendVerification(email));
+  }
+
   authForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    authMsg.hidden = true; authSubmit.disabled = true;
+    authMsg.hidden = true;
     const email = authEmail.value.trim(), password = authPassword.value;
+
+    if (!isValidEmail(email)) {
+      setAuthMsg("Please enter a valid email address (e.g. name@example.com).", "error");
+      authEmail.focus();
+      return;
+    }
+
+    authSubmit.disabled = true;
     try {
       if (authMode === "signup") {
         // Require the re-entered password to match — a typo otherwise creates an
         // account with a password the owner can never reproduce.
         const confirm = authPasswordConfirm ? authPasswordConfirm.value : password;
         if (password !== confirm) {
-          authMsg.className = "at-msg error";
-          authMsg.textContent = "The two passwords don't match. Please re-enter them.";
-          authMsg.hidden = false;
+          setAuthMsg("The two passwords don't match. Please re-enter them.", "error");
           return;
         }
         const { data, error } = await sb.auth.signUp({ email, password });
@@ -169,33 +231,38 @@ create policy "truck-photos upload" on storage.objects for insert
           // password — send them to Sign in to use their real password.
           if (/already registered|already been registered|user already/i.test(error.message || "")) {
             authMode = "signin"; tabSignIn.click();
-            authMsg.className = "at-msg error";
-            authMsg.innerHTML = `An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`;
-            authMsg.hidden = false;
+            setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
             return;
           }
           throw error;
         }
-        if (data?.session) return;
-        authMode = "signin"; tabSignIn.click();
-        authMsg.className = "at-msg success";
-        authMsg.innerHTML = `Account created. Check <strong>${esc(email)}</strong> for a verification link, then sign in.`;
-        authMsg.hidden = false;
+        // Supabase anti-enumeration: an existing email returns no error and a
+        // user row with an empty identities[] array. Treat that as "exists".
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          authMode = "signin"; tabSignIn.click();
+          setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
+          return;
+        }
+        if (data?.session) return;                 // confirm-email OFF → signed in
+        authMode = "signin"; tabSignIn.click();    // confirm-email ON → verify first
+        showVerifyNotice(email, "Account created.", "success");
       } else {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (err) {
       const msg = err?.message || "";
-      authMsg.className = "at-msg error";
       if (/invalid login|invalid_credentials|invalid_grant/i.test(msg)) {
-        authMsg.innerHTML = `Wrong email or password. If you're new, tap <strong>Create account</strong>.`;
-      } else if (/email not confirmed/i.test(msg)) {
-        authMsg.innerHTML = `Confirm your email first — we sent a link to <strong>${esc(email)}</strong>.`;
+        setAuthMsg(`Wrong email or password. If you're new, tap <strong>Create account</strong>.`, "error");
+      } else if (/email not confirmed|email_not_confirmed/i.test(msg)) {
+        showVerifyNotice(email, "Your email isn't verified yet.", "error");
+      } else if (/rate limit|over_email_send_rate_limit|too many/i.test(msg)) {
+        setAuthMsg("Too many attempts. Please wait a minute, then try again.", "error");
+      } else if (/password.*should be at least|weak password|password is too short/i.test(msg)) {
+        setAuthMsg("Password must be at least 6 characters.", "error");
       } else {
-        authMsg.textContent = msg || "Sign-in failed.";
+        setAuthMsg(esc(msg) || "Sign-in failed. Please try again.", "error");
       }
-      authMsg.hidden = false;
     } finally {
       authSubmit.disabled = false;
     }

@@ -264,6 +264,43 @@
     }
     .hd-map-actions a:hover, .hd-map-actions button:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
 
+    /* Commute / workplace distance tool */
+    .hd-commute { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--c-border, #e7e4dd); }
+    .hd-commute-label { display: block; font-weight: 700; font-size: .9rem; margin-bottom: 8px; color: var(--c-text, #1a1915); }
+    .hd-commute-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .hd-commute-row input {
+      flex: 1; min-width: 180px; padding: 10px 12px;
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px;
+      font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915);
+    }
+    .hd-commute-row input:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .hd-commute-btn {
+      padding: 10px 18px; background: var(--c-brand, #0a6f4d); color: #fff;
+      border: none; border-radius: 10px; font-weight: 700; font-size: .9rem; cursor: pointer;
+    }
+    .hd-commute-btn:disabled { opacity: .6; cursor: default; }
+    .hd-commute-msg { margin-top: 10px; font-size: .86rem; line-height: 1.45; padding: 9px 12px; border-radius: 9px; background: var(--c-bg-elev, #f4f3ee); color: var(--c-text, #1a1915); }
+    .hd-commute-msg.ok   { background: #f0fdf4; border: 1px solid #86efac; color: #065f46; }
+    .hd-commute-msg.warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+    .hd-commute-ctx  { color: var(--c-text-muted, #6b6960); font-weight: 400; }
+    .hd-commute-note { display: block; margin-top: 3px; font-size: .76rem; color: var(--c-text-muted, #6b6960); }
+    .hd-commute-results { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+    .hd-commute-result {
+      display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center;
+      text-align: left; padding: 8px 11px; background: #fff;
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px; cursor: pointer; font-family: inherit;
+    }
+    .hd-commute-result:hover { border-color: var(--c-brand, #0a6f4d); background: var(--c-brand-faint, #f0f7f2); }
+    .hd-commute-result.active { border-color: var(--c-brand, #0a6f4d); box-shadow: inset 0 0 0 1px var(--c-brand, #0a6f4d); }
+    .hd-cr-name { font-weight: 700; font-size: .9rem; color: var(--c-text, #1a1915); }
+    .hd-cr-meta { grid-column: 1; font-size: .76rem; color: var(--c-text-muted, #6b6960); }
+    .hd-cr-km   { grid-column: 2; grid-row: 1 / span 2; font-weight: 800; color: var(--c-brand-deep, #064a33); font-size: .9rem; }
+    .hd-work-marker {
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+      font-size: 17px; background: #fff; border: 2px solid #0a6f4d; border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    }
+
     /* Amenities chips */
     .hd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .hd-chip {
@@ -415,6 +452,7 @@
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/map-expand.js"></script>
+  <script src="js/geo.js"></script>
   <script src="js/house.js"></script>
   <script>
     window.renderNav("houses.html");

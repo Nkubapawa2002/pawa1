@@ -716,6 +716,19 @@
     <!-- Active "match to my life" places (chips) -->
     <div id="housesPlacesChips" class="houses-places-chips" hidden></div>
 
+    <!-- Workplace / daily-route distance: rank listings by closeness to work -->
+    <div id="housesWorkplace" class="houses-workplace">
+      <label class="hw-label" for="hwInput">📍 Rank homes by distance to your workplace or daily route</label>
+      <div class="hw-row">
+        <input type="text" id="hwInput" autocomplete="off"
+          placeholder="e.g. Mlimani City, Muhimbili Hospital, your office area…" />
+        <button type="button" id="hwBtn" class="hw-btn">Measure</button>
+        <button type="button" id="hwClear" class="hw-clear" hidden>Clear</button>
+      </div>
+      <div id="hwMsg" class="hw-msg" hidden></div>
+      <div id="hwResults" class="hw-results"></div>
+    </div>
+
     <!-- New-listing toast (shown when alerts fire) -->
     <div id="housesAlertBanner" class="houses-alert-banner" hidden></div>
 

@@ -1,5 +1,6 @@
 // =====================================================
-// Agent Dashboard — search by phone OR name, multi-phone shipment matching
+// Agent Dashboard — Supabase email+password auth, multi-phone shipment matching
+// (agent identity resolved via claim_agent_profile RPC; see supabase/agent_auth.sql)
 // =====================================================
 
 window.initAgentDashboard = async () => {
@@ -15,159 +16,223 @@ window.initAgentDashboard = async () => {
   let agent       = null;
   let rows        = [];
   let agentPhones = new Set(); // all normalised phones for this agent
-  let searchMode  = "phone";   // "phone" | "name"
 
-  // ── Search type tabs ──────────────────────────────────────
-  $("tabPhone").addEventListener("click", () => setMode("phone"));
-  $("tabName").addEventListener("click",  () => setMode("name"));
+  // ── Auth (email + password, Supabase) ─────────────────────
+  // The old "type any agent's public phone number / name and you're in" flow
+  // was no authentication at all — anyone could impersonate any agent. We now
+  // use the same Supabase email+password scheme as the houses/trucks agent
+  // dashboards, and identify the agent row via claim_agent_profile() (which
+  // links the signed-in user to the agent row matching their verified email).
+  const authForm     = $("agentAuthForm");
+  const authEmail    = $("agentEmail");
+  const authPassword = $("agentPassword");
+  const authPwConfirm    = $("agentPasswordConfirm");
+  const authPwConfirmRow = $("agentPasswordConfirmRow");
+  const authSubmit   = $("agentAuthSubmit");
+  const authMsg      = $("agentAuthMsg");
+  const tabSignIn    = $("authTabSignIn");
+  const tabSignUp    = $("authTabSignUp");
+  const authTitle    = $("agentAuthTitle");
+  const authHint     = $("agentAuthHint");
+  let authMode       = "signin"; // "signin" | "signup"
 
-  function setMode(mode) {
-    searchMode = mode;
-    $("tabPhone").classList.toggle("active", mode === "phone");
-    $("tabName").classList.toggle("active",  mode === "name");
-    const input = $("agentPhone");
-    if (mode === "phone") {
-      input.type = "tel";
-      input.placeholder = window.t("agent_dash_phone_ph");
-      $("searchLabelText").textContent = window.t("agent_dash_tab_phone");
-    } else {
-      input.type = "text";
-      input.placeholder = window.t("agent_dash_name_ph");
-      $("searchLabelText").textContent = window.t("agent_dash_tab_name");
-    }
-    $("agentPicker").hidden = true;
-    $("agentMsg").hidden    = true;
-    input.value = "";
-    input.focus();
+  function setAuthMsg(text, kind /* "error" | "success" | "" */) {
+    if (!authMsg) return;
+    authMsg.innerHTML = text;
+    authMsg.className = "banner" + (kind ? " " + kind : "");
+    authMsg.hidden = !text;
   }
 
-  // ── Remember last session ─────────────────────────────────
-  const STORE_KEY = "pawa_agent_phone";
-  const saved = localStorage.getItem(STORE_KEY);
-  if (saved) { $("agentPhone").value = saved; }
+  tabSignIn?.addEventListener("click", () => {
+    authMode = "signin";
+    tabSignIn.classList.add("active");
+    tabSignUp.classList.remove("active");
+    if (authTitle) authTitle.textContent = "Agent sign in";
+    if (authHint)  authHint.textContent  = "Enter the email and password for your existing agent account.";
+    authSubmit.textContent = "Sign in";
+    authPassword.autocomplete = "current-password";
+    if (authPwConfirmRow) authPwConfirmRow.hidden = true;
+    if (authPwConfirm) authPwConfirm.value = "";
+    setAuthMsg("", "");
+  });
+  tabSignUp?.addEventListener("click", () => {
+    authMode = "signup";
+    tabSignUp.classList.add("active");
+    tabSignIn.classList.remove("active");
+    if (authTitle) authTitle.textContent = "Create agent account";
+    if (authHint)  authHint.textContent  = "New here? Sign up with the SAME email you used on your agent registration, then choose a password (entered twice).";
+    authSubmit.textContent = "Create account";
+    authPassword.autocomplete = "new-password";
+    if (authPwConfirmRow) { authPwConfirmRow.hidden = false; authPwConfirm.value = ""; }
+    setAuthMsg("", "");
+  });
 
-  $("phoneForm").addEventListener("submit", async (e) => {
+  // Reject anything that isn't a syntactically valid address before we ever
+  // call Supabase. (Real deliverability is proven by the verification email.)
+  function isValidEmail(v) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+  }
+
+  // Re-send the sign-up confirmation link to a given address.
+  async function resendVerification(email) {
+    try {
+      const { error } = await sb.auth.resend({ type: "signup", email });
+      if (error) throw error;
+      setAuthMsg(`Verification link re-sent to <strong>${esc(email)}</strong>. Check your inbox (and spam folder).`, "success");
+    } catch (err) {
+      const m = err?.message || "";
+      if (/rate limit|too many|over_email_send_rate_limit/i.test(m)) {
+        setAuthMsg("Please wait a minute before requesting another verification email.", "error");
+      } else {
+        setAuthMsg("Couldn't resend the link: " + esc(m || "please try again later."), "error");
+      }
+    }
+  }
+
+  // "Check your email" notice + a one-tap resend button.
+  function showVerifyNotice(email, lead, kind) {
+    setAuthMsg(
+      `${lead} We sent a verification link to <strong>${esc(email)}</strong>. ` +
+      `Open it to activate your account, then sign in. ` +
+      `<button type="button" id="agentResendVerify" class="btn btn-outline btn-xs" style="margin-top:8px">Resend verification email</button>`,
+      kind || "success"
+    );
+    $("agentResendVerify")?.addEventListener("click", () => resendVerification(email));
+  }
+
+  authForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const term = $("agentPhone").value.trim();
-    if (!term) return;
-    searchMode === "phone" ? await openByPhone(term) : await openByName(term);
-  });
+    if (!sb) { setAuthMsg("Backend offline — cannot sign in.", "error"); return; }
+    setAuthMsg("", "");
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
 
-  $("signOutAgent").addEventListener("click", () => {
-    localStorage.removeItem(STORE_KEY);
-    dashboard.hidden  = true;
-    loginCard.hidden  = false;
-    $("agentPhone").value = "";
-    $("agentPicker").hidden = true;
-    $("agentMsg").hidden    = true;
-    $("agentPhone").focus();
-  });
-
-  $("dashStatusFilter").addEventListener("change", () => render(currentRows()));
-
-  // ── Open by phone ─────────────────────────────────────────
-  async function openByPhone(phone) {
-    $("agentMsg").hidden = true;
-    if (!sb) { showErr("Backend offline."); return; }
-
-    const clean = phone.replace(/\s/g, "");
-
-    // 1. Try primary phone column (exact match)
-    let found = null;
-    const { data: r1, error: e1 } = await sb.from("agents")
-      .select("*")
-      .or(`phone.eq.${phone},phone.eq.${clean}`)
-      .limit(1);
-    if (e1) { showErr(e1.message); return; }
-    found = r1;
-
-    // 2. Try phones[] array (secondary numbers)
-    if (!found || !found.length) {
-      const { data: r2 } = await sb.from("agents")
-        .select("*")
-        .contains("phones", [phone])
-        .limit(1);
-      if (r2 && r2.length) found = r2;
-    }
-    if (!found || !found.length) {
-      const { data: r3 } = await sb.from("agents")
-        .select("*")
-        .contains("phones", [clean])
-        .limit(1);
-      if (r3 && r3.length) found = r3;
-    }
-
-    if (found && found.length) {
-      localStorage.setItem(STORE_KEY, phone);
-      openAgent(found[0]);
+    // 1. Validate the email looks real before doing anything else.
+    if (!isValidEmail(email)) {
+      setAuthMsg("Please enter a valid email address (e.g. name@example.com).", "error");
+      authEmail.focus();
       return;
     }
 
-    // 3. Not in agents — check application status
+    authSubmit.disabled = true;
     try {
-      const { data: appRows } = await sb.rpc("check_application_status", { p_phone: clean });
-      if (appRows && appRows.length) {
-        const app = appRows[0];
-        if (app.status === "pending") {
-          showErr(window.t("agent_dash_pending"));
-        } else if (app.status === "rejected") {
-          showErr(`${window.t("agent_dash_rejected")}: ${app.reject_reason || "Contact admin for details."}`);
-        } else {
-          showErr(window.t("agent_dash_no_match"));
+      if (authMode === "signup") {
+        if (password !== (authPwConfirm ? authPwConfirm.value : password)) {
+          setAuthMsg("The two passwords don't match. Please re-enter them.", "error");
+          return;
         }
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if (error) {
+          if (/already registered|already been registered|user already/i.test(error.message || "")) {
+            tabSignIn.click();
+            setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
+            return;
+          }
+          throw error;
+        }
+        // Supabase anti-enumeration: an existing email returns no error and a
+        // user row with an empty identities[] array. Treat that as "exists".
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          tabSignIn.click();
+          setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
+          return;
+        }
+        if (data?.session) return;               // confirm-email OFF → signed in
+        tabSignIn.click();                        // confirm-email ON → verify first
+        showVerifyNotice(email, "Account created.", "success");
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        // onAuthStateChange routes us into the dashboard.
+      }
+    } catch (err) {
+      const msg = err?.message || "";
+      if (/invalid login|invalid_credentials|invalid_grant/i.test(msg)) {
+        setAuthMsg("Wrong email or password. If you're new, tap <strong>Create account</strong>.", "error");
+      } else if (/email not confirmed|email_not_confirmed/i.test(msg)) {
+        showVerifyNotice(email, "Your email isn't verified yet.", "error");
+      } else if (/rate limit|over_email_send_rate_limit|too many/i.test(msg)) {
+        setAuthMsg("Too many attempts. Please wait a minute, then try again.", "error");
+      } else if (/password.*should be at least|weak password|password is too short/i.test(msg)) {
+        setAuthMsg("Password must be at least 6 characters.", "error");
+      } else {
+        setAuthMsg(esc(msg) || "Sign-in failed. Please try again.", "error");
+      }
+    } finally {
+      authSubmit.disabled = false;
+    }
+  });
+
+  $("signOutAgent").addEventListener("click", async () => {
+    if (sb) { try { await sb.auth.signOut(); } catch (_) {} }
+    agent = null; rows = []; agentPhones = new Set();
+    if (channel) { channel.unsubscribe?.(); channel = null; }
+    dashboard.hidden = true;
+    loginCard.hidden = false;
+    setAuthMsg("", "");
+  });
+
+  // ── Route on auth state (kicked off at the bottom, after all the
+  //    dashboard helpers + `let channel` have been initialised) ────────────
+  async function routeOnAuth(session) {
+    const s = session ?? (await sb.auth.getSession()).data.session;
+    if (s?.user) {
+      // Signed in — resolve which agent profile this account owns.
+      const { data, error } = await sb.rpc("claim_agent_profile");
+      const profile = Array.isArray(data) ? data[0] : data;
+      if (error) {
+        loginCard.hidden = false;
+        dashboard.hidden = true;
+        setAuthMsg("Couldn't load your agent profile: " + esc(error.message), "error");
         return;
       }
-    } catch {}
-
-    showErr(window.t("agent_dash_no_match"));
-  }
-
-  // ── Open by name ──────────────────────────────────────────
-  async function openByName(name) {
-    if (!sb) { showErr("Backend offline."); return; }
-    $("agentPicker").hidden = true;
-
-    const { data: found, error } = await sb.from("agents")
-      .select("*")
-      .ilike("name", `%${name}%`)
-      .order("name")
-      .limit(10);
-
-    if (error) { showErr(error.message); return; }
-    if (!found || !found.length) {
-      showErr(window.t("agent_dash_no_name"));
-      return;
+      if (!profile) {
+        // Authenticated, but no agent row matches this email.
+        loginCard.hidden = false;
+        dashboard.hidden = true;
+        setAuthMsg(
+          `You're signed in as <strong>${esc(s.user.email || "")}</strong>, but no agent ` +
+          `account is linked to this email. Make sure you used the same email as your ` +
+          `agent registration, or contact an admin to link your account. ` +
+          `<button type="button" id="agentSignOutLink" class="btn btn-outline btn-xs" style="margin-top:8px">Sign out</button>`,
+          "error"
+        );
+        $("agentSignOutLink")?.addEventListener("click", () => $("signOutAgent").click());
+        return;
+      }
+      setAuthMsg("", "");
+      openAgent(profile);
+      checkAgentSubscription();
+    } else {
+      loginCard.hidden = false;
+      dashboard.hidden = true;
     }
-
-    // One exact match — open directly
-    if (found.length === 1) { openAgent(found[0]); return; }
-
-    // Multiple matches — show picker
-    const list = $("agentPickList");
-    list.innerHTML = found.map((a, idx) => {
-      const photo    = window.DataStore.agentPhotoUrl(a.photo_path);
-      const initials = (a.name || "?").split(/\s+/).map(s => s[0]).join("").slice(0, 2).toUpperCase();
-      const avatar   = photo
-        ? `<img src="${photo}" alt="${a.name}" style="width:40px;height:40px;border-radius:50%;object-fit:cover"/>`
-        : `<span class="agent-avatar" style="width:40px;height:40px;font-size:0.9rem">${initials}</span>`;
-      const phones = [a.phone, ...(a.phones || [])].filter(Boolean);
-      return `
-        <button type="button" class="agent-pick-card" data-idx="${idx}">
-          ${avatar}
-          <div style="text-align:left">
-            <strong>${a.name}</strong>
-            <div style="font-size:0.82rem;color:var(--gray)">${a.region} · ${a.terminal || "—"}</div>
-            <div style="font-size:0.8rem;color:var(--gray)">${phones.join(" / ")}</div>
-          </div>
-        </button>`;
-    }).join("");
-
-    $("agentPicker").hidden = false;
-
-    list.querySelectorAll(".agent-pick-card").forEach(btn => {
-      btn.addEventListener("click", () => openAgent(found[Number(btn.dataset.idx)]));
-    });
   }
+
+  // ── Monthly subscription guard ────────────────────────────
+  // If the agent's subscription has lapsed, RLS already hides their profile from
+  // clients; show them a clear paywall here so they know to renew.
+  async function checkAgentSubscription() {
+    if (!sb) return;
+    try {
+      const { data } = await sb.rpc("my_agent_subscription");
+      const sub = Array.isArray(data) ? data[0] : data;
+      if (sub && sub.active === false) {
+        if (document.getElementById("agentSubPaywall")) return;
+        const when = sub.paid_until ? ` on ${sub.paid_until}` : "";
+        const fee = window.formatTZS ? window.formatTZS(10000) : "TZS 10,000";
+        const el = document.createElement("div");
+        el.id = "agentSubPaywall";
+        el.style.cssText = "margin:0 0 16px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
+        el.innerHTML = `<strong>⚠️ Subscription expired${when}.</strong> Your agent profile is hidden from clients until you renew. Please pay <strong>${fee}/month</strong> to reactivate — contact the Pawa admin.`;
+        dashboard.insertBefore(el, dashboard.firstChild);
+      } else {
+        document.getElementById("agentSubPaywall")?.remove();
+      }
+    } catch (_) { /* subscription RPC not deployed yet — ignore */ }
+  }
+
+  $("dashStatusFilter").addEventListener("change", () => render(currentRows()));
 
   // ── Open agent dashboard ──────────────────────────────────
   function openAgent(a) {
@@ -180,13 +245,8 @@ window.initAgentDashboard = async () => {
         .map(norm)
     );
 
-    // Save primary phone for session restore
-    const primary = a.phone || (a.phones || [])[0] || "";
-    if (primary) localStorage.setItem(STORE_KEY, primary);
-
     loginCard.hidden = true;
     dashboard.hidden = false;
-    $("agentPicker").hidden = true;
 
     renderBanner(a);
     renderProfile(a);
@@ -378,9 +438,12 @@ window.initAgentDashboard = async () => {
     const { error: upErr } = await sb.storage.from(bucket).upload(path, file, { upsert: true });
     if (upErr) { showPhotoMsg(window.t("dash_photo_error") + upErr.message, true); return; }
 
-    const phone = agent.phone || (agent.phones || [])[0] || "";
-    const { data: ok, error: rpcErr } = await sb.rpc("update_agent_photo", { p_phone: phone, p_photo_path: path });
-    if (rpcErr) { showPhotoMsg(window.t("dash_photo_error") + rpcErr.message, true); return; }
+    // Authenticated update — RLS ("agents self update") ensures an agent can
+    // only change their own row (user_id = auth.uid()).
+    const { error: updErr } = await sb.from("agents")
+      .update({ photo_path: path })
+      .eq("id", agent.id);
+    if (updErr) { showPhotoMsg(window.t("dash_photo_error") + updErr.message, true); return; }
 
     agent.photo_path = path;
     renderBanner(agent);
@@ -838,9 +901,20 @@ window.initAgentDashboard = async () => {
     }
   }
 
-  function norm(p)       { return (p || "").replace(/\s/g, ""); }
-  function showErr(msg)  { const e = $("agentMsg"); e.textContent = msg; e.hidden = false; }
+  function norm(p) { return (p || "").replace(/\s/g, ""); }
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
 
-  // Restore last session
-  if (saved) openByPhone(saved);
+  // ── Kick off auth routing (now that every helper + `let channel` exists) ──
+  if (sb) {
+    await routeOnAuth();
+    sb.auth.onAuthStateChange((_event, session) => routeOnAuth(session));
+  } else {
+    loginCard.hidden = false;
+    dashboard.hidden = true;
+    setAuthMsg("Backend offline — sign-in is unavailable.", "error");
+  }
 };

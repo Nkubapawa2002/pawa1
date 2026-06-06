@@ -97,7 +97,7 @@ window.MessagesUI = {
       const name = form.querySelector("#msgName").value.trim();
       if (!name) { alert(window.t("msg_your_name") + ": ?"); return; }
       await window.DataStore.addMessage(trackingCode, role, name, window.t("msg_arrival_text"));
-      await window.DataStore.updateShipmentStatus(trackingCode, "Arrived");
+      await window.DataStore.confirmShipmentStatus(trackingCode, "Arrived");
       if (!window.DataStore.isOnline) await refresh();
     });
 
@@ -106,7 +106,7 @@ window.MessagesUI = {
       const name = form.querySelector("#msgName").value.trim();
       if (!name) { alert(window.t("msg_your_name") + ": ?"); return; }
       await window.DataStore.addMessage(trackingCode, role, name, window.t("msg_pickup_text"));
-      await window.DataStore.updateShipmentStatus(trackingCode, "Delivered");
+      await window.DataStore.confirmShipmentStatus(trackingCode, "Delivered");
       if (!window.DataStore.isOnline) await refresh();
     });
   },

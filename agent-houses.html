@@ -40,6 +40,9 @@
     .ah-auth-tabs button { flex: 1; padding: 8px 12px; background: transparent; border: none; border-radius: 7px; font-weight: 600; font-size: .9rem; color: var(--c-text-soft, #3f3d36); cursor: pointer; }
     .ah-auth-tabs button.active { background: var(--c-surface, #fff); color: var(--c-brand-deep, #064a33); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
     .ah-form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    /* `hidden` must beat the flex display above so the sign-up "confirm
+       password" row stays hidden in sign-in mode. */
+    .ah-form-row[hidden] { display: none !important; }
     .ah-form-row label { font-size: .82rem; font-weight: 600; color: var(--c-text-soft, #3f3d36); }
     .ah-form-row input, .ah-form-row select, .ah-form-row textarea {
       padding: 10px 12px;
@@ -509,7 +512,7 @@
         <div class="ah-form-section">
           <h4 data-i18n="ah_section_media">Photos &amp; videos</h4>
           <p class="muted" style="margin-bottom:10px;font-size:.86rem;" data-i18n="ah_media_help">
-            Up to 12 photos and 2 short video clips (max 60 s each). The first photo becomes the cover.
+            Up to 12 photos and 2 short video clips (max 20 s each). The first photo becomes the cover.
             Drag tiles to reorder.
           </p>
 
@@ -527,7 +530,7 @@
           <label id="ahVideoLabel" class="ah-media-add ah-media-add--video" for="ahVideoInput">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
             <span data-i18n="ah_video_cta">Add a video walkthrough</span>
-            <small data-i18n="ah_video_hint">MP4 or WebM · max 60 s · up to 60 MB</small>
+            <small data-i18n="ah_video_hint">MP4 or WebM · max 20 s · up to 20 MB</small>
           </label>
           <input id="ahVideoInput" type="file" accept="video/mp4,video/webm,video/quicktime" multiple hidden />
         </div>
@@ -578,6 +581,20 @@
               How many months the tenant must pay at once for this room, shop or office (e.g. 6 months). Ignored for properties listed for sale.
             </small>
           </div>
+        </div>
+
+        <!-- 2b. Additional costs / bills the tenant pays on top of rent -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_costs">Additional costs (bills)</h4>
+          <p class="muted" style="margin-bottom:10px;" data-i18n="ah_section_costs_sub">
+            Bills the tenant pays on top of the rent — electricity, water, garbage, security, internet and
+            anything else. Add each one so clients see the full monthly cost before they call. Leave the
+            amount blank for "metered" (pay as you use) or "included".
+          </p>
+          <!-- Tap a chip to add a common bill, or use "+ Add cost" for your own. -->
+          <div id="ahCostQuick" class="ah-chips" style="margin-bottom:10px;"></div>
+          <div id="ahCostsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <button type="button" id="ahAddCostBtn" class="ah-btn" style="margin-top:10px;">+ Add cost</button>
         </div>
 
         <!-- 3. Rooms & size -->

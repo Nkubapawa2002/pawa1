@@ -57,11 +57,19 @@ window.initAgentHousesPage = async () => {
   const fCustomAmenity   = document.getElementById("ahCustomAmenity");
   const fAddAmenityBtn   = document.getElementById("ahAddAmenityBtn");
 
+  // Additional costs / bills (electricity, water, garbage…) shown to clients
+  const fCostsList       = document.getElementById("ahCostsList");
+  const fCostQuick       = document.getElementById("ahCostQuick");
+  const fAddCostBtn      = document.getElementById("ahAddCostBtn");
+
   // Media limits
   const MAX_PHOTOS    = 12;
   const MAX_VIDEOS    = 2;
-  const MAX_VIDEO_S   = 60;            // seconds
-  const MAX_VIDEO_B   = 60 * 1024 * 1024;  // 60 MB
+  // Keep clips SHORT so they upload reliably on slow mobile links. A 60 s / 60 MB
+  // clip was timing out (cold faststart gateway + a single large PUT to storage),
+  // which surfaced as a "database/upload" failure. 20 s ≈ a few MB → uploads fast.
+  const MAX_VIDEO_S   = 20;            // seconds
+  const MAX_VIDEO_B   = 20 * 1024 * 1024;  // 20 MB
   const fTitle        = document.getElementById("ahTitle");
   const fType         = document.getElementById("ahType");
   const fListing      = document.getElementById("ahListing");
@@ -161,6 +169,7 @@ create table if not exists public.houses (
   photos            text[] not null default '{}'::text[],
   videos            text[] not null default '{}'::text[],
   nearby            jsonb not null default '{}'::jsonb,
+  extra_costs       jsonb not null default '[]'::jsonb,  -- [{label,amount,billing}] bills shown to clients
   description       text,
   verified          boolean not null default false,
   available_from    date,
@@ -174,6 +183,7 @@ create table if not exists public.houses (
 alter table public.houses add column if not exists photos text[] not null default '{}'::text[];
 alter table public.houses add column if not exists videos text[] not null default '{}'::text[];
 alter table public.houses add column if not exists nearby jsonb  not null default '{}'::jsonb;
+alter table public.houses add column if not exists extra_costs jsonb not null default '[]'::jsonb;
 alter table public.houses add column if not exists min_months int not null default 1;
 alter table public.houses add column if not exists owner_user_id uuid references auth.users(id) on delete set null;
 -- Drop legacy furnished CHECK if it exists, so the field can hold free text.
@@ -307,6 +317,27 @@ create policy "house-photos upload" on storage.objects for insert
   await routeOnAuth();
   sb.auth.onAuthStateChange((_event, session) => routeOnAuth(session));
 
+  // Monthly subscription guard: if the owner's subscription lapsed, RLS hides
+  // their listings from the public — show them a paywall so they renew.
+  async function checkSubscription() {
+    if (!sb) return;
+    try {
+      const { data } = await sb.rpc("my_agent_subscription");
+      const sub = Array.isArray(data) ? data[0] : data;
+      if (sub && sub.active === false) {
+        if (document.getElementById("ahSubPaywall")) return;
+        const when = sub.paid_until ? ` on ${sub.paid_until}` : "";
+        const el = document.createElement("div");
+        el.id = "ahSubPaywall";
+        el.style.cssText = "margin:0 0 16px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
+        el.innerHTML = `<strong>⚠️ Subscription expired${when}.</strong> Your listings are hidden from clients until you renew. Please pay <strong>TZS 10,000/month</strong> to reactivate — contact the Pawa admin.`;
+        dashboard.insertBefore(el, dashboard.firstChild);
+      } else {
+        document.getElementById("ahSubPaywall")?.remove();
+      }
+    } catch (_) { /* RPC not deployed yet — ignore */ }
+  }
+
   async function routeOnAuth(session) {
     const s = session ?? (await sb.auth.getSession()).data.session;
     if (s?.user) {
@@ -316,6 +347,7 @@ create policy "house-photos upload" on storage.objects for insert
       mode = "dashboard";
       userEmailEl.textContent = s.user.email || tr("ah_no_email");
       await loadMyListings();
+      checkSubscription();
     } else {
       authCard.hidden = false;
       dashboard.hidden = true;
@@ -344,21 +376,60 @@ create policy "house-photos upload" on storage.objects for insert
     authMsg.hidden = true;
   });
 
+  function setAuthMsg(html, kind /* "error" | "success" */) {
+    authMsg.className = "ah-msg" + (kind ? " " + kind : "");
+    authMsg.innerHTML = html;
+    authMsg.hidden = !html;
+  }
+  // Reject anything that isn't a syntactically valid address before we call
+  // Supabase. (Real deliverability is proven by the verification email.)
+  function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }
+
+  async function resendVerification(email) {
+    try {
+      const { error } = await sb.auth.resend({ type: "signup", email });
+      if (error) throw error;
+      setAuthMsg(`Verification link re-sent to <strong>${esc(email)}</strong>. Check your inbox (and spam folder).`, "success");
+    } catch (err) {
+      const m = err?.message || "";
+      if (/rate limit|too many|over_email_send_rate_limit/i.test(m)) {
+        setAuthMsg("Please wait a minute before requesting another verification email.", "error");
+      } else {
+        setAuthMsg("Couldn't resend the link: " + esc(m || "please try again later."), "error");
+      }
+    }
+  }
+
+  function showVerifyNotice(email, lead, kind) {
+    setAuthMsg(
+      `${lead} We sent a verification link to <strong>${esc(email)}</strong>. ` +
+      `Open it to activate your account, then come back here and sign in. ` +
+      `<button type="button" id="ahResendVerify" class="ah-btn" style="margin-top:8px;">Resend verification email</button>`,
+      kind || "success"
+    );
+    document.getElementById("ahResendVerify")?.addEventListener("click", () => resendVerification(email));
+  }
+
   authForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     authMsg.hidden = true;
-    authSubmit.disabled = true;
     const email = authEmail.value.trim();
     const password = authPassword.value;
+
+    if (!isValidEmail(email)) {
+      setAuthMsg("Please enter a valid email address (e.g. name@example.com).", "error");
+      authEmail.focus();
+      return;
+    }
+
+    authSubmit.disabled = true;
     try {
       if (authMode === "signup") {
         // Require the re-entered password to match — stops a typo from creating
         // an account with a password the owner can never reproduce.
         const confirm = authPasswordConfirm ? authPasswordConfirm.value : password;
         if (password !== confirm) {
-          authMsg.className = "ah-msg error";
-          authMsg.textContent = tr("ah_err_pw_mismatch");
-          authMsg.hidden = false;
+          setAuthMsg(tr("ah_err_pw_mismatch"), "error");
           return;
         }
         const { data, error } = await sb.auth.signUp({ email, password });
@@ -369,27 +440,23 @@ create policy "house-photos upload" on storage.objects for insert
           // password instead.
           if (/already registered|already been registered|user already/i.test(error.message || "")) {
             authMode = "signin"; tabSignIn.click();
-            authMsg.className = "ah-msg error";
-            authMsg.innerHTML = tr("ah_err_email_exists").replace("{email}", `<strong>${esc(email)}</strong>`);
-            authMsg.hidden = false;
+            setAuthMsg(tr("ah_err_email_exists").replace("{email}", `<strong>${esc(email)}</strong>`), "error");
             return;
           }
           throw error;
         }
-        if (data?.session) {
-          // confirm-email is OFF — the signUp call already signed them in.
+        // Supabase anti-enumeration: an existing email returns no error and a
+        // user row with an empty identities[] array. Treat that as "exists".
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          authMode = "signin"; tabSignIn.click();
+          setAuthMsg(tr("ah_err_email_exists").replace("{email}", `<strong>${esc(email)}</strong>`), "error");
           return;
         }
-        // No session returned → Supabase has confirm-email turned ON.
-        // Switch to the Sign-in tab FIRST (its handler clears the message), then
-        // show the confirmation note so it isn't immediately hidden.
-        authMode = "signin";
-        tabSignIn.click();
-        authMsg.className = "ah-msg success";
-        authMsg.innerHTML =
-          `Account created. Check <strong>${esc(email)}</strong> for a ` +
-          `verification link, then come back here and sign in.`;
-        authMsg.hidden = false;
+        if (data?.session) return;                 // confirm-email OFF → signed in
+        // No session → confirm-email is ON. Switch to Sign-in (its handler
+        // clears the message) then show the verify notice + resend button.
+        authMode = "signin"; tabSignIn.click();
+        showVerifyNotice(email, "Account created.", "success");
       } else {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -397,23 +464,17 @@ create policy "house-photos upload" on storage.objects for insert
       }
     } catch (err) {
       const msg = err?.message || "";
-      authMsg.className = "ah-msg error";
       if (/invalid login|invalid_credentials|invalid_grant/i.test(msg)) {
-        authMsg.innerHTML =
-          `Wrong email or password. If you don't have an account yet, tap ` +
-          `<strong>${esc(tr("ah_tab_signup") || "Create account")}</strong> above.`;
+        setAuthMsg(`Wrong email or password. If you don't have an account yet, tap <strong>${esc(tr("ah_tab_signup") || "Create account")}</strong> above.`, "error");
       } else if (/email not confirmed|email_not_confirmed/i.test(msg)) {
-        authMsg.innerHTML =
-          `Please confirm your email first — we sent a verification link to ` +
-          `<strong>${esc(email)}</strong>. Open it, then come back here and sign in.`;
+        showVerifyNotice(email, "Your email isn't verified yet.", "error");
       } else if (/rate limit|over_email_send_rate_limit|too many/i.test(msg)) {
-        authMsg.textContent = "Too many attempts. Please wait a minute, then try again.";
+        setAuthMsg("Too many attempts. Please wait a minute, then try again.", "error");
       } else if (/password.*should be at least|weak password|password is too short/i.test(msg)) {
-        authMsg.textContent = "Password must be at least 6 characters.";
+        setAuthMsg("Password must be at least 6 characters.", "error");
       } else {
-        authMsg.textContent = msg || tr("ah_msg_auth_fail");
+        setAuthMsg(esc(msg) || tr("ah_msg_auth_fail"), "error");
       }
-      authMsg.hidden = false;
     } finally {
       authSubmit.disabled = false;
     }
@@ -579,6 +640,7 @@ create policy "house-photos upload" on storage.objects for insert
     fAmenities.querySelectorAll(".ah-chip--custom").forEach(c => c.remove());
     if (fFurnished) fFurnished.value = "";
     if (fMinMonths) fMinMonths.value = 1;
+    if (fCostsList) fCostsList.innerHTML = "";
 
     if (row) {
       fTitle.value       = row.title || "";
@@ -608,6 +670,10 @@ create policy "house-photos upload" on storage.objects for insert
         }
       });
       renderCustomAmenities();
+      // Restore saved additional costs into editable rows.
+      if (Array.isArray(row.extra_costs)) {
+        row.extra_costs.forEach(c => { if (c && c.label) addCostRow(c); });
+      }
       // Restore the saved nearby snapshot so the preview shows immediately;
       // it'll be refreshed on the next pin move.
       if (row.nearby && typeof row.nearby === "object") {
@@ -635,6 +701,7 @@ create policy "house-photos upload" on storage.objects for insert
     }
 
     renderMediaGrids();
+    renderCostQuick();   // build the one-tap preset chips for additional costs
     toggleMinMonths();   // show/hide the rent-only "minimum months" field
 
     // Switch UI
@@ -711,7 +778,7 @@ create policy "house-photos upload" on storage.objects for insert
         break;
       }
       if (file.size > MAX_VIDEO_B) {
-        alert(`"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max is 60 MB per video.`);
+        alert(`"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max is ${MAX_VIDEO_B / 1024 / 1024} MB per video — please trim it to a short clip.`);
         continue;
       }
       let durationOk = false;
@@ -1457,6 +1524,78 @@ create policy "house-photos upload" on storage.objects for insert
     }
   });
 
+  // ---- Additional costs / bills (electricity, water, garbage…) -------------
+  // Each row is a self-contained DOM node (label + amount + billing + remove);
+  // we scrape the rows at save time, so there's no separate state to keep in
+  // sync on every keystroke. `billing` covers the common Tanzanian cases.
+  const COST_BILLING = [
+    { value: "month",    label: "per month" },
+    { value: "metered",  label: "metered (pay as you use)" },
+    { value: "included", label: "included in rent" },
+    { value: "oneoff",   label: "one-time" },
+  ];
+  // Common bills offered as one-tap chips (label only — the agent fills amounts).
+  const COST_PRESETS = ["Electricity", "Water", "Garbage", "Security", "Internet", "Service charge"];
+
+  function addCostRow(cost) {
+    const c = cost || {};
+    const row = document.createElement("div");
+    row.className = "ah-cost-row";
+    row.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;";
+    const billingOpts = COST_BILLING.map(b =>
+      `<option value="${b.value}" ${c.billing === b.value ? "selected" : ""}>${b.label}</option>`).join("");
+    row.innerHTML = `
+      <input type="text" class="ah-cost-label" maxlength="40" placeholder="Bill name — e.g. Electricity"
+             value="${esc(c.label || "")}" style="flex:1 1 160px;min-width:0;padding:9px 12px;border:1px solid #d0d7de;border-radius:8px;font-size:.92rem;">
+      <input type="number" class="ah-cost-amount" min="0" step="1000" placeholder="TZS (optional)"
+             value="${c.amount != null && c.amount !== "" ? Number(c.amount) : ""}" style="flex:0 1 130px;min-width:0;padding:9px 12px;border:1px solid #d0d7de;border-radius:8px;font-size:.92rem;">
+      <select class="ah-cost-billing" style="flex:0 1 150px;min-width:0;padding:9px 10px;border:1px solid #d0d7de;border-radius:8px;font-size:.9rem;">${billingOpts}</select>
+      <button type="button" class="ah-cost-x" aria-label="Remove cost"
+              style="border:0;background:transparent;cursor:pointer;font-weight:700;font-size:1.2rem;color:#888;line-height:1;padding:4px 8px;">×</button>
+    `;
+    row.querySelector(".ah-cost-x").addEventListener("click", () => row.remove());
+    fCostsList.appendChild(row);
+    return row;
+  }
+
+  // Read the current rows into a clean array; rows without a label are dropped.
+  function collectExtraCosts() {
+    if (!fCostsList) return [];
+    return Array.from(fCostsList.querySelectorAll(".ah-cost-row")).map(row => {
+      const label   = row.querySelector(".ah-cost-label").value.trim();
+      const amtRaw  = row.querySelector(".ah-cost-amount").value;
+      const billing = row.querySelector(".ah-cost-billing").value;
+      const amount  = amtRaw === "" ? null : Number(amtRaw);
+      return { label, amount: (amount != null && !isNaN(amount)) ? amount : null, billing };
+    }).filter(c => c.label);
+  }
+
+  // Build the one-tap preset chips (skip any already added).
+  function renderCostQuick() {
+    if (!fCostQuick) return;
+    const existing = new Set(
+      Array.from(fCostsList.querySelectorAll(".ah-cost-label"))
+        .map(i => i.value.trim().toLowerCase()).filter(Boolean));
+    fCostQuick.innerHTML = "";
+    for (const name of COST_PRESETS) {
+      if (existing.has(name.toLowerCase())) continue;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "ah-chip";
+      chip.textContent = "+ " + name;
+      chip.addEventListener("click", () => {
+        addCostRow({ label: name, billing: "month" });
+        renderCostQuick();
+      });
+      fCostQuick.appendChild(chip);
+    }
+  }
+
+  fAddCostBtn?.addEventListener("click", () => {
+    addCostRow({ billing: "month" });
+    renderCostQuick();
+  });
+
   // GPS pinning with "best-fix" capture (via the shared pawaLocate helper): it
   // fires a prompt-safe one-shot first (so iOS actually asks), then keeps the
   // tightest reading for a few seconds, showing progress as it sharpens.
@@ -1547,6 +1686,7 @@ create policy "house-photos upload" on storage.objects for insert
         else if (t.kind === "staged-photo") photoPaths.push(await uploadDataUrl(t.dataUrl, uid, "jpg", "image/jpeg"));
       }
       const videoPaths = [];
+      _videoOptimizeFailures = 0;
       for (const t of videoTiles) {
         if (t.kind === "existing")          videoPaths.push(t.path);
         else if (t.kind === "staged-video") videoPaths.push(await uploadFile(await faststart(t.file), uid));
@@ -1585,6 +1725,7 @@ create policy "house-photos upload" on storage.objects for insert
         photos:      photoPaths,
         videos:      videoPaths,
         nearby:      nearbyData || {},
+        extra_costs: collectExtraCosts(),
         description: fDescription.value.trim() || null,
         available_from: fAvailable.value || null,
         agent: {
@@ -1605,8 +1746,8 @@ create policy "house-photos upload" on storage.objects for insert
         ? sb.from("houses").update(payload).eq("id", editingId).eq("owner_user_id", uid).select()
         : sb.from("houses").insert(payload).select();
       let { data: savedRows, error } = await trySave(row);
-      if (error && /column .*(photos|videos|nearby|min_months).* (does not exist|not found)/i.test(error.message)) {
-        const { photos: _p, videos: _v, nearby: _n, min_months: _m, ...legacy } = row;
+      if (error && /column .*(photos|videos|nearby|extra_costs|min_months).* (does not exist|not found)/i.test(error.message)) {
+        const { photos: _p, videos: _v, nearby: _n, extra_costs: _e, min_months: _m, ...legacy } = row;
         ({ data: savedRows, error } = await trySave(legacy));
       }
       if (error) {
@@ -1664,6 +1805,18 @@ create policy "house-photos upload" on storage.objects for insert
       formMsg.className = "ah-msg success";
       formMsg.textContent = editingId ? tr("ah_msg_saved_edit") : tr("ah_msg_saved_new");
       formMsg.hidden = false;
+
+      // The clip(s) saved, but the optimiser couldn't reach/process them, so
+      // they may stutter on playback. Tell the agent so they can re-save once
+      // the gateway is awake, rather than leaving a broken video live silently.
+      if (_videoOptimizeFailures > 0) {
+        alert(
+          `Saved — but ${_videoOptimizeFailures} video${_videoOptimizeFailures > 1 ? "s" : ""} ` +
+          `could not be optimised for smooth playback (the video service was unreachable). ` +
+          `The listing is live, but those clips may stutter. Please edit the listing and save ` +
+          `again in a minute to fix them.`
+        );
+      }
 
       // Who's been waiting for a room here? Surface renters who pinned this
       // area (with budget/specs matching this listing) and their phones, so
@@ -1812,28 +1965,66 @@ create policy "house-photos upload" on storage.objects for insert
     fetch(`${base}/health`).catch(() => {});
   }
 
+  // fetch() has no native timeout — wrap it with an AbortController so a hung /
+  // cold request can't block the upload forever.
+  function _fetchTimeout(url, opts, ms) {
+    const ac = new AbortController();
+    const id = setTimeout(() => ac.abort(), ms);
+    return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(id));
+  }
+
+  // Poll /health until the (possibly asleep) gateway answers OK, or give up.
+  // Render free-tier cold starts take ~15–50s, so we wait up to ~60s. Returns
+  // true once the service is awake, false if it never came up in time.
+  async function _waitGatewayReady(base, budgetMs = 60000) {
+    const deadline = Date.now() + budgetMs;
+    while (Date.now() < deadline) {
+      try {
+        const r = await _fetchTimeout(`${base}/health`, {}, 10000);
+        if (r.ok) return true;
+      } catch (_) { /* still waking */ }
+      await new Promise((res) => setTimeout(res, 3000));
+    }
+    return false;
+  }
+
+  // Count of videos in the current save that could NOT be optimised, so the save
+  // flow can warn the agent instead of silently storing a clip that will stutter.
+  let _videoOptimizeFailures = 0;
+
   async function faststart(file) {
     const base = _videoGatewayBase();
     if (!base || !file) return file;
-    try {
-      const r = await fetch(`${base}/faststart`, {
-        method: "POST",
-        headers: { "Content-Type": file.type || "video/mp4" },
-        body: file,
-      });
-      if (!r.ok) return file;
-      const blob = await r.blob();
-      if (!blob || !blob.size) return file;
-      // When the server actually remuxed it, the result is MP4 — rename so the
-      // stored path/extension matches (e.g. an iPhone .mov becomes .mp4).
-      if (r.headers.get("X-Faststart") === "applied") {
-        const name = (file.name || "video").replace(/\.[^.]+$/, "") + ".mp4";
-        return new File([blob], name, { type: "video/mp4" });
-      }
-      return file;
-    } catch (_) {
-      return file; // gateway down / cold — upload the original untouched
+
+    // A cold free-tier gateway used to make the single fetch fail, so we'd
+    // silently upload the un-optimised original (moov at end → stutter). Wake it
+    // and wait before remuxing; only fall back if it truly never comes up.
+    const ready = await _waitGatewayReady(base);
+    if (!ready) { _videoOptimizeFailures++; return file; }
+
+    // One real attempt + one retry — covers a flaky wake mid-spin-up. Give the
+    // remux a generous timeout (large clips on a just-woken instance are slow).
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await _fetchTimeout(`${base}/faststart`, {
+          method: "POST",
+          headers: { "Content-Type": file.type || "video/mp4" },
+          body: file,
+        }, 90000);
+        if (!r.ok) continue;
+        const blob = await r.blob();
+        if (!blob || !blob.size) continue;
+        // "applied" → server remuxed it; result is MP4, so rename to match
+        // (e.g. an iPhone .mov becomes .mp4). "passthrough" → already faststart.
+        if (r.headers.get("X-Faststart") === "applied") {
+          const name = (file.name || "video").replace(/\.[^.]+$/, "") + ".mp4";
+          return new File([blob], name, { type: "video/mp4" });
+        }
+        return file; // already faststart — nothing to do
+      } catch (_) { /* timeout / network — retry once */ }
     }
+    _videoOptimizeFailures++;
+    return file; // gateway awake but remux failed — upload original, warn later
   }
 
   // Upload helpers — both write into the `house-photos` bucket (which since

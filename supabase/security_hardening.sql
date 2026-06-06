@@ -23,11 +23,19 @@
 -- safe to apply immediately.
 alter table public.call_requests enable row level security;
 
-drop policy if exists "call_requests public read"   on public.call_requests;  -- stale permissive
-drop policy if exists "call_requests readable"       on public.call_requests;  -- stale permissive
-drop policy if exists "call_requests public insert"  on public.call_requests;
-drop policy if exists "call_requests admin read"     on public.call_requests;
-drop policy if exists "call_requests admin update"   on public.call_requests;
+-- Drop EVERY existing policy on the table by name (the leaky one may be named
+-- anything, e.g. Supabase's default "Enable read access for all users"), so we
+-- start from a clean slate instead of guessing names.
+do $$
+declare pol record;
+begin
+  for pol in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'call_requests'
+  loop
+    execute format('drop policy if exists %I on public.call_requests', pol.policyname);
+  end loop;
+end $$;
 
 create policy "call_requests public insert" on public.call_requests
   for insert with check (true);                       -- callers can request a callback

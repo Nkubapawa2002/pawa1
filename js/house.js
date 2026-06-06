@@ -102,6 +102,27 @@ function render(h) {
   if (h.available_from)
     stats.push(stat("📅", formatDate(h.available_from), "Available"));
 
+  // Additional costs / bills the agent listed (electricity, water, garbage…).
+  // Shown to the client so they know the full monthly cost before they call.
+  const extraCosts = Array.isArray(h.extra_costs) ? h.extra_costs.filter(c => c && c.label) : [];
+  const fmtMoney = window.formatTZS || ((n) => "TZS " + Number(n || 0).toLocaleString("en-US"));
+  const costsHtml = extraCosts.length ? `
+    <ul class="hd-costs" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;">
+      ${extraCosts.map(c => {
+        const b = c.billing || "month";
+        const hasAmt = c.amount != null && !isNaN(c.amount) && Number(c.amount) > 0;
+        let right;
+        if (b === "included")     right = `<span style="color:#0a6f4d;font-weight:600;">Included in rent</span>`;
+        else if (b === "metered") right = `<span style="color:#6b6960;">Metered — pay as you use</span>`;
+        else if (hasAmt)          right = `<strong>${fmtMoney(c.amount)}${b === "month" ? " / month" : b === "oneoff" ? " one-time" : ""}</strong>`;
+        else                      right = `<span style="color:#6b6960;">Ask agent</span>`;
+        return `<li style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #eef1f4;">
+                  <span style="display:flex;align-items:center;gap:8px;">${costIcon(c.label)} ${esc(c.label)}</span>
+                  <span style="text-align:right;white-space:nowrap;">${right}</span>
+                </li>`;
+      }).join("")}
+    </ul>` : "";
+
   // Amenities list
   const amenitiesHtml = (h.amenities || []).length
     ? `<div class="hd-chips">${h.amenities.map(a => `<span class="hd-chip">${amenityIcon(a)} ${labelAmenity(a)}</span>`).join("")}</div>`
@@ -206,12 +227,31 @@ function render(h) {
       ${amenitiesHtml}
     </div>
 
+    ${costsHtml ? `
+    <div class="hd-card">
+      <h3>Additional costs</h3>
+      <p class="muted" style="margin-top:-4px;">Bills the tenant pays on top of the price shown above.</p>
+      ${costsHtml}
+    </div>` : ""}
+
     <div class="hd-card">
       <h3>Where it is</h3>
       <div class="hd-map" id="hdMap"></div>
       <div class="hd-map-actions">
         <a href="${mapsUrl}" target="_blank" rel="noopener">🧭 Get directions</a>
         <a href="meet.html?code=${meetCode}" target="_blank" rel="noopener">📍 Live meet with agent</a>
+      </div>
+
+      <!-- Commute tool: how far is this home from your workplace / daily route? -->
+      <div class="hd-commute" id="hdCommute" hidden>
+        <label class="hd-commute-label" for="hdCommuteInput">📍 How far is this home from your workplace or daily route?</label>
+        <div class="hd-commute-row">
+          <input type="text" id="hdCommuteInput" autocomplete="off"
+            placeholder="e.g. Mlimani City, Muhimbili Hospital, your office area…" />
+          <button type="button" id="hdCommuteBtn" class="hd-commute-btn">Measure</button>
+        </div>
+        <div id="hdCommuteMsg" class="hd-commute-msg" hidden></div>
+        <div id="hdCommuteResults" class="hd-commute-results"></div>
       </div>
     </div>
 
@@ -344,6 +384,9 @@ function render(h) {
 
     // Nearby amenities overlay (schools, hospitals, markets, transport)
     attachNearbyOverlay(map, h.lat, h.lng);
+
+    // Commute tool: measure the distance from this home to the user's workplace.
+    attachCommuteTool(map, h.lat, h.lng);
   } else {
     document.getElementById("hdMap").innerHTML =
       `<div class="hd-state" style="margin:0;border-radius:0;height:100%"><p>No pin set for this listing yet.</p></div>`;
@@ -467,11 +510,12 @@ function renderCat(map, cat, elements, store, anchor) {
     node.className = `hd-poi-marker cat-${cat}`;
     node.style.borderColor = catMeta.color;
     node.textContent = catMeta.icon;
-    node.title = el.tags?.name || catMeta.label;
+    const name = poiLabel(el, catMeta);
+    node.title = name;
     const km = haversine(anchor.lat, anchor.lng, p.lat, p.lon);
     const popup = new maplibregl.Popup({ offset: 12, closeButton: true, maxWidth: "220px" })
       .setHTML(`<div class="hd-poi-popup">
-        <strong>${esc(el.tags?.name || catMeta.label)}</strong>
+        <strong>${esc(name)}</strong>
         <div class="pp-meta">${catMeta.icon} ${esc(catMeta.label)} · ${km < 1 ? Math.round(km*1000) + " m" : km.toFixed(2) + " km"} away</div>
       </div>`);
     const mk = new maplibregl.Marker({ element: node, anchor: "center" })
@@ -521,6 +565,133 @@ function haversine(lat1, lng1, lat2, lng2) {
   const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
   return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Best human-readable name for a nearby POI: the real name first (a school's or
+// hospital's actual name), then operator/brand, then a humanised type — never a
+// bare generic category if we can do better.
+function poiLabel(el, catMeta) {
+  const t = el.tags || {};
+  const real = t.name || t["name:en"] || t.official_name || t.operator || t.brand;
+  if (real) return real;
+  const kind = t.amenity || t.shop || t.leisure || t.healthcare || t.office || t.tourism || "";
+  if (kind) { const s = String(kind).replace(/_/g, " "); return s.charAt(0).toUpperCase() + s.slice(1); }
+  return catMeta.label;
+}
+
+// ============================================================================
+// Commute tool — "how far is this home from my workplace / daily route?"
+// Geocodes the typed place via LocationIQ (pawaGeo.suggest); shows the straight-
+// line distance from the listing and draws it on the map. No match → ask the
+// user for a famous area/landmark near their workplace and try again.
+// ============================================================================
+function attachCommuteTool(map, lat, lng) {
+  const wrap  = document.getElementById("hdCommute");
+  const input = document.getElementById("hdCommuteInput");
+  const btn   = document.getElementById("hdCommuteBtn");
+  const msgEl = document.getElementById("hdCommuteMsg");
+  const resEl = document.getElementById("hdCommuteResults");
+  if (!wrap || !input || !btn || !window.pawaGeo) return;
+  wrap.hidden = false;
+
+  let workMarker = null, lineReady = false;
+
+  function emptyLine() { return { type: "Feature", geometry: { type: "LineString", coordinates: [] } }; }
+  function initLine() {
+    if (lineReady) return;
+    const add = () => {
+      if (!map.getSource("hd-commute-line")) {
+        map.addSource("hd-commute-line", { type: "geojson", data: emptyLine() });
+        map.addLayer({ id: "hd-commute-line", type: "line", source: "hd-commute-line",
+          paint: { "line-color": "#0a6f4d", "line-width": 3, "line-dasharray": [2, 1.5], "line-opacity": 0.9 } });
+      }
+      lineReady = true;
+    };
+    if (map.isStyleLoaded()) add(); else map.once("load", add);
+  }
+  function setLine(to) {
+    initLine();
+    const data = { type: "Feature", geometry: { type: "LineString", coordinates: [[lng, lat], [to.lng, to.lat]] } };
+    const apply = () => { const s = map.getSource("hd-commute-line"); if (s) s.setData(data); };
+    if (map.getSource && map.getSource("hd-commute-line")) apply(); else map.once("load", apply);
+  }
+
+  function showMsg(html, kind) {
+    msgEl.innerHTML = html;
+    msgEl.className = "hd-commute-msg" + (kind ? " " + kind : "");
+    msgEl.hidden = !html;
+  }
+  function fmtKm(km) { return km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(km < 10 ? 2 : 1) + " km"; }
+
+  function selectPlace(p, rows) {
+    if (!workMarker) {
+      const el = document.createElement("div");
+      el.className = "hd-work-marker";
+      el.textContent = "💼";
+      workMarker = new maplibregl.Marker({ element: el, anchor: "center" });
+    }
+    workMarker.setLngLat([p.lng, p.lat]).addTo(map);
+    setLine(p);
+
+    const km = haversine(lat, lng, p.lat, p.lng);
+    showMsg(
+      `≈ <strong>${fmtKm(km)}</strong> straight-line from this home to <strong>${esc(p.name)}</strong>` +
+      `${p.context ? ` <span class="hd-commute-ctx">(${esc(p.context)})</span>` : ""}. ` +
+      `<span class="hd-commute-note">Direct distance — real road travel is a bit longer.</span>`,
+      "ok"
+    );
+    try {
+      const b = new maplibregl.LngLatBounds([lng, lat], [lng, lat]);
+      b.extend([p.lng, p.lat]);
+      map.fitBounds(b, { padding: 70, maxZoom: 15, duration: 600 });
+    } catch (_) {}
+    if (rows) rows.forEach((r) => r.el.classList.toggle("active", r.place === p));
+  }
+
+  function renderResults(places) {
+    resEl.innerHTML = "";
+    const rows = [];
+    places.forEach((p) => {
+      const km = haversine(lat, lng, p.lat, p.lng);
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "hd-commute-result";
+      el.innerHTML =
+        `<span class="hd-cr-name">${esc(p.name)}</span>` +
+        `<span class="hd-cr-meta">${esc(p.tag || "Place")}${p.context ? " · " + esc(p.context) : ""}</span>` +
+        `<span class="hd-cr-km">${fmtKm(km)}</span>`;
+      resEl.appendChild(el);
+      const row = { el, place: p };
+      el.addEventListener("click", () => selectPlace(p, rows));
+      rows.push(row);
+    });
+    return rows;
+  }
+
+  async function run() {
+    const q = input.value.trim();
+    if (q.length < 2) { showMsg("Type your workplace, office area or a place on your daily route.", "warn"); return; }
+    btn.disabled = true; btn.textContent = "Locating…";
+    showMsg(`Searching for “${esc(q)}”…`, "");
+    resEl.innerHTML = "";
+    let places = [];
+    try { places = await window.pawaGeo.suggest(q, { limit: 6 }); } catch (_) { places = []; }
+    btn.disabled = false; btn.textContent = "Measure";
+
+    if (!places.length) {
+      showMsg(
+        `We couldn't find “<strong>${esc(q)}</strong>”. Try a <strong>famous area, market, school or road near your workplace</strong> ` +
+        `(a well-known landmark close by), then measure again.`,
+        "warn"
+      );
+      return;
+    }
+    const rows = renderResults(places);
+    selectPlace(places[0], rows);   // preview the top match; tap another to refine
+  }
+
+  btn.addEventListener("click", run);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run(); } });
 }
 
 // ============================================================================
@@ -602,6 +773,21 @@ function amenityIcon(k) {
     garden: "🌳", elevator: "🛗",
     water_connection: "🚰", electricity_connection: "⚡"
   })[k] || "✓";
+}
+
+// Pick an emoji for an additional-cost line by matching keywords in its label.
+function costIcon(label) {
+  const s = String(label || "").toLowerCase();
+  if (/electric|umeme|luku|power/.test(s))        return "⚡";
+  if (/water|maji/.test(s))                        return "🚰";
+  if (/garbage|waste|taka|rubbish|trash/.test(s))  return "🗑️";
+  if (/secur|usalama|guard|askari/.test(s))        return "🛡️";
+  if (/internet|wifi|wi-fi|data/.test(s))          return "📶";
+  if (/gas/.test(s))                               return "🔥";
+  if (/service|maintenance|matengenezo/.test(s))   return "🧰";
+  if (/park/.test(s))                              return "🅿️";
+  if (/cable|tv|dstv|startimes/.test(s))           return "📺";
+  return "💵";
 }
 
 // Stable 6-character room code derived from the listing id — same listing

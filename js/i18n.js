@@ -862,11 +862,11 @@ window.I18N = {
 
     ah_section_photo: "Photo",
     ah_section_media: "Photos & videos",
-    ah_media_help: "Up to 12 photos and 2 short video clips (max 60 s each). The first photo becomes the cover. Drag tiles to reorder.",
+    ah_media_help: "Up to 12 photos and 2 short video clips (max 20 s each). The first photo becomes the cover. Drag tiles to reorder.",
     ah_upload_cta: "Add photos",
     ah_upload_hint: "JPG, PNG or WebP · resized to 1600 px · ✨ auto-enhanced",
     ah_video_cta: "Add a video walkthrough",
-    ah_video_hint: "MP4 or WebM · max 60 s · up to 60 MB",
+    ah_video_hint: "MP4 or WebM · max 20 s · up to 20 MB",
     ah_err_photo_too_large: "Photo is too large (max 5 MB).",
     ah_err_photo_read: "Could not read that photo: ",
 
@@ -1827,11 +1827,11 @@ window.I18N = {
 
     ah_section_photo: "Picha",
     ah_section_media: "Picha na video",
-    ah_media_help: "Hadi picha 12 na klipu 2 fupi za video (kila moja sekunde 60). Picha ya kwanza ndiyo jalada. Buruta vigae kupanga upya.",
+    ah_media_help: "Hadi picha 12 na klipu 2 fupi za video (kila moja sekunde 20). Picha ya kwanza ndiyo jalada. Buruta vigae kupanga upya.",
     ah_upload_cta: "Ongeza picha",
     ah_upload_hint: "JPG, PNG au WebP · inapunguzwa hadi pikseli 1600 · ✨ inaboreshwa kiotomatiki",
     ah_video_cta: "Ongeza video ya kuonyesha nyumba",
-    ah_video_hint: "MP4 au WebM · sekunde 60 · hadi MB 60",
+    ah_video_hint: "MP4 au WebM · sekunde 20 · hadi MB 20",
     ah_err_photo_too_large: "Picha ni kubwa sana (upeo 5 MB).",
     ah_err_photo_read: "Imeshindikana kusoma picha hiyo: ",
 

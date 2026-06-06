@@ -135,6 +135,79 @@ window.initHousesPage = async () => {
     }
   });
 
+  // ---- Workplace / daily-route distance ---------------------------------
+  // Same tool as the house-detail page, adapted to the results map: type a
+  // workplace/route, geocode it (LocationIQ, Tanzania-wide via pawaGeo.suggest),
+  // then rank the listings by closeness — reusing the landmark machinery
+  // (drops a pin, sorts nearest-first, each card shows its km, shades the area).
+  // No match → ask the user for a famous nearby area and try again.
+  (function setupWorkplaceTool() {
+    const input = document.getElementById("hwInput");
+    const btn   = document.getElementById("hwBtn");
+    const clear = document.getElementById("hwClear");
+    const msgEl = document.getElementById("hwMsg");
+    const resEl = document.getElementById("hwResults");
+    if (!input || !btn || !window.pawaGeo) return;
+
+    function showMsg(html, kind) {
+      msgEl.innerHTML = html;
+      msgEl.className = "hw-msg" + (kind ? " " + kind : "");
+      msgEl.hidden = !html;
+    }
+    function pick(p, rows) {
+      setLandmark({ lat: p.lat, lng: p.lng, name: p.name });   // pin + re-rank + per-card distance
+      if (clear) clear.hidden = false;
+      showMsg(
+        `Ranking homes by distance to <strong>${esc(p.name)}</strong>` +
+        `${p.context ? ` <span class="hw-ctx">(${esc(p.context)})</span>` : ""}. ` +
+        `Nearest first — each card shows how far it is.`,
+        "ok"
+      );
+      if (rows) rows.forEach((r) => r.el.classList.toggle("active", r.place === p));
+    }
+
+    async function run() {
+      const q = input.value.trim();
+      if (q.length < 2) { showMsg("Type your workplace, office area or a place on your daily route.", "warn"); return; }
+      btn.disabled = true; btn.textContent = "Locating…";
+      showMsg(`Searching for “${esc(q)}”…`, "");
+      resEl.innerHTML = "";
+      let places = [];
+      try { places = await pawaGeo.suggest(q, { limit: 6 }); } catch (_) { places = []; }
+      btn.disabled = false; btn.textContent = "Measure";
+
+      if (!places.length) {
+        showMsg(
+          `We couldn't find “<strong>${esc(q)}</strong>”. Try a <strong>famous area, market, school or road near your workplace</strong> ` +
+          `(a well-known landmark close by), then measure again.`,
+          "warn"
+        );
+        return;
+      }
+      const rows = [];
+      places.forEach((p) => {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "hw-result";
+        el.innerHTML =
+          `<span class="hw-rname">${esc(p.name)}</span>` +
+          `<span class="hw-rmeta">${esc(p.tag || "Place")}${p.context ? " · " + esc(p.context) : ""}</span>`;
+        resEl.appendChild(el);
+        const row = { el, place: p };
+        el.addEventListener("click", () => pick(p, rows));
+        rows.push(row);
+      });
+      pick(places[0], rows);   // preview the top match; tap another to refine
+    }
+
+    btn.addEventListener("click", run);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run(); } });
+    clear?.addEventListener("click", () => {
+      input.value = ""; resEl.innerHTML = ""; showMsg("", ""); clear.hidden = true;
+      clearLandmark(); apply();
+    });
+  })();
+
   // ====================================================================
   //  Geo-circle area alerts
   //  A user can save any number of "watched areas". Each one is a point
@@ -1622,6 +1695,14 @@ window.initHousesPage = async () => {
       const matchCls = matchPct == null ? "" : matchPct >= 75 ? "" : matchPct >= 50 ? "mid" : "low";
       const matchBadge = matchPct == null ? ""
         : `<span class="house-card-match ${matchCls}">✨ ${matchPct}% match</span>`;
+      // Compact hint that this listing has extra bills (electricity, water…),
+      // so clients know there are costs on top of the price before they click.
+      const bills = Array.isArray(h.extra_costs) ? h.extra_costs.filter(c => c && c.label) : [];
+      const billsHint = bills.length
+        ? `<div class="house-card-bills" style="font-size:.78rem;color:#6b6960;margin-top:4px;">💡 + ${
+            bills.slice(0, 2).map(c => esc(c.label)).join(", ")
+          }${bills.length > 2 ? ` +${bills.length - 2}` : ""} ${bills.length === 1 ? "bill" : "bills"}</div>`
+        : "";
       const commute = commuteScores.get(h.id);
       const commuteHtml = commute ? `<div class="house-card-commute">${
         commute.legs.map(l => `<span class="hc-leg${l.ok ? "" : " over"}">${kindOf(l.place.kind).icon} ${esc(l.place.label)} · ${l.km.toFixed(1)} km · ~${fmtMin(l.min)} ${modeOf(l.place.mode).icon}</span>`).join("")
@@ -1639,6 +1720,7 @@ window.initHousesPage = async () => {
             <div class="house-card-title">${esc(h.title)}</div>
             <div class="house-card-meta">${meta}</div>
             <div class="house-card-loc">📍 ${loc}${dist}</div>
+            ${billsHint}
             ${commuteHtml}
             <a href="house.html?id=${encodeURIComponent(h.id)}"
                class="house-card-view" aria-label="View details for ${esc(h.title)}">View details →</a>

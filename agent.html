@@ -24,40 +24,45 @@
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/aleksey-cherenkevich-ydleUv2q2Y4-unsplash.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title">Agent Dashboard</h1>
-      <p class="page-subtitle">Enter your registered phone number to see all shipments assigned to you.</p>
+      <p class="page-subtitle">Sign in with your agent email and password to manage the shipments assigned to you.</p>
     </div>
   </section>
 
   <main class="container">
 
     <section id="loginCard" class="auth-card">
-      <h3 data-i18n="agent_dash_title" style="margin-bottom:4px">Agent Dashboard</h3>
-      <p style="color:var(--gray);font-size:0.9rem;margin-bottom:16px" data-i18n="agent_dash_sub">
-        Search by your registered phone number or your name.
+      <h3 id="agentAuthTitle" style="margin-bottom:4px">Agent sign in</h3>
+
+      <!-- Sign in / Sign up tabs -->
+      <div class="login-type-tabs">
+        <button type="button" class="login-tab active" id="authTabSignIn">Sign in</button>
+        <button type="button" class="login-tab" id="authTabSignUp">Create account</button>
+      </div>
+
+      <p id="agentAuthHint" style="color:var(--gray);font-size:0.88rem;margin:12px 0 0">
+        Enter the email and password for your existing agent account.
       </p>
 
-      <!-- Search type tabs -->
-      <div class="login-type-tabs">
-        <button type="button" class="login-tab active" id="tabPhone" data-i18n="agent_dash_tab_phone">Phone Number</button>
-        <button type="button" class="login-tab" id="tabName"  data-i18n="agent_dash_tab_name">Agent Name</button>
-      </div>
-
-      <form id="phoneForm" class="form-grid" style="margin-top:14px">
-        <label id="searchLabel">
-          <span id="searchLabelText" data-i18n="agent_dash_tab_phone">Phone Number</span>
-          <input type="text" id="agentPhone" required
-            data-i18n-placeholder="agent_dash_phone_ph"
-            placeholder="+255 712 345 678" />
+      <form id="agentAuthForm" class="form-grid" style="margin-top:14px" autocomplete="on">
+        <label>
+          <span>Email</span>
+          <input type="email" id="agentEmail" required autocomplete="email"
+            placeholder="you@example.com" />
         </label>
-        <button class="btn btn-primary" type="submit" data-i18n="agent_dash_open">Open my dashboard</button>
+        <label>
+          <span>Password</span>
+          <input type="password" id="agentPassword" required minlength="6"
+            autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <label id="agentPasswordConfirmRow" hidden>
+          <span>Confirm password</span>
+          <input type="password" id="agentPasswordConfirm"
+            autocomplete="new-password" placeholder="••••••••" />
+        </label>
+        <button class="btn btn-primary" type="submit" id="agentAuthSubmit">Sign in</button>
       </form>
 
-      <!-- Name search results picker -->
-      <div id="agentPicker" hidden style="margin-top:14px">
-        <p style="font-weight:600;margin-bottom:10px" data-i18n="agent_dash_pick_title">Select your account:</p>
-        <div id="agentPickList" class="agent-pick-list"></div>
-      </div>
-
+      <p id="agentAuthMsg" class="banner" style="margin-top:12px" hidden></p>
       <p id="agentMsg" class="banner error" style="margin-top:12px" hidden></p>
     </section>
 
@@ -118,7 +123,7 @@
           <option value="Arrived">Arrived</option>
           <option value="Delivered">Delivered</option>
         </select>
-        <button class="btn btn-outline btn-sm" id="signOutAgent">Switch agent</button>
+        <button class="btn btn-outline btn-sm" id="signOutAgent">Sign out</button>
       </div>
 
       <div id="agentShipments"></div>

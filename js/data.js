@@ -410,6 +410,21 @@
       return true;
     },
 
+    // Public tracking-chat confirmation (Arrived / Delivered). Direct table
+    // UPDATE is now restricted to admins + the assigned signed-in agent, so the
+    // public confirm buttons go through the narrow confirm_shipment_status RPC.
+    async confirmShipmentStatus(code, status) {
+      if (sb) {
+        const { error } = await sb.rpc("confirm_shipment_status", { p_code: code, p_status: status });
+        if (error) throw error;
+        return true;
+      }
+      const overrides = JSON.parse(localStorage.getItem("shipment_overrides") || "{}");
+      overrides[code] = { ...(overrides[code] || {}), status };
+      localStorage.setItem("shipment_overrides", JSON.stringify(overrides));
+      return true;
+    },
+
     // Messages thread
     async getMessages(code) {
       if (sb) {
