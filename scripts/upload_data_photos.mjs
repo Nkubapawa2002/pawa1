@@ -63,10 +63,10 @@ for (const file of files) {
     upsert: true,
   });
   if (error) {
-    console.error(`✗ ${file}: ${error.message}`);
+    console.error(` ${file}: ${error.message}`);
     fail++;
   } else {
-    console.log(`✓ ${file}`);
+    console.log(` ${file}`);
     ok++;
   }
 }

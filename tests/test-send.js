@@ -109,10 +109,10 @@ if (!fs.existsSync(SCREENSHOTS)) fs.mkdirSync(SCREENSHOTS);
   if (bannerContent) console.log(`   Banner: ${bannerContent.replace(/<[^>]+>/g, ' ').trim()}`);
 
   if (errors.length) {
-    console.log(`\n⚠ Console errors (${errors.length}):`);
+    console.log(`\n Console errors (${errors.length}):`);
     errors.forEach(e => console.log('  ' + e));
   } else {
-    console.log('\n✓ No JS console errors.');
+    console.log('\n No JS console errors.');
   }
 
   await browser.close();

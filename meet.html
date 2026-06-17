@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Meet & Locate — Pawa Bus Cargo</title>
+  <title>Meet & Locate — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
   <style>
@@ -212,6 +212,41 @@
     /* Street address in popups */
     .peer-street { font-size: .75rem; color: #555; margin: 3px 0; }
 
+    /* ---- Invite mode (arrived via a shared room link) ----
+       The lobby compacts to a single focused "Join" card with a banner,
+       so a client invited to a live viewing joins in one tap. */
+    .meet-invite-banner {
+      display: flex; gap: 12px; align-items: center;
+      background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+      color: #fff; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px;
+      box-shadow: 0 6px 20px rgba(10,111,77,.28);
+    }
+    .mib-icon { font-size: 1.7rem; line-height: 1; }
+    .mib-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .mib-body strong { font-size: 1rem; line-height: 1.3; }
+    .mib-body span { font-size: .8rem; opacity: .88; line-height: 1.4; }
+    .meet-lobby-grid.invite-only { grid-template-columns: 1fr !important; max-width: 480px; margin: 0 auto; }
+
+    /* ---- Live-viewing listing card (side panel) ---- */
+    .meet-listing-card { display: flex; gap: 11px; align-items: center; text-decoration: none; color: inherit; }
+    .meet-listing-card:hover .mlc-title { text-decoration: underline; }
+    .mlc-photo {
+      width: 64px; height: 64px; border-radius: 10px; flex-shrink: 0;
+      background: #eef1f4 center/cover no-repeat;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+    }
+    .mlc-body { min-width: 0; }
+    .mlc-label { font-size: .64rem; text-transform: uppercase; letter-spacing: .8px; color: var(--c-brand, #0a6f4d); font-weight: 800; }
+    .mlc-title { font-weight: 700; font-size: .9rem; line-height: 1.25; margin-top: 1px;
+                 overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .mlc-meta  { font-size: .75rem; color: var(--c-text-muted, #6b6960); margin-top: 2px;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mlc-link  { font-size: .75rem; font-weight: 700; color: var(--c-brand, #0a6f4d); margin-top: 3px; display: inline-block; }
+
+    /* ---- The property's pin on the live map ---- */
+    .meet-house-pin { position: relative; width: 38px; height: 48px; cursor: pointer; }
+    .meet-house-pin .pawa-name-tag { bottom: -16px; max-width: 110px; }
+
     /* Back button in topbar */
     .map-back-btn {
       flex-shrink: 0;
@@ -231,7 +266,7 @@
          13  FAB stack  (right column, below roster strip)
          15  share banner  (under topbar, full width — mobile only)
          20  topbar
-         9999 fixed exit ✕ button
+         9999 fixed exit  button
        ===================================================================== */
 
     /* ---- Weather chip (top-left of map, under topbar) ---- */
@@ -339,11 +374,20 @@
     .share-card-actions { display: flex; gap: 8px; }
     .share-card .btn-primary { background: #fff; color: var(--c-brand-deep, #064a33); border: none; }
     .share-card .btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.5); }
+    /* WhatsApp live-share button — the headline one-click action */
+    .btn-wa-live { background: #25d366; color: #fff; border: none; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(37,211,102,.35); }
+    .btn-wa-live:hover { background: #1ebe5d; box-shadow: 0 6px 18px rgba(37,211,102,.45); }
+    .btn-wa-live:active { transform: translateY(1px); }
+    .share-card .btn-wa-live { box-shadow: none; }
+    .wa-live-or { display: flex; align-items: center; text-align: center; color: var(--c-muted, #8a8780); font-size: .8rem; margin: 12px 0 10px; }
+    .wa-live-or::before, .wa-live-or::after { content: ""; flex: 1; height: 1px; background: var(--c-border, #e7e4dd); }
+    .wa-live-or span { padding: 0 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .wa-live-hint { margin: 8px 0 0; font-size: .78rem; color: var(--c-muted, #8a8780); text-align: center; line-height: 1.4; }
 
     /* =====================================================================
        Mobile reorganisation (≤900px — matches the full-screen room layout
        in styles.css): keep every overlay in its own zone so weather
-       doesn't sit on top of roster, FABs don't sit on top of the exit ✕,
+       doesn't sit on top of roster, FABs don't sit on top of the exit ,
        and the trip card never collides with the side-pull.
        ===================================================================== */
     @media (max-width: 900px) {
@@ -379,7 +423,7 @@
       .chip-name { max-width: 80px; }
 
       /* FAB stack: right column starting BELOW the roster strip so the two
-         never overlap. The fixed exit ✕ at the very top-right corner sits
+         never overlap. The fixed exit  at the very top-right corner sits
          above the topbar (z:9999) — FABs start well below that.          */
       .map-fab-stack {
         top: 64px;
@@ -526,7 +570,7 @@
     <meta name="theme-color" content="#0a6f4d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="css/mobile.css" />
 <!-- pawa-mobile-bundle -->
@@ -561,16 +605,27 @@
 
     <!-- Hero -->
     <div class="fast-hero-card">
-      <span class="fast-hero-badge">★ NEW · LIVE GPS</span>
+      <span class="fast-hero-badge"> NEW · LIVE GPS</span>
       <h1 data-i18n="meet_title">Meet &amp; Locate</h1>
-      <p data-i18n="meet_sub">Share your live location with your sender, receiver, or bus driver. See each other on a real-time map of Tanzania — like Uber, but for parcel handoffs.</p>
+      <p data-i18n="meet_sub">Share your live location with a house agent, service provider, or whoever you're meeting. See each other on a real-time map of Tanzania — perfect for home viewings and service visits.</p>
     </div>
 
     <!-- Lobby (create or join a room) -->
     <div id="meetLobby" class="card meet-lobby">
+
+      <!-- Invite banner — shown when the page is opened from a shared link
+           (?code=…), e.g. a client requesting a live viewing of a listing. -->
+      <div id="meetInviteBanner" class="meet-invite-banner" hidden>
+        <div class="mib-icon" id="mibIcon"></div>
+        <div class="mib-body">
+          <strong id="mibTitle">You've been invited to a live meet-up</strong>
+          <span id="mibSub">Enter your name below and tap Join — your live location is shared only with people in this room.</span>
+        </div>
+      </div>
+
       <div class="meet-lobby-grid">
 
-        <div class="meet-lobby-card">
+        <div class="meet-lobby-card" id="meetCreateCard">
           <div class="ml-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
           <h3 data-i18n="meet_create_title">Start a meet-up</h3>
           <p class="muted" data-i18n="meet_create_sub">Create a room and share the 6-character code with the other person.</p>
@@ -581,27 +636,36 @@
           <label class="meet-label">
             <span data-i18n="meet_your_role">Your role</span>
             <select id="createRole">
-              <option value="sender" data-i18n="meet_role_sender">Sender</option>
-              <option value="receiver" data-i18n="meet_role_receiver">Receiver</option>
-              <option value="driver" data-i18n="meet_role_driver">Driver</option>
-              <option value="agent" data-i18n="meet_role_agent">Agent</option>
+              <option value="agent" data-i18n="meet_role_agent">House agent</option>
+              <option value="provider" data-i18n="meet_role_provider">Service provider</option>
+              <option value="landlord" data-i18n="meet_role_landlord">Landlord / Owner</option>
+              <option value="client" data-i18n="meet_role_client">Client / Buyer</option>
+              <option value="tenant" data-i18n="meet_role_tenant">Tenant / Renter</option>
               <option value="guest" data-i18n="meet_role_guest" selected>Other</option>
             </select>
           </label>
           <label class="meet-label">
             <span data-i18n="meet_purpose">Purpose</span>
             <select id="createPurpose">
-              <option value="meet" data-i18n="meet_purpose_meet" selected>Meeting up</option>
-              <option value="delivery" data-i18n="meet_purpose_delivery">Delivering a parcel</option>
-              <option value="pickup" data-i18n="meet_purpose_pickup">Picking up a parcel</option>
-              <option value="handoff" data-i18n="meet_purpose_handoff">Handoff at terminal</option>
+              <option value="viewing" data-i18n="meet_purpose_viewing" selected>Live property viewing</option>
+              <option value="service" data-i18n="meet_purpose_service">Service visit (provider ↔ client)</option>
+              <option value="agent" data-i18n="meet_purpose_agent">Meeting a house agent</option>
+              <option value="handover" data-i18n="meet_purpose_handover">Key / property handover</option>
+              <option value="meet" data-i18n="meet_purpose_meet">Meeting up</option>
             </select>
           </label>
           <label class="meet-label">
-            <span data-i18n="meet_optional_tracking">Tracking code (optional)</span>
-            <input id="createTracking" type="text" placeholder="TZ-DAR-MWZ-..." />
+            <span data-i18n="meet_optional_tracking">Listing or booking reference (optional)</span>
+            <input id="createTracking" type="text" placeholder="e.g. house ID or service name" />
           </label>
           <button id="createRoomBtn" class="btn btn-primary btn-block" data-i18n="meet_create_btn">Create room</button>
+          <div class="wa-live-or"><span>or</span></div>
+          <button id="waLiveLobbyBtn" class="btn btn-block btn-wa-live" type="button"
+                  title="Creates a live room and opens WhatsApp with a link your contact taps once to watch you live">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle;margin-right:8px"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.13c-.25.69-1.45 1.32-1.99 1.36-.53.05-.53.42-3.34-.7-2.8-1.12-4.56-3.99-4.7-4.18-.14-.18-1.13-1.5-1.13-2.86 0-1.36.71-2.03.97-2.31.25-.28.55-.35.73-.35.18 0 .37 0 .53.01.17.01.4-.06.62.48.25.6.84 2.06.91 2.21.07.14.12.31.02.49-.09.18-.14.3-.28.46-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.28.71 1.18 1.53 1.91 1.06.95 1.95 1.24 2.23 1.38.28.14.44.12.6-.07.18-.21.69-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.61.76 1.89.9.28.14.46.21.53.32.07.12.07.66-.18 1.35z"/></svg>
+            Share my live location on WhatsApp
+          </button>
+          <p class="wa-live-hint">One tap — your contact watches you move on the map in real time. No app needed.</p>
         </div>
 
         <div class="meet-lobby-card">
@@ -619,10 +683,11 @@
           <label class="meet-label">
             <span data-i18n="meet_your_role">Your role</span>
             <select id="joinRole">
-              <option value="sender" data-i18n="meet_role_sender">Sender</option>
-              <option value="receiver" data-i18n="meet_role_receiver">Receiver</option>
-              <option value="driver" data-i18n="meet_role_driver">Driver</option>
-              <option value="agent" data-i18n="meet_role_agent">Agent</option>
+              <option value="agent" data-i18n="meet_role_agent">House agent</option>
+              <option value="provider" data-i18n="meet_role_provider">Service provider</option>
+              <option value="landlord" data-i18n="meet_role_landlord">Landlord / Owner</option>
+              <option value="client" data-i18n="meet_role_client">Client / Buyer</option>
+              <option value="tenant" data-i18n="meet_role_tenant">Tenant / Renter</option>
               <option value="guest" data-i18n="meet_role_guest" selected>Other</option>
             </select>
           </label>
@@ -702,14 +767,14 @@
           <div class="trip-follow-row" id="tripFollowRow" hidden>
             <span class="trip-follow-dot"></span>
             <span class="trip-follow-text">Following <strong id="followingName">—</strong></span>
-            <button class="trip-follow-stop" id="stopFollowBtn">✕</button>
+            <button class="trip-follow-stop" id="stopFollowBtn"></button>
           </div>
         </div>
 
 
         <!-- Map overlay: weather chip -->
         <div class="map-card-weather" id="mapWeatherCard" hidden>
-          <span id="mapWeatherIcon">🌤</span>
+          <span id="mapWeatherIcon"></span>
           <div>
             <div id="mapWeatherTemp" class="map-weather-temp">—</div>
             <div id="mapWeatherCity" class="map-weather-city">—</div>
@@ -737,6 +802,11 @@
           <div class="meet-card share-card">
             <div class="share-card-label">Share this room code</div>
             <div class="share-card-code" id="shareCodeDisplay">—</div>
+            <button id="waLiveRoomBtn" class="btn btn-block btn-wa-live" type="button" style="margin-bottom:8px"
+                    title="Opens WhatsApp with a live-view link your contact taps once to watch you live">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle;margin-right:8px"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.13c-.25.69-1.45 1.32-1.99 1.36-.53.05-.53.42-3.34-.7-2.8-1.12-4.56-3.99-4.7-4.18-.14-.18-1.13-1.5-1.13-2.86 0-1.36.71-2.03.97-2.31.25-.28.55-.35.73-.35.18 0 .37 0 .53.01.17.01.4-.06.62.48.25.6.84 2.06.91 2.21.07.14.12.31.02.49-.09.18-.14.3-.28.46-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.28.71 1.18 1.53 1.91 1.06.95 1.95 1.24 2.23 1.38.28.14.44.12.6-.07.18-.21.69-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.61.76 1.89.9.28.14.46.21.53.32.07.12.07.66-.18 1.35z"/></svg>
+              Send live view on WhatsApp
+            </button>
             <div class="share-card-actions">
               <button id="shareCodeBig"   class="btn btn-primary btn-block">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -748,6 +818,18 @@
               </button>
             </div>
           </div>
+
+          <!-- The listing being viewed live (when the room came from a
+               property's "Request live viewing" / "Live meet" link). -->
+          <a class="meet-card meet-listing-card" id="meetListingCard" target="_blank" rel="noopener" hidden>
+            <div class="mlc-photo" id="mlcPhoto"></div>
+            <div class="mlc-body">
+              <div class="mlc-label"> Live viewing · this listing</div>
+              <div class="mlc-title" id="mlcTitle">—</div>
+              <div class="mlc-meta" id="mlcMeta">—</div>
+              <span class="mlc-link">Open listing →</span>
+            </div>
+          </a>
 
           <!-- Weather card -->
           <div class="meet-card weather-card">
@@ -799,6 +881,9 @@
               <button id="chatCameraBtn" class="chat-attach-btn" title="Tap to start/stop live camera" type="button" aria-label="Share live camera" onclick="window._meetCameraToggle &amp;&amp; window._meetCameraToggle()">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
               </button>
+              <button id="chatWhatsAppVideoBtn" class="chat-attach-btn" title="Start a video call on WhatsApp instead" type="button" aria-label="Video on WhatsApp" style="color:#25d366" onclick="window._meetWhatsAppVideo &amp;&amp; window._meetWhatsAppVideo()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.07c-.24.68-1.4 1.3-1.94 1.35-.5.05-1.13.07-1.82-.11-.42-.13-.96-.31-1.65-.61-2.9-1.25-4.79-4.17-4.94-4.36-.14-.19-1.18-1.57-1.18-2.99s.74-2.12 1.01-2.41c.26-.29.57-.36.76-.36l.55.01c.18.01.41-.07.64.49.24.57.81 1.99.88 2.13.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.17-.29.37-.42.5-.14.14-.28.29-.12.57.16.28.72 1.18 1.54 1.91 1.06.95 1.96 1.24 2.24 1.38.28.14.44.12.6-.07.16-.19.69-.81.88-1.08.18-.28.37-.23.62-.14.25.09 1.61.76 1.89.9.28.14.46.21.53.33.07.12.07.68-.17 1.36z"/></svg>
+              </button>
               <button id="chatCameraSwitchBtn" class="chat-attach-btn" title="Switch front/back camera" type="button" aria-label="Switch camera" hidden>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
               </button>
@@ -846,7 +931,7 @@
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/tracking-id.js"></script>
-  <script src="js/meet.js?v=56"></script>
+  <script src="js/meet.js?v=57"></script>
   <script>
     window.renderNav("meet.html");
     window.renderFooter();

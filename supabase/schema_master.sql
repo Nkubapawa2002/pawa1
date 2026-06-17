@@ -469,7 +469,7 @@ create table if not exists public.payments (
   id              uuid primary key default gen_random_uuid(),
   reference       text not null,
   reference_type  text not null
-    check (reference_type in ('booking','shipment','agent_topup','reschedule','other')),
+    check (reference_type in ('booking','shipment','agent_topup','agent_subscription','reschedule','other')),
   amount_tzs      numeric(12,2) not null check (amount_tzs > 0),
   currency        text not null default 'TZS',
   customer_name   text,
@@ -1449,7 +1449,10 @@ do $$ begin
 -- ============================================================================
 -- 39. Admin dashboard view
 -- ============================================================================
-create or replace view public.payments_overview as
+-- security_invoker so the view enforces the caller's RLS on payments —
+-- without it the view ran as owner and leaked customer PII to anon.
+create or replace view public.payments_overview
+with (security_invoker = true) as
 select p.id, p.reference, p.reference_type, p.amount_tzs, p.method, p.provider,
   p.status, p.customer_name, p.customer_phone, p.provider_ref,
   p.external_ref, p.paid_at, p.created_at,
@@ -1464,7 +1467,8 @@ select p.id, p.reference, p.reference_type, p.amount_tzs, p.method, p.provider,
   end as link_summary
 from public.payments p order by p.created_at desc;
 
-grant select on public.payments_overview to anon, authenticated;
+grant select on public.payments_overview to authenticated;
+revoke select on public.payments_overview from anon;
 
 -- ============================================================================
 -- 40. Demo tenant seed
@@ -2643,7 +2647,7 @@ create policy "pending_changes updatable"
 create table if not exists public.houses (
   id                text primary key,
   title             text not null,
-  type              text not null check (type in ('apartment','house','plot','office')),
+  type              text not null check (char_length(btrim(type)) between 1 and 40),  -- free-form: apartment/house/plot/office/shop/…any kind
   listing           text not null check (listing in ('rent','sale')),
   price_tzs         bigint not null default 0 check (price_tzs >= 0),
   currency          text not null default 'TZS',
@@ -2651,8 +2655,11 @@ create table if not exists public.houses (
   bedrooms          int  not null default 0,
   bathrooms         int  not null default 0,
   size_sqm          int,
+  room_kind         text,                          -- 'single' | 'master' | null (whole unit)
   region            text references public.regions(name) on update cascade,
   area              text,
+  district          text,                         -- auto from pin reverse geocode
+  ward              text,                          -- auto from pin reverse geocode
   address           text,
   lat               double precision,
   lng               double precision,
@@ -2661,6 +2668,7 @@ create table if not exists public.houses (
   photo             text,                          -- storage path OR external URL
   description       text,
   verified          boolean not null default false,
+  available         boolean not null default true,   -- false = deal completed, hidden from public
   available_from    date,
   agent             jsonb not null default '{}'::jsonb,
   -- Owner / agent linkage for the agent dashboard step we'll build next.
@@ -2784,6 +2792,51 @@ update storage.buckets
  where id = 'house-photos';
 
 -- ============================================================================
+-- 34b. house_tenancies  (tenant/customer tracking + rent-expiry follow-up)
+--      Owning agent records each renter (name, phone, start date, months —
+--      defaults to houses.min_months); end_date is DB-computed. Admin monitors
+--      all tenancies by soonest end date. PII: read is owner-or-admin only,
+--      NOT world-readable. Full standalone copy lives in supabase/house_tenancies.sql.
+-- ============================================================================
+create table if not exists public.house_tenancies (
+  id              text primary key,
+  house_id        text references public.houses(id) on delete set null,
+  house_label     text,
+  owner_user_id   uuid references auth.users(id) on delete set null,
+  customer_name   text not null,
+  customer_phone  text not null,
+  landlord_phone  text,
+  start_date      date not null default current_date,
+  months          int  not null default 1 check (months >= 1),
+  end_date        date generated always as ((start_date + make_interval(months => months))::date) stored,
+  status          text not null default 'active'
+                    check (status in ('active','ended','renewed','cancelled')),
+  contacted       boolean not null default false,
+  notes           text,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists ht_end_idx   on public.house_tenancies (end_date);
+create index if not exists ht_owner_idx  on public.house_tenancies (owner_user_id);
+create index if not exists ht_house_idx  on public.house_tenancies (house_id);
+alter table public.house_tenancies enable row level security;
+drop policy if exists "ht owner+admin read" on public.house_tenancies;
+drop policy if exists "ht owner insert"     on public.house_tenancies;
+drop policy if exists "ht owner update"     on public.house_tenancies;
+drop policy if exists "ht admin update"     on public.house_tenancies;
+drop policy if exists "ht owner delete"     on public.house_tenancies;
+create policy "ht owner+admin read" on public.house_tenancies for select
+  using (owner_user_id = auth.uid() or public.is_admin());
+create policy "ht owner insert" on public.house_tenancies for insert
+  with check (auth.uid() is not null and owner_user_id = auth.uid());
+create policy "ht owner update" on public.house_tenancies for update
+  using (owner_user_id = auth.uid()) with check (owner_user_id = auth.uid());
+create policy "ht admin update" on public.house_tenancies for update
+  using (public.is_admin()) with check (public.is_admin());
+create policy "ht owner delete" on public.house_tenancies for delete
+  using (owner_user_id = auth.uid());
+
+-- ============================================================================
 -- 35. trucks  (Moving Trucks — hire-truck listings, public read)
 --     The "move my goods to the new home" companion to houses. An owner
 --     registers a truck at its base location with photos; users find the
@@ -2794,7 +2847,7 @@ create table if not exists public.trucks (
   id                text primary key,
   title             text not null,
   truck_type        text not null default 'canter'
-                      check (truck_type in ('pickup','canter','3ton','7ton','10ton_plus','other')),
+                      check (char_length(btrim(truck_type)) between 1 and 40),  -- free-form: pickup/canter/…/any kind
   capacity_tonnes   numeric check (capacity_tonnes is null or capacity_tonnes >= 0),
   price_tzs         bigint not null default 0 check (price_tzs >= 0),
   currency          text not null default 'TZS',
@@ -2806,6 +2859,8 @@ create table if not exists public.trucks (
                       check (service_area in ('within_city','region_wide','cross_region')),
   region            text references public.regions(name) on update cascade,
   area              text,
+  district          text,                         -- auto from pin reverse geocode
+  ward              text,                          -- auto from pin reverse geocode
   address           text,
   lat               double precision,
   lng               double precision,

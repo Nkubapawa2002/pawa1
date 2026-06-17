@@ -9,7 +9,11 @@
   if (document.body.dataset.page === "chat") return;
 
   const cfg = window.APP_CONFIG || {};
-  const agentUrl = (cfg.SUPABASE_URL || "").replace(/\/$/, "") + "/functions/v1/agent-chat";
+  // "Pawa talk" now runs on the CURRENT houses & services brain — the same
+  // ai-chat proxy chat.html uses + a live-data system prompt. It no longer
+  // touches the old bus/seat/parcel agent.
+  const aiChatUrl = (cfg.SUPABASE_URL || "").replace(/\/$/, "") + (cfg.AI_CHAT_PATH || "/functions/v1/ai-chat");
+  let pawaData = null, pawaDataPromise = null;
 
   // FAB button
   const fab = document.createElement("button");
@@ -75,8 +79,8 @@
 
   function greeting() {
     const lang = (window.getLang && window.getLang()) || "sw";
-    if (lang === "sw") return "Karibu! Mimi ni PAWA. Niambie unataka nini — tiketi, mzigo, au taarifa zingine.";
-    return "Hi! I'm PAWA. Tell me what you need — a seat, a parcel, or anything else.";
+    if (lang === "sw") return "Karibu! Mimi ni PAWA. Niambie unachotafuta — nyumba au chumba cha kupanga/kununua, huduma (fundi, usafi, ualimu…), au kazi za kibarua.";
+    return "Hi! I'm PAWA. Tell me what you're looking for — a house or room to rent or buy, a daily service (fundi, cleaning, tutoring…), or a day job.";
   }
 
   function pushMsg(role, text) {
@@ -103,6 +107,58 @@
 
   fab.addEventListener("click", open);
 
+  // Load (once) the live marketplace data the prompt summarises. DataStore is
+  // global on the pages that mount the FAB; if it's missing we still answer
+  // with the platform's scope baked into the prompt.
+  function loadPawaData() {
+    if (pawaData) return Promise.resolve(pawaData);
+    if (pawaDataPromise) return pawaDataPromise;
+    pawaDataPromise = (async () => {
+      const ds = window.DataStore;
+      let houses = [], services = [];
+      if (ds) {
+        try { houses = await ds.getHouses(); } catch (_) {}
+        try { services = await ds.getServices(); } catch (_) {}
+      }
+      pawaData = { houses, services };
+      return pawaData;
+    })();
+    return pawaDataPromise;
+  }
+
+  // Houses & services persona — explicitly NOT bus/seat/parcel.
+  function buildSystemPrompt(data) {
+    const houses = (data && data.houses) || [];
+    const services = (data && data.services) || [];
+    const byRegion = {};
+    houses.forEach(h => { const r = h.region || "Other"; byRegion[r] = (byRegion[r] || 0) + 1; });
+    const houseLines = Object.entries(byRegion).sort((a, b) => b[1] - a[1]).slice(0, 8)
+      .map(([r, n]) => `${r}: ${n}`).join(", ");
+    const svcCats = {};
+    services.forEach(s => { const c = s.category || s.type || "other"; svcCats[c] = (svcCats[c] || 0) + 1; });
+    const svcLines = Object.entries(svcCats).sort((a, b) => b[1] - a[1]).slice(0, 10)
+      .map(([c, n]) => `${c}: ${n}`).join(", ");
+    const lang = (window.getLang && window.getLang()) || "en";
+
+    return `You are PAWA AI — the assistant for Maisha na Lifeza (Pawa), Tanzania's everyday-life platform: houses & rooms to rent or buy, daily services (fundi, cleaning, tutoring, plumbing, electrical…), day jobs (vibarua) and moving trucks.
+
+PERSONALITY: Warm, concise and genuinely helpful, like a well-connected local friend. Reply in ${lang === "sw" ? "Swahili" : "the user's language (English or Swahili)"} in 1-3 short sentences or a tight bullet list; get to the useful answer fast.
+
+WHAT YOU HELP WITH & WHERE:
+- HOUSES (houses.html): rent or buy homes, single/master rooms, plots and business premises; filter by area, budget and bedrooms, then open a listing for photos, the map and the agent's phone. Saved homes live on favorites.html.
+- DAILY SERVICES (services.html): find local providers — fundi, plumber, electrician, cleaner, cook, tutor, tailor and more; browse by category/region and call them directly.
+- Also available: moving trucks (trucks.html), day jobs / vibarua (jobs.html), and live GPS meet-ups with an agent.
+
+RULES:
+- Pawa NO LONGER does bus tickets, seat booking, or parcel/cargo. Never offer those. If asked, say Pawa now focuses on houses & daily services and point to houses.html or services.html.
+- Never invent prices, listings, agents or phone numbers — quote only from the live data below, or tell the user to open the listing.
+- Be action-oriented: suggest the exact page to tap.
+
+LIVE DATA:
+HOUSES (${houses.length} listings by region): ${houseLines || "(none yet)"}
+DAILY SERVICES (${services.length} providers by category): ${svcLines || "(none yet)"}`;
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     const text = input.value.trim();
@@ -112,16 +168,23 @@
     sendBtn.disabled = true;
 
     if (!cfg.SUPABASE_URL) {
-      pushMsg("system", "Agent endpoint not configured (SUPABASE_URL missing).");
+      pushMsg("system", "AI not configured (SUPABASE_URL missing).");
       sendBtn.disabled = false;
       return;
     }
 
-    const tenant_slug = (window.tenantSlug && window.tenantSlug()) || "bus-tz-pawa";
     conversation.push({ role: "user", content: text });
 
+    // Typing indicator
+    const typingEl = document.createElement("div");
+    typingEl.className = "pawa-sheet-msg assistant";
+    typingEl.textContent = "…";
+    msgs.appendChild(typingEl);
+    msgs.scrollTop = msgs.scrollHeight;
+
     try {
-      const res = await fetch(agentUrl, {
+      const data = await loadPawaData();
+      const res = await fetch(aiChatUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -129,18 +192,22 @@
           "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
-          tenant_slug,
-          conversation_id: convId || (convId = "fab-" + Math.random().toString(36).slice(2, 10)),
-          messages: conversation
+          system: buildSystemPrompt(data),
+          messages: conversation,
+          max_tokens: 700
         })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || ("status " + res.status));
-      if (Array.isArray(data.messages)) {
-        conversation = data.messages;
-      }
-      pushMsg("assistant", data.reply || "(no reply)");
+      const out = await res.json();
+      if (!res.ok) throw new Error(out?.error || ("status " + res.status));
+      // The sheet renders plain text, so soften markdown bold/links.
+      const reply = ((out.reply || "").trim() || "(no reply)")
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)");
+      conversation.push({ role: "assistant", content: reply });
+      typingEl.remove();
+      pushMsg("assistant", reply);
     } catch (err) {
+      typingEl.remove();
       pushMsg("system", "Agent error: " + (err.message || err));
     } finally {
       sendBtn.disabled = false;
@@ -175,4 +242,27 @@
   window.addEventListener("appinstalled", () => {
     installBtn.classList.remove("show");
   });
+
+  // iOS Safari never fires beforeinstallprompt — show the button anyway and
+  // explain Share ▸ Add to Home Screen. Hidden once installed (standalone)
+  // or dismissed (remembered for 14 days).
+  (function iosInstallHint() {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    const dismissedAt = Number(localStorage.getItem("pawa_ios_install_dismissed") || 0);
+    if (!isIOS || standalone || Date.now() - dismissedAt < 14 * 864e5) return;
+    installBtn.classList.add("show");
+    installBtn.addEventListener("click", () => {
+      if (installPromptEvent) return; // real prompt available — let it run
+      const tip = document.createElement("div");
+      tip.setAttribute("role", "status");
+      tip.style.cssText = "position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:9999;" +
+        "background:#1a1915;color:#fff;padding:12px 18px;border-radius:14px;font-size:.92rem;max-width:88vw;" +
+        "box-shadow:0 10px 30px rgba(0,0,0,.35);text-align:center";
+      tip.innerHTML = " Install: tap <strong>Share</strong> &#x2191; then <strong>Add to Home Screen</strong>";
+      document.body.appendChild(tip);
+      setTimeout(() => tip.remove(), 6000);
+      localStorage.setItem("pawa_ios_install_dismissed", String(Date.now()));
+    }, { once: false });
+  })();
 })();

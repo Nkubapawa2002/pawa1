@@ -20,18 +20,22 @@ const MIME = {
 };
 
 http.createServer((req, res) => {
-  let filePath = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]));
+  // Resolve against ROOT and refuse anything that escapes it (../ traversal).
+  let filePath = path.normalize(path.join(ROOT, decodeURIComponent(req.url.split('?')[0])));
+  if (filePath !== ROOT && !filePath.startsWith(ROOT + path.sep)) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
   if (filePath === ROOT || filePath === ROOT + path.sep) filePath = path.join(ROOT, 'index.html');
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404); res.end('Not found: ' + req.url); return;
+      res.writeHead(404); res.end('Not found'); return;
     }
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': 'no-cache',
-      'Access-Control-Allow-Origin': '*'
+      'X-Content-Type-Options': 'nosniff'
     });
     res.end(data);
   });

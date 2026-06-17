@@ -32,12 +32,15 @@
   const WIDEN_STEPS = [2, 5, 10, 25, 50, 100, 250];
 
   let items = [];            // unified, normalised list
-  let map = null, markers = [], userMarker = null;
+  let map = null, markers = [], userMarker = null, routeLayer = null;
   let userLoc = null;
   let userApprox = false;    // true when we fell back to IP/Google (city-level)
   let kindFilter = "all";    // all | rooms | trucks
   let radiusKm = 10;         // 0 = any
   let listingFilter = "";    // "" | rent | sale (rooms only)
+  // Real road-distance cache: "oLat,oLng>dLat,dLng" → km, or null when no route.
+  const roadKmCache = new Map();
+  let enriching = false;
 
   // DOM refs
   let listEl, mapEl, countEl, nearBtn, kindSel, radiusSel, listingSel, hintEl, stageEl;
@@ -89,7 +92,7 @@
       lat: num(h.lat), lng: num(h.lng),
       verified: !!h.verified,
       href: `house.html?id=${encodeURIComponent(h.id)}`,
-      emoji: "🏠",
+      emoji: "",
       listing: h.listing || "rent",
       tags: [
         HOUSE_TYPE_LABEL[h.type] || "Property",
@@ -114,7 +117,7 @@
       lat: num(t.lat), lng: num(t.lng),
       verified: !!t.verified,
       href: `truck.html?id=${encodeURIComponent(t.id)}`,
-      emoji: "🚚",
+      emoji: "",
       listing: null,
       tags: [
         TRUCK_TYPE_LABEL[t.truck_type] || "Truck",
@@ -146,7 +149,9 @@
     // "Any" radius → everything, nearest first.
     if (!radiusKm) return { rows: pool, widened: false, effKm: null };
 
-    const within = pool.filter((it) => it._km <= radiusKm);
+    // Generous straight-line gate (×1.5) so no real match is missed; render()
+    // then tightens to the EXACT radius by road distance once routes resolve.
+    const within = pool.filter((it) => it._km <= radiusKm * 1.5);
     if (within.length) return { rows: within, widened: false, effKm: radiusKm };
 
     // Auto-widen: step out until something appears, else show nearest with coords.
@@ -163,8 +168,12 @@
   function cardHtml(it) {
     const badges = [];
     badges.push(`<span class="nm-badge kind ${it.kind}">${it.kind === "room" ? "Room" : "Truck"}</span>`);
-    if (Number.isFinite(it._km)) badges.push(`<span class="nm-badge dist">${esc(distanceLabel(it._km))}</span>`);
-    if (it.verified) badges.push(`<span class="nm-badge verified">✓</span>`);
+    const dkm = Number.isFinite(it._dispKm) ? it._dispKm : it._km;
+    if (Number.isFinite(dkm)) {
+      const lbl = it._byRoad ? " " + distanceLabel(dkm).replace(" away", " by road") : distanceLabel(dkm);
+      badges.push(`<span class="nm-badge dist">${esc(lbl)}</span>`);
+    }
+    if (it.verified) badges.push(`<span class="nm-badge verified"></span>`);
     const photoStyle = it.photo ? `background-image:url('${esc(it.photo)}')` : "background:#dfe7e2;";
     return `
       <a class="nm-card" href="${it.href}">
@@ -175,14 +184,56 @@
         <div class="nm-card-body">
           <div class="nm-card-price">${esc(it.priceValue)}<small>${esc(it.priceUnit)}</small>${fxSmall(it.priceTzs)}</div>
           <div class="nm-card-title">${esc(it.title)}</div>
-          <div class="nm-card-meta">${it.loc ? `📍 ${esc(it.loc)}` : `<span class="nm-card-emoji-inline">${it.emoji}</span> ${esc(it.typeLabel)}`}</div>
+          <div class="nm-card-meta">${it.loc ? ` ${esc(it.loc)}` : `<span class="nm-card-emoji-inline">${it.emoji}</span> ${esc(it.typeLabel)}`}</div>
           <div class="nm-card-tags">${it.tags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>
         </div>
       </a>`;
   }
 
+  // Stable key for one origin→destination road distance.
+  function roadKey(it) {
+    return `${userLoc.lat.toFixed(4)},${userLoc.lng.toFixed(4)}>${(+it.lat).toFixed(4)},${(+it.lng).toFixed(4)}`;
+  }
+
+  // Fetch REAL driving distances for the shown rows (one OSRM matrix call),
+  // cache them, then re-render so the list ranks + labels by road distance.
+  async function enrichRoadDistances(rows) {
+    if (!userLoc || enriching || !window.pawaRoute) return;
+    const missing = rows.filter((r) =>
+      Number.isFinite(r._km) && r.lat != null && r.lng != null &&
+      roadKmCache.get(roadKey(r)) === undefined
+    ).slice(0, 60);
+    if (!missing.length) return;
+    enriching = true;
+    try {
+      const kms = await window.pawaRoute.table(userLoc, missing.map((r) => ({ lat: +r.lat, lng: +r.lng })));
+      let changed = false;
+      missing.forEach((r, i) => {
+        const v = kms && kms[i];
+        roadKmCache.set(roadKey(r), Number.isFinite(v) ? v : null);  // null = no route (don't refetch)
+        if (Number.isFinite(v)) changed = true;
+      });
+      if (changed) render();
+    } finally { enriching = false; }
+  }
+
   function render() {
-    const { rows, widened, effKm } = selectRows();
+    const sel = selectRows();
+    let rows = sel.rows;
+    const widened = sel.widened, effKm = sel.effKm;
+
+    // Prefer real road distance where we've computed it; rank by it.
+    if (userLoc) {
+      rows = rows.map((r) => {
+        const rk = (r.lat != null && r.lng != null) ? roadKmCache.get(roadKey(r)) : undefined;
+        const byRoad = rk != null;
+        return { ...r, _dispKm: byRoad ? rk : r._km, _byRoad: byRoad };
+      }).sort((a, b) => (a._dispKm ?? Infinity) - (b._dispKm ?? Infinity));
+      // Tighten the radius to EXACT road distance: drop items already routed and
+      // found to be beyond the radius by road. Not-yet-routed items stay until
+      // enrichment resolves them (then a re-render drops any that exceed it).
+      if (radiusKm) rows = rows.filter((r) => !r._byRoad || r._dispKm <= radiusKm);
+    }
 
     // Count + status line
     const nRooms  = rows.filter((r) => r.kind === "room").length;
@@ -200,7 +251,7 @@
       if (!userLoc) {
         parts.push("Tap “Use my location” to sort rooms and trucks by how close they are to you.");
       } else {
-        if (userApprox) parts.push("📍 Using an approximate (city-level) location — turn on GPS / allow precise location for exact distances.");
+        if (userApprox) parts.push(" Using an approximate (city-level) location — turn on GPS / allow precise location for exact distances.");
         if (widened) parts.push(effKm
           ? `Nothing within ${radiusKm} km — showing the nearest within ${effKm} km instead.`
           : `Nothing within ${radiusKm} km — showing the nearest listings instead.`);
@@ -211,6 +262,9 @@
 
     renderList(rows);
     renderMarkers(rows);
+
+    // After painting (instant, straight-line), upgrade to real road distances.
+    if (userLoc) enrichRoadDistances(rows);
   }
 
   function renderList(rows) {
@@ -226,15 +280,78 @@
   function initMap() {
     if (!window.L || !mapEl) return;
     map = L.map(mapEl, { scrollWheelZoom: true }).setView([-6.4, 35.0], 6); // Tanzania
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO",
-    }).addTo(map);
+    window.addSatelliteHybrid(map);
+  }
+
+  // Draw the real driving route(s) (origin = user) on the map, so the distance
+  // is visible as the actual road, not a straight line. When more than one
+  // road reaches the place — including ferry crossings the default search
+  // skips — EVERY option is drawn and the user taps the line they prefer:
+  // the chosen one goes solid green with its exact km + minutes.
+  async function drawRouteTo(it) {
+    if (!map || !userLoc || it.lat == null || it.lng == null || !window.pawaRoute) return;
+    const r = await window.pawaRoute.route(userLoc, { lat: +it.lat, lng: +it.lng });
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    if (!r || !r.geojson) {
+      // Live road routing is down — never leave the tap with no answer. Draw a
+      // clearly-dashed straight line, honestly labelled as an estimate.
+      const km = haversineKm(userLoc.lat, userLoc.lng, +it.lat, +it.lng);
+      const geom = { type: "LineString", coordinates: [[userLoc.lng, userLoc.lat], [+it.lng, +it.lat]] };
+      routeLayer = L.layerGroup().addTo(map);
+      L.geoJSON(geom, { interactive: false, style: { color: "#fff", weight: 7, opacity: .9 } }).addTo(routeLayer);
+      const ln = L.geoJSON(geom,
+        { style: { color: "#b26a00", weight: 4, opacity: .9, dashArray: "4 8" } }
+      ).addTo(routeLayer);
+      ln.bindPopup(
+        `<strong>${esc(it.title)}</strong><br>≈ ${km.toFixed(1)} km straight-line` +
+        `<br><small>Live road routing unavailable — the road is a bit longer.</small>`);
+      try { map.fitBounds(ln.getBounds().pad(0.25)); } catch (_) {}
+      ln.openPopup();
+      return;
+    }
+    const options = [
+      { km: r.km, durationMin: r.durationMin, geojson: r.geojson, via: r.via },
+      ...(r.alts || []).filter((a) => a && a.geojson),
+    ];
+    routeLayer = L.layerGroup().addTo(map);
+    const lines = [];
+    const styleFor = (chosen) => chosen
+      ? { color: "#0a6f4d", weight: 6, opacity: .95, dashArray: null }
+      : { color: "#5e8a79", weight: 4, opacity: .75, dashArray: "7 7" };
+    const popupFor = (o, i) =>
+      `<strong>${esc(it.title)}</strong><br>` +
+      (options.length > 1 ? `Road option ${i + 1} of ${options.length}${o.via ? " —  via " + esc(o.via) : ""}<br>` : (o.via ? ` via ${esc(o.via)}<br>` : "")) +
+      ` ${o.km.toFixed(1)} km by road · ${Math.round(o.durationMin)} min drive` +
+      (options.length > 1 ? `<br><small>Tap another line to choose that road</small>` : "");
+    const choose = (idx) => {
+      lines.forEach((ln, i) => ln.setStyle(styleFor(i === idx)));
+      lines[idx].bringToFront();
+      // The user's preferred road becomes the item's displayed distance.
+      if (it.lat != null && it.lng != null) roadKmCache.set(roadKey(it), options[idx].km);
+    };
+    // White casing under every line first, so the coloured roads stay visible on
+    // any basemap (the dark satellite tiles otherwise swallow the green lines).
+    options.forEach((o) =>
+      L.geoJSON(o.geojson, { interactive: false, style: { color: "#fff", weight: 9, opacity: .9 } }).addTo(routeLayer));
+    options.forEach((o, i) => {
+      const ln = L.geoJSON(o.geojson, { style: styleFor(i === 0) }).addTo(routeLayer);
+      ln.bindPopup(popupFor(o, i));
+      ln.on("click", () => choose(i));
+      lines.push(ln);
+    });
+    lines[0].bringToFront();
+    try {
+      const b = lines.reduce((bb, l) => bb ? bb.extend(l.getBounds()) : l.getBounds(), null);
+      if (b) map.fitBounds(b.pad(0.25));
+    } catch (_) {}
+    lines[0].openPopup();
   }
 
   function renderMarkers(rows) {
     if (!map) return;
     markers.forEach((m) => map.removeLayer(m));
     markers = [];
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
     const pts = [];
     rows.forEach((it) => {
       if (it.lat == null || it.lng == null) return;
@@ -247,8 +364,12 @@
       m.bindPopup(
         `<strong>${esc(it.title)}</strong><br>` +
         `${esc(it.priceValue)}${esc(it.priceUnit)}<br>` +
+        (userLoc ? `<button type="button" class="nm-route-btn" style="margin:4px 0;border:0;background:#0a6f4d;color:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600;"> Show road route</button><br>` : "") +
         `<a href="${it.href}">View ${it.kind === "room" ? "room" : "truck"} →</a>`
       );
+      m.on("popupopen", (e) => {
+        e.popup.getElement()?.querySelector(".nm-route-btn")?.addEventListener("click", () => drawRouteTo(it));
+      });
       markers.push(m);
       pts.push([it.lat, it.lng]);
     });
@@ -285,6 +406,58 @@
     }
   }
 
+  // ---- AI search: natural-language query → centre map + filter -------------
+  // "2-bed for rent near Mikocheni" / "trucks near Mwanza". Uses the ai-search
+  // brain to extract the place + listing, geocodes the place, then re-runs the
+  // normal distance selection from there. Degrades to a plain geocode of the
+  // typed text when the AI brain is unavailable.
+  async function aiSearch() {
+    const input = $("nmAi"), btn = $("nmAiBtn"), msgEl = $("nmAiMsg");
+    const q = (input?.value || "").trim();
+    const setMsg = (t) => { if (msgEl) msgEl.textContent = t || ""; };
+    if (!q) { input?.focus(); return; }
+    const old = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Searching…"; }
+    setMsg("");
+    try {
+      let anchor = null, answer = "", listing = null, wantTrucks = false;
+      if (window.AISearch && window.AISearch.available && window.AISearch.available()) {
+        const parsed = await window.AISearch.parseHouse(q).catch(() => null);
+        if (parsed) {
+          anchor = parsed.anchor;
+          answer = parsed.answer || "";
+          listing = parsed.criteria && parsed.criteria.listing;
+        }
+      }
+      if (/\btruck|lorry|canter|pickup|magari ya mizigo|gari la mizigo\b/i.test(q)) wantTrucks = true;
+
+      if (anchor && anchor.name === "__me__") {
+        await locateMe();
+      } else {
+        const placeQ = (anchor && anchor.name) || q;
+        const hits = await (window.pawaGeo ? window.pawaGeo.suggest(placeQ, { limit: 5 }) : Promise.resolve([])).catch(() => []);
+        const hit = (hits || []).find((h) => Number.isFinite(h.lat) && Number.isFinite(h.lng));
+        if (!hit) { setMsg("Couldn't find that place — try a town or area name."); return; }
+        userLoc = { lat: hit.lat, lng: hit.lng }; userApprox = false;
+        if (map) {
+          if (userMarker) map.removeLayer(userMarker);
+          userMarker = L.circleMarker([hit.lat, hit.lng], {
+            radius: 8, color: "#0a6f4d", fillColor: "#0a6f4d", fillOpacity: .9, weight: 2,
+          }).addTo(map).bindPopup(esc(hit.name || "Search area"));
+          map.setView([hit.lat, hit.lng], 13);
+        }
+      }
+      // Reflect inferred filters in the controls.
+      if (wantTrucks && kindSel) { kindFilter = "trucks"; kindSel.value = "trucks"; if (listingSel) listingSel.disabled = true; }
+      if (listing && listingSel && !listingSel.disabled) { listingFilter = listing; listingSel.value = listing; }
+      render();
+      const where = (anchor && anchor.name && anchor.name !== "__me__") ? anchor.name : "you";
+      setMsg(answer || ("Showing results near " + where + "."));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
+  }
+
   // ---- mobile list/map tabs ------------------------------------------------
   function switchView(view) {
     if (!stageEl) return;
@@ -302,6 +475,8 @@
     initMap();
 
     nearBtn?.addEventListener("click", locateMe);
+    $("nmAiBtn")?.addEventListener("click", aiSearch);
+    $("nmAi")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); aiSearch(); } });
     kindSel?.addEventListener("change", () => {
       kindFilter = kindSel.value;
       if (listingSel) listingSel.disabled = kindFilter === "trucks";
@@ -320,7 +495,8 @@
     ]);
     const houses = hRes.status === "fulfilled" && Array.isArray(hRes.value) ? hRes.value : [];
     const trucks = tRes.status === "fulfilled" && Array.isArray(tRes.value) ? tRes.value : [];
-    items = houses.map(toRoom).concat(trucks.map(toTruck));
+    // Hide houses whose deal is completed (available === false) from the public map.
+    items = houses.filter((h) => h.available !== false).map(toRoom).concat(trucks.map(toTruck));
 
     render();
 

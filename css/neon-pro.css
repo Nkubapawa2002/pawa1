@@ -964,7 +964,9 @@ body[data-bg] .online-pill,
 body[data-bg] .banner.error,
 body[data-bg] .banner.success,
 body[data-bg] .page-hero,
-body[data-bg] .page-hero * {
+body[data-bg] .page-hero *,
+body[data-bg] .hero,
+body[data-bg] .hero p {
   color: #fff !important;
 }
 
@@ -997,4 +999,25 @@ body[data-bg] td,
 body[data-bg] tbody td {
   background: transparent !important;
   color: var(--black, #111827) !important;
+}
+
+/* Cards that carry their OWN dark/colored background keep white text — the
+   dark-text guard above would otherwise print near-black on dark green.
+   (.fast-hero-card = page heroes on meet/jobs/book; .share-card = the meet
+   room-code card; .meet-invite-banner = the live-viewing invite banner.) */
+body[data-bg] .fast-hero-card,
+body[data-bg] .fast-hero-card h1,
+body[data-bg] .fast-hero-card p,
+body[data-bg] .fast-hero-card *,
+body[data-bg] .share-card,
+body[data-bg] .share-card *,
+body[data-bg] .meet-invite-banner,
+body[data-bg] .meet-invite-banner * {
+  color: #fff !important;
+}
+body[data-bg] .fast-hero-card .fast-hero-badge {
+  color: var(--green-dark, #064a33) !important;   /* gold pill, dark text */
+}
+body[data-bg] .share-card .btn-primary {
+  color: var(--green-dark, #064a33) !important;   /* white button on green card */
 }

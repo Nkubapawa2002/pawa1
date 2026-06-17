@@ -7,14 +7,14 @@ window.initAdminPage = async () => {
   const STATUSES = ["Registered", "Picked Up", "In Transit", "Arrived", "Delivered"];
 
   const $ = (id) => document.getElementById(id);
+  const escH = window.escHtml;   // escape user data before innerHTML interpolation
   const loginGate = $("loginGate");
   const forbidden = $("forbidden");
   const adminPanel = $("adminPanel");
 
   if (!sb) {
     loginGate.hidden = false;
-    $("loginError").hidden = false;
-    $("loginError").textContent = "Supabase not configured. Check js/config.js.";
+    window.authMsg($("loginError"), "error", "Supabase not configured. Check js/config.js.");
     return;
   }
 
@@ -47,16 +47,16 @@ window.initAdminPage = async () => {
   }
 
   // ---------- login form ----------
+  const setErr = (kind, text) => window.authMsg($("loginError"), kind, text);
+
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const err = $("loginError");
-    err.hidden = true;
+    setErr("", "");
     try {
       await window.Auth.signIn($("loginEmail").value.trim(), $("loginPassword").value);
       showCorrectView();
     } catch (ex) {
-      err.hidden = false;
-      err.textContent = ex.message || "Sign-in failed.";
+      setErr("error", ex.message || "Sign-in failed.");
     }
   });
 
@@ -64,22 +64,16 @@ window.initAdminPage = async () => {
     e.preventDefault();
     const email = $("loginEmail").value.trim();
     const pw = $("loginPassword").value;
-    const err = $("loginError");
-    err.hidden = true;
+    setErr("", "");
     if (!email || pw.length < 6) {
-      err.hidden = false;
-      err.textContent = "Enter your authorized email and a password (>= 6 chars), then click create.";
+      setErr("error", "Enter your authorized email and a password (>= 6 chars), then click create.");
       return;
     }
     try {
       await window.Auth.signUp(email, pw);
-      err.hidden = false;
-      err.classList.remove("error");
-      err.classList.add("success");
-      err.textContent = "Account created. If email confirmation is enabled, check your inbox, then sign in.";
+      setErr("ok", "Account created. If email confirmation is enabled, check your inbox, then sign in.");
     } catch (ex) {
-      err.hidden = false;
-      err.textContent = ex.message || "Sign-up failed.";
+      setErr("error", ex.message || "Sign-up failed.");
     }
   });
 
@@ -117,16 +111,34 @@ window.initAdminPage = async () => {
     $("aaSort")   ?.addEventListener("change", _aaDraw);
     $("aaExportBtn")?.addEventListener("click", _aaExportCsv);
 
+    // Bulk control bar — "loop over all agents" actions.
+    $("aaBulkApprove")   ?.addEventListener("click", () => _aaBulkAction("approve"));
+    $("aaBulkMonth")     ?.addEventListener("click", () => _aaBulkAction("month"));
+    $("aaBulkEnroll")    ?.addEventListener("click", () => _aaBulkAction("enroll"));
+    $("aaBulkFee")       ?.addEventListener("click", () => _aaBulkAction("fee"));
+    $("aaBulkActivate")  ?.addEventListener("click", () => _aaBulkAction("activate"));
+    $("aaBulkDeactivate")?.addEventListener("click", () => _aaBulkAction("deactivate"));
+
+    // Tenants tab controls.
+    $("tenSearch")?.addEventListener("input", _tenDraw);
+    $("tenFilter")?.addEventListener("change", _tenDraw);
+    $("tenSort")  ?.addEventListener("change", _tenDraw);
+    $("tenExportBtn")?.addEventListener("click", _tenExportCsv);
+
+    // Day Jobs tab controls.
+    $("djSearch")    ?.addEventListener("input", _djDraw);
+    $("djStatus")    ?.addEventListener("change", _djDraw);
+    $("djRefreshBtn")?.addEventListener("click", renderDayJobs);
+
+    // Bus-era tabs (shipments / routes / manual booking / collect payment /
+    // trip cancellations) and the legacy Approvals / Agent-applications
+    // queues were removed in the housing-services pivot — their renderers
+    // below are intentionally no longer called.
     await Promise.all([
-      renderShipments(),
-      renderPendingChanges(),
-      renderApplications(),
       renderAgentsAdmin(),
       renderAllAgents(),
-      renderRoutesEditor(),
-      renderManualBooking(),
-      renderCollectPayment(),
-      renderCancellations()
+      renderTenancies(),
+      renderDayJobs()
     ]);
   }
 
@@ -341,17 +353,17 @@ window.initAdminPage = async () => {
             <details style="margin-top:8px">
               <summary style="cursor:pointer;color:var(--gray);font-size:0.85rem">Full details</summary>
               <div style="margin-top:8px;font-size:0.85rem;line-height:1.8">
-                <p><strong>Tracking:</strong> <code>${p.tracking_code || c.entity_id || "—"}</code></p>
-                <p><strong>Sender:</strong> ${p.sender_name}, ${p.sender_phone}, ${p.sender_region}</p>
-                <p><strong>Receiver:</strong> ${p.receiver_name}, ${p.receiver_phone}, ${p.receiver_region}</p>
-                <p><strong>Product:</strong> ${p.product_description}, ${p.product_weight_kg} kg</p>
-                <p><strong>Bus:</strong> ${p.bus_name} | ${p.bus_route} | ${p.bus_departure}</p>
+                <p><strong>Tracking:</strong> <code>${escH(p.tracking_code || c.entity_id || "—")}</code></p>
+                <p><strong>Sender:</strong> ${escH(p.sender_name)}, ${escH(p.sender_phone)}, ${escH(p.sender_region)}</p>
+                <p><strong>Receiver:</strong> ${escH(p.receiver_name)}, ${escH(p.receiver_phone)}, ${escH(p.receiver_region)}</p>
+                <p><strong>Product:</strong> ${escH(p.product_description)}, ${escH(p.product_weight_kg)} kg</p>
+                <p><strong>Bus:</strong> ${escH(p.bus_name)} | ${escH(p.bus_route)} | ${escH(p.bus_departure)}</p>
                 <p><strong>Value:</strong> ${window.formatTZS ? window.formatTZS(p.product_value_tzs || 0) : (p.product_value_tzs || 0) + " TZS"}</p>
-                ${p.notes ? `<p><strong>Notes:</strong> ${p.notes}</p>` : ""}
+                ${p.notes ? `<p><strong>Notes:</strong> ${escH(p.notes)}</p>` : ""}
               </div>
             </details>`;
         } else {
-          detail = `<pre style="font-size:0.78rem;background:var(--surface);padding:8px;border-radius:4px;overflow-x:auto;margin-top:8px">${JSON.stringify(c.payload, null, 2)}</pre>`;
+          detail = `<pre style="font-size:0.78rem;background:var(--surface);padding:8px;border-radius:4px;overflow-x:auto;margin-top:8px">${escH(JSON.stringify(c.payload, null, 2))}</pre>`;
         }
 
         return `
@@ -372,10 +384,10 @@ window.initAdminPage = async () => {
               <div class="contact-actions" style="margin-top:12px">
                 <button class="btn btn-primary btn-sm approve-change-btn"
                   data-id="${c.id}" data-type="${c.entity_type}" data-action="${c.action}">
-                  ✓ Approve
+                   Approve
                 </button>
                 <button class="btn btn-danger btn-sm reject-change-btn" data-id="${c.id}">
-                  ✗ Reject
+                   Reject
                 </button>
               </div>` : ""}
           </div>`;
@@ -401,7 +413,7 @@ window.initAdminPage = async () => {
           } catch (ex) {
             alert("Approval failed: " + ex.message);
             btn.disabled = false;
-            btn.textContent = "✓ Approve";
+            btn.textContent = " Approve";
             return;
           }
           draw();
@@ -451,23 +463,23 @@ window.initAdminPage = async () => {
         <div class="card application-card status-${a.status}">
           <div class="app-head" style="display:flex;align-items:flex-start;gap:14px">
             ${photoUrl
-              ? `<img src="${photoUrl}" alt="${a.full_name}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border)">`
-              : `<div style="width:56px;height:56px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;color:var(--green-dark);flex-shrink:0">${(a.full_name||"?")[0].toUpperCase()}</div>`}
+              ? `<img src="${encodeURI(photoUrl)}" alt="${escH(a.full_name)}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border)">`
+              : `<div style="width:56px;height:56px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;color:var(--green-dark);flex-shrink:0">${escH((a.full_name||"?")[0].toUpperCase())}</div>`}
             <div style="flex:1;min-width:0">
-              <h3 style="margin:0 0 2px">${a.full_name} <span class="pill pill-${a.status}">${a.status}</span></h3>
-              <small>${new Date(a.created_at).toLocaleString()}</small>
+              <h3 style="margin:0 0 2px">${escH(a.full_name)} <span class="pill pill-${escH(a.status)}">${escH(a.status)}</span></h3>
+              <small>${escH(new Date(a.created_at).toLocaleString())}</small>
             </div>
           </div>
           <p style="margin-top:10px">
-            <strong>Phone:</strong> ${a.phone || "-"}
+            <strong>Phone:</strong> ${escH(a.phone || "-")}
             ${a.phone ? window.DataStore.renderCallButtons(a.phone) : ""}
-            &nbsp; <strong>Email:</strong> ${a.email || "-"}
+            &nbsp; <strong>Email:</strong> ${escH(a.email || "-")}
           </p>
-          <p><strong>Region:</strong> ${a.region} &nbsp; <strong>Terminal:</strong> ${a.terminal}</p>
-          <p><strong>Buses:</strong> ${(a.buses || []).join(", ")}</p>
-          <p><strong>Experience:</strong> ${a.experience_years} year(s) &nbsp; <strong>National ID:</strong> ${a.national_id}</p>
-          ${a.about ? `<p><strong>About:</strong> ${a.about}</p>` : ""}
-          ${a.reject_reason ? `<p><strong>Reject reason:</strong> ${a.reject_reason}</p>` : ""}
+          <p><strong>Region:</strong> ${escH(a.region)} &nbsp; <strong>Terminal:</strong> ${escH(a.terminal)}</p>
+          <p><strong>Buses:</strong> ${escH((a.buses || []).join(", "))}</p>
+          <p><strong>Experience:</strong> ${escH(a.experience_years)} year(s) &nbsp; <strong>National ID:</strong> ${escH(a.national_id)}</p>
+          ${a.about ? `<p><strong>About:</strong> ${escH(a.about)}</p>` : ""}
+          ${a.reject_reason ? `<p><strong>Reject reason:</strong> ${escH(a.reject_reason)}</p>` : ""}
           ${a.status === "pending" ? `
             <div class="contact-actions">
               <button class="btn btn-primary btn-sm approve-btn" data-id="${a.id}">Approve</button>
@@ -490,7 +502,7 @@ window.initAdminPage = async () => {
             ${[1,2,3,4,5].map(n => `
               <label style="cursor:pointer;font-size:1.8rem;line-height:1" title="${n} star${n>1?'s':''}">
                 <input type="radio" name="init-rating-${b.dataset.id}" value="${n}" style="display:none">
-                <span class="star" data-v="${n}" style="color:#d1d5db;transition:color 0.1s">★</span>
+                <span class="star" data-v="${n}" style="color:#d1d5db;transition:color 0.1s"></span>
               </label>`).join("")}
           </div>
           <div style="display:flex;gap:8px">
@@ -559,6 +571,7 @@ window.initAdminPage = async () => {
   // ---------- agents admin tab ----------
   async function renderAgentsAdmin() {
     const list = $("agentsAdminList");
+    if (!list) return;   // "Agents" (bus-cargo) tab hidden in the housing pivot
     // Agents + their original applications (so we can show BOTH the moment they
     // applied and the moment they were approved/registered). Matching is by phone.
     const [agRes, appRes] = await Promise.all([
@@ -604,14 +617,14 @@ window.initAdminPage = async () => {
         <tbody>
           ${data.map(a => `
             <tr>
-              <td><code>${a.id}</code></td>
-              <td>${a.name}</td>
-              <td>${a.region}</td>
-              <td>${a.phone || "-"} ${a.phone ? window.DataStore.renderCallButtons(a.phone) : ""}</td>
-              <td>${(a.buses || []).join(", ")}</td>
+              <td><code>${escH(a.id)}</code></td>
+              <td>${escH(a.name)}</td>
+              <td>${escH(a.region)}</td>
+              <td>${escH(a.phone || "-")} ${a.phone ? window.DataStore.renderCallButtons(a.phone) : ""}</td>
+              <td>${escH((a.buses || []).join(", "))}</td>
               <td>${a.experience_years || 0}y</td>
               <td>${(Number(a.rating_avg) || 0).toFixed(2)} (${a.rating_count || 0})</td>
-              <td>${a.verified ? "✓" : "—"}</td>
+              <td>${a.verified ? "" : "—"}</td>
               <td>${fmtWhen(appliedAt(a))}</td>
               <td>${fmtWhen(a.created_at)}</td>
             </tr>`).join("")}
@@ -633,18 +646,40 @@ window.initAdminPage = async () => {
   let _aaTotals  = null;
   let _aaBillingMissing = false;  // true when the agent_billing table isn't applied yet
   let _aaByKey = new Map();        // agent_key -> unified agent (for billing saves)
+  let _aaSelected = new Set();      // agent_keys ticked for bulk actions
   const AA_BILLING_STATUSES = ["free", "trial", "paid", "overdue", "cancelled"];
   // Standard monthly subscription every agent is expected to pay. "Pay +1 month"
   // uses this when the agent has no custom amount set yet.
   const AA_MONTHLY_FEE = (window.APP_CONFIG && window.APP_CONFIG.AGENT_MONTHLY_FEE_TZS) || 10000;
-  // Subscription state from a billing row (mirrors the SQL auto-suspend rule).
-  function _aaSubInfo(b) {
+  const AA_GRACE_HOURS = (window.APP_CONFIG && window.APP_CONFIG.AGENT_GRACE_HOURS) || 48;
+  const AA_APPROVAL_DAYS = (window.APP_CONFIG && window.APP_CONFIG.AGENT_APPROVAL_DAYS) || 7;
+  // Lifecycle badge for a billing row (mirrors supabase/agent_approval.sql):
+  //   admin-deactivated / cancelled / overdue → suspended
+  //   NOT approved → live for AA_APPROVAL_DAYS from registration, then hidden
+  //   approved → normal billing (paid_until / status)
+  // `registered` is the agent's earliest registration time (the approval clock).
+  function _aaSubInfo(b, registered) {
     b = b || {};
     const status = b.status || "free";
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const pu = b.paid_until ? new Date(String(b.paid_until).slice(0, 10) + "T00:00:00") : null;
+    if (b.active === false) return { label: "Deactivated", cls: "sub-exp" };
     if (status === "cancelled") return { label: "Suspended (cancelled)", cls: "sub-exp" };
     if (status === "overdue")   return { label: "Suspended (overdue)",   cls: "sub-exp" };
+    // Approval gate — applies until an admin approves.
+    if (!b.approved_at) {
+      if (registered) {
+        const deadline = new Date(new Date(registered).getTime() + AA_APPROVAL_DAYS * 86400000);
+        const ms = deadline - Date.now();
+        if (ms > 0) {
+          const days = Math.ceil(ms / 86400000);
+          return { label: `Preview · ${days}d to approve`, cls: "sub-due" };
+        }
+        return { label: "Unapproved — hidden", cls: "sub-exp" };
+      }
+      return { label: "Awaiting approval", cls: "sub-none" };
+    }
+    // Approved → subscription billing.
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pu = b.paid_until ? new Date(String(b.paid_until).slice(0, 10) + "T00:00:00") : null;
     if (pu) {
       const days = Math.round((pu - today) / 86400000);
       if (days < 0)  return { label: `Expired ${-days}d ago`, cls: "sub-exp" };
@@ -652,21 +687,84 @@ window.initAdminPage = async () => {
         return { label: `Active · ${days}d left`, cls: days <= 5 ? "sub-due" : "sub-ok" };
       return { label: `Until ${String(b.paid_until).slice(0, 10)}`, cls: "sub-ok" };
     }
-    if (status === "paid") return { label: "Active (no expiry)", cls: "sub-ok" };
-    return { label: "Not enrolled", cls: "sub-none" };
+    if (status === "paid" || status === "trial") return { label: "Active (no expiry)", cls: "sub-ok" };
+    return { label: "Approved · active", cls: "sub-ok" };
   }
-  // Record one month's subscription: paid, +1 month from today (or extend from a
-  // still-active expiry), at the standard fee unless a custom amount is set.
-  function _aaPayMonth(key) {
-    const u = _aaByKey.get(key);
+  // Approve (or revoke) an agent. Approving stamps approved_at + approved_by and
+  // re-activates; revoking clears approval so the agent re-enters the window.
+  async function _aaApprove(key, approve) {
+    let email = null;
+    try { const s = await window.Auth.getSession(); email = s?.user?.email || null; } catch (_) {}
+    const patch = approve
+      ? { approved_at: new Date().toISOString(), approved_by: email, active: true }
+      : { approved_at: null, approved_by: null };
+    await _aaSaveBilling(key, patch);
+    _aaDraw();
+  }
+  // The "approved day" an agent's monthly cycle is anchored to: the explicit
+  // billing.started_on if set, else their earliest registration (when they
+  // first went live = effectively their approval day).
+  function _aaAnchor(u) {
+    const iso = (u && u.billing && u.billing.started_on) || (u && u.registered);
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0, 10) + "T00:00:00");
+    return isNaN(d) ? null : d;
+  }
+  // Add one CALENDAR month, clamped for short months (Jan 31 → Feb 28), so it
+  // matches Postgres `+ interval '1 month'` used by the self-serve trigger.
+  function _aaAddMonth(date) {
+    const d = new Date(date); d.setHours(0, 0, 0, 0);
+    const day = d.getDate();
+    const r = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const dim = new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate();
+    r.setDate(Math.min(day, dim));
+    return r;
+  }
+  // Per-agent ROLLING cycle: a payment buys exactly one month from THIS agent's
+  // own timeline — extending from their current expiry if still active (so
+  // paying early stacks and never loses days), otherwise starting today. This
+  // is identical to the self-serve mobile-money trigger
+  // (apply_agent_subscription_payment), so admin + self-serve agree to the day,
+  // and every agent is tracked on their own independent month — they don't have
+  // to pay on the same date.
+  function _aaComputeNextPaidUntil(u) {
     const b = (u && u.billing) || {};
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const pu = b.paid_until ? new Date(String(b.paid_until).slice(0, 10) + "T00:00:00") : null;
-    const base = (pu && pu > today) ? pu : today;     // extend if still active, else start today
-    const next = new Date(base); next.setMonth(next.getMonth() + 1);
+    const base = (pu && pu > today) ? pu : today;   // active → extend; lapsed → start today
+    return _aaAddMonth(base);
+  }
+  // Record one month's subscription. Rolls one month forward from the agent's
+  // own coverage (see _aaComputeNextPaidUntil) and re-activates the account.
+  // Stamps started_on the first time as the agent's billing-start / approved day
+  // (informational only — it no longer drives the cycle).
+  function _aaPayMonth(key) {
+    const u = _aaByKey.get(key);
+    const b = (u && u.billing) || {};
+    const next = _aaComputeNextPaidUntil(u);
     const amount = Number(b.amount_tzs) > 0 ? Number(b.amount_tzs) : AA_MONTHLY_FEE;
-    _aaSaveBilling(key, { status: "paid", amount_tzs: amount, paid_until: next.toISOString().slice(0, 10) })
-      .then(() => _aaDraw());
+    const anchor = _aaAnchor(u);
+    const patch = { status: "paid", active: true, amount_tzs: amount, paid_until: next.toISOString().slice(0, 10) };
+    if (!b.started_on && anchor) patch.started_on = anchor.toISOString().slice(0, 10);
+    _aaSaveBilling(key, patch).then(() => _aaDraw());
+  }
+  // Admin activate / deactivate switch — independent of payment status. A
+  // deactivated agent's listings vanish and their dashboard shows a "contact
+  // admin" notice (enforced by agent_grace_active.sql).
+  function _aaToggleActive(key) {
+    const u = _aaByKey.get(key);
+    const isActive = !(u && u.billing && u.billing.active === false);
+    if (isActive) {
+      // Capture the reason the agent will see on their dashboard (stored in note).
+      const reason = prompt(
+        "Deactivate this agent — their listings/profile hide from clients until you reactivate.\n\nMessage the agent will see (the reason / problem):",
+        "Your monthly subscription is due. Please settle it to keep your account active."
+      );
+      if (reason === null) return;   // cancelled
+      _aaSaveBilling(key, { active: false, note: (reason || "").trim() || null }).then(() => _aaDraw());
+    } else {
+      _aaSaveBilling(key, { active: true, note: null }).then(() => _aaDraw());
+    }
   }
   const _aaEscHtml = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -705,15 +803,17 @@ window.initAdminPage = async () => {
 
     // Fetch the three sources; any single failure (e.g. trucks table not yet
     // applied) degrades to an empty set rather than blanking the whole tab.
-    const [agRes, hRes, tRes, bRes] = await Promise.allSettled([
+    const [agRes, hRes, tRes, sRes, bRes] = await Promise.allSettled([
       sb.from("agents").select("id,name,phone,email,region,buses,experience_years,rating_avg,rating_count,verified,created_at"),
       sb.from("houses").select("id,agent,owner_user_id,region,verified,created_at"),
       sb.from("trucks").select("id,owner,owner_user_id,region,verified,created_at"),
+      sb.from("services").select("id,owner,owner_user_id,region,verified,created_at"),
       sb.from("agent_billing").select("*"),
     ]);
     const busAgents = agRes.status === "fulfilled" && Array.isArray(agRes.value.data) ? agRes.value.data : [];
     const houses    = hRes.status  === "fulfilled" && Array.isArray(hRes.value.data)  ? hRes.value.data  : [];
     const trucks    = tRes.status  === "fulfilled" && Array.isArray(tRes.value.data)  ? tRes.value.data  : [];
+    const servicesR = sRes.status  === "fulfilled" && Array.isArray(sRes.value.data)  ? sRes.value.data  : [];
     // Billing table may not be applied yet — degrade to "everyone free".
     _aaBillingMissing = !(bRes.status === "fulfilled" && !bRes.value.error);
     const billingRows = (bRes.status === "fulfilled" && Array.isArray(bRes.value.data)) ? bRes.value.data : [];
@@ -724,7 +824,7 @@ window.initAdminPage = async () => {
       let u = map.get(key);
       if (!u) {
         u = { key, name: "", phone: "", email: "", regions: new Set(), roles: new Set(),
-              busCount: 0, houseCount: 0, truckCount: 0, registered: null, verified: false,
+              busCount: 0, houseCount: 0, truckCount: 0, serviceCount: 0, registered: null, verified: false,
               experience: null, rating: null };
         map.set(key, u);
       }
@@ -766,14 +866,26 @@ window.initAdminPage = async () => {
       u.registered = _aaEarlier(u.registered, t.created_at);
     });
 
+    servicesR.forEach((sv) => {
+      const ow = sv.owner || {};
+      const u = get(_aaIdentity(sv.owner_user_id, ow.phone, ow.name));
+      if (ow.name && (!u.name || u.name === "Agent")) u.name = ow.name;
+      if (ow.phone && !u.phone) u.phone = ow.phone;
+      if (sv.region) u.regions.add(sv.region);
+      u.roles.add("service"); u.serviceCount += 1;
+      if (sv.verified) u.verified = true;
+      u.registered = _aaEarlier(u.registered, sv.created_at);
+    });
+
     _aaUnified = Array.from(map.values()).map((u) => ({
       ...u, regions: Array.from(u.regions), roles: Array.from(u.roles),
-      billing: billingMap.get(u.key) || { status: "free", plan: "", amount_tzs: 0, paid_until: null },
+      billing: billingMap.get(u.key) || { status: "free", plan: "", amount_tzs: 0, paid_until: null, active: true, started_on: null, approved_at: null, approved_by: null },
     }));
     _aaByKey = new Map(_aaUnified.map((u) => [u.key, u]));
     _aaTotals = {
       houseListings: houses.length,
       truckListings: trucks.length,
+      serviceListings: servicesR.length,
     };
 
     _aaRenderSummary();
@@ -788,10 +900,12 @@ window.initAdminPage = async () => {
     const totals = {
       total: _aaUnified.length,
       paying: _aaUnified.filter(isPaying).length,
+      pending: _aaUnified.filter((u) => !(u.billing && u.billing.approved_at)).length,
       revenue: _aaUnified.filter(isPaying).reduce((s, u) => s + (Number(u.billing.amount_tzs) || 0), 0),
-      bus:   _aaUnified.filter((u) => u.roles.includes("bus")).length,
-      house: _aaUnified.filter((u) => u.roles.includes("house")).length,
-      truck: _aaUnified.filter((u) => u.roles.includes("truck")).length,
+      bus:     _aaUnified.filter((u) => u.roles.includes("bus")).length,
+      house:   _aaUnified.filter((u) => u.roles.includes("house")).length,
+      truck:   _aaUnified.filter((u) => u.roles.includes("truck")).length,
+      service: _aaUnified.filter((u) => u.roles.includes("service")).length,
     };
 
     const badge = $("allAgentsBadge");
@@ -801,11 +915,13 @@ window.initAdminPage = async () => {
     if (sum) {
       sum.innerHTML = [
         ["Total agents", totals.total, ""],
+        ["Awaiting approval", totals.pending, "warn"],
         ["Paying",       totals.paying, "pay"],
-        ["Revenue (paid)", window.formatTZS(totals.revenue), "rev"],
-        ["Bus / cargo",  totals.bus, ""],
-        ["House agents", totals.house, ""],
-        ["Truck owners", totals.truck, ""],
+        ["Total collected", window.formatTZS(totals.revenue), "rev"],
+        ["House agents",      totals.house, ""],
+        ["Service providers", totals.service, ""],
+        ["Truck owners",      totals.truck, ""],
+        ["Bus / cargo",       totals.bus, ""],
       ].map(([lbl, num, cls]) => `<div class="aa-stat ${cls}"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
     }
 
@@ -833,7 +949,7 @@ window.initAdminPage = async () => {
                unpaid: inRole.length - paid.length,
                collected: paid.reduce((s, u) => s + amt(u), 0) };
     };
-    const bus = cat("bus"), house = cat("house"), truck = cat("truck");
+    const bus = cat("bus"), house = cat("house"), truck = cat("truck"), service = cat("service");
     const paidAll = _aaUnified.filter(isPaid);
     const overall = { total: _aaUnified.length, paid: paidAll.length,
                       unpaid: _aaUnified.length - paidAll.length,
@@ -855,9 +971,10 @@ window.initAdminPage = async () => {
           <th>Category</th><th>Total</th><th>Paid</th><th>Unpaid</th><th>Collected (TZS)</th>
         </tr></thead>
         <tbody>
-          ${row("Bus / cargo agents", bus)}
           ${row("House owners", house)}
+          ${row("Service providers", service)}
           ${row("Truck owners", truck)}
+          ${row("Bus / cargo agents", bus)}
           ${row("Overall (unique people)", overall, "aa-bd-total")}
         </tbody>
       </table>
@@ -876,7 +993,10 @@ window.initAdminPage = async () => {
       if (role && !u.roles.includes(role)) return false;
       if (bill) {
         const st = u.billing?.status || "free";
-        if (bill === "unpaid") { if (st === "paid") return false; }
+        const ap = !!(u.billing && u.billing.approved_at);
+        if (bill === "pending")       { if (ap) return false; }
+        else if (bill === "approved") { if (!ap) return false; }
+        else if (bill === "unpaid")   { if (st === "paid") return false; }
         else if (st !== bill) return false;
       }
       if (q) {
@@ -893,8 +1013,9 @@ window.initAdminPage = async () => {
 
     if (!rows.length) { list.innerHTML = `<div class="empty"><p>No agents match.</p></div>`; return; }
 
+    const ROLE_LABEL = { bus: "Bus", house: "House", truck: "Truck", service: "Service" };
     const roleTags = (u) => u.roles.map((r) =>
-      `<span class="aa-role-tag ${r}">${r === "bus" ? "Bus" : r === "house" ? "House" : "Truck"}</span>`).join("");
+      `<span class="aa-role-tag ${r}">${ROLE_LABEL[r] || r}</span>`).join("");
     const statusSel = (b) => `<select class="aa-bill-input aa-bill-status" data-field="status">${
       AA_BILLING_STATUSES.map((s) => `<option value="${s}" ${(b.status || "free") === s ? "selected" : ""}>${s}</option>`).join("")
     }</select>`;
@@ -902,40 +1023,66 @@ window.initAdminPage = async () => {
     list.innerHTML = `
       <div class="table-wrap"><table>
         <thead><tr>
+          <th><input type="checkbox" id="aaSelectAll" title="Select all shown"></th>
           <th>Name</th><th>Roles</th><th>Phone</th><th>Region(s)</th>
-          <th>Houses</th><th>Trucks</th><th>Buses</th><th>Verified</th><th>Registered</th>
-          <th>Billing</th><th>Plan</th><th>Amount (TZS)</th><th>Paid until</th>
-          <th>Subscription</th>
+          <th>Houses</th><th>Services</th><th>Trucks</th><th>Buses</th><th>Verified</th><th>Registered</th>
+          <th>Billing start</th>
+          <th>Billing</th><th>Plan</th><th>Amount (TZS)</th><th>Paid until</th><th>Next due</th>
+          <th>Status &amp; approval</th>
         </tr></thead>
         <tbody>
           ${rows.map((u) => {
             const b = u.billing || {};
             return `
             <tr data-key="${_aaEscHtml(u.key)}" class="aa-bill-${b.status || "free"}">
+              <td><input type="checkbox" class="aa-row-check" data-key="${_aaEscHtml(u.key)}" ${_aaSelected.has(u.key) ? "checked" : ""}></td>
               <td>${u.name ? _aaEscHtml(u.name) : "<em>Unnamed</em>"}</td>
               <td>${roleTags(u)}</td>
               <td>${u.phone ? _aaEscHtml(u.phone) : "—"} ${u.phone ? window.DataStore.renderCallButtons(u.phone) : ""}</td>
               <td>${u.regions.map(_aaEscHtml).join(", ") || "—"}</td>
               <td>${u.houseCount || "—"}</td>
+              <td>${u.serviceCount || "—"}</td>
               <td>${u.truckCount || "—"}</td>
               <td>${u.busCount || "—"}</td>
-              <td>${u.verified ? "✓" : "—"}</td>
+              <td>${u.verified ? "" : "—"}</td>
               <td>${u.registered ? new Date(u.registered).toLocaleString() : "—"}
                   <span class="aa-reg-rel">${_aaRelTime(u.registered)}</span></td>
+              <td><input class="aa-bill-input" data-field="started_on" type="date" value="${(() => { const a = _aaAnchor(u); return a ? a.toISOString().slice(0, 10) : ""; })()}" title="Billing start / approved day (informational — the cycle now rolls one month from each payment)"></td>
               <td>${statusSel(b)}</td>
               <td><input class="aa-bill-input" data-field="plan" type="text" value="${_aaEscHtml(b.plan || "")}" placeholder="—" style="width:78px"></td>
               <td><input class="aa-bill-input" data-field="amount_tzs" type="number" min="0" value="${Number(b.amount_tzs) || 0}" style="width:90px"></td>
               <td><input class="aa-bill-input" data-field="paid_until" type="date" value="${b.paid_until ? String(b.paid_until).slice(0, 10) : ""}"></td>
-              <td class="aa-sub-cell">${(() => { const s = _aaSubInfo(b); return `<span class="aa-sub ${s.cls}">${s.label}</span>`; })()}
-                  <button type="button" class="aa-pay-btn" data-key="${_aaEscHtml(u.key)}" title="Record one month's subscription (${window.formatTZS(AA_MONTHLY_FEE)})">+1 month</button></td>
+              <td class="aa-nextdue">${_aaComputeNextPaidUntil(u).toISOString().slice(0, 10)}</td>
+              <td class="aa-sub-cell">${(() => { const s = _aaSubInfo(b, u.registered); return `<span class="aa-sub ${s.cls}">${s.label}</span>`; })()}
+                  <button type="button" class="aa-approve-btn" data-key="${_aaEscHtml(u.key)}" title="${b.approved_at ? `Approved ${String(b.approved_at).slice(0, 10)}${b.approved_by ? " by " + _aaEscHtml(b.approved_by) : ""} — click to revoke` : "Approve this agent (lifts the 7-day window)"}">${b.approved_at ? "Approved" : "Approve"}</button>
+                  <button type="button" class="aa-pay-btn" data-key="${_aaEscHtml(u.key)}" title="Record one month's subscription (${window.formatTZS(AA_MONTHLY_FEE)})">+1 month</button>
+                  <button type="button" class="aa-active-btn" data-key="${_aaEscHtml(u.key)}" title="${b.active === false ? "Reactivate this agent" : "Deactivate — hide from clients"}">${b.active === false ? "Activate" : "Deactivate"}</button></td>
             </tr>`;
           }).join("")}
         </tbody>
       </table></div>`;
 
+    // Approve / Revoke — lift (or reinstate) the 7-day approval window.
+    list.querySelectorAll(".aa-approve-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-key");
+        const u = _aaByKey.get(key);
+        const approved = !!(u && u.billing && u.billing.approved_at);
+        if (approved) {
+          if (!confirm("Revoke approval? This agent re-enters the 7-day window and hides once it lapses.")) return;
+          _aaApprove(key, false);
+        } else {
+          _aaApprove(key, true);
+        }
+      });
+    });
     // "Pay +1 month" — record a month's subscription for that agent.
     list.querySelectorAll(".aa-pay-btn").forEach((btn) => {
       btn.addEventListener("click", () => _aaPayMonth(btn.getAttribute("data-key")));
+    });
+    // Activate / Deactivate switch.
+    list.querySelectorAll(".aa-active-btn").forEach((btn) => {
+      btn.addEventListener("click", () => _aaToggleActive(btn.getAttribute("data-key")));
     });
 
     // Inline billing edits — save the whole billing row for that agent on change.
@@ -949,10 +1096,61 @@ window.initAdminPage = async () => {
           plan:       tr.querySelector('[data-field="plan"]').value.trim() || null,
           amount_tzs: Number(tr.querySelector('[data-field="amount_tzs"]').value) || 0,
           paid_until: tr.querySelector('[data-field="paid_until"]').value || null,
+          started_on: tr.querySelector('[data-field="started_on"]').value || null,
         };
-        _aaSaveBilling(key, patch);
+        _aaSaveBilling(key, patch).then(() => {
+          // Approved day / paid-until changes shift the "Next due" preview.
+          if (e.target.dataset.field === "started_on" || e.target.dataset.field === "paid_until") {
+            const cell = tr.querySelector(".aa-nextdue");
+            const u = _aaByKey.get(key);
+            if (cell && u) cell.textContent = _aaComputeNextPaidUntil(u).toISOString().slice(0, 10);
+          }
+        });
       });
     });
+
+    // Row selection (for bulk actions) — track keys, keep select-all in sync.
+    const selectAll = $("aaSelectAll");
+    const syncSelectAll = () => {
+      const boxes = list.querySelectorAll(".aa-row-check");
+      if (selectAll) selectAll.checked = boxes.length > 0 &&
+        [...boxes].every((c) => c.checked);
+      _aaUpdateBulkBar();
+    };
+    list.querySelectorAll(".aa-row-check").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        if (cb.checked) _aaSelected.add(cb.dataset.key);
+        else _aaSelected.delete(cb.dataset.key);
+        syncSelectAll();
+      });
+    });
+    selectAll?.addEventListener("change", () => {
+      list.querySelectorAll(".aa-row-check").forEach((cb) => {
+        cb.checked = selectAll.checked;
+        if (selectAll.checked) _aaSelected.add(cb.dataset.key);
+        else _aaSelected.delete(cb.dataset.key);
+      });
+      _aaUpdateBulkBar();
+    });
+    _aaUpdateBulkBar();
+  }
+
+  // Upsert one billing row, transparently stripping columns the live schema is
+  // missing and retrying (e.g. `started_on` before agent_billing_anchor.sql has
+  // been run). Mutates `patch` so the caller's cache reflects what was saved.
+  async function _aaUpsertBilling(key, patch) {
+    const u = _aaByKey.get(key);
+    let email = null;
+    try { const s = await window.Auth.getSession(); email = s?.user?.email || null; } catch (_) {}
+    let payload = { agent_key: key, name: u ? u.name : null, phone: u ? u.phone : null, updated_by: email, ...patch };
+    for (let i = 0; i < 8; i++) {
+      const { error } = await sb.from("agent_billing").upsert(payload, { onConflict: "agent_key" });
+      if (!error) return { error: null };
+      const col = _extractMissingColumn(error.message);
+      if (!col || !(col in payload)) return { error };
+      delete payload[col]; delete patch[col];   // drop unknown col from both
+    }
+    return { error: { message: "Too many schema mismatches saving billing." } };
   }
 
   async function _aaSaveBilling(key, patch) {
@@ -961,15 +1159,157 @@ window.initAdminPage = async () => {
       return;
     }
     const u = _aaByKey.get(key);
-    let email = null;
-    try { const s = await window.Auth.getSession(); email = s?.user?.email || null; } catch (_) {}
-    const payload = { agent_key: key, name: u ? u.name : null, phone: u ? u.phone : null, updated_by: email, ...patch };
-    const { error } = await sb.from("agent_billing").upsert(payload, { onConflict: "agent_key" });
+    const { error } = await _aaUpsertBilling(key, patch);
     if (error) { alert("Billing save failed: " + error.message); return; }
     if (u) { u.billing = { ...u.billing, ...patch }; }
     _aaRenderSummary();
     // If a billing filter is active the row may need to drop out — redraw.
     if ($("aaBilling")?.value) _aaDraw();
+  }
+
+  // Quietly save one billing row (no per-row alert/redraw) — used by the bulk
+  // engine so a 200-agent loop doesn't fire 200 popups. Returns true on success.
+  async function _aaSaveBillingQuiet(key, patch) {
+    const u = _aaByKey.get(key);
+    const { error } = await _aaUpsertBilling(key, patch);
+    if (error) return false;
+    if (u) u.billing = { ...u.billing, ...patch };
+    return true;
+  }
+
+  // ---- Bulk control bar — operate on every selected (or every filtered) agent.
+  // "make a loop in all agents": the admin picks an action and it's applied to
+  // the whole set at once, with a confirm + progress + result summary.
+  function _aaFilteredRows() {
+    // Mirror the filters _aaDraw() applies, so "all shown" matches the table.
+    if (!_aaUnified) return [];
+    const q    = ($("aaSearch")?.value || "").toLowerCase().trim();
+    const role = $("aaRole")?.value || "";
+    const bill = $("aaBilling")?.value || "";
+    return _aaUnified.filter((u) => {
+      if (role && !u.roles.includes(role)) return false;
+      if (bill) {
+        const st = u.billing?.status || "free";
+        const ap = !!(u.billing && u.billing.approved_at);
+        if (bill === "pending")       { if (ap) return false; }
+        else if (bill === "approved") { if (!ap) return false; }
+        else if (bill === "unpaid")   { if (st === "paid") return false; }
+        else if (st !== bill) return false;
+      }
+      if (q) {
+        const hay = `${u.name} ${u.phone} ${u.regions.join(" ")} ${u.email}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+  // The agents a bulk action targets: ticked rows if any, else everyone shown.
+  function _aaBulkTargets() {
+    const shown = _aaFilteredRows();
+    if (_aaSelected.size) return shown.filter((u) => _aaSelected.has(u.key));
+    return shown;
+  }
+  function _aaUpdateBulkBar() {
+    const info = $("aaBulkInfo");
+    if (!info) return;
+    const sel = _aaSelected.size;
+    const shown = _aaFilteredRows().length;
+    info.textContent = sel
+      ? `${sel} selected — actions apply to these.`
+      : `No rows ticked — actions apply to all ${shown} shown.`;
+  }
+  // Run an async op over each target with a small concurrency cap, updating a
+  // live progress label. Returns { ok, fail }.
+  async function _aaRunBulk(targets, label, opFn) {
+    const status = $("aaBulkStatus");
+    let ok = 0, fail = 0, done = 0;
+    const tick = () => { if (status) status.textContent = `${label}… ${done}/${targets.length} (${fail} failed)`; };
+    tick();
+    const POOL = 5;
+    let idx = 0;
+    async function worker() {
+      while (idx < targets.length) {
+        const u = targets[idx++];
+        try { (await opFn(u)) ? ok++ : fail++; }
+        catch (_) { fail++; }
+        done++; tick();
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(POOL, targets.length) }, worker));
+    if (status) status.textContent = `Done: ${ok} updated, ${fail} failed.`;
+    return { ok, fail };
+  }
+
+  async function _aaBulkAction(kind) {
+    if (_aaBillingMissing) {
+      alert("Billing isn't enabled yet. Run supabase/agent_billing.sql (and agent_billing_anchor.sql) in Supabase, then reload.");
+      return;
+    }
+    const targets = _aaBulkTargets();
+    if (!targets.length) { alert("No agents to act on."); return; }
+
+    let opFn, confirmMsg, label;
+    if (kind === "approve") {
+      confirmMsg = `Approve ${targets.length} agent(s)? They stay live permanently (subject to billing). Unapproved agents auto-hide ${AA_APPROVAL_DAYS} days after registering.`;
+      label = "Approving";
+      let email = null;
+      try { const s = await window.Auth.getSession(); email = s?.user?.email || null; } catch (_) {}
+      opFn = (u) => _aaSaveBillingQuiet(u.key, { approved_at: new Date().toISOString(), approved_by: email, active: true });
+    } else if (kind === "month") {
+      confirmMsg = `Record one month's subscription for ${targets.length} agent(s)?\n\nEach agent gets a full month from their OWN timeline — extending from their current expiry if still active (paying early stacks, no lost days), otherwise starting today. Re-activates the account.`;
+      label = "Recording month";
+      opFn = (u) => {
+        const b = u.billing || {};
+        const next = _aaComputeNextPaidUntil(u);
+        const amount = Number(b.amount_tzs) > 0 ? Number(b.amount_tzs) : AA_MONTHLY_FEE;
+        const anchor = _aaAnchor(u);
+        const patch = { status: "paid", active: true, amount_tzs: amount, paid_until: next.toISOString().slice(0, 10) };
+        if (!b.started_on && anchor) patch.started_on = anchor.toISOString().slice(0, 10);
+        return _aaSaveBillingQuiet(u.key, patch);
+      };
+    } else if (kind === "activate") {
+      confirmMsg = `Activate ${targets.length} agent(s)? Their listings/profile become visible again.`;
+      label = "Activating";
+      opFn = (u) => _aaSaveBillingQuiet(u.key, { active: true, note: null });
+    } else if (kind === "deactivate") {
+      const reason = prompt(
+        `Deactivate ${targets.length} agent(s) — their listings hide from clients until reactivated.\n\nMessage they'll all see (the reason):`,
+        "Your monthly subscription is due. Please settle it to keep your account active."
+      );
+      if (reason === null) return;
+      confirmMsg = null;   // prompt already served as the confirm step
+      label = "Deactivating";
+      opFn = (u) => _aaSaveBillingQuiet(u.key, { active: false, note: (reason || "").trim() || null });
+    } else if (kind === "enroll") {
+      confirmMsg = `Enrol ${targets.length} agent(s) on the standard ${window.formatTZS(AA_MONTHLY_FEE)}/month plan?\n\nSets their monthly fee and records their billing start. Does not take money or mark them paid — use "Record month" when they pay.`;
+      label = "Enrolling";
+      opFn = (u) => {
+        const b = u.billing || {};
+        const anchor = _aaAnchor(u);
+        const patch = { amount_tzs: Number(b.amount_tzs) > 0 ? Number(b.amount_tzs) : AA_MONTHLY_FEE };
+        if (!b.started_on && anchor) patch.started_on = anchor.toISOString().slice(0, 10);
+        return _aaSaveBillingQuiet(u.key, patch);
+      };
+    } else if (kind === "fee") {
+      const v = prompt(`Set the monthly fee (TZS) for ${targets.length} agent(s):`, String(AA_MONTHLY_FEE));
+      if (v === null) return;
+      const amount = Math.max(0, Math.round(Number(v) || 0));
+      confirmMsg = null;
+      label = "Setting fee";
+      opFn = (u) => _aaSaveBillingQuiet(u.key, { amount_tzs: amount });
+    } else { return; }
+
+    if (confirmMsg && !confirm(confirmMsg)) return;
+
+    // Disable the bar while running.
+    const bar = $("aaBulkBar");
+    bar?.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    await _aaRunBulk(targets, label, opFn);
+    bar?.querySelectorAll("button").forEach((b) => (b.disabled = false));
+
+    _aaSelected.clear();
+    _aaRenderSummary();
+    _aaDraw();
   }
 
   function _aaExportCsv() {
@@ -978,17 +1318,20 @@ window.initAdminPage = async () => {
       const s = String(v == null ? "" : v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const header = ["Name", "Phone", "Email", "Roles", "Regions", "House listings", "Truck listings", "Bus records", "Verified", "Registered (ISO)", "Registered (local)", "Billing status", "Plan", "Amount (TZS)", "Paid until"];
+    const header = ["Name", "Phone", "Email", "Roles", "Regions", "House listings", "Service listings", "Truck listings", "Bus records", "Verified", "Registered (ISO)", "Registered (local)", "Billing status", "Plan", "Amount (TZS)", "Approved on", "Paid until", "Next due"];
     const lines = _aaUnified
       .slice()
       .sort((a, b) => (new Date(b.registered || 0)) - (new Date(a.registered || 0)))
       .map((u) => {
         const b = u.billing || {};
+        const anchor = _aaAnchor(u);
         return [
           u.name, u.phone, u.email, u.roles.join("|"), u.regions.join("|"),
-          u.houseCount, u.truckCount, u.busCount, u.verified ? "yes" : "no",
+          u.houseCount, u.serviceCount, u.truckCount, u.busCount, u.verified ? "yes" : "no",
           u.registered || "", u.registered ? new Date(u.registered).toLocaleString() : "",
-          b.status || "free", b.plan || "", Number(b.amount_tzs) || 0, b.paid_until || "",
+          b.status || "free", b.plan || "", Number(b.amount_tzs) || 0,
+          anchor ? anchor.toISOString().slice(0, 10) : "", b.paid_until || "",
+          _aaComputeNextPaidUntil(u).toISOString().slice(0, 10),
         ].map(esc).join(",");
       });
     const csv = [header.join(","), ...lines].join("\r\n");
@@ -1001,7 +1344,291 @@ window.initAdminPage = async () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // ---------- Tenants tab — rent expiry tracker ----------
+  // Central view of every house tenant agents have recorded, sorted by soonest
+  // rent end so the platform can contact customers near expiry. Admin reads all
+  // rows (RLS owner-or-admin) and may flip the `contacted` flag.
+  let _tenAll = null;
+
+  function _tenDays(endIso) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const end = new Date(endIso + "T00:00:00");
+    return Math.round((end - today) / 86400000);
+  }
+
+  async function renderTenancies() {
+    const list = $("tenantsList");
+    if (!list) return;
+    list.innerHTML = `<div class="empty"><p>Loading tenants…</p></div>`;
+
+    const [tRes, hRes] = await Promise.allSettled([
+      sb.from("house_tenancies").select("*"),
+      sb.from("houses").select("id,agent,area,region,title"),
+    ]);
+    const note = $("tenNote");
+    if (tRes.status !== "fulfilled" || tRes.value.error) {
+      if (note) { note.hidden = false; note.textContent = "house_tenancies table not found — run supabase/house_tenancies.sql."; }
+      list.innerHTML = `<div class="empty"><p>No tenant data.</p></div>`;
+      _tenAll = [];
+      _tenRenderSummary();
+      return;
+    }
+    if (note) note.hidden = true;
+    const tenancies = Array.isArray(tRes.value.data) ? tRes.value.data : [];
+    const houses = hRes.status === "fulfilled" && Array.isArray(hRes.value.data) ? hRes.value.data : [];
+    const hMap = new Map(houses.map((h) => [h.id, h]));
+
+    _tenAll = tenancies.map((t) => {
+      const h = hMap.get(t.house_id) || {};
+      const ag = h.agent || {};
+      return {
+        ...t,
+        house: t.house_label || h.title || "—",
+        area: h.area || h.region || "",
+        agentName: ag.name || "—",
+        agentPhone: ag.phone || "",
+        days: _tenDays(t.end_date),
+      };
+    });
+    _tenRenderSummary();
+    _tenDraw();
+  }
+
+  function _tenRenderSummary() {
+    const badge = $("tenantsBadge");
+    const active = (_tenAll || []).filter((t) => t.status === "active");
+    const soon = active.filter((t) => t.days <= 30 && t.days >= 0).length;
+    const overdue = active.filter((t) => t.days < 0).length;
+    if (badge) badge.textContent = soon ? String(soon) : "";
+    const sum = $("tenSummary");
+    if (sum) {
+      sum.innerHTML = [
+        ["Active tenancies", active.length, ""],
+        ["Ending ≤30 days", soon, "pay"],
+        ["Overdue", overdue, "rev"],
+        ["Total records", (_tenAll || []).length, ""],
+      ].map(([lbl, num, cls]) => `<div class="aa-stat ${cls}"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
+    }
+  }
+
+  function _tenDraw() {
+    const list = $("tenantsList");
+    if (!list || !_tenAll) return;
+    const q = ($("tenSearch")?.value || "").toLowerCase().trim();
+    const filter = $("tenFilter")?.value || "ending";
+    const sort = $("tenSort")?.value || "soonest";
+
+    let rows = _tenAll.filter((t) => {
+      if (filter === "active" && t.status !== "active") return false;
+      if (filter === "ending" && !(t.status === "active" && t.days <= 30)) return false;
+      if (q) {
+        const hay = `${t.customer_name} ${t.customer_phone} ${t.house} ${t.area} ${t.agentName}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    rows.sort((a, b) => sort === "latest" ? b.days - a.days : a.days - b.days);
+
+    if (!rows.length) { list.innerHTML = `<div class="empty"><p>No tenants match.</p></div>`; return; }
+
+    const dleft = (t) => {
+      if (t.status !== "active") return `<span class="aa-role-tag">${_aaEscHtml(t.status)}</span>`;
+      let cls = "ten-ok", label = `${t.days}d left`;
+      if (t.days < 0) { cls = "ten-expired"; label = `${Math.abs(t.days)}d overdue`; }
+      else if (t.days <= 7) { cls = "ten-soon"; label = t.days === 0 ? "ends today" : `${t.days}d left`; }
+      else if (t.days <= 30) { cls = "ten-warn"; }
+      return `<span class="ten-dleft ${cls}">${label}</span>`;
+    };
+
+    list.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr>
+          <th>Customer</th><th>Phone</th><th>Owner phone</th><th>House</th><th>Agent</th>
+          <th>Start</th><th>Ends</th><th>Days</th><th>Status</th><th>Contacted</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((t) => `
+            <tr data-id="${_aaEscHtml(t.id)}">
+              <td>${_aaEscHtml(t.customer_name)}</td>
+              <td>${t.customer_phone ? `<a href="tel:${_aaEscHtml(t.customer_phone)}">${_aaEscHtml(t.customer_phone)}</a>` : "—"}</td>
+              <td>${t.landlord_phone ? `<a href="tel:${_aaEscHtml(t.landlord_phone)}">${_aaEscHtml(t.landlord_phone)}</a>` : "—"}</td>
+              <td>${_aaEscHtml(t.house)}${t.area ? `<br><small>${_aaEscHtml(t.area)}</small>` : ""}</td>
+              <td>${_aaEscHtml(t.agentName)}${t.agentPhone ? `<br><small>${_aaEscHtml(t.agentPhone)}</small>` : ""}</td>
+              <td>${_aaEscHtml(t.start_date)}</td>
+              <td><strong>${_aaEscHtml(t.end_date)}</strong></td>
+              <td>${dleft(t)}</td>
+              <td style="text-transform:capitalize">${_aaEscHtml(t.status)}</td>
+              <td><input type="checkbox" class="ten-contacted" ${t.contacted ? "checked" : ""}></td>
+            </tr>`).join("")}
+        </tbody>
+      </table></div>`;
+
+    list.querySelectorAll("tr[data-id]").forEach((tr) => {
+      const id = tr.dataset.id;
+      tr.querySelector(".ten-contacted")?.addEventListener("change", async (e) => {
+        const checked = e.target.checked;
+        const { error } = await sb.from("house_tenancies")
+          .update({ contacted: checked, updated_at: new Date().toISOString() }).eq("id", id);
+        if (error) { e.target.checked = !checked; alert("Update failed: " + error.message); return; }
+        const rec = _tenAll.find((x) => x.id === id); if (rec) rec.contacted = checked;
+      });
+    });
+  }
+
+  function _tenExportCsv() {
+    if (!_tenAll || !_tenAll.length) { alert("No tenants to export yet."); return; }
+    const esc = (v) => { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const header = ["Customer", "Phone", "Owner phone", "House", "Area", "Agent", "Agent phone", "Start", "Ends", "Days left", "Status", "Contacted", "Notes"];
+    const lines = _tenAll.slice().sort((a, b) => a.days - b.days).map((t) => [
+      t.customer_name, t.customer_phone, t.landlord_phone || "", t.house, t.area, t.agentName, t.agentPhone,
+      t.start_date, t.end_date, t.days, t.status, t.contacted ? "yes" : "no", t.notes || "",
+    ].map(esc).join(","));
+    const csv = [header.join(","), ...lines].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `pawa-tenants-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   // ---------- routes editor ----------
+  // ---------- Day Jobs tab — vibarua board oversight ----------
+  // Lists every posted job with its claimed workers (names + phones — the
+  // "day_job_claims admin read" RLS policy makes them visible to admins
+  // only). Close abusive/finished posts, reopen mistakes, delete spam.
+  let _djJobs = [], _djClaims = new Map();   // job_id -> [claims]
+  const _djEsc = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+  async function renderDayJobs() {
+    const note = $("djNote");
+    try {
+      const [jobsQ, claimsQ] = await Promise.all([
+        sb.from("day_jobs").select("*").order("created_at", { ascending: false }).limit(500),
+        sb.from("day_job_claims").select("job_id, worker_name, worker_phone, worker_code, created_at")
+          .order("created_at", { ascending: true }).limit(2000)
+      ]);
+      if (jobsQ.error) throw jobsQ.error;
+      _djJobs = jobsQ.data || [];
+      _djClaims = new Map();
+      // Claims read needs the admin RLS policy; if it errors we still show jobs.
+      if (!claimsQ.error) {
+        for (const c of (claimsQ.data || [])) {
+          if (!_djClaims.has(c.job_id)) _djClaims.set(c.job_id, []);
+          _djClaims.get(c.job_id).push(c);
+        }
+      }
+      note.hidden = true;
+    } catch (e) {
+      note.hidden = false;
+      note.textContent = "Day jobs unavailable: " + (e.message || e) +
+        " — run supabase/day_jobs.sql if the board isn't deployed yet.";
+      _djJobs = [];
+    }
+    _djDraw();
+  }
+
+  function _djDraw() {
+    const wrap = $("dayJobsList");
+    if (!wrap) return;
+    const q  = ($("djSearch")?.value || "").toLowerCase().trim();
+    const st = $("djStatus")?.value || "";
+
+    // Summary cards + tab badge (open jobs).
+    const open = _djJobs.filter(j => j.status === "open");
+    const slotsOpen = open.reduce((s, j) => s + Math.max(0, j.workers_needed - j.claimed_count), 0);
+    const workers   = _djJobs.reduce((s, j) => s + (j.claimed_count || 0), 0);
+    $("djBadge").textContent = open.length || "";
+    const sum = $("djSummary");
+    if (sum) sum.innerHTML = `
+      <div class="aa-stat"><div class="num">${_djJobs.length}</div><div class="lbl">Jobs posted</div></div>
+      <div class="aa-stat"><div class="num">${open.length}</div><div class="lbl">Open now</div></div>
+      <div class="aa-stat"><div class="num">${slotsOpen}</div><div class="lbl">Slots unfilled</div></div>
+      <div class="aa-stat pay"><div class="num">${workers}</div><div class="lbl">Workers claimed</div></div>`;
+
+    let rows = _djJobs;
+    if (st) rows = rows.filter(j => j.status === st);
+    if (q)  rows = rows.filter(j =>
+      (j.title || "").toLowerCase().includes(q) ||
+      (j.company_name || "").toLowerCase().includes(q) ||
+      (j.company_phone || "").toLowerCase().includes(q));
+
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="empty-state"><div class="es-icon"></div><div>No day jobs${st || q ? " match the filter" : " posted yet"}.</div></div>`;
+      return;
+    }
+
+    const stBadge = (s) => ({
+      open:    `<span class="aa-sub sub-ok">open</span>`,
+      full:    `<span class="aa-sub sub-due">full</span>`,
+      closed:  `<span class="aa-sub sub-none">closed</span>`,
+      expired: `<span class="aa-sub sub-exp">expired</span>`
+    })[s] || _djEsc(s);
+
+    wrap.innerHTML = `
+      <div style="overflow-x:auto">
+      <table class="data-table" style="width:100%;border-collapse:collapse;font-size:14px;background:var(--c-surface,#fff)">
+        <thead><tr>
+          <th style="text-align:left;padding:9px 10px">Job</th>
+          <th style="text-align:left;padding:9px 10px">Company</th>
+          <th style="text-align:left;padding:9px 10px">When</th>
+          <th style="text-align:left;padding:9px 10px">Pay</th>
+          <th style="text-align:left;padding:9px 10px">Workers</th>
+          <th style="text-align:left;padding:9px 10px">Status</th>
+          <th style="text-align:left;padding:9px 10px">Actions</th>
+        </tr></thead>
+        <tbody>
+        ${rows.map(j => {
+          const claims = _djClaims.get(j.id) || [];
+          const when = [j.work_date || "", j.time_note || ""].filter(Boolean).join(" · ");
+          const workersHtml = claims.length
+            ? `<details><summary style="cursor:pointer">${j.claimed_count}/${j.workers_needed} — view workers</summary>
+                 <ul style="margin:6px 0 0;padding-left:16px">
+                   ${claims.map(c => `<li><code style="background:#064a33;color:#fff;border-radius:5px;padding:0 6px;font-weight:700">${_djEsc(c.worker_code || "—")}</code> ${_djEsc(c.worker_name)} — <a href="tel:${_djEsc(c.worker_phone)}">${_djEsc(c.worker_phone)}</a></li>`).join("")}
+                 </ul></details>`
+            : `${j.claimed_count}/${j.workers_needed}`;
+          const actions = [
+            (j.status === "open" || j.status === "full")
+              ? `<button class="btn btn-outline btn-sm" data-dj-close="${j.id}">Close</button>` : "",
+            (j.status === "closed" || j.status === "expired")
+              ? `<button class="btn btn-outline btn-sm" data-dj-open="${j.id}">Reopen</button>` : "",
+            `<button class="btn btn-danger btn-sm" data-dj-del="${j.id}">Delete</button>`
+          ].filter(Boolean).join(" ");
+          return `<tr style="border-top:1px solid var(--c-border,#e7e4dd)">
+            <td style="padding:9px 10px"><strong>${_djEsc(j.title)}</strong>
+              ${j.description ? `<br><small style="color:var(--c-muted,#6b6960)">${_djEsc(j.description.slice(0, 90))}${j.description.length > 90 ? "…" : ""}</small>` : ""}</td>
+            <td style="padding:9px 10px">${_djEsc(j.company_name)}<br><a href="tel:${_djEsc(j.company_phone)}"><small>${_djEsc(j.company_phone)}</small></a></td>
+            <td style="padding:9px 10px">${_djEsc(when || "—")}</td>
+            <td style="padding:9px 10px">${j.pay_tzs ? "TZS " + Number(j.pay_tzs).toLocaleString("en-US") : "—"}</td>
+            <td style="padding:9px 10px">${workersHtml}</td>
+            <td style="padding:9px 10px">${stBadge(j.status)}</td>
+            <td style="padding:9px 10px;white-space:nowrap">${actions}</td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+      </table></div>`;
+
+    wrap.querySelectorAll("[data-dj-close]").forEach(b => b.addEventListener("click", () => _djSetStatus(b.dataset.djClose, "closed")));
+    wrap.querySelectorAll("[data-dj-open]").forEach(b => b.addEventListener("click", () => _djSetStatus(b.dataset.djOpen, "open")));
+    wrap.querySelectorAll("[data-dj-del]").forEach(b => b.addEventListener("click", async () => {
+      if (!confirm("Delete this job post (and its worker claims) permanently?")) return;
+      const { error } = await sb.from("day_jobs").delete().eq("id", b.dataset.djDel);
+      if (error) { alert("Delete failed: " + error.message); return; }
+      _djJobs = _djJobs.filter(j => String(j.id) !== String(b.dataset.djDel));
+      _djDraw();
+    }));
+  }
+
+  async function _djSetStatus(id, status) {
+    const { error } = await sb.from("day_jobs").update({ status }).eq("id", id);
+    if (error) { alert("Update failed: " + error.message); return; }
+    const j = _djJobs.find(x => String(x.id) === String(id));
+    if (j) j.status = status;
+    _djDraw();
+  }
+
   async function renderRoutesEditor() {
     const [buses, regions] = await Promise.all([
       window.DataStore.getBuses(),
@@ -1009,7 +1636,7 @@ window.initAdminPage = async () => {
     ]);
     const busSel = $("routeBus");
     busSel.innerHTML = `<option value="">— select bus —</option>` +
-      buses.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+      buses.map(b => `<option value="${escH(b.id)}">${escH(b.name)}</option>`).join("");
     // Populate datalist for autocomplete — user can also type a region that doesn't exist yet
     $("routeRegionList").innerHTML = regions.map(r => `<option value="${r}"></option>`).join("");
 
@@ -1102,20 +1729,20 @@ window.initAdminPage = async () => {
     const drawExisting = () => {
       const html = buses.map(b => `
         <details class="card" style="margin-bottom:8px">
-          <summary><strong>${b.name}</strong> — ${(b.routes || []).length} legs</summary>
+          <summary><strong>${escH(b.name)}</strong> — ${(b.routes || []).length} legs</summary>
           <ul style="margin-left:18px;margin-top:8px">
             ${(b.routes || []).map(r => `
               <li>
-                ${r.from} → ${r.to}
-                <small style="color:var(--gray)">(${r.departure}, ~${r.duration_hours}h)</small>
-                <button class="btn btn-danger btn-sm remove-leg" data-bus="${b.id}" data-from="${r.from}" data-to="${r.to}">Remove pair</button>
+                ${escH(r.from)} → ${escH(r.to)}
+                <small style="color:var(--gray)">(${escH(r.departure)}, ~${escH(r.duration_hours)}h)</small>
+                <button class="btn btn-danger btn-sm remove-leg" data-bus="${escH(b.id)}" data-from="${escH(r.from)}" data-to="${escH(r.to)}">Remove pair</button>
               </li>`).join("")}
           </ul>
         </details>`).join("");
       $("existingRoutes").innerHTML = html || "<p>No routes yet.</p>";
       $("existingRoutes").querySelectorAll(".remove-leg").forEach(btn => {
         btn.addEventListener("click", async () => {
-          if (!confirm(`Remove ${btn.dataset.from} ↔ ${btn.dataset.to} from this bus?`)) return;
+          if (!confirm(`Remove ${btn.dataset.from}  ${btn.dataset.to} from this bus?`)) return;
           const { data: busRow, error: fetchErr } = await sb
             .from("buses").select("routes").eq("id", btn.dataset.bus).single();
           if (fetchErr) return alert(fetchErr.message);
@@ -1135,7 +1762,7 @@ window.initAdminPage = async () => {
     // ── Seat structure editor ──────────────────────────────
     const seBusSel = $("seBus");
     seBusSel.innerHTML = `<option value="">— select bus —</option>` +
-      buses.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+      buses.map(b => `<option value="${escH(b.id)}">${escH(b.name)}</option>`).join("");
 
     $("seLoadBtn").addEventListener("click", () => {
       const bus = buses.find(b => b.id === seBusSel.value);
@@ -1200,7 +1827,7 @@ window.initAdminPage = async () => {
     const mbDate  = $("mbDate");
 
     mbBus.innerHTML = `<option value="">— select bus —</option>` +
-      buses.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+      buses.map(b => `<option value="${escH(b.id)}">${escH(b.name)}</option>`).join("");
 
     mbDate.min   = new Date().toISOString().split("T")[0];
     mbDate.value = new Date().toISOString().split("T")[0];
@@ -1213,7 +1840,7 @@ window.initAdminPage = async () => {
         const seen = new Set();
         bus.routes.forEach(r => {
           const key = `${r.departure}|${r.from}|${r.to}`;
-          if (!seen.has(key)) { seen.add(key); mbRoute.innerHTML += `<option value="${key}">${r.from} → ${r.to} (${r.departure})</option>`; }
+          if (!seen.has(key)) { seen.add(key); mbRoute.innerHTML += `<option value="${escH(key)}">${escH(r.from)} → ${escH(r.to)} (${escH(r.departure)})</option>`; }
         });
       }
       $("mbSeatSection").hidden = true;
@@ -1381,7 +2008,7 @@ window.initAdminPage = async () => {
       const fare = bk.fare_tzs ? window.formatTZS(bk.fare_tzs) : "—";
       resultEl.innerHTML = `
         <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:12px 15px;margin-bottom:16px">
-          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#065f46;margin-bottom:6px">Booking Found ✓</div>
+          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#065f46;margin-bottom:6px">Booking Found </div>
           <p style="margin:0 0 3px"><strong>${bk.passenger_name || "—"}</strong> · Seat <strong>${bk.seat_number || "—"}</strong></p>
           <p style="margin:0 0 3px;font-size:0.88rem;color:var(--gray)">${bk.bus_name || "—"} · ${bk.origin || "—"} → ${bk.destination || "—"} · ${bk.travel_date || "—"}${bk.departure_time ? " " + bk.departure_time : ""}</p>
           <p style="margin:0"><strong>Fare: ${fare}</strong></p>
@@ -1391,9 +2018,9 @@ window.initAdminPage = async () => {
         <div style="margin-bottom:14px">
           <div style="font-size:0.78rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Payment Method</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn btn-primary btn-sm cpa-mthd" data-m="cash">💵 Cash</button>
-            <button type="button" class="btn btn-outline btn-sm cpa-mthd" data-m="mobile">📱 Mobile Money</button>
-            <button type="button" class="btn btn-outline btn-sm cpa-mthd" data-m="bank">🏦 Bank Transfer</button>
+            <button type="button" class="btn btn-primary btn-sm cpa-mthd" data-m="cash"> Cash</button>
+            <button type="button" class="btn btn-outline btn-sm cpa-mthd" data-m="mobile"> Mobile Money</button>
+            <button type="button" class="btn btn-outline btn-sm cpa-mthd" data-m="bank"> Bank Transfer</button>
           </div>
         </div>
 
@@ -1510,10 +2137,10 @@ window.initAdminPage = async () => {
         const sentTo = result?.passenger_phone || phone || bk.passenger_phone || "customer";
         msgEl.innerHTML = `
           <div class="banner success">
-            ✅ Payment authorized. Ticket sent to <strong>${sentTo}</strong> via SMS.
+             Payment authorized. Ticket sent to <strong>${sentTo}</strong> via SMS.
             ${selMethod === "bank" ? `<br><small>Bank ref: ${bankRef}</small>` : ""}
           </div>`;
-        confirmBtn.textContent = "✓ Done";
+        confirmBtn.textContent = " Done";
         codeEl.value = "";
         setTimeout(() => {
           resultEl.innerHTML = "";
@@ -1534,7 +2161,7 @@ window.initAdminPage = async () => {
     const statusColor = { pending: "#b45309", approved: "#0a6f4d", rejected: "#dc2626" };
 
     async function load() {
-      wrap.innerHTML = `<div class="empty-state"><div class="es-icon">⏳</div><div>Loading…</div></div>`;
+      wrap.innerHTML = `<div class="empty-state"><div class="es-icon"></div><div>Loading…</div></div>`;
       const fv = filterEl?.value ?? "pending";
       let q = sb.from("trip_cancellation_requests")
         .select("id,bus_id,travel_date,departure_time,route_from,route_to,reason,requested_by_name,status,reviewed_at,review_note,affected_count,created_at")
@@ -1543,7 +2170,7 @@ window.initAdminPage = async () => {
       if (fv) q = q.eq("status", fv);
       const { data, error } = await q;
       if (error) { wrap.innerHTML = `<div class="banner error">${error.message}</div>`; return; }
-      if (!data.length) { wrap.innerHTML = `<div class="empty-state"><div class="es-icon">✓</div><div>No ${fv || ""} requests.</div></div>`; return; }
+      if (!data.length) { wrap.innerHTML = `<div class="empty-state"><div class="es-icon"></div><div>No ${fv || ""} requests.</div></div>`; return; }
 
       // Update badge
       const badge = $("cancelBadge");
@@ -1557,16 +2184,16 @@ window.initAdminPage = async () => {
         <div class="card" style="margin-bottom:14px;padding:18px 20px;border-left:4px solid ${statusColor[r.status] || "#999"}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div>
-              <strong style="font-size:1rem">${r.travel_date} ${r.departure_time ? "· " + r.departure_time : ""}</strong>
-              ${r.route_from || r.route_to ? `<span style="color:#555;font-size:0.88rem"> — ${r.route_from || "?"} → ${r.route_to || "?"}</span>` : ""}
+              <strong style="font-size:1rem">${escH(r.travel_date)} ${r.departure_time ? "· " + escH(r.departure_time) : ""}</strong>
+              ${r.route_from || r.route_to ? `<span style="color:#555;font-size:0.88rem"> — ${escH(r.route_from || "?")} → ${escH(r.route_to || "?")}</span>` : ""}
               <br>
-              <span style="font-size:0.78rem;color:#888;font-family:monospace">Bus&nbsp;${r.bus_id.slice(0, 8)}…</span>
+              <span style="font-size:0.78rem;color:#888;font-family:monospace">Bus&nbsp;${escH(String(r.bus_id).slice(0, 8))}…</span>
             </div>
-            <span style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${statusColor[r.status] || "#888"};background:${r.status === "pending" ? "#fef9c3" : r.status === "approved" ? "#dcfce7" : "#fee2e2"};border-radius:6px;padding:3px 9px">${r.status}</span>
+            <span style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${statusColor[r.status] || "#888"};background:${r.status === "pending" ? "#fef9c3" : r.status === "approved" ? "#dcfce7" : "#fee2e2"};border-radius:6px;padding:3px 9px">${escH(r.status)}</span>
           </div>
-          <p style="margin:10px 0 4px;font-size:0.9rem"><strong>Reason:</strong> ${r.reason}</p>
-          <p style="margin:0;font-size:0.8rem;color:#666">Requested by <strong>${r.requested_by_name || "—"}</strong> · ${new Date(r.created_at).toLocaleString()}</p>
-          ${r.review_note ? `<p style="margin:6px 0 0;font-size:0.8rem;color:#555"><em>Admin note: ${r.review_note}</em></p>` : ""}
+          <p style="margin:10px 0 4px;font-size:0.9rem"><strong>Reason:</strong> ${escH(r.reason)}</p>
+          <p style="margin:0;font-size:0.8rem;color:#666">Requested by <strong>${escH(r.requested_by_name || "—")}</strong> · ${escH(new Date(r.created_at).toLocaleString())}</p>
+          ${r.review_note ? `<p style="margin:6px 0 0;font-size:0.8rem;color:#555"><em>Admin note: ${escH(r.review_note)}</em></p>` : ""}
           ${r.status === "pending" ? `
             <div style="display:flex;gap:8px;margin-top:14px;align-items:flex-end;flex-wrap:wrap">
               <input type="text" id="cancelNote_${r.id}" placeholder="Optional note for requester…"

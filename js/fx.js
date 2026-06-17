@@ -1,5 +1,5 @@
 // =====================================================================
-// Pawa Bus Cargo — Live currency / FX rates
+// Maisha na Lifeza — Live currency / FX rates
 // =====================================================================
 // Adds live exchange rates on top of the static `formatTZS()` so prices
 // can be shown with an "≈ $X" foreign equivalent (useful for diaspora /

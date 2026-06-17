@@ -26,7 +26,7 @@
 -- agents row). Their first sign-in auto-links the account. Admins can also link
 -- manually:  update public.agents set user_id = '<auth uid>' where id = 'AG0xx';
 --
--- ⚠️ REQUIRED: turn ON "Confirm email" in Supabase → Authentication → Providers
+--  REQUIRED: turn ON "Confirm email" in Supabase → Authentication → Providers
 --    → Email. The auto-link below matches an agent row by the caller's login
 --    email. With email confirmation OFF, anyone could sign up using a known
 --    agent's email and claim that agent's profile. Confirmation proves the
@@ -131,16 +131,28 @@ create policy "shipments agent update" on public.shipments
 -- SECURITY DEFINER RPC instead — it can ONLY flip status to those two values.
 create or replace function public.confirm_shipment_status(p_code text, p_status text)
 returns void language plpgsql security definer set search_path = public as $fn$
+declare v_cur text;
 begin
   if p_status not in ('Arrived', 'Delivered') then
     raise exception 'confirm_shipment_status only allows Arrived or Delivered (got %)', p_status;
   end if;
-  update public.shipments
-     set status = p_status
-   where tracking_code = p_code;
+  select status into v_cur from public.shipments where tracking_code = p_code;
   if not found then
     raise exception 'shipment % not found', p_code;
   end if;
+  -- Forward-only confirmation. The tracking code is the only credential here, so
+  -- we refuse to touch parcels that aren't actually in/near delivery: this blocks
+  -- a code-guesser from disturbing pre-dispatch shipments (Awaiting Price / Needs
+  -- Revision / Registered / Collected) or un-delivering a completed one.
+  if p_status = 'Arrived'   and v_cur not in ('Picked Up', 'In Transit', 'Arrived') then
+    raise exception 'cannot mark Arrived from status %', v_cur;
+  end if;
+  if p_status = 'Delivered' and v_cur not in ('In Transit', 'Arrived', 'Delivered') then
+    raise exception 'cannot mark Delivered from status %', v_cur;
+  end if;
+  update public.shipments
+     set status = p_status, updated_at = now()
+   where tracking_code = p_code;
 end;
 $fn$;
 

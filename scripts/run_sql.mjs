@@ -47,7 +47,7 @@ async function pickClient() {
     process.stdout.write(`→ trying ${c.label} (${c.host})... `);
     try {
       const cli = await tryConnect(c);
-      console.log("connected ✓");
+      console.log("connected ");
       return cli;
     } catch (e) {
       console.log("fail:", e.code || e.message);
@@ -63,9 +63,9 @@ for (const f of SQL_FILES) {
   const sql = await readFile(f, "utf8");
   try {
     await client.query(sql);
-    console.log(`✓ ${f}`);
+    console.log(` ${f}`);
   } catch (e) {
-    console.error(`✗ ${f}: ${e.message}`);
+    console.error(` ${f}: ${e.message}`);
     if (e.position) console.error(`   at position ${e.position}`);
     await client.end();
     process.exit(1);

@@ -46,10 +46,10 @@ for (const { file, key } of PHOTOS) {
     upsert: true,
   });
   if (error) {
-    console.error(`✗ ${key}: ${error.message}`);
+    console.error(` ${key}: ${error.message}`);
   } else {
     const { data } = sb.storage.from(BUCKET).getPublicUrl(key);
-    console.log(`✓ ${key}`);
+    console.log(` ${key}`);
     console.log(`  → ${data.publicUrl}`);
   }
 }

@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>List your truck — Pawa Bus Cargo</title>
+  <title>List your truck — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/auth.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
 
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0a6f4d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/mobile.css" />
   <link rel="stylesheet" href="css/premium.css" />
@@ -21,16 +22,18 @@
 
   <style>
     .at-card { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-    .at-auth-card { max-width: 420px; margin: 0 auto; }
-    .at-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
-    .at-tabs button { flex: 1; padding: 10px; border: 1px solid var(--c-border,#e7e4dd); background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915); }
-    .at-tabs button.active { background: var(--c-brand,#0a6f4d); color: #fff; border-color: transparent; }
+    /* Auth sign-in/up card now uses the shared css/auth.css system. */
     .at-field { margin-bottom: 12px; }
     .at-field label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: 5px; }
     .at-field input, .at-field select, .at-field textarea {
       width: 100%; padding: 11px 12px; border: 1px solid var(--c-border,#e7e4dd);
       border-radius: 10px; font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text,#1a1915);
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
+    .at-field input:hover, .at-field select:hover, .at-field textarea:hover { border-color: var(--c-brand,#0a6f4d); }
+    .at-field input:focus, .at-field select:focus, .at-field textarea:focus { outline: none; border-color: var(--c-brand,#0a6f4d); box-shadow: 0 0 0 3px rgba(10,111,77,.18); }
+    .at-btn:focus-visible { outline: 3px solid rgba(10,111,77,.4); outline-offset: 2px; }
+    .at-btn-brand:hover { background: var(--c-brand-deep,#064a33); }
     .at-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .at-checks { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 12px; }
     .at-checks label { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; font-weight: 600; }
@@ -40,8 +43,8 @@
     .at-btn-danger { background: #fce4e4; color: #b91c1c; border-color: #f5b3b3; }
     .at-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
     .at-msg { padding: 10px 12px; border-radius: 10px; font-size: .88rem; margin-top: 10px; }
-    .at-msg.error { background: #fce4e4; color: #b91c1c; }
-    .at-msg.success { background: #e6f6ec; color: #0d8050; }
+    .at-msg.error { background: #fce4e4; color: #b91c1c; border: 1px solid #f0b8b8; }
+    .at-msg.success { background: #e6f6ec; color: #0d8050; border: 1px solid #a8d9b8; }
     .at-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
     .at-tile { border: 1px solid var(--c-border,#e7e4dd); border-radius: 12px; overflow: hidden; background: #fff; }
     .at-tile-photo { aspect-ratio: 4/3; background: #dfe7e2 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
@@ -78,27 +81,67 @@
   <main id="atMain" class="container" style="padding-top:18px; padding-bottom:60px; max-width:880px;">
 
     <!-- Auth -->
-    <section id="atAuthCard" class="at-card at-auth-card" hidden>
-      <div class="at-tabs">
-        <button id="tabSignIn" class="active" type="button">Sign in</button>
-        <button id="tabSignUp" type="button">Create account</button>
+    <section id="atAuthCard" class="auth-scene" hidden>
+      <div class="login-split">
+        <aside class="login-brand">
+          <span class="login-brand__logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg>
+          </span>
+          <h2 class="login-brand__name">List moving <em>trucks</em></h2>
+          <p class="login-brand__lead">Help people move home. Register your truck at its base and get found by customers nearby.</p>
+          <ul class="login-brand__list">
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Free to list — no setup fees</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span> Customers find you by distance</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Per-trip pricing you set</li>
+          </ul>
+        </aside>
+        <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-head">
+          <span class="auth-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg>
+          </span>
+          <h1 class="auth-title">Trucks portal sign in</h1>
+          <p class="auth-lead">List moving trucks &amp; lorries for hire. New here? Create an account in seconds.</p>
+        </div>
+        <div class="auth-tabs">
+          <button id="tabSignIn" class="active" type="button">Sign in</button>
+          <button id="tabSignUp" type="button">Create account</button>
+        </div>
+        <form id="atAuthForm" class="auth-form" autocomplete="on" novalidate>
+          <div class="auth-field">
+            <label for="atEmail">Email</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+              <input class="auth-input" id="atEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="atPassword">Password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="auth-input auth-input--pw" id="atPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
+              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="auth-field" id="atPasswordConfirmRow" hidden>
+            <label for="atPasswordConfirm">Re-enter password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="auth-input auth-input--pw" id="atPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="••••••••" />
+              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <button id="atAuthSubmit" class="auth-submit" type="submit">Sign in</button>
+          <div id="atAuthMsg" class="auth-msg" role="alert" aria-live="polite"></div>
+        </form>
       </div>
-      <form id="atAuthForm" autocomplete="on">
-        <div class="at-field">
-          <label for="atEmail">Email</label>
-          <input id="atEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
         </div>
-        <div class="at-field">
-          <label for="atPassword">Password</label>
-          <input id="atPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
-        </div>
-        <div class="at-field" id="atPasswordConfirmRow" hidden>
-          <label for="atPasswordConfirm">Re-enter password</label>
-          <input id="atPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="••••••••" />
-        </div>
-        <button id="atAuthSubmit" class="at-btn at-btn-brand" type="submit" style="width:100%;justify-content:center;">Sign in</button>
-        <p id="atAuthMsg" class="at-msg" hidden></p>
-      </form>
+      </div>
     </section>
 
     <!-- Dashboard -->
@@ -142,12 +185,18 @@
               <option value="3ton">3-tonne</option>
               <option value="7ton">7-tonne lorry</option>
               <option value="10ton_plus">10-tonne+ lorry</option>
-              <option value="other">Other</option>
+              <option value="other">Other (any kind)…</option>
             </select>
           </div>
           <div class="at-field">
             <label for="atCapacity">Capacity (tonnes)</label>
             <input id="atCapacity" type="number" min="0" step="0.5" placeholder="e.g. 3" />
+          </div>
+        </div>
+        <div class="at-row" id="atTypeOtherRow" style="display:none">
+          <div class="at-field">
+            <label for="atTypeOther">Specify the kind</label>
+            <input id="atTypeOther" type="text" maxlength="40" placeholder="e.g. Tipper, flatbed, refrigerated, fuso…" />
           </div>
         </div>
 
@@ -196,11 +245,15 @@
             <input id="atPinSearch" type="search" autocomplete="off" placeholder="Search a place (e.g. Mikocheni, Sakina…)" />
             <div id="atPinResults" class="at-pin-results" hidden></div>
           </div>
+          <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
+            <button type="button" id="atPinAi" style="padding:9px 14px;border:1px solid #0a6f4d;background:#0a6f4d;color:#fff;border-radius:9px;font-weight:600;cursor:pointer;white-space:nowrap;"> Describe it — let AI pin it</button>
+            <small id="atPinAiMsg" style="flex:1;min-width:160px;color:#6b7a73;"></small>
+          </div>
           <div class="at-pin-wrap">
             <div id="atPinMap" class="at-pin-map"></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
-            <button type="button" id="atPinGps" class="at-btn">📍 Use my GPS</button>
+            <button type="button" id="atPinGps" class="at-btn"> Use my GPS</button>
             <span id="atPinCoords" class="at-pin-coords">No pin set</span>
           </div>
         </div>
@@ -242,11 +295,13 @@
   <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
   <script src="js/config.js"></script>
   <script src="js/geo.js"></script>
+  <script src="js/ai.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/data.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/geolocate.js"></script>
+  <script src="js/auth-ui.js"></script>
   <script src="js/agent-trucks.js"></script>
   <script>
     window.renderNav("agent-trucks.html");

@@ -44,10 +44,19 @@ pawa2/
 ├── scripts/                ← One-off admin scripts (photo upload, SQL runner)
 ├── docs/                   ← Setup guides, runbooks, AI agent prompt
 ├── tests/                  ← Test scripts
+├── android/                ← Capacitor native Android app (see docs/APP_BUILD.md)
+├── capacitor.config.json   ← Native app identity (com.maishahub.app, webDir: www/)
 ├── server.js               ← Simple static file server (port 8080)
 ├── serve.js                ← Alternative static server (port 3000)
 └── .env.example            ← Environment variable template
 ```
+
+## Website AND application
+
+The site is an installable PWA (manifest.json + service-worker.js + PNG icons
+in `icons/`, regenerate with `node scripts/make_icons.mjs`) and a native
+Android app via Capacitor: `node scripts/build_app.mjs && npx cap sync android`
+stages the site into `www/` (gitignored). Full runbook: `docs/APP_BUILD.md`.
 
 > Historical note: this used to live under `bus web/`. It was flattened to the
 > repo root so GitHub Pages can deploy it without a build step or workflow.

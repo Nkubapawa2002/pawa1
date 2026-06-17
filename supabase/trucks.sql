@@ -13,7 +13,7 @@ create table if not exists public.trucks (
   id                text primary key,
   title             text not null,
   truck_type        text not null default 'canter'
-                      check (truck_type in ('pickup','canter','3ton','7ton','10ton_plus','other')),
+                      check (char_length(btrim(truck_type)) between 1 and 40),  -- free-form: pickup/canter/…/any kind
   capacity_tonnes   numeric check (capacity_tonnes is null or capacity_tonnes >= 0),
   price_tzs         bigint not null default 0 check (price_tzs >= 0),  -- "from" per-trip price
   currency          text not null default 'TZS',

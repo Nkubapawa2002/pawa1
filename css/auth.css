@@ -1,0 +1,537 @@
+/* =====================================================================
+   auth.css — Unified authentication UI for Maisha na Lifeza
+   ---------------------------------------------------------------------
+   PREMIUM GLASSMORPHISM redesign (ui-ux-pro-max: "Liquid Glass" pattern).
+   One on-brand, accessible auth system for every login / registration
+   surface (login.html, the agent portals, dashboard gates). Frosted glass
+   card with backdrop blur + layered depth over the brand green, built on
+   the design tokens in claude-design.css. SVG icons only — no emoji.
+
+   Design rules honoured (per ui-ux-pro-max):
+     · Glass: backdrop-filter blur(16-18px)+saturate, 1px light border,
+       top sheen, layered ambient+key shadow. @supports fallback to solid.
+     · Contrast: the frosted surface stays ~0.7 opaque so dark text keeps
+       a >=4.5:1 ratio over photos AND the dark neon-pro dashboard theme.
+     · Motion: 150-300ms micro-interactions, one gentle card entrance,
+       fully disabled under prefers-reduced-motion.
+     · Touch: >=48px fields/buttons, visible brand focus rings.
+
+   Conventions:
+     .auth-shell   page wrapper that centres the card (+ ambient orbs)
+     .auth-card    the frosted glass card
+     .auth-field   label + input(+icon) group
+     .auth-input   text/email/password input
+     .auth-eye     password show/hide toggle
+     .auth-submit  full-width primary button (+ .is-loading)
+     .auth-msg     status box (.is-error / .is-ok), aria-live
+     .auth-tabs    sign-in / create-account switch
+   ===================================================================== */
+
+:root {
+  --auth-radius:      20px;
+  --auth-radius-sm:   12px;
+  --auth-field-h:     50px;            /* >= 44px touch target */
+  --auth-ring:        var(--c-brand, #0a6f4d);
+
+  /* Glass tokens — tuned so text stays AA-readable on any backdrop. */
+  --auth-glass-bg:     rgba(255, 255, 255, .72);
+  --auth-glass-bg-2:   rgba(255, 255, 255, .58);
+  --auth-glass-border: rgba(255, 255, 255, .65);
+  --auth-glass-blur:   saturate(160%) blur(18px);
+  --auth-sheen:        inset 0 1px 0 rgba(255, 255, 255, .85);
+  --auth-shadow:
+    0 24px 60px -18px rgba(6, 74, 51, .42),
+    0 8px 24px -12px rgba(6, 28, 20, .28),
+    var(--auth-sheen);
+  --auth-field-bg:     rgba(255, 255, 255, .62);
+  --auth-field-border: rgba(120, 130, 120, .34);
+}
+
+/* ── Page shell + ambient glow ────────────────────────────────────── */
+.auth-shell {
+  position: relative;
+  max-width: 468px;
+  margin: clamp(28px, 6vw, 60px) auto 64px;
+  padding: 0 16px;
+  isolation: isolate;
+}
+.auth-shell--wide { max-width: 880px; }
+/* Soft brand-coloured orbs blooming behind the card → premium depth.
+   Low opacity + behind everything so they never hurt legibility. */
+.auth-shell::before,
+.auth-shell::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(56px);
+  opacity: .5;
+  pointer-events: none;
+}
+.auth-shell::before {
+  width: 320px; height: 320px;
+  top: -64px; left: -86px;
+  background: radial-gradient(circle at 30% 30%, rgba(16, 163, 110, .55), transparent 70%);
+}
+.auth-shell::after {
+  width: 300px; height: 300px;
+  bottom: -70px; right: -80px;
+  background: radial-gradient(circle at 70% 70%, rgba(6, 74, 51, .5), transparent 70%);
+}
+
+/* ── Card ─────────────────────────────────────────────────────────── */
+.auth-card {
+  position: relative;
+  background: var(--auth-glass-bg);
+  -webkit-backdrop-filter: var(--auth-glass-blur);
+  backdrop-filter: var(--auth-glass-blur);
+  /* Explicit dark text so the frosted card stays readable on dark-themed
+     (non-data-bg) pages like super-admin.html, where the body inherits
+     neon-pro's light text colour. */
+  color: var(--c-text, #1a1915);
+  border: 1px solid var(--auth-glass-border);
+  border-radius: var(--auth-radius);
+  padding: clamp(24px, 5vw, 36px);
+  box-shadow: var(--auth-shadow);
+  overflow: hidden;
+  animation: auth-rise .5s cubic-bezier(.22, 1, .36, 1) both;
+}
+.auth-card + .auth-card { margin-top: 16px; }
+/* Diagonal light sheen sweeping the glass — the "liquid" highlight. */
+.auth-card::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.35) 0%, rgba(255,255,255,0) 42%);
+  pointer-events: none;
+}
+.auth-card > * { position: relative; }
+/* Browsers without backdrop-filter → fall back to a near-solid surface. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-card { background: rgba(255, 255, 255, .96); }
+}
+
+/* Brand header inside the card */
+.auth-head { text-align: center; margin-bottom: 22px; }
+.auth-logo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 58px; height: 58px; border-radius: 17px;
+  background: linear-gradient(150deg, #10a36e 0%, var(--c-brand, #0a6f4d) 55%, var(--c-brand-deep, #064a33) 100%);
+  color: #fff; margin-bottom: 14px;
+  box-shadow: 0 10px 22px -8px rgba(10, 111, 77, .65), inset 0 1px 0 rgba(255,255,255,.4);
+}
+.auth-logo svg { width: 30px; height: 30px; }
+.auth-card h1, .auth-title {
+  margin: 0 0 6px;
+  font-family: var(--c-font-display, Georgia, serif);
+  font-size: clamp(1.5rem, 4.4vw, 1.78rem);
+  line-height: 1.16;
+  letter-spacing: -.01em;
+  color: var(--c-brand-deep, #064a33);
+}
+.auth-lead {
+  margin: 0 auto;
+  max-width: 38ch;
+  color: var(--c-text-muted, #5d5b52);
+  font-size: .93rem;
+  line-height: 1.55;
+}
+
+/* ── Tabs (sign in / create account) ─────────────────────────────── */
+.auth-tabs {
+  display: flex; gap: 4px;
+  background: rgba(120, 120, 110, .12);
+  border: 1px solid rgba(255, 255, 255, .4);
+  border-radius: 13px; padding: 5px;
+  margin: 20px 0 22px;
+}
+.auth-tabs button {
+  flex: 1; border: 0; cursor: pointer;
+  padding: 10px 8px; border-radius: 9px;
+  font: inherit; font-weight: 600; font-size: .9rem;
+  color: var(--c-text-muted, #5d5b52);
+  background: transparent;
+  transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.auth-tabs button:hover { color: var(--c-brand-deep, #064a33); }
+.auth-tabs button.active {
+  background: rgba(255, 255, 255, .92);
+  color: var(--c-brand-deep, #064a33);
+  box-shadow: 0 2px 8px rgba(6, 74, 51, .14);
+}
+
+/* ── Form fields ──────────────────────────────────────────────────── */
+.auth-form { display: flex; flex-direction: column; }
+.auth-field { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+.auth-field:first-child { margin-top: 0; }
+.auth-field[hidden] { display: none !important; }
+.auth-field label {
+  font-size: .86rem; font-weight: 600;
+  color: var(--c-text-soft, #3f3d36);
+}
+.auth-field label .req { color: var(--c-danger, #b91c1c); margin-left: 2px; }
+
+.auth-input-wrap { position: relative; display: flex; align-items: center; }
+.auth-field-icon {
+  position: absolute; left: 14px; width: 18px; height: 18px;
+  color: var(--c-brand, #0a6f4d); opacity: .72; pointer-events: none;
+  transition: opacity .15s ease, color .15s ease;
+}
+.auth-input {
+  width: 100%; box-sizing: border-box;
+  height: var(--auth-field-h);
+  padding: 0 14px 0 42px;             /* left room for icon */
+  border: 1px solid var(--auth-field-border);
+  border-radius: var(--auth-radius-sm);
+  background: var(--auth-field-bg);
+  color: var(--c-text, #1a1915);
+  font-size: 16px;                     /* >=16px avoids iOS auto-zoom */
+  line-height: 1.4;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.auth-input::placeholder { color: var(--c-text-faint, #94918a); }
+.auth-input:hover { border-color: var(--c-brand, #0a6f4d); }
+.auth-input:focus,
+.auth-input:focus-visible {
+  outline: none;
+  background: #fff;
+  border-color: var(--auth-ring);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--auth-ring) 20%, transparent);
+}
+.auth-input-wrap:focus-within .auth-field-icon { opacity: 1; }
+/* No-icon variant */
+.auth-field--plain .auth-input { padding-left: 14px; }
+.auth-field--plain .auth-field-icon { display: none; }
+
+/* Invalid state (set aria-invalid="true" or .is-invalid) */
+.auth-input[aria-invalid="true"],
+.auth-input.is-invalid {
+  border-color: var(--c-danger, #b91c1c);
+  box-shadow: 0 0 0 4px var(--c-danger-soft, #fce4e4);
+}
+
+textarea.auth-input { height: auto; min-height: 92px; padding-top: 12px; padding-bottom: 12px; resize: vertical; }
+select.auth-input { padding-left: 14px; cursor: pointer; }
+
+.auth-hint { font-size: .78rem; color: var(--c-text-muted, #5d5b52); margin: 2px 0 0; }
+
+/* Password show/hide */
+.auth-eye {
+  position: absolute; right: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;          /* generous hit area */
+  border: 0; background: none; cursor: pointer; border-radius: 9px;
+  color: var(--c-text-muted, #5d5b52);
+  transition: background .15s ease, color .15s ease;
+}
+.auth-eye:hover { background: rgba(10, 111, 77, .1); color: var(--c-brand-deep, #064a33); }
+.auth-eye svg { width: 19px; height: 19px; }
+.auth-input--pw { padding-right: 48px; }
+
+/* ── Primary / secondary buttons ─────────────────────────────────── */
+.auth-submit {
+  position: relative; overflow: hidden;
+  width: 100%; margin-top: 24px;
+  min-height: var(--auth-field-h);
+  border: 0; border-radius: var(--auth-radius-sm);
+  background: linear-gradient(135deg, #10a36e 0%, var(--c-brand, #0a6f4d) 60%, var(--c-brand-deep, #064a33) 100%);
+  color: var(--c-brand-on, #fff);
+  font: inherit; font-weight: 700; font-size: 1.04rem; cursor: pointer;
+  box-shadow: 0 12px 24px -10px rgba(10, 111, 77, .6), var(--auth-sheen);
+  transition: transform .15s ease, box-shadow .2s ease, opacity .15s ease;
+}
+/* Moving shine sweep on hover. */
+.auth-submit::after {
+  content: ""; position: absolute; top: 0; left: -60%;
+  width: 50%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.32), transparent);
+  transform: skewX(-18deg);
+  transition: left .55s ease;
+}
+.auth-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 32px -12px rgba(10, 111, 77, .7), var(--auth-sheen);
+}
+.auth-submit:hover::after { left: 130%; }
+.auth-submit:active { transform: translateY(0); }
+.auth-submit:focus-visible { outline: 3px solid color-mix(in srgb, var(--auth-ring) 50%, transparent); outline-offset: 3px; }
+.auth-submit:disabled, .auth-submit.is-loading { opacity: .72; cursor: progress; transform: none; }
+.auth-submit.is-loading::before {
+  content: ""; position: absolute; right: 16px; top: 50%;
+  width: 16px; height: 16px; margin-top: -8px;
+  border: 2px solid rgba(255,255,255,.45); border-top-color: #fff;
+  border-radius: 50%; animation: auth-spin .8s linear infinite; z-index: 1;
+}
+
+.auth-secondary {
+  width: 100%; margin-top: 10px; min-height: 46px;
+  border: 1px solid var(--auth-field-border); border-radius: var(--auth-radius-sm);
+  background: rgba(255, 255, 255, .55); color: var(--c-brand-deep, #064a33);
+  font: inherit; font-weight: 600; font-size: .95rem; cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.auth-secondary:hover { border-color: var(--c-brand, #0a6f4d); background: rgba(240, 247, 242, .9); transform: translateY(-1px); }
+
+/* Aux row (forgot password etc.) */
+.auth-aux { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; flex-wrap: wrap; gap: 8px; }
+.auth-link-btn {
+  background: none; border: 0; cursor: pointer; padding: 4px 0;
+  color: var(--c-brand, #0a6f4d); font: inherit; font-weight: 600; font-size: .85rem;
+}
+.auth-link-btn:hover { text-decoration: underline; }
+
+/* ── Status / feedback ────────────────────────────────────────────── */
+.auth-msg {
+  display: none; align-items: flex-start; gap: 8px;
+  padding: 11px 13px; border-radius: var(--auth-radius-sm);
+  margin-top: 14px; font-size: .88rem; line-height: 1.45;
+}
+.auth-msg[hidden] { display: none !important; }
+.auth-msg.is-show { display: flex; animation: auth-pop .22s ease both; }
+.auth-msg.is-error { background: var(--c-danger-soft, #fce4e4); color: #8a1a1a; border: 1px solid #f0b8b8; }
+.auth-msg.is-ok    { background: var(--c-success-soft, #e1f3e8); color: #155c34; border: 1px solid #a8d9b8; }
+.auth-msg svg { flex: 0 0 auto; width: 17px; height: 17px; margin-top: 1px; }
+
+/* ── Divider ──────────────────────────────────────────────────────── */
+.auth-divider {
+  display: flex; align-items: center; gap: 10px; margin: 24px 0 14px;
+  color: var(--c-text-muted, #5d5b52); font-size: .78rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .6px;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ""; flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(120,130,120,.4), transparent);
+}
+
+/* ── Secondary destination links (register routes) ───────────────── */
+.auth-routes { display: flex; flex-direction: column; gap: 9px; }
+.auth-route {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border: 1px solid rgba(255,255,255,.5);
+  background: rgba(255, 255, 255, .42);
+  border-radius: 13px; text-decoration: none;
+  color: var(--c-text, #1a1915); font-weight: 600; font-size: .92rem;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.auth-route:hover {
+  border-color: var(--c-brand, #0a6f4d);
+  background: rgba(240, 247, 242, .85);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -10px rgba(6, 74, 51, .4);
+}
+.auth-route-ic {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 11px;
+  background: linear-gradient(150deg, rgba(16,163,110,.18), rgba(6,74,51,.16));
+  color: var(--c-brand, #0a6f4d);
+}
+.auth-route-ic svg { width: 20px; height: 20px; }
+.auth-route small { display: block; font-weight: 400; font-size: .76rem; color: var(--c-text-muted, #5d5b52); margin-top: 2px; }
+.auth-route .auth-route-go { margin-left: auto; color: var(--c-brand, #0a6f4d); transition: transform .15s ease; }
+.auth-route:hover .auth-route-go { transform: translateX(3px); }
+
+/* ── Portal chooser (post sign-in routing) ───────────────────────── */
+.auth-who { font-size: .9rem; color: var(--c-text-soft, #3f3d36); margin: 0 0 16px; }
+.auth-who strong { color: var(--c-brand-deep, #064a33); }
+.auth-portals { display: flex; flex-direction: column; gap: 9px; }
+.auth-portal {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px; border: 1px solid rgba(255,255,255,.5);
+  background: rgba(255, 255, 255, .42);
+  border-radius: 13px; text-decoration: none;
+  color: var(--c-text, #1a1915); font-weight: 700; font-size: .94rem;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.auth-portal:hover {
+  border-color: var(--c-brand, #0a6f4d);
+  background: rgba(240, 247, 242, .85);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -10px rgba(6, 74, 51, .4);
+}
+.auth-portal .auth-route-ic { background: linear-gradient(150deg, rgba(16,163,110,.26), rgba(6,74,51,.2)); }
+.auth-portal small { display: block; font-weight: 400; font-size: .76rem; color: var(--c-text-muted, #5d5b52); margin-top: 2px; }
+.auth-portal .auth-route-go { margin-left: auto; color: var(--c-brand, #0a6f4d); transition: transform .15s ease; }
+.auth-portal:hover .auth-route-go { transform: translateX(3px); }
+.auth-empty { font-size: .88rem; color: var(--c-text-muted, #5d5b52); line-height: 1.5; margin: 4px 0 14px; }
+.auth-signout { margin-top: 18px; text-align: center; }
+.auth-signout button {
+  background: none; border: 0; cursor: pointer;
+  color: var(--c-danger, #b91c1c); font: inherit; font-weight: 600; font-size: .85rem;
+}
+.auth-signout button:hover { text-decoration: underline; }
+
+/* Spinner (portal detection) */
+.auth-spinner {
+  width: 24px; height: 24px; margin: 16px auto;
+  border: 3px solid rgba(120,130,120,.28); border-top-color: var(--c-brand, #0a6f4d);
+  border-radius: 50%; animation: auth-spin .8s linear infinite;
+}
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+@keyframes auth-rise { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes auth-pop  { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Secure footnote */
+.auth-secure {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 18px; font-size: .76rem; color: var(--c-text-muted, #5d5b52);
+}
+.auth-secure svg { width: 13px; height: 13px; color: var(--c-brand, #0a6f4d); }
+
+/* ── Two-column form rows (registration) ─────────────────────────── */
+.auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+@media (max-width: 520px) { .auth-grid { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+   FLAGSHIP LOGIN (login.html only — body[data-page="login"])
+   Aurora gradient-mesh backdrop + split-screen brand panel. Scoped so the
+   dashboard gates keep the plain centred glass card.
+   ===================================================================== */
+body[data-page="login"] { --page-bg: none; background: #052e21; }
+
+/* Animated aurora mesh — brand greens/emerald/teal, fixed full-bleed. */
+body[data-page="login"]::before {
+  content: ""; position: fixed; inset: -10%; z-index: -2;
+  background:
+    radial-gradient(38% 46% at 16% 18%, rgba(52, 211, 153, .55), transparent 70%),
+    radial-gradient(42% 52% at 84% 12%, rgba(16, 185, 129, .45), transparent 70%),
+    radial-gradient(48% 58% at 82% 86%, rgba(6, 74, 51, .85), transparent 72%),
+    radial-gradient(44% 54% at 18% 90%, rgba(13, 148, 110, .5), transparent 72%),
+    linear-gradient(135deg, #052e21 0%, #0a6f4d 55%, #04261b 100%);
+  background-size: 200% 200%;
+  animation: aurora-flow 18s ease-in-out infinite;
+}
+/* Vignette + faint grain for depth and text legibility. */
+body[data-page="login"]::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(130% 90% at 50% -10%, transparent 38%, rgba(0, 20, 12, .42));
+}
+@keyframes aurora-flow { 0%, 100% { background-position: 0% 0%; } 50% { background-position: 100% 100%; } }
+
+/* Split layout */
+.login-split {
+  display: grid;
+  grid-template-columns: 1.05fr .95fr;
+  align-items: center;
+  gap: clamp(24px, 5vw, 72px);
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(24px, 6vh, 72px) 20px;
+  min-height: 100%;
+}
+.login-split .auth-shell { margin: 0; max-width: 440px; }
+.login-split .auth-shell::before,
+.login-split .auth-shell::after { display: none; }   /* orbs redundant over aurora */
+
+/* Brand storytelling panel.
+   NOTE: login.html keeps body[data-bg], whose `body[data-bg] h2/p/li` theme
+   rules (specificity 0,1,1) would darken this text on the dark aurora. Every
+   text colour below is therefore scoped under body[data-page="login"] to win. */
+.login-brand { max-width: 460px; }
+.login-brand__logo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 64px; height: 64px; border-radius: 19px; margin-bottom: 22px;
+  background: rgba(255, 255, 255, .14);
+  border: 1px solid rgba(255, 255, 255, .35);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 10px 30px -12px rgba(0,0,0,.5);
+}
+.login-brand__logo svg { width: 34px; height: 34px; color: #fff; }
+.login-brand__name {
+  font-family: var(--c-font-display, Georgia, serif);
+  font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.05; letter-spacing: -.02em;
+  margin: 0 0 14px; text-wrap: balance;
+}
+body[data-page="login"] .login-brand__name { color: #fff !important; }
+body[data-page="login"] .login-brand__name em { font-style: normal; color: #8ef0c4 !important; }
+.login-brand__lead {
+  font-size: clamp(1rem, 1.6vw, 1.12rem); line-height: 1.6;
+  margin: 0 0 28px; max-width: 42ch;
+}
+body[data-page="login"] .login-brand__lead { color: rgba(234, 255, 246, .85) !important; }
+.login-brand__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.login-brand__list li { display: flex; align-items: center; gap: 13px; font-size: .98rem; font-weight: 500; }
+body[data-page="login"] .login-brand__list li { color: rgba(234, 255, 246, .96) !important; }
+.login-brand__ic {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 12px;
+  background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.28);
+  color: #8ef0c4;
+}
+.login-brand__ic svg { width: 20px; height: 20px; }
+
+/* The card glows a touch warmer over the dark aurora. */
+body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 12, .6), 0 10px 30px -14px rgba(0,0,0,.4), var(--auth-sheen); }
+
+/* Mobile / tablet: stack, brand collapses to a compact header. */
+@media (max-width: 860px) {
+  .login-split { grid-template-columns: 1fr; gap: 22px; max-width: 460px; padding-top: clamp(20px, 5vh, 40px); }
+  .login-brand { text-align: center; max-width: none; margin: 0 auto; }
+  .login-brand__logo { margin-bottom: 14px; }
+  .login-brand__name { font-size: clamp(1.7rem, 8vw, 2.2rem); margin-bottom: 8px; }
+  .login-brand__lead { margin: 0 auto; }
+  .login-brand__list { display: none; }                 /* keep the fold tight on phones */
+  .login-split .auth-shell { max-width: 460px; margin: 0 auto; }
+}
+
+/* =====================================================================
+   CONTAINED AURORA PANEL (agent portal sign-in gates)
+   The gate <section> becomes .auth-scene — a rounded aurora panel holding
+   the brand aside + glass card. It's toggled with the gate, so the aurora
+   never bleeds onto the dashboard. Works inside the page's content width.
+   ===================================================================== */
+.auth-scene {
+  position: relative; overflow: hidden;
+  max-width: 1040px;
+  margin: clamp(14px, 4vw, 36px) auto;
+  padding: clamp(26px, 4.5vw, 56px);
+  border-radius: 28px;
+  background:
+    radial-gradient(38% 50% at 14% 16%, rgba(52, 211, 153, .5), transparent 70%),
+    radial-gradient(42% 54% at 86% 12%, rgba(16, 185, 129, .42), transparent 70%),
+    radial-gradient(50% 60% at 84% 88%, rgba(6, 74, 51, .9), transparent 72%),
+    radial-gradient(46% 56% at 16% 92%, rgba(13, 148, 110, .5), transparent 72%),
+    linear-gradient(135deg, #052e21 0%, #0a6f4d 55%, #04261b 100%);
+  background-size: 200% 200%;
+  animation: aurora-flow 18s ease-in-out infinite;
+  box-shadow: 0 30px 70px -26px rgba(0, 20, 12, .6), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.auth-scene .login-split { padding: 0; min-height: 0; max-width: none; gap: clamp(24px, 5vw, 64px); }
+.auth-scene .auth-shell { margin: 0; }
+.auth-scene .auth-shell::before, .auth-scene .auth-shell::after { display: none; }
+/* Brand text light over the aurora — beats neon-pro's body[data-bg] !important. */
+.auth-scene .login-brand__name { color: #fff !important; }
+.auth-scene .login-brand__name em { color: #8ef0c4 !important; }
+.auth-scene .login-brand__lead { color: rgba(234, 255, 246, .85) !important; }
+.auth-scene .login-brand__list li { color: rgba(234, 255, 246, .96) !important; }
+@media (max-width: 860px) {
+  .auth-scene { padding: clamp(20px, 5vw, 30px); border-radius: 22px; }
+}
+
+/* ── Compact phones (≤560px) — get the form above the fold ─────────── */
+@media (max-width: 560px) {
+  .login-split { gap: 12px; }
+  body[data-page="login"] .login-split { padding-top: 14px; }
+  .login-brand { text-align: center; }
+  .login-brand__logo { width: 46px; height: 46px; border-radius: 14px; margin-bottom: 8px; }
+  .login-brand__logo svg { width: 25px; height: 25px; }
+  .login-brand__name { font-size: 1.5rem; margin-bottom: 0; }
+  .login-brand__lead { display: none; }              /* the card carries its own lead */
+  .auth-scene { margin: 10px auto; padding: 15px; border-radius: 18px; }
+  .auth-card { padding: 20px 17px; }
+  .auth-head { margin-bottom: 15px; }
+  .auth-logo { width: 48px; height: 48px; margin-bottom: 9px; }
+  .auth-logo svg { width: 25px; height: 25px; }
+  .auth-tabs { margin: 14px 0 16px; }
+  .auth-field { margin-top: 13px; }
+  .auth-submit { margin-top: 18px; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .auth-spinner, .auth-submit.is-loading::before { animation: none; }
+  .auth-card, .auth-msg.is-show { animation: none; }
+  body[data-page="login"]::before, .auth-scene { animation: none; }
+  .auth-input, .auth-submit, .auth-submit::after, .auth-secondary,
+  .auth-route, .auth-portal, .auth-route-go, .auth-tabs button,
+  .auth-eye, .auth-field-icon { transition: none; }
+  .auth-submit:hover, .auth-secondary:hover, .auth-route:hover, .auth-portal:hover { transform: none; }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Maisha na Lifeza</string>
+    <string name="title_activity_main">Maisha na Lifeza</string>
+    <string name="package_name">com.maishahub.app</string>
+    <string name="custom_url_scheme">com.maishahub.app</string>
+</resources>

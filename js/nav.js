@@ -3,16 +3,19 @@
 window.renderNav = (active) => {
   const lang = window.getLang();
 
+  const HIDDEN = (window.APP_CONFIG && window.APP_CONFIG.HIDDEN_NAV) || [];
+  const hidden = (href) => HIDDEN.includes(href);
+
   const link = (href, key, extra = "") =>
+    hidden(href) ? "" :
     `<a href="${href}" class="nav-dropdown-item ${active === href ? 'active' : ''} ${extra}">${window.t(key)}</a>`;
 
   // Mark a group "active" if any of its child pages is the current page
   const groupActive = (pages) => pages.includes(active) ? "active" : "";
 
-  const SERVICES = ["send.html", "track.html", "book-fast.html", "chat.html", "meet.html", "ride.html"];
-  const NETWORK  = ["buses.html", "agents.html", "houses.html", "trucks.html", "near-me.html", "favorites.html"];
-  const ACCOUNT  = ["agent-register.html", "agent.html", "agent-houses.html", "agent-trucks.html", "dashboard.html", "admin.html", "accounting.html", "super-admin.html"];
-  const SAAS_PAGES = ["saas.html", "signup.html"];
+  const SERVICES = ["meet.html", "chat.html"];
+  const NETWORK  = ["houses.html", "services.html", "jobs.html", "trucks.html", "near-me.html", "favorites.html"];
+  const ACCOUNT  = ["login.html", "agent-houses.html", "agent-trucks.html", "agent-services.html", "admin.html", "super-admin.html"];
 
   const onlinePill = window.DataStore?.isOnline
     ? `<span class="online-pill">${window.t("online_badge")}</span>`
@@ -42,7 +45,6 @@ window.renderNav = (active) => {
 
         <ul class="nav-links">
           <li><a href="index.html" class="nav-top-link ${active === 'index.html' ? 'active' : ''}">${window.t("nav_home")}</a></li>
-          <li><a href="saas.html" class="nav-top-link nav-fast-link ${SAAS_PAGES.includes(active) ? 'active' : ''}">${window.t("nav_for_companies") || "For Companies"}</a></li>
 
           <li class="nav-group">
             <button class="nav-top-link nav-group-btn ${groupActive(SERVICES)}" aria-expanded="false">
@@ -50,11 +52,6 @@ window.renderNav = (active) => {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="nav-dropdown">
-              ${link("send.html",      "nav_send")}
-              ${link("track.html",     "nav_track")}
-              ${link("book-fast.html", "nav_book_fast", "nav-fast-link")}
-              ${link("book.html",      "nav_book")}
-              ${link("ride.html",      "nav_ride", "nav-ride-link")}
               ${link("meet.html",      "nav_meet", "nav-meet-link")}
               ${link("chat.html",      "nav_chat")}
             </div>
@@ -66,9 +63,9 @@ window.renderNav = (active) => {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="nav-dropdown">
-              ${link("buses.html",     "nav_buses")}
-              ${link("agents.html",    "nav_agents")}
               ${link("houses.html",    "nav_houses")}
+              ${link("services.html",  "nav_services")}
+              ${link("jobs.html",      "nav_jobs")}
               ${link("trucks.html",    "nav_trucks")}
               ${link("near-me.html",   "nav_near_me")}
               ${link("favorites.html", "nav_favorites")}
@@ -81,12 +78,10 @@ window.renderNav = (active) => {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="nav-dropdown">
-              ${link("agent-register.html", "nav_agent_register")}
-              ${link("agent.html",          "nav_agent_dashboard")}
+              ${link("login.html",          "nav_signin")}
               ${link("agent-houses.html",   "nav_agent_houses")}
+              ${link("agent-services.html", "nav_agent_services")}
               ${link("agent-trucks.html",   "nav_agent_trucks")}
-              ${link("dashboard.html",     "nav_dashboard",   "nav-company-link")}
-              ${link("accounting.html",    "nav_finance",     "nav-company-link")}
               ${link("admin.html",          "nav_admin",       "nav-admin-link")}
               ${link("super-admin.html",   "nav_super_admin", "nav-admin-link")}
             </div>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Moving truck — Pawa Bus Cargo</title>
+  <title>Moving truck — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
 
@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#0a6f4d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/mobile.css" />
   <link rel="stylesheet" href="css/premium.css" />
@@ -30,7 +30,11 @@
     .td-thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .td-thumb { width: 72px; height: 56px; border-radius: 10px; background: #dfe7e2 center/cover no-repeat; cursor: pointer; border: 2px solid transparent; }
     .td-thumb.active { border-color: var(--c-brand,#0a6f4d); }
-    .td-panel { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+    /* Force dark card text — neon-pro.css loads last and sets a light body
+       text colour, which would otherwise render these white-on-white inside
+       the light panels (invisible). */
+    .td-panel { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 18px; margin-bottom: 14px; color: var(--c-text,#2a2a26); }
+    .td-panel .td-title, .td-panel .td-owner, .td-spec .v { color: var(--c-text,#2a2a26); }
     .td-price { font-size: 1.5rem; font-weight: 800; color: var(--c-brand,#0a6f4d); }
     .td-price small { font-size: .8rem; font-weight: 600; color: var(--c-muted,#6b6960); }
     .td-title { font-size: 1.15rem; font-weight: 700; margin: 6px 0 4px; }
@@ -55,7 +59,7 @@
     @media (max-width: 820px) { .td-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')" data-page="truck">
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/omar-L8php9iH1pY-unsplash.jpg')" data-page="truck">
   <div id="nav-slot"></div>
 
   <main class="td-wrap">

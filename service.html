@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Service provider — Pawa</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <style>
+    .sd-wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+    .sd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--c-brand,#0a6f4d); text-decoration: none; font-weight: 700; font-size: .9rem; margin-bottom: 12px; }
+    .sd-grid { display: grid; grid-template-columns: 1.3fr .7fr; gap: 18px; align-items: start; }
+    .sd-gallery-main { aspect-ratio: 16/10; border-radius: 16px; overflow: hidden; background: #dfe7e2 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 4rem; }
+    .sd-thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .sd-thumb { width: 72px; height: 56px; border-radius: 10px; background: #dfe7e2 center/cover no-repeat; cursor: pointer; border: 2px solid transparent; }
+    .sd-thumb.active { border-color: var(--c-brand,#0a6f4d); }
+    /* Force dark card text — neon-pro.css loads last and sets a light body text
+       colour, which would otherwise render these white-on-white (invisible). */
+    .sd-panel { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 18px; margin-bottom: 14px; color: var(--c-text,#2a2a26); }
+    .sd-panel .sd-title, .sd-panel .sd-owner, .sd-spec .v { color: var(--c-text,#2a2a26); }
+    .sd-price { font-size: 1.5rem; font-weight: 800; color: var(--c-brand,#0a6f4d); }
+    .sd-price small { font-size: .8rem; font-weight: 600; color: var(--c-muted,#6b6960); }
+    .sd-title { font-size: 1.15rem; font-weight: 700; margin: 6px 0 4px; }
+    .sd-loc { color: var(--c-muted,#6b6960); font-size: .92rem; }
+    .sd-badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; }
+    .sd-badge { font-size: .72rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--c-surface-2,#f3f1ea); color: #555; }
+    .sd-badge.verified { background: var(--c-success,#0d8050); color: #fff; }
+    .sd-specs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px; }
+    .sd-spec { background: var(--c-surface-2,#f6f5f0); border-radius: 12px; padding: 10px 12px; }
+    .sd-spec .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; color: var(--c-muted,#888); }
+    .sd-spec .v { font-weight: 700; font-size: .95rem; margin-top: 2px; }
+    .sd-desc { line-height: 1.6; color: var(--c-text,#2a2a26); white-space: pre-line; }
+    .sd-cta { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
+    .sd-cta a { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px; border-radius: 12px; font-weight: 700; text-decoration: none; }
+    .sd-cta-call { background: var(--c-brand,#0a6f4d); color: #fff; }
+    .sd-cta-wa { background: #25d366; color: #fff; }
+    .sd-cta-move { background: var(--c-accent,#bc5c00); color: #fff; }
+    .sd-owner { font-weight: 700; }
+    .sd-minimap { height: 220px; border-radius: 14px; overflow: hidden; border: 1px solid var(--c-border,#e7e4dd); margin-top: 10px; }
+    .sd-h { font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: var(--c-muted,#888); margin: 0 0 8px; }
+    .sd-missing { text-align: center; padding: 60px 16px; color: var(--c-muted,#6b6960); }
+    @media (max-width: 820px) { .sd-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/danist-soh-dqXiw7nCb9Q-unsplash.jpg')" data-page="service">
+  <div id="nav-slot"></div>
+
+  <main class="sd-wrap">
+    <a href="services.html" class="sd-back">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      <span>Back to services</span>
+    </a>
+    <div id="sdBody" aria-live="polite" aria-busy="true">
+      <div class="sd-panel">Loading…</div>
+    </div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/service.js"></script>
+  <script>
+    window.renderNav("services.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initServicePage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

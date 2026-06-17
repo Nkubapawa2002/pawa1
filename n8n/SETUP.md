@@ -77,7 +77,7 @@ Toggle each workflow to **Active** in the same order as Phase 3 (top-down). Webh
 |------|-----|
 | Tools endpoint | `curl -X POST $N8N_WEBHOOK_BASE/webhook/vapi/search-trips -H 'Content-Type: application/json' -d '{"tenant_slug":"bus-tz-pawa","origin":"Dar es Salaam","destination":"Arusha","date":"2026-06-01"}'` — should return Swahili "Mabasi yanayopatikana…" |
 | Dashboard metrics | Open `dashboard.html` → "Booking metrics" card → click Refresh. Card should populate without "Could not reach n8n". |
-| Real-call webhook | Click the "📞 Call me" button on `book-fast.html`. A row should appear in `call_requests` and the AT-Voice call should fire. |
+| Real-call webhook | Click the " Call me" button on `book-fast.html`. A row should appear in `call_requests` and the AT-Voice call should fire. |
 | Inbound number | Dial the virtual number. You should hear the Swahili+English hold message and get a VAPI callback within ~10 s. |
 
 ---

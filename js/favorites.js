@@ -110,11 +110,11 @@ window.initFavoritesPage = async () => {
       const photo    = window.DataStore.housePhotoUrl(h.photo);
       const listing  = h.listing === "sale" ? "For sale" : "For rent";
       const price    = formatPrice(h);
-      const verified = h.verified ? `<span class="verified">✓ Verified</span>` : "";
+      const verified = h.verified ? `<span class="verified"> Verified</span>` : "";
       const meta = [
-        h.bedrooms ? `<span>🛏 ${h.bedrooms} bed${h.bedrooms !== 1 ? "s" : ""}</span>` : "",
-        h.bathrooms ? `<span>🛁 ${h.bathrooms} bath${h.bathrooms !== 1 ? "s" : ""}</span>` : "",
-        h.size_sqm ? `<span>📐 ${h.size_sqm} m²</span>` : ""
+        h.bedrooms ? `<span> ${h.bedrooms} bed${h.bedrooms !== 1 ? "s" : ""}</span>` : "",
+        h.bathrooms ? `<span> ${h.bathrooms} bath${h.bathrooms !== 1 ? "s" : ""}</span>` : "",
+        h.size_sqm ? `<span> ${h.size_sqm} m²</span>` : ""
       ].filter(Boolean).join("");
 
       return `<div class="fav-card" data-id="${esc(h.id)}">
@@ -129,7 +129,7 @@ window.initFavoritesPage = async () => {
           <div class="fav-card-price">${price.value} <small>${price.unit}</small></div>
           <div class="fav-card-title">${esc(h.title)}</div>
           <div class="fav-card-meta">${meta}</div>
-          <div class="fav-card-loc">📍 ${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}</div>
+          <div class="fav-card-loc"> ${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}</div>
           <a class="fav-card-view" href="house.html?id=${encodeURIComponent(h.id)}">View details →</a>
         </div>
       </div>`;

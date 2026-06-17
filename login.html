@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Sign in — Maisha na Lifeza</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/auth.css" />
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+</head>
+<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="login">
+  <div id="nav-slot"></div>
+
+  <div class="login-split">
+    <aside class="login-brand">
+      <span class="login-brand__logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
+      </span>
+      <h2 class="login-brand__name">Maisha na <em>Lifeza</em></h2>
+      <p class="login-brand__lead">Homes, daily services and moving trucks across Tanzania — all in one trusted account.</p>
+      <ul class="login-brand__list">
+        <li>
+          <span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
+          Verified houses &amp; rooms to rent or buy
+        </li>
+        <li>
+          <span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
+          Trusted fundis, cleaners &amp; daily-service pros
+        </li>
+        <li>
+          <span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
+          Moving trucks near you, when you relocate
+        </li>
+      </ul>
+    </aside>
+
+  <main class="auth-shell">
+
+    <!-- Sign-in form (default) -->
+    <section class="auth-card" id="loginCard" aria-labelledby="loginTitle">
+      <div class="auth-head">
+        <span class="auth-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
+        </span>
+        <h1 id="loginTitle">Sign in</h1>
+        <p class="auth-lead">One account for everything — your house, service and truck listings. We'll take you to the right place.</p>
+      </div>
+
+      <form class="auth-form" id="loginForm" novalidate>
+        <div class="auth-field">
+          <label for="loginEmail">Email</label>
+          <div class="auth-input-wrap">
+            <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+            <input class="auth-input" id="loginEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </div>
+        </div>
+
+        <div class="auth-field">
+          <label for="loginPassword">Password</label>
+          <div class="auth-input-wrap">
+            <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input class="auth-input auth-input--pw" id="loginPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Your password" />
+            <button type="button" class="auth-eye" id="pwToggle" aria-label="Show password" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="auth-submit" id="loginBtn">Sign in</button>
+        <div class="auth-msg" id="loginStatus" role="alert" aria-live="polite"></div>
+      </form>
+
+      <div class="auth-aux">
+        <button type="button" class="auth-link-btn" id="forgotBtn">Forgot password?</button>
+      </div>
+
+      <div class="auth-divider">New here?</div>
+      <div class="auth-routes">
+        <a class="auth-route" href="agent-houses.html">
+          <span class="auth-route-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
+          <span>List houses &amp; rooms <small>Free agent account — create it right in the portal</small></span>
+          <span class="auth-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+        </a>
+        <a class="auth-route" href="agent-services.html">
+          <span class="auth-route-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
+          <span>Offer daily services <small>Fundi, cleaner, tutor… register in the services portal</small></span>
+          <span class="auth-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+        </a>
+        <a class="auth-route" href="agent-trucks.html">
+          <span class="auth-route-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
+          <span>List moving trucks <small>Register in the trucks portal</small></span>
+          <span class="auth-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+        </a>
+      </div>
+
+      <p class="auth-secure">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Encrypted connection · one secure account
+      </p>
+    </section>
+
+    <!-- Signed-in: portal chooser -->
+    <section class="auth-card" id="portalCard" hidden aria-labelledby="portalTitle">
+      <div class="auth-head">
+        <span class="auth-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </span>
+        <h1 id="portalTitle">Welcome back</h1>
+      </div>
+      <p class="auth-who">Signed in as <strong id="portalEmail">—</strong></p>
+      <div class="auth-spinner" id="portalSpinner"></div>
+      <p class="auth-empty" id="portalEmpty" hidden></p>
+      <div class="auth-portals" id="portalList"></div>
+      <div class="auth-signout">
+        <button type="button" id="portalSignOut">Sign out / use another account</button>
+      </div>
+    </section>
+
+    <!-- Password recovery (arrived from a reset email) -->
+    <section class="auth-card" id="recoveryCard" hidden aria-labelledby="recoveryTitle">
+      <div class="auth-head">
+        <span class="auth-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </span>
+        <h1 id="recoveryTitle">Set a new password</h1>
+        <p class="auth-lead">You followed a password-reset link. Choose a new password for your account.</p>
+      </div>
+      <form class="auth-form" id="recoveryForm" novalidate>
+        <div class="auth-field">
+          <label for="newPassword">New password</label>
+          <div class="auth-input-wrap">
+            <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input class="auth-input auth-input--pw" id="newPassword" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters" />
+            <button type="button" class="auth-eye" id="pwToggle2" aria-label="Show password" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="auth-submit" id="recoveryBtn">Save new password</button>
+        <div class="auth-msg" id="recoveryStatus" role="alert" aria-live="polite"></div>
+      </form>
+    </section>
+
+  </main>
+  </div>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/login.js"></script>
+  <script>
+    window.renderNav && window.renderNav("login.html");
+    window.renderFooter && window.renderFooter();
+    window.applyTranslations && window.applyTranslations();
+    window.initLoginPage && window.initLoginPage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

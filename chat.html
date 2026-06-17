@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Chat — Pawa Bus Cargo</title>
+  <title>Chat — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
 
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0a6f4d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="css/mobile.css" />
 <!-- pawa-mobile-bundle -->
@@ -18,13 +18,13 @@
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
 </head>
-<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg')" data-page="chat">
+<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/austin-scherbarth-qSrFTyh-IB0-unsplash.jpg')" data-page="chat">
   <div id="nav-slot"></div>
 
-  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/elizabeth-lies-LUP8Tnwy7Ro-unsplash.jpg')">
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/austin-scherbarth-qSrFTyh-IB0-unsplash.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title" data-i18n="chat_title">Chat with Pawa Assistant</h1>
-      <p class="page-subtitle" data-i18n="chat_sub">Ask about sending, tracking, agents, or buses.</p>
+      <p class="page-subtitle" data-i18n="chat_sub">Ask about homes to rent, daily services, day jobs, or getting around.</p>
     </div>
   </section>
 
@@ -62,7 +62,7 @@
           <div class="avatar">P</div>
           <div>
             <div style="font-weight:700" data-i18n="chat_title">Chat with Pawa Assistant</div>
-            <small style="opacity:0.85" data-i18n="chat_sub">Ask about sending, tracking, agents, or buses.</small>
+            <small style="opacity:0.85" data-i18n="chat_sub">Ask about homes to rent, daily services, day jobs, or getting around.</small>
           </div>
           <button type="button" id="voiceModeBtn" class="chat-voice-toggle" title="Enable voice mode">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -138,14 +138,14 @@
       <!-- Support Contacts panel -->
       <div id="panelSupport" class="chat-panel">
         <div class="chat-header">
-          <div class="avatar" style="font-size:1.2rem">📞</div>
+          <div class="avatar" style="font-size:1.2rem"></div>
           <div>
             <div style="font-weight:700" data-i18n="support_title">Support Contacts</div>
             <small style="opacity:0.85" data-i18n="support_sub">Reach our team directly for any inconvenience.</small>
           </div>
         </div>
         <div class="support-body">
-          <p class="support-intro" data-i18n="support_sub">Reach our team directly for any inconvenience during your trip or shipment.</p>
+          <p class="support-intro" data-i18n="support_sub">Reach our team directly for any issue with a home, service, or booking.</p>
           <div id="supportContactsList"></div>
         </div>
       </div>
@@ -163,6 +163,7 @@
   <script src="js/nav.js"></script>
   <script src="js/tenant.js"></script>
   <script src="js/ai.js"></script>
+  <script src="js/ai-tools.js"></script>
   <script src="js/gemini-chat.js"></script>
   <script src="js/gemini-voice.js"></script>
   <script src="js/chat.js"></script>

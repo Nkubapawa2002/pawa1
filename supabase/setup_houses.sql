@@ -4,7 +4,7 @@
 create table if not exists public.houses (
   id                text primary key,
   title             text not null,
-  type              text not null check (type in ('apartment','house','plot','office')),
+  type              text not null check (char_length(btrim(type)) between 1 and 40),  -- free-form: apartment/house/plot/office/shop/…any kind
   listing           text not null check (listing in ('rent','sale')),
   price_tzs         bigint not null default 0 check (price_tzs >= 0),
   currency          text not null default 'TZS',
@@ -13,6 +13,7 @@ create table if not exists public.houses (
   bathrooms         int  not null default 0,
   size_sqm          int,
   min_months        int  not null default 1,  -- min months a renter pays upfront (rent only)
+  room_kind         text check (room_kind is null or room_kind in ('single','master')),  -- room-by-room rentals
   region            text,
   area              text,
   address           text,
@@ -38,6 +39,7 @@ alter table public.houses add column if not exists photos text[] not null defaul
 alter table public.houses add column if not exists videos text[] not null default '{}'::text[];
 alter table public.houses add column if not exists extra_costs jsonb not null default '[]'::jsonb;
 alter table public.houses add column if not exists min_months int not null default 1;
+alter table public.houses add column if not exists room_kind text;
 alter table public.houses add column if not exists owner_user_id uuid references auth.users(id) on delete set null;
 
 create index if not exists houses_region_idx     on public.houses (region);

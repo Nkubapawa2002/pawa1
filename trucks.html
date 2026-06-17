@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Moving trucks for hire — Pawa Bus Cargo</title>
+  <title>Moving trucks for hire — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
 
@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/mobile.css" />
   <link rel="stylesheet" href="css/premium.css" />
@@ -72,10 +72,26 @@
     /* Truck card */
     .truck-card {
       background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 14px; overflow: hidden; cursor: pointer; text-decoration: none; color: inherit;
+      border-radius: 14px; overflow: hidden;
+      color: var(--c-text, #1a1915);
       display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
     }
+    .truck-card-link { display: flex; flex-direction: column; text-decoration: none; color: inherit; cursor: pointer; flex: 1; }
+    .truck-card-title { color: var(--c-text, #1a1915); }
     .truck-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
+
+    /* Quick actions: Call / WhatsApp / draw the real road Route */
+    .truck-card-actions { display: flex; gap: 6px; padding: 0 11px 12px; margin-top: auto; }
+    .tca-btn {
+      flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+      padding: 8px 6px; border-radius: 9px; font-weight: 700; font-size: .76rem;
+      text-decoration: none; border: none; cursor: pointer; white-space: nowrap;
+      transition: filter .12s ease;
+    }
+    .tca-btn:hover { filter: brightness(1.08); }
+    .tca-btn.call  { background: var(--c-brand, #0a6f4d); color: #fff; }
+    .tca-btn.wa    { background: #1fa855; color: #fff; }
+    .tca-btn.route { background: var(--c-surface-2, #f3f1ea); color: var(--c-text, #1a1915); border: 1px solid var(--c-border, #e7e4dd); }
     .truck-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eceae4 center/cover no-repeat; }
     .truck-card-badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
     .tc-badge {
@@ -83,7 +99,8 @@
       color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
     }
     .tc-badge.verified { background: var(--c-success, #0d8050); }
-    .tc-badge.dist { background: var(--c-brand, #0a6f4d); }
+    .tc-badge.dist { background: rgba(0,0,0,.55); }
+    .tc-badge.dist.road { background: var(--c-brand, #0a6f4d); }   /* exact road km + min */
     .truck-card-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 5px; }
     .truck-card-price { font-weight: 800; color: var(--c-brand, #0a6f4d); font-size: 1.02rem; }
     .truck-card-price small { font-weight: 600; color: var(--c-muted, #6b6960); font-size: .72rem; }
@@ -99,6 +116,10 @@
     @media (max-width: 860px) {
       .trucks-stage { grid-template-columns: 1fr; }
       .trucks-mobile-tabs { display: flex; }
+      /* compact 2-col toolbar so filters don't tower over the list */
+      .trucks-toolbar { grid-template-columns: 1fr 1fr; padding: 10px; gap: 7px; }
+      .trucks-toolbar select, .trucks-toolbar input { padding: 9px 10px; font-size: 15px; }
+      #filterSearch { grid-column: 1 / -1; }
       .trucks-stage[data-view="list"] .trucks-map-wrap { display: none; }
       .trucks-stage[data-view="map"] .trucks-list { display: none; }
       .trucks-map-wrap { position: static; }
@@ -118,6 +139,16 @@
   </section>
 
   <main id="trucksMain" class="container" style="padding-top:18px;">
+
+    <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
+    <div class="find-mode" id="fmTrucks" data-near="truckNearMeBtn" data-area="filterArea" style="display:none">
+      <button class="fm-x" type="button" aria-label="Dismiss">&times;</button>
+      <div class="fm-q">How do you want to find a truck?</div>
+      <div class="fm-actions">
+        <button type="button" class="fm-btn fm-near"> Near me<small>Show the trucks closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"> A specific area<small>Type a town, district or ward — browse anywhere in Tanzania</small></button>
+      </div>
+    </div>
 
     <!-- Filter bar -->
     <div class="trucks-toolbar">
@@ -147,6 +178,11 @@
         <option value="10">10+ tonnes</option>
       </select>
       <input type="text" id="filterSearch" placeholder="Search title, area or owner…" />
+      <select id="truckSort" title="Sort trucks">
+        <option value="nearest">Sort: nearest</option>
+        <option value="cheapest">Sort: cheapest</option>
+        <option value="newest">Sort: newest</option>
+      </select>
       <div class="tt-actions">
         <button id="truckNearMeBtn" class="trucks-near-me" title="Use my GPS location">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
@@ -185,6 +221,7 @@
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/geolocate.js"></script>
+  <script src="js/find-mode.js"></script>
   <script src="js/trucks.js"></script>
   <script>
     window.renderNav("trucks.html");

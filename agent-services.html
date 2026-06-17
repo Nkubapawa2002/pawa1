@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Offer your service — Pawa</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/auth.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <style>
+    .as-card { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 20px; margin-bottom: 16px; color: var(--c-text,#1a1915); }
+    /* Auth sign-in/up card now uses the shared css/auth.css system. */
+    .as-field { margin-bottom: 12px; }
+    .as-field label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: 5px; }
+    .as-field input, .as-field select, .as-field textarea {
+      width: 100%; padding: 11px 12px; border: 1px solid var(--c-border,#e7e4dd);
+      border-radius: 10px; font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text,#1a1915);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .as-field input:hover, .as-field select:hover, .as-field textarea:hover { border-color: var(--c-brand,#0a6f4d); }
+    .as-field input:focus, .as-field select:focus, .as-field textarea:focus { outline: none; border-color: var(--c-brand,#0a6f4d); box-shadow: 0 0 0 3px rgba(10,111,77,.18); }
+    .as-btn:focus-visible { outline: 3px solid rgba(10,111,77,.4); outline-offset: 2px; }
+    .as-btn-brand:hover { background: var(--c-brand-deep,#064a33); }
+    .as-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .as-checks { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 12px; }
+    .as-checks label { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; font-weight: 600; }
+    .as-checks input { width: auto; }
+    .as-btn { padding: 11px 18px; border: 1px solid var(--c-border,#e7e4dd); background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .as-btn-brand { background: var(--c-brand,#0a6f4d); color: #fff; border-color: transparent; }
+    .as-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .as-msg { padding: 10px 12px; border-radius: 10px; font-size: .88rem; margin-top: 10px; }
+    .as-msg.error { background: #fce4e4; color: #b91c1c; border: 1px solid #f0b8b8; }
+    .as-msg.success { background: #e6f6ec; color: #0d8050; border: 1px solid #a8d9b8; }
+    .as-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .as-tile { border: 1px solid var(--c-border,#e7e4dd); border-radius: 12px; overflow: hidden; background: #fff; }
+    .as-tile-photo { aspect-ratio: 4/3; background: #dfe7e2 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+    .as-tile-body { padding: 10px 12px; color: var(--c-text,#1a1915); }
+    .as-tile-body h4 { margin: 0 0 4px; font-size: .92rem; }
+    .as-tile-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .as-tile-actions button { flex: 1; padding: 7px; font-size: .8rem; border-radius: 8px; cursor: pointer; border: 1px solid var(--c-border,#e7e4dd); background: #fff; color: var(--c-text,#1a1915); }
+    .as-photo-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .as-photo-cell { position: relative; width: 88px; height: 66px; border-radius: 8px; background: #dfe7e2 center/cover no-repeat; }
+    .as-photo-cell button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: none; background: #b91c1c; color: #fff; cursor: pointer; font-size: .8rem; line-height: 1; }
+    .as-photo-add { display: inline-flex; align-items: center; justify-content: center; width: 88px; height: 66px; border: 2px dashed var(--c-border,#bbb); border-radius: 8px; cursor: pointer; color: var(--c-muted,#888); font-size: 1.5rem; }
+    .as-pin-wrap { position: relative; }
+    .as-pin-map { height: 280px; border-radius: 12px; overflow: hidden; border: 1px solid var(--c-border,#e7e4dd); }
+    .as-pin-search { position: relative; margin-bottom: 8px; }
+    .as-pin-results { position: absolute; z-index: 1000; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid var(--c-border,#e7e4dd); border-radius: 10px; max-height: 240px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .as-pin-results[hidden] { display: none; }
+    .as-pin-results button { display: block; width: 100%; text-align: left; padding: 9px 12px; border: none; background: #fff; cursor: pointer; border-bottom: 1px solid #f0eee8; font-size: .86rem; color: var(--c-text,#1a1915); }
+    .as-pin-results button:hover { background: #f6f5f0; }
+    .as-pin-coords { font-size: .82rem; color: var(--c-muted,#6b6960); margin-top: 6px; }
+    .as-setup pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 10px; overflow: auto; font-size: .76rem; max-height: 320px; }
+    .as-hint { font-size: .82rem; color: var(--c-muted,#6b6960); margin: 2px 0 10px; }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/ricardo-gomez-angel-WsEAiVwGrwo-unsplash.jpg')" data-page="agent-services">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/ricardo-gomez-angel-WsEAiVwGrwo-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title">Offer your service</h1>
+      <p class="page-subtitle">List your daily service so people nearby can find you and call you directly.</p>
+    </div>
+  </section>
+
+  <main id="asMain" class="container" style="padding-top:18px; padding-bottom:60px; max-width:880px;">
+
+    <!-- Auth -->
+    <section id="asAuthCard" class="auth-scene" hidden>
+      <div class="login-split">
+        <aside class="login-brand">
+          <span class="login-brand__logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg>
+          </span>
+          <h2 class="login-brand__name">Offer daily <em>services</em></h2>
+          <p class="login-brand__lead">Fundi, cleaner, tutor, electrician — get discovered by people nearby who need you today.</p>
+          <ul class="login-brand__list">
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Free professional profile</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6L12 17l-5.4 2.8 1-6L3.3 9.4l6-.9z"/></svg></span> Show your skills &amp; rates</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.2-1.5a2 2 0 0 1 2.1-.5c.8.3 1.7.6 2.6.7a2 2 0 0 1 1.7 2z"/></svg></span> Customers call you directly</li>
+          </ul>
+        </aside>
+        <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-head">
+          <span class="auth-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg>
+          </span>
+          <h1 class="auth-title">Services portal sign in</h1>
+          <p class="auth-lead">List your daily service so people nearby can find &amp; call you. New here? Create an account in seconds.</p>
+        </div>
+        <div class="auth-tabs">
+          <button id="tabSignIn" class="active" type="button">Sign in</button>
+          <button id="tabSignUp" type="button">Create account</button>
+        </div>
+        <form id="asAuthForm" class="auth-form" autocomplete="on" novalidate>
+          <div class="auth-field">
+            <label for="asEmail">Email</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+              <input class="auth-input" id="asEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="asPassword">Password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="auth-input auth-input--pw" id="asPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
+              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="auth-field" id="asPasswordConfirmRow" hidden>
+            <label for="asPasswordConfirm">Re-enter password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="auth-input auth-input--pw" id="asPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="••••••••" />
+              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <button id="asAuthSubmit" class="auth-submit" type="submit">Sign in</button>
+          <div id="asAuthMsg" class="auth-msg" role="alert" aria-live="polite"></div>
+        </form>
+      </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="asDashboard" hidden>
+      <div id="asWarn"></div>
+      <div class="as-card">
+        <div class="as-head">
+          <div>Signed in as <strong id="asUserEmail">—</strong></div>
+          <div style="display:flex;gap:8px;">
+            <button id="asNewBtn" class="as-btn as-btn-brand" type="button">+ New service</button>
+            <button id="asSignOut" class="as-btn" type="button">Sign out</button>
+          </div>
+        </div>
+        <div id="asList" class="as-list" aria-busy="true"></div>
+      </div>
+    </section>
+
+    <!-- Form -->
+    <section id="asFormSection" hidden>
+      <form id="asForm" class="as-card" autocomplete="off">
+        <h2 id="asFormTitle" style="margin-top:0;">Add a service</h2>
+
+        <div class="as-field">
+          <label>Photos <span class="as-hint" style="display:inline">(first photo is the cover)</span></label>
+          <div class="as-photo-grid" id="asPhotoGrid"></div>
+          <label class="as-photo-add" for="asPhotoInput" id="asPhotoAdd">+</label>
+          <input id="asPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+        </div>
+
+        <div class="as-field">
+          <label for="asTitle">Title *</label>
+          <input id="asTitle" type="text" required maxlength="120" placeholder="e.g. Home & office deep cleaning" />
+        </div>
+
+        <div class="as-row">
+          <div class="as-field">
+            <label for="asCategory">Category *</label>
+            <select id="asCategory" required>
+              <option value="cleaning"> Cleaning</option>
+              <option value="plumbing"> Plumbing</option>
+              <option value="electrical"> Electrical</option>
+              <option value="carpentry"> Carpentry</option>
+              <option value="painting"> Painting</option>
+              <option value="gardening"> Gardening</option>
+              <option value="moving_help"> Moving help</option>
+              <option value="laundry"> Laundry</option>
+              <option value="cooking"> Cooking / Chef</option>
+              <option value="tutoring"> Tutoring</option>
+              <option value="beauty"> Beauty & Salon</option>
+              <option value="security"> Security</option>
+              <option value="childcare"> Childcare</option>
+              <option value="appliance_repair"> Appliance repair</option>
+              <option value="other"> Other</option>
+            </select>
+          </div>
+          <div class="as-field">
+            <label for="asExperience">Experience (years)</label>
+            <input id="asExperience" type="number" min="0" step="1" placeholder="e.g. 5" />
+          </div>
+        </div>
+
+        <div class="as-row">
+          <div class="as-field">
+            <label for="asPrice">Price from (TZS) *</label>
+            <input id="asPrice" type="number" min="0" step="1000" required placeholder="e.g. 25000" />
+          </div>
+          <div class="as-field">
+            <label for="asRate">Rate type *</label>
+            <select id="asRate" required>
+              <option value="hourly">Per hour</option>
+              <option value="daily">Per day</option>
+              <option value="per_job" selected>Per job</option>
+              <option value="monthly">Per month</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="as-row">
+          <div class="as-field">
+            <label for="asService">Coverage *</label>
+            <select id="asService" required>
+              <option value="within_city" selected>Within city</option>
+              <option value="region_wide">Region-wide</option>
+              <option value="cross_region">Cross-region</option>
+            </select>
+          </div>
+          <div class="as-field">
+            <label for="asAvailability">Availability</label>
+            <input id="asAvailability" type="text" maxlength="80" placeholder="e.g. Mon–Sat, 8am–6pm" />
+          </div>
+        </div>
+
+        <div class="as-checks">
+          <label><input id="asNegotiable" type="checkbox" checked /> Price negotiable</label>
+        </div>
+
+        <div class="as-row">
+          <div class="as-field">
+            <label for="asRegion">Region</label>
+            <select id="asRegion"><option value="">Select region</option></select>
+          </div>
+          <div class="as-field">
+            <label for="asArea">Area / ward</label>
+            <input id="asArea" type="text" placeholder="e.g. Mikocheni" />
+          </div>
+        </div>
+
+        <div class="as-field">
+          <label for="asAddress">Base location (address)</label>
+          <input id="asAddress" type="text" placeholder="e.g. Mikocheni B, Kinondoni" />
+        </div>
+
+        <!-- Location pin -->
+        <div class="as-field">
+          <label>Where you're based (drop a pin) *</label>
+          <p class="as-hint">Search a place, tap the map, or use GPS. Customers find the provider nearest them by this pin.</p>
+          <div class="as-pin-search">
+            <input id="asPinSearch" type="search" autocomplete="off" placeholder="Search a place (e.g. Mikocheni, Sakina…)" />
+            <div id="asPinResults" class="as-pin-results" hidden></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
+            <button type="button" id="asPinAi" style="padding:9px 14px;border:1px solid #0a6f4d;background:#0a6f4d;color:#fff;border-radius:9px;font-weight:600;cursor:pointer;white-space:nowrap;"> Describe it — let AI pin it</button>
+            <small id="asPinAiMsg" style="flex:1;min-width:160px;color:#6b7a73;"></small>
+          </div>
+          <div class="as-pin-wrap">
+            <div id="asPinMap" class="as-pin-map"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
+            <button type="button" id="asPinGps" class="as-btn"> Use my GPS</button>
+            <span id="asPinCoords" class="as-pin-coords">No pin set</span>
+          </div>
+        </div>
+
+        <div class="as-field">
+          <label for="asDescription">Description</label>
+          <textarea id="asDescription" rows="4" maxlength="800" placeholder="What you do, what's included, areas you serve…"></textarea>
+        </div>
+
+        <h3 style="margin:14px 0 8px;">Provider contact</h3>
+        <div class="as-row">
+          <div class="as-field">
+            <label for="asOwnerName">Name / business *</label>
+            <input id="asOwnerName" type="text" required placeholder="e.g. Neema Cleaners" />
+          </div>
+          <div class="as-field">
+            <label for="asOwnerPhone">Phone *</label>
+            <input id="asOwnerPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
+          </div>
+        </div>
+        <div class="as-field">
+          <label for="asOwnerWa">WhatsApp (if different)</label>
+          <input id="asOwnerWa" type="tel" placeholder="+255 7XX XXX XXX" />
+        </div>
+
+        <p id="asFormMsg" class="as-msg" hidden></p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;">
+          <button type="button" id="asCancelBtn" class="as-btn">Cancel</button>
+          <button type="submit" id="asSaveBtn" class="as-btn as-btn-brand">Save service</button>
+        </div>
+      </form>
+    </section>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/geolocate.js"></script>
+  <script src="js/auth-ui.js"></script>
+  <script src="js/agent-services.js"></script>
+  <script>
+    window.renderNav("agent-services.html");
+    window.renderFooter();
+    window.applyTranslations();
+    window.initAgentServicesPage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

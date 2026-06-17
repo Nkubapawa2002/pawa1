@@ -1,48 +1,53 @@
 {
-  "name": "Pawa Bus Cargo",
-  "short_name": "Pawa",
-  "description": "Tanzania bus seat booking, parcel cargo, and AI agent — all on one phone.",
-  "start_url": "./index.html",
+  "id": "./",
+  "name": "Maisha na Lifeza",
+  "short_name": "Maisha",
+  "description": "Find houses to rent, hire trusted daily services, and book moving trucks across Tanzania — with an AI assistant on your phone.",
+  "start_url": "./index.html?source=pwa",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#0a6f4d",
   "theme_color": "#0a6f4d",
   "lang": "sw",
   "dir": "ltr",
-  "categories": ["travel", "business"],
+  "categories": ["lifestyle", "business", "shopping"],
   "icons": [
-    {
-      "src": "icons/icon-maskable.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "screenshots": [
+    { "src": "icons/screenshot-narrow.png", "sizes": "414x896", "type": "image/png", "form_factor": "narrow", "label": "Find a home and hire trusted help" },
+    { "src": "icons/screenshot-wide.png", "sizes": "1280x720", "type": "image/png", "form_factor": "wide", "label": "Maisha na Lifeza homepage" }
   ],
   "shortcuts": [
     {
-      "name": "Book seat fast",
-      "short_name": "Book",
-      "url": "./book-fast.html",
-      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "name": "Houses to rent",
+      "short_name": "Houses",
+      "url": "./houses.html",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Send a parcel",
-      "short_name": "Send",
-      "url": "./send.html",
-      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "name": "Daily services",
+      "short_name": "Services",
+      "url": "./services.html",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Talk to PAWA",
+      "name": "Near me",
+      "short_name": "Near me",
+      "url": "./near-me.html",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "AI assistant",
       "short_name": "Chat",
       "url": "./chat.html",
-      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
-    },
-    {
-      "name": "Track shipment",
-      "short_name": "Track",
-      "url": "./track.html",
-      "icons": [{ "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

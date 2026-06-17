@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Super Admin — Pawa SaaS</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/auth.css" />
   <style>
     .sa-wrap { max-width: 1100px; margin: 32px auto; padding: 0 24px; }
     .sa-section { background: #fff; border-radius: 14px; padding: 24px; margin-bottom: 24px;
@@ -39,7 +40,7 @@
     <meta name="theme-color" content="#0a6f4d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="css/mobile.css" />
 <!-- pawa-mobile-bundle -->
@@ -58,14 +59,53 @@
   </section>
 
   <main class="sa-wrap">
-    <section id="saLoginGate" class="sa-section" hidden>
-      <h2>Sign in</h2>
-      <form id="saLoginForm" class="form-grid">
-        <label>Email <input type="email" id="saEmail" required autocomplete="username" /></label>
-        <label>Password <input type="password" id="saPassword" required minlength="6" autocomplete="current-password" /></label>
-        <button class="btn btn-primary" type="submit">Sign in</button>
-      </form>
-      <p id="saLoginError" class="sa-banner err" hidden></p>
+    <section id="saLoginGate" class="auth-scene" hidden>
+      <div class="login-split">
+        <aside class="login-brand">
+          <span class="login-brand__logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <h2 class="login-brand__name">Super <em>admin</em></h2>
+          <p class="login-brand__lead">Pawa SaaS control — approve tenants, manage organisations and oversee the whole platform.</p>
+          <ul class="login-brand__list">
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/></svg></span> Approve &amp; manage tenants</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="20" cy="14" r="2"/></svg></span> Platform-wide oversight</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Owner-level secure access</li>
+          </ul>
+        </aside>
+        <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-head">
+          <span class="auth-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <h1 class="auth-title">Super admin</h1>
+          <p class="auth-lead">Pawa SaaS — tenant approvals &amp; oversight.</p>
+        </div>
+        <form id="saLoginForm" class="auth-form" novalidate>
+          <div class="auth-field">
+            <label for="saEmail">Email</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+              <input class="auth-input" type="email" id="saEmail" required autocomplete="username" placeholder="you@example.com" />
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="saPassword">Password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="auth-input auth-input--pw" type="password" id="saPassword" required minlength="6" autocomplete="current-password" placeholder="Your password" />
+              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="auth-submit" type="submit">Sign in</button>
+          <div id="saLoginError" class="auth-msg" role="alert" aria-live="polite"></div>
+        </form>
+      </div>
+        </div>
+      </div>
     </section>
 
     <section id="saForbidden" class="sa-section" hidden>
@@ -121,6 +161,7 @@
   <script src="js/data.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
+  <script src="js/auth-ui.js"></script>
   <script src="js/super-admin.js"></script>
   <script>
     window.renderNav && window.renderNav("super-admin.html");

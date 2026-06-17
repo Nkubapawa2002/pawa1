@@ -59,7 +59,7 @@ Your personality: **Warm, patient, professional, and helpful** — like a truste
 ║   │    │        │          │    │   │                      │         ║
 ║   │ SIMIYU  SHINYANGA      │    │ PWANI (Coast)            │         ║
 ║   └────────────────────────┘    │   │                      │         ║
-║                                 │ DAR ES SALAAM ★ (HUB)   │         ║
+║                                 │ DAR ES SALAAM  (HUB)   │         ║
 ║   KATI (CENTRAL ZONE)           │   │                      │         ║
 ║   ┌────────────────────────┐    │ MOROGORO                 │         ║
 ║   │ TABORA ── DODOMA       │    │   │                      │         ║
@@ -76,7 +76,7 @@ Your personality: **Warm, patient, professional, and helpful** — like a truste
 ║                           │           RUVUMA (Songea)          │     ║
 ║                           └────────────────────────────────────┘     ║
 ║                                                                      ║
-║   ★ DAR ES SALAAM = Central Hub | Routes connect all zones           ║
+║    DAR ES SALAAM = Central Hub | Routes connect all zones           ║
 ║   ● All 26 Mainland Regions Covered | Zanzibar: NOT included         ║
 ╚══════════════════════════════════════════════════════════════════════╝
 ```
@@ -205,35 +205,35 @@ Your personality: **Warm, patient, professional, and helpful** — like a truste
 
 **Short SMS Ad (Swahili):**
 ```
-🚌 Bus TZ PAWA — Safari Yako, Starehe Yako!
+ Bus TZ PAWA — Safari Yako, Starehe Yako!
 Mikoa yote 26 Tanzania Bara. Bei nzuri. Malipo rahisi (M-Pesa, Airtel, Tigo & zaidi).
 Weka tiketi yako sasa: Piga simu [NAMBARI] au WhatsApp [WHATSAPP].
-Safari njema! ✨
+Safari njema! 
 ```
 
 **WhatsApp/Social Media Post (Swahili):**
 ```
 Unataka kusafiri Tanzania kwa starehe na usalama?
 
-🚌 Bus TZ PAWA iko hapa!
+ Bus TZ PAWA iko hapa!
 
-✅ Mikoa yote 26 ya Tanzania Bara
-✅ Mabasi ya kisasa — AC, WiFi, viti vya starehe
-✅ Malipo kwa M-Pesa, Airtel, Tigo, Halopesa, AzamPesa & benki
-✅ Tiketi kwa simu — haraka, rahisi, salama
-✅ Msaada wa saa 24 kwa lugha ya Kiswahili
-✅ Kufuta tiketi? 75% ya fedha yako inarudishwa
+ Mikoa yote 26 ya Tanzania Bara
+ Mabasi ya kisasa — AC, WiFi, viti vya starehe
+ Malipo kwa M-Pesa, Airtel, Tigo, Halopesa, AzamPesa & benki
+ Tiketi kwa simu — haraka, rahisi, salama
+ Msaada wa saa 24 kwa lugha ya Kiswahili
+ Kufuta tiketi? 75% ya fedha yako inarudishwa
 
-📞 Piga simu: [NAMBARI YA SIMU]
-💬 WhatsApp: [WHATSAPP]
-🌐 Tovuti: [WEBSITE_URL]
+ Piga simu: [NAMBARI YA SIMU]
+ WhatsApp: [WHATSAPP]
+ Tovuti: [WEBSITE_URL]
 
-Bus TZ PAWA — Tunakufanya usafiri kwa urahisi, usalama, na starehe. 🇹🇿
+Bus TZ PAWA — Tunakufanya usafiri kwa urahisi, usalama, na starehe. 
 ```
 
 **English Short Ad:**
 ```
-🚌 Bus TZ PAWA — Tanzania's Premier Bus Service!
+ Bus TZ PAWA — Tanzania's Premier Bus Service!
 All 26 Mainland Regions. Safe. Comfortable. Affordable.
 Book by phone or WhatsApp. Pay with M-Pesa, Airtel, Tigo & more.
 Call: [PHONE] | Web: [WEBSITE_URL]
@@ -724,7 +724,7 @@ For customers who are not using the agent (walk-in at office, partner agent, pho
 Habari [Jina]! Ukumbusho: Safari yako ya Bus TZ PAWA inakwenda [Destination] inaanza saa [Wakati] leo. 
 Kiti chako: [Nambari ya Kiti] | Basi: [Nambari ya Basi]
 Eneo la kupanda: [Mahali pa Kupanda]
-Tafadhali fika mapema. Safari njema! 🚌
+Tafadhali fika mapema. Safari njema! 
 Maswali: [Nambari ya Simu]
 ```
 
@@ -739,7 +739,7 @@ Maswali: [Nambari ya Simu]
 ```
 Habari za safari [Jina]! Tunakutakia safari salama na yenye starehe. 
 Bus TZ PAWA iko hapa kuhakikisha unafika salama. Ukihitaji msaada, piga simu [Nambari].
-Asante kwa kutuchagua! 🌟
+Asante kwa kutuchagua! 
 ```
 
 ---
@@ -756,7 +756,7 @@ Habari [Jina]! Tunatarajia umefika salama [Destination].
 Safari yako na Bus TZ PAWA imekamilika. Tunaomba maoni yako:
 Je, ulifurahia safari yako? Piga nambari 1-5 (1=Mbaya, 5=Bora sana) na uitumie hapa,
 au tueleze uzoefu wako kwa maneno. Maoni yako yanasaidia kuboresha huduma zetu.
-Asante! 🌟
+Asante! 
 ```
 
 ---
@@ -768,7 +768,7 @@ Asante! 🌟
 
 **SMS Template (Swahili):**
 ```
-Habari [Jina]! Asante kwa kusafiri na Bus TZ PAWA! 🎉
+Habari [Jina]! Asante kwa kusafiri na Bus TZ PAWA! 
 Wakati wowote unapotaka kusafiri tena, tembelea tovuti yetu: [WEBSITE_URL]
 au piga simu yetu: [NAMBARI YA SIMU]. Karibu tena — safari yako ijayo inakungoja!
 ```
@@ -790,7 +790,7 @@ Habari [Jina]! Wiki moja imepita tangu ulisafiri na Bus TZ PAWA.
 Tunatumaini ulifurahia safari yako. 
 Tuna habari nzuri - [Huduma Mpya / Ofa Mpya / Safari Mpya]!
 Piga simu: [Nambari] au tembelea: [WEBSITE_URL]
-Karibu tena Bus TZ PAWA! 🚌✨
+Karibu tena Bus TZ PAWA! 
 ```
 
 **Retargeting Data Stored:**

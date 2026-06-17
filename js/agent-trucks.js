@@ -82,6 +82,9 @@ create policy "truck-photos upload" on storage.objects for insert
   let photoState = [];       // [{path} | {file, preview}]
   let pin = { lat: null, lng: null };
   let pinMap = null, pinMarker = null;
+  // Admin hierarchy (region/district/ward) auto-derived from the pin so the
+  // truck is searchable by those, mirroring the houses form.
+  let pinAdmin = null, truckGeoTimer = null, truckGeoKey = null;
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -104,10 +107,17 @@ create policy "truck-photos upload" on storage.objects for insert
   newBtn?.addEventListener("click", () => openForm(null));
   $("atCancelBtn")?.addEventListener("click", () => closeForm());
 
+  // Truck types the dropdown offers directly; anything else is a free-text "other" kind.
+  const KNOWN_TRUCK_TYPES = ["pickup", "canter", "3ton", "7ton", "10ton_plus", "other"];
+  function syncTruckTypeOther() {
+    const row = $("atTypeOtherRow");
+    if (row) row.style.display = $("atType").value === "other" ? "" : "none";
+  }
+  $("atType")?.addEventListener("change", syncTruckTypeOther);
+
   if (!sb) {
     authCard.hidden = false;
-    authMsg.textContent = "Supabase isn't configured, so sign-in is unavailable.";
-    authMsg.className = "at-msg error"; authMsg.hidden = false;
+    setAuthMsg("Supabase isn't configured, so sign-in is unavailable.", "error");
     authForm.querySelectorAll("input,button").forEach((el) => (el.disabled = true));
     return;
   }
@@ -136,24 +146,15 @@ create policy "truck-photos upload" on storage.objects for insert
     }
   }
 
-  // Monthly subscription guard: lapsed → RLS hides the owner's trucks from the
-  // public, so show a paywall prompting them to renew.
+  // Subscription / activation guard: deactivation, lapsed subscription, or the
+  // 48h pay-or-pause grace expiring → paywall (RLS also hides the trucks);
+  // during grace, a live countdown demanding payment.
   async function checkSubscription() {
     if (!sb) return;
     try {
       const { data } = await sb.rpc("my_agent_subscription");
       const sub = Array.isArray(data) ? data[0] : data;
-      if (sub && sub.active === false) {
-        if (document.getElementById("atSubPaywall")) return;
-        const when = sub.paid_until ? ` on ${sub.paid_until}` : "";
-        const el = document.createElement("div");
-        el.id = "atSubPaywall";
-        el.style.cssText = "margin:0 0 16px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
-        el.innerHTML = `<strong>⚠️ Subscription expired${when}.</strong> Your trucks are hidden from clients until you renew. Please pay <strong>TZS 10,000/month</strong> to reactivate — contact the Pawa admin.`;
-        dashboard.insertBefore(el, dashboard.firstChild);
-      } else {
-        document.getElementById("atSubPaywall")?.remove();
-      }
+      window.renderAgentSubBanner(sub, { mount: dashboard, id: "atSubPaywall", what: "trucks" });
     } catch (_) { /* RPC not deployed yet — ignore */ }
   }
 
@@ -161,19 +162,19 @@ create policy "truck-photos upload" on storage.objects for insert
     authMode = "signin"; tabSignIn.classList.add("active"); tabSignUp.classList.remove("active");
     authSubmit.textContent = "Sign in"; authPassword.autocomplete = "current-password";
     if (authPasswordConfirmRow) authPasswordConfirmRow.hidden = true;
-    authMsg.hidden = true;
+    setAuthMsg("", "");
   });
   tabSignUp.addEventListener("click", () => {
     authMode = "signup"; tabSignUp.classList.add("active"); tabSignIn.classList.remove("active");
     authSubmit.textContent = "Create account"; authPassword.autocomplete = "new-password";
     if (authPasswordConfirmRow) { authPasswordConfirmRow.hidden = false; authPasswordConfirm.value = ""; }
-    authMsg.hidden = true;
+    setAuthMsg("", "");
   });
 
   function setAuthMsg(html, kind /* "error" | "success" */) {
-    authMsg.className = "at-msg" + (kind ? " " + kind : "");
-    authMsg.innerHTML = html;
-    authMsg.hidden = !html;
+    const mod = kind === "error" ? "is-error" : (kind === "success" || kind === "ok") ? "is-ok" : "";
+    authMsg.className = "auth-msg" + (mod && html ? " " + mod + " is-show" : "");
+    authMsg.innerHTML = html || "";
   }
   // Reject anything that isn't a syntactically valid address before we call
   // Supabase. (Real deliverability is proven by the verification email.)
@@ -206,7 +207,7 @@ create policy "truck-photos upload" on storage.objects for insert
 
   authForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    authMsg.hidden = true;
+    setAuthMsg("", "");
     const email = authEmail.value.trim(), password = authPassword.value;
 
     if (!isValidEmail(email)) {
@@ -294,7 +295,7 @@ create policy "truck-photos upload" on storage.objects for insert
     listEl.innerHTML = data.map((t) => {
       const img = t.photo ? window.DataStore.truckPhotoUrl(t.photo) : "";
       return `<div class="at-tile">
-        <div class="at-tile-photo" style="${img ? `background-image:url('${esc(img)}')` : ""}">${img ? "" : "🚚"}</div>
+        <div class="at-tile-photo" style="${img ? `background-image:url('${esc(img)}')` : ""}">${img ? "" : ""}</div>
         <div class="at-tile-body">
           <h4>${esc(t.title || "Truck")}</h4>
           <div class="at-hint" style="margin:0">${esc([t.area, t.region].filter(Boolean).join(", ") || "—")}</div>
@@ -319,7 +320,7 @@ create policy "truck-photos upload" on storage.objects for insert
     newBtn.hidden = true;
     listEl.innerHTML = `
       <div class="at-card at-setup" style="grid-column:1/-1">
-        <h3 style="margin-top:0">⚙️ One-time setup needed</h3>
+        <h3 style="margin-top:0"> One-time setup needed</h3>
         <p class="at-hint">The <code>trucks</code> table doesn't exist yet. Run this SQL once in your Supabase SQL editor, then reload.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
           <a class="at-btn at-btn-brand" target="_blank" rel="noopener" href="${sqlEditorUrl()}">Open SQL editor</a>
@@ -344,7 +345,16 @@ create policy "truck-photos upload" on storage.objects for insert
 
     // reset fields
     $("atTitle").value = t?.title || "";
-    $("atType").value = t?.truck_type || "canter";
+    // A free-text "any kind" truck_type lands in the Other box; known types select directly.
+    const _tt = t?.truck_type || "canter";
+    if (_tt && !KNOWN_TRUCK_TYPES.includes(_tt)) {
+      $("atType").value = "other";
+      $("atTypeOther").value = _tt;
+    } else {
+      $("atType").value = _tt;
+      $("atTypeOther").value = "";
+    }
+    syncTruckTypeOther();
     $("atCapacity").value = t?.capacity_tonnes ?? "";
     $("atPrice").value = t?.price_tzs ?? "";
     $("atService").value = t?.service_area || "region_wide";
@@ -401,24 +411,47 @@ create policy "truck-photos upload" on storage.objects for insert
   function setPin(lat, lng, recenter) {
     pin = { lat, lng };
     updatePinCoords();
+    geocodeTruckPin();
     if (pinMap) {
       if (!pinMarker) {
         pinMarker = L.marker([lat, lng], { draggable: true }).addTo(pinMap);
-        pinMarker.on("dragend", () => { const ll = pinMarker.getLatLng(); pin = { lat: ll.lat, lng: ll.lng }; updatePinCoords(); });
+        pinMarker.on("dragend", () => { const ll = pinMarker.getLatLng(); pin = { lat: ll.lat, lng: ll.lng }; updatePinCoords(); geocodeTruckPin(); });
       } else {
         pinMarker.setLatLng([lat, lng]);
       }
       if (recenter) pinMap.setView([lat, lng], 14);
     }
   }
+  // Reverse-geocode the pin → region/district/ward/area (debounced, cached in
+  // geo.js). Auto-fills blank region/area inputs so the listing is searchable.
+  function geocodeTruckPin() {
+    if (pin.lat == null || pin.lng == null || !window.pawaGeo) return;
+    const key = `${(+pin.lat).toFixed(5)},${(+pin.lng).toFixed(5)}`;
+    if (key === truckGeoKey) return;
+    truckGeoKey = key;
+    clearTimeout(truckGeoTimer);
+    truckGeoTimer = setTimeout(async () => {
+      try {
+        const j = await window.pawaGeo.reverse(`format=jsonv2&lat=${pin.lat}&lon=${pin.lng}&zoom=18&addressdetails=1`);
+        if (truckGeoKey !== key) return;
+        const a = (j && j.address) || {};
+        const region = a.state || a.region || "";
+        const district = a.county || a.state_district || a.city_district || a.municipality || a.city || a.town || "";
+        const ward = a.suburb || a.quarter || a.neighbourhood || a.ward || a.village || "";
+        const area = a.neighbourhood || a.suburb || a.quarter || a.village || a.town || a.city_district || a.hamlet || "";
+        pinAdmin = { region, district, ward, area };
+        if (region && fRegion && !fRegion.value) fRegion.value = region;
+        const areaEl = $("atArea");
+        if (area && areaEl && !areaEl.value.trim()) areaEl.value = area;
+      } catch (_) { /* offline → the pin still saves */ }
+    }, 600);
+  }
   function initPinMap() {
     if (pinMap) { setTimeout(() => pinMap.invalidateSize(), 80); if (pin.lat != null) setPin(pin.lat, pin.lng, true); return; }
     if (!window.L || !pinMapEl) return;
     pinMap = L.map(pinMapEl, { scrollWheelZoom: true }).setView(
       pin.lat != null ? [pin.lat, pin.lng] : [-6.4, 35.0], pin.lat != null ? 14 : 6);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO",
-    }).addTo(pinMap);
+    window.addSatelliteHybrid(pinMap);
     pinMap.on("click", (e) => setPin(e.latlng.lat, e.latlng.lng, false));
     if (pin.lat != null) setPin(pin.lat, pin.lng, true);
     setTimeout(() => pinMap.invalidateSize(), 120);
@@ -430,6 +463,26 @@ create policy "truck-photos upload" on storage.objects for insert
       setPin(fix.lat, fix.lng, true);
     } catch (e) { alert((e && e.message) || "Couldn't get your location."); }
     finally { pinGps.disabled = false; pinGps.textContent = old; }
+  });
+
+  // AI-assisted pin: describe the location in plain words → AI resolves → drop pin.
+  const pinAi = $("atPinAi"), pinAiMsg = $("atPinAiMsg");
+  pinAi?.addEventListener("click", async () => {
+    const q = (pinSearch.value || "").trim();
+    if (!q) { pinSearch.focus(); return; }
+    if (!window.AI?.locate) { if (pinAiMsg) pinAiMsg.textContent = "AI unavailable — use the list or GPS."; return; }
+    const old = pinAi.textContent; pinAi.disabled = true; pinAi.textContent = "Locating…";
+    if (pinAiMsg) pinAiMsg.textContent = "";
+    try {
+      const loc = await window.AI.locate(q, { regions: window.APP_CONFIG?.REGIONS });
+      if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
+        setPin(loc.lat, loc.lng, true);
+        if (pinResults) pinResults.hidden = true;
+        if (pinAiMsg) pinAiMsg.textContent = " " + (loc.label || "Pinned") + (loc.answer ? " — " + loc.answer : "") + " (drag to fine-tune)";
+      } else if (pinAiMsg) {
+        pinAiMsg.textContent = "Couldn't locate that — try a nearby landmark or tap the map.";
+      }
+    } finally { pinAi.disabled = false; pinAi.textContent = old; }
   });
 
   // pin search (pawaGeo suggest)
@@ -492,7 +545,10 @@ create policy "truck-photos upload" on storage.objects for insert
       const row = {
         id: editingId || ("t-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6)),
         title: $("atTitle").value.trim(),
-        truck_type: $("atType").value,
+        // "Other" stores whatever kind the provider typed (falls back to "other").
+        truck_type: $("atType").value === "other"
+                      ? (($("atTypeOther").value || "").trim().toLowerCase() || "other")
+                      : $("atType").value,
         capacity_tonnes: $("atCapacity").value ? parseFloat($("atCapacity").value) : null,
         price_tzs: parseInt($("atPrice").value, 10) || 0,
         currency: "TZS",
@@ -501,8 +557,10 @@ create policy "truck-photos upload" on storage.objects for insert
         driver_included: $("atDriver").checked,
         loaders_included: $("atLoaders").checked,
         service_area: $("atService").value,
-        region: fRegion.value || null,
-        area: $("atArea").value.trim() || null,
+        region: fRegion.value || (pinAdmin && pinAdmin.region) || null,
+        area: $("atArea").value.trim() || (pinAdmin && pinAdmin.area) || null,
+        district: (pinAdmin && pinAdmin.district) || null,
+        ward: (pinAdmin && pinAdmin.ward) || null,
         address: $("atAddress").value.trim() || null,
         lat: pin.lat, lng: pin.lng,
         photo: paths[0] || null,

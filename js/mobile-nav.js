@@ -12,39 +12,37 @@
     book:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 18v2M17 18v2"/><circle cx="8" cy="14" r="1"/><circle cx="16" cy="14" r="1"/></svg>`,
     send:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-7-7 18-2-8-9-3z"/></svg>`,
     chat:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-12.7 6.5L3 20l1.5-5.3A8 8 0 1 1 21 12z"/></svg>`,
+    house: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/></svg>`,
+    services: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2 2.6-2.6z"/></svg>`,
     more:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>`,
   };
 
   function tabsFor(active) {
+    const HIDDEN = (window.APP_CONFIG && window.APP_CONFIG.HIDDEN_NAV) || [];
     return [
-      { href: "index.html",     label: t("nav_home", "Home"),  icon: ICONS.home },
-      { href: "book-fast.html", label: t("nav_book", "Book"),  icon: ICONS.book },
-      { href: "send.html",      label: t("nav_send", "Send"),  icon: ICONS.send },
-      { href: "chat.html",      label: t("nav_chat", "Chat"),  icon: ICONS.chat },
-      { href: "#more-drawer",   label: t("nav_more", "More"),  icon: ICONS.more, isMore: true },
-    ].map(tab => ({ ...tab, active: !tab.isMore && active === tab.href }));
+      { href: "index.html",     label: t("nav_home", "Home"),         icon: ICONS.home },
+      { href: "houses.html",    label: t("nav_houses", "Houses"),     icon: ICONS.house },
+      { href: "services.html",  label: t("nav_services", "Services"), icon: ICONS.services },
+      { href: "chat.html",      label: t("nav_chat", "Chat"),         icon: ICONS.chat },
+      { href: "#more-drawer",   label: t("nav_more", "More"),         icon: ICONS.more, isMore: true },
+    ].filter(tab => tab.isMore || !HIDDEN.includes(tab.href))
+     .map(tab => ({ ...tab, active: !tab.isMore && active === tab.href }));
   }
 
   const ACTIVE_MAP = {
-    "track.html":          "send.html",
-    "book.html":           "book-fast.html",
-    "ride.html":           "book-fast.html",
-    "meet.html":           "book-fast.html",
-    "buses.html":          "index.html",
-    "agents.html":         "index.html",
-    "agent-register.html": null,
-    "agent.html":          null,
-    "dashboard.html":      null,
+    "service.html":        "services.html",
+    "house.html":          "houses.html",
+    "truck.html":          "trucks.html",
     "admin.html":          null,
-    "accounting.html":     null,
     "super-admin.html":    null,
-    "saas.html":           "index.html",
-    "signup.html":         "index.html",
   };
 
   // ── Drawer HTML ──────────────────────────────────────────────
   function drawerHTML() {
+    const HIDDEN = (window.APP_CONFIG && window.APP_CONFIG.HIDDEN_NAV) || [];
+    const hidden = (href) => HIDDEN.includes(href);
     const row = (href, icon, label, cls = "") =>
+      hidden(href) ? "" :
       `<a href="${href}" class="mnav-row ${cls}"><span class="mnav-row-icon">${icon}</span><span class="mnav-row-label">${label}</span><svg class="mnav-row-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>`;
 
     // Rows that require auth carry both a CSS class and inline display:none so
@@ -59,29 +57,24 @@
       <div class="mnav-drawer-scroll">
 
         <div class="mnav-section-label">Services</div>
-        ${row("track.html",  "📦", t("nav_track","Track Parcel"))}
-        ${row("ride.html",   "🛺", t("nav_ride","Ride Hailing"))}
-        ${row("meet.html",   "📍", t("nav_meet","Meet & Locate"))}
+        ${row("meet.html",   "", t("nav_meet","Meet & Locate"))}
+        ${row("chat.html",   "", t("nav_chat","Chat"))}
 
         <div class="mnav-section-label">Network</div>
-        ${row("buses.html",  "🚌", t("nav_buses","Bus Companies"))}
-        ${row("agents.html", "🤝", t("nav_agents","Agents"))}
+        ${row("houses.html",   "", t("nav_houses","Houses"))}
+        ${row("services.html", "", t("nav_services","Services"))}
+        ${row("trucks.html",   "", t("nav_trucks","Moving Trucks"))}
+        ${row("near-me.html",  "", t("nav_near_me","Near Me"))}
+        ${row("favorites.html","", t("nav_favorites","Favorites"))}
 
         <div class="mnav-section-label">Account</div>
-        ${row("agent-register.html", "✍️", t("nav_agent_register","Become an Agent"))}
-        ${row("agent.html",          "👤", t("nav_agent_dashboard","Agent Login"))}
-
-        <div class="mnav-section-label">${t("nav_group_business","Business")}</div>
-        ${row("saas.html",   "💼", t("nav_for_companies","For Companies"))}
-        ${row("signup.html", "🚀", t("nav_signup","List your Company"))}
-
-        <div class="mnav-section-label mnav-company-section" style="display:none">Company</div>
-        ${lockedRow("dashboard.html",  "🏢", t("nav_dashboard","Company Dashboard"), "mnav-company-row")}
-        ${lockedRow("accounting.html", "📊", t("nav_finance","Finance"),             "mnav-company-row")}
+        ${row("agent-houses.html",    "", t("nav_agent_houses","My House Listings"))}
+        ${row("agent-services.html",  "", t("nav_agent_services","My Services"))}
+        ${row("agent-trucks.html",    "", t("nav_agent_trucks","My Trucks"))}
 
         <div class="mnav-section-label mnav-admin-section" style="display:none">Admin</div>
-        ${lockedRow("admin.html",       "🛡️", t("nav_admin","Admin Panel"),    "mnav-admin-row")}
-        ${lockedRow("super-admin.html", "⚙️", t("nav_super_admin","Super Admin"), "mnav-admin-row")}
+        ${lockedRow("admin.html",       "", t("nav_admin","Admin Panel"),    "mnav-admin-row")}
+        ${lockedRow("super-admin.html", "", t("nav_super_admin","Super Admin"), "mnav-admin-row")}
 
       </div>
     </div>`;

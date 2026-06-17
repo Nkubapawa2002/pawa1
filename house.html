@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#0a6f4d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/mobile.css" />
   <link rel="stylesheet" href="css/premium.css" />
@@ -132,31 +132,87 @@
       font-size: .86rem;
     }
 
-    /* Stats row (beds / baths / sqm) */
-    .hd-stats {
+    /* =====================================================================
+       Rooms & specifications — premium spec tiles.
+       Responsive auto-fill grid, SVG icons, tabular figures, subtle hover
+       lift, and an accented "feature" tile for the room category. Degrades
+       gracefully: only tiles with data are rendered.
+       ===================================================================== */
+    .hd-specs-card h3 { margin-bottom: 14px; }
+    .hd-specs {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
       gap: 10px;
-      margin-top: 16px;
     }
-    .hd-stat {
+    .hd-spec {
+      position: relative;
+      display: flex; flex-direction: column; gap: 9px;
+      padding: 15px 16px;
       background: var(--c-bg-elev, #f4f3ee);
-      border-radius: 12px;
-      padding: 14px 16px;
-      display: flex; flex-direction: column; align-items: center;
-      gap: 4px;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      transition: transform .18s ease, box-shadow .18s ease,
+                  border-color .18s ease, background .18s ease;
     }
-    .hd-stat-val {
-      font-size: 1.3rem;
-      font-weight: 700;
-      color: var(--c-brand-deep, #064a33);
+    .hd-spec__icon {
+      width: 36px; height: 36px; border-radius: 11px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--c-surface, #fff);
+      color: var(--c-brand, #0a6f4d);
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+    }
+    .hd-spec__icon svg { width: 19px; height: 19px; }
+    .hd-spec__val {
       font-family: var(--c-font-display, serif);
+      font-size: 1.32rem; font-weight: 700; line-height: 1.05;
+      color: var(--c-text, #1a1915);
+      font-variant-numeric: tabular-nums;
     }
-    .hd-stat-lbl {
-      font-size: .75rem;
-      color: var(--c-text-muted, #6b6960);
+    .hd-spec__val small { font-size: .82rem; font-weight: 600; color: var(--c-text-muted, #6b6960); }
+    .hd-spec__lbl {
+      font-size: .72rem; font-weight: 700; letter-spacing: .5px;
       text-transform: uppercase;
-      letter-spacing: .6px;
+      color: var(--c-text-muted, #6b6960);
+    }
+    .hd-spec:hover {
+      transform: translateY(-2px);
+      border-color: var(--c-brand-soft, #d9ecdf);
+      background: var(--c-surface, #fff);
+      box-shadow: 0 10px 22px rgba(10,111,77,.10);
+    }
+    /* Accented "feature" tile — used for the room category (single / master),
+       the headline fact for room-by-room rentals. */
+    .hd-spec--feature {
+      background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+      color: #fff;
+    }
+    .hd-spec--feature .hd-spec__icon { background: rgba(255,255,255,.18); color: #fff; box-shadow: none; }
+    .hd-spec--feature .hd-spec__val  { color: #fff; }
+    .hd-spec--feature .hd-spec__lbl  { color: rgba(255,255,255,.82); }
+    .hd-spec--feature:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 26px rgba(10,111,77,.30);
+      background: linear-gradient(135deg, var(--c-brand-deep, #064a33), #053b29);
+    }
+    @media (max-width: 480px) {
+      .hd-specs { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+      .hd-spec { padding: 13px; }
+      .hd-spec__val { font-size: 1.18rem; }
+    }
+    /* Subtle staggered entrance — eases the tiles up as the panel renders. */
+    @keyframes hd-spec-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .hd-spec { animation: hd-spec-in .32s ease-out both; }
+    .hd-spec:nth-child(1) { animation-delay: 0ms; }
+    .hd-spec:nth-child(2) { animation-delay: 40ms; }
+    .hd-spec:nth-child(3) { animation-delay: 80ms; }
+    .hd-spec:nth-child(4) { animation-delay: 120ms; }
+    .hd-spec:nth-child(5) { animation-delay: 160ms; }
+    .hd-spec:nth-child(6) { animation-delay: 200ms; }
+    .hd-spec:nth-child(7) { animation-delay: 240ms; }
+    .hd-spec:nth-child(8) { animation-delay: 280ms; }
+    @media (prefers-reduced-motion: reduce) {
+      .hd-spec, .hd-spec--feature { transition: none; animation: none; }
+      .hd-spec:hover, .hd-spec--feature:hover { transform: none; }
     }
 
     /* Generic content card */
@@ -227,6 +283,7 @@
 
     /* Tiny POI marker pin (emoji-style) */
     .hd-poi-marker {
+      position: relative;
       width: 26px; height: 26px;
       border-radius: 50%;
       background: rgba(255,255,255,.96);
@@ -239,6 +296,17 @@
       transition: transform .12s ease;
     }
     .hd-poi-marker:hover { transform: translate(-50%, -50%) scale(1.18); z-index: 5; }
+    /* The place's real name, always visible under the pin */
+    .hd-poi-name {
+      position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      margin-top: 3px; max-width: 132px; padding: 2px 7px;
+      background: rgba(255,255,255,.95);
+      border: 1px solid rgba(0,0,0,.14); border-radius: 7px;
+      font: 600 10.5px/1.25 system-ui, sans-serif; color: #1a1915;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      box-shadow: 0 1px 4px rgba(0,0,0,.22);
+      pointer-events: none;
+    }
     .hd-poi-marker.cat-school    { border-color: #1e40af; }
     .hd-poi-marker.cat-hospital  { border-color: #b91c1c; }
     .hd-poi-marker.cat-market    { border-color: #bc5c00; }
@@ -263,6 +331,16 @@
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     }
     .hd-map-actions a:hover, .hd-map-actions button:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
+
+    /* Nearest main road line */
+    .hd-main-road {
+      margin-top: 10px; padding: 9px 12px; border-radius: 9px;
+      font-size: .86rem; line-height: 1.45;
+      background: var(--c-bg-elev, #f4f3ee);
+      border: 1px solid var(--c-border, #e7e4dd);
+      color: var(--c-text, #1a1915);
+    }
+    .hd-main-road strong { color: var(--c-brand-deep, #064a33); }
 
     /* Commute / workplace distance tool */
     .hd-commute { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--c-border, #e7e4dd); }
@@ -436,9 +514,9 @@
   <!-- Sticky bottom CTA bar (phones) — wired in JS after data loads -->
   <div id="hdSticky" class="hd-sticky" hidden>
     <div class="hd-sticky-inner">
-      <a id="hdStickyCall" class="hd-cta hd-cta-call" href="#" aria-label="Call agent">📞 Call</a>
-      <a id="hdStickyWa"   class="hd-cta hd-cta-wa"   href="#" target="_blank" rel="noopener" aria-label="WhatsApp agent">💬 WhatsApp</a>
-      <a id="hdStickyMeet" class="hd-cta hd-cta-meet" href="#" target="_blank" rel="noopener" aria-label="Request live viewing">📍 Viewing</a>
+      <a id="hdStickyCall" class="hd-cta hd-cta-call" href="#" aria-label="Call agent"> Call</a>
+      <a id="hdStickyWa"   class="hd-cta hd-cta-wa"   href="#" target="_blank" rel="noopener" aria-label="WhatsApp agent"> WhatsApp</a>
+      <a id="hdStickyMeet" class="hd-cta hd-cta-meet" href="#" target="_blank" rel="noopener" aria-label="Request live viewing"> Viewing</a>
     </div>
   </div>
 
@@ -453,6 +531,7 @@
   <script src="js/nav.js"></script>
   <script src="js/map-expand.js"></script>
   <script src="js/geo.js"></script>
+  <script src="js/geolocate.js"></script>
   <script src="js/house.js"></script>
   <script>
     window.renderNav("houses.html");

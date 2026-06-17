@@ -28,7 +28,7 @@ async function pickClient() {
       database: "postgres", ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 8000, statement_timeout: 60000,
     });
-    try { await client.connect(); console.log("connected ✓"); return client; }
+    try { await client.connect(); console.log("connected "); return client; }
     catch (e) { console.log("fail:", e.code || e.message); try { await client.end(); } catch {} }
   }
   throw new Error("could not connect via any candidate");
@@ -65,8 +65,8 @@ for (const r of rows) {
     String(r.policy_count).padEnd(9),
     String(r.est_rows)
   );
-  if (!r.rls_enabled) issues.push(`⚠ RLS DISABLED: ${r.table_name} (exposed to anon if anon has grants)`);
-  else if (Number(r.policy_count) === 0) issues.push(`⚠ RLS ON but NO POLICIES: ${r.table_name} (locked out — no one can read/write)`);
+  if (!r.rls_enabled) issues.push(` RLS DISABLED: ${r.table_name} (exposed to anon if anon has grants)`);
+  else if (Number(r.policy_count) === 0) issues.push(` RLS ON but NO POLICIES: ${r.table_name} (locked out — no one can read/write)`);
 }
 
 console.log("\n=== security flags ===");

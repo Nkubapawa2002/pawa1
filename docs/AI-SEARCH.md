@@ -15,9 +15,9 @@ structured intent the existing frontend engines already understand.
  Browser (static, buildless)                 Server (holds the key)
  ┌──────────────────────────┐                ┌─────────────────────────────┐
  │ houses.js / ride.js      │   query +      │ Supabase Edge Function       │
- │   └─ js/ai-search.js  ───┼── context ───▶ │   ai-search/index.ts         │
+ │   └─ js/ai-search.js  ───┼── context ─── │   ai-search/index.ts         │
  │        window.AISearch   │                │   → Anthropic Messages API   │
- │                          │ ◀── intent ────│   (ANTHROPIC_API_KEY secret) │
+ │                          │ ── intent ────│   (ANTHROPIC_API_KEY secret) │
  │  fallback: parseSmartQuery (regex)         └─────────────────────────────┘
  │  ranker:   house-match.js (Rust→WASM)         OR self-host:
  └──────────────────────────┘                 services/python/main.py (same contract)
@@ -37,7 +37,7 @@ structured intent the existing frontend engines already understand.
 | `js/ai-search.js` | Browser client `window.AISearch`. Drop-in over the regex parser; silent fallback. |
 | `js/config.js` | `AI_SEARCH_PATH` (Edge Function) and optional `AI_SEARCH_URL` (override). |
 | `js/houses.js` | Wires AI into house smart search (`enhanceSmartSearchWithAI`). Regex stays the baseline. |
-| `js/ride.js` + `ride.html` | "✨ Tell us your trip" box → `AISearch.parseRide()` fills pickup / dropoff / vehicle. Manual fields always work. |
+| `js/ride.js` + `ride.html` | " Tell us your trip" box → `AISearch.parseRide()` fills pickup / dropoff / vehicle. Manual fields always work. |
 
 ## Activate it — the only step left
 
@@ -59,8 +59,8 @@ AI_SEARCH_ENABLED: true,
 
 (The flag keeps the AI UI hidden in production until the key is live, so users
 never see a box that doesn't work yet.) Reload `houses.html`, type
-"2 bedroom apartment near Mwenge under 700k" → the AI pass lights up (✨ chip).
-On `ride.html` the "✨ Tell us your trip" box appears — try "bajaji from here to
+"2 bedroom apartment near Mwenge under 700k" → the AI pass lights up ( chip).
+On `ride.html` the " Tell us your trip" box appears — try "bajaji from here to
 Mwenge".
 
 ### Option B — self-host the Python brain (local testing / non-Supabase)

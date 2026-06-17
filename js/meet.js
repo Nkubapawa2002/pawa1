@@ -1,6 +1,6 @@
 // Build stamp — shows in console AND on-screen (#meetBuildBadge) so you
 // can confirm which build is loaded without DevTools. Bump on each ship.
-const MEET_BUILD = "v56 (2026-05-29 popup-fix)";
+const MEET_BUILD = "v59 (2026-06-15 houses/services reframe + WhatsApp live view)";
 console.log(`[meet] build ${MEET_BUILD} loaded`);
 window.addEventListener("DOMContentLoaded", () => {
   const b = document.getElementById("meetBuildBadge");
@@ -99,6 +99,8 @@ const _initMeetPageImpl = () => {
   let myLastGeocodedPos = null;
   let chatMessages   = [];
   let chatUnread     = 0;
+  let houseCtx       = null;       // listing being viewed live (?house=<id>)
+  let houseMarker    = null;       // the property's pin on the live map
 
   // Watch battery once
   if (navigator.getBattery) {
@@ -118,6 +120,7 @@ const _initMeetPageImpl = () => {
     const purpose = document.getElementById("createPurpose").value;
     const tracking = document.getElementById("createTracking").value.trim() || null;
     if (!name) { alert(window.t("meet_need_name") || "Please enter your name"); return; }
+    try { localStorage.setItem("meet_name", name); } catch (_) {}
 
     createRoomBtn.disabled = true;
     createRoomBtn.textContent = "…";
@@ -140,11 +143,16 @@ const _initMeetPageImpl = () => {
     joinErr.style.display = "none";
     if (!name) { joinErr.textContent = window.t("meet_need_name") || "Please enter your name"; joinErr.style.display = "block"; return; }
     if (code.length < 4) { joinErr.textContent = window.t("meet_bad_code") || "Code looks too short"; joinErr.style.display = "block"; return; }
+    try { localStorage.setItem("meet_name", name); } catch (_) {}
 
     joinRoomBtn.disabled = true;
     joinRoomBtn.textContent = "…";
     try {
-      const room = await fetchRoom(code);
+      let room = await fetchRoom(code);
+      // Live-viewing rooms use a code synthesized by the listing page — no
+      // row exists until someone arrives. First to join opens the room.
+      if (!room && inviteHouseId && code === inviteCode)
+        room = await ensureListingRoom(code, name);
       if (!room) throw new Error(window.t("meet_room_not_found") || "Room not found or expired");
       myProfile = { name, role };
       await enterRoom(room);
@@ -180,6 +188,7 @@ const _initMeetPageImpl = () => {
 
     applyMobileLayout();
     initMap();
+    attachHouseToMap();   // pin the listing when this room is a live viewing
     await refreshRoster();
     subscribeRealtime();
     startGeolocate();
@@ -229,6 +238,7 @@ const _initMeetPageImpl = () => {
     });
     peers.clear();
     if (myMarker) { myMarker.remove(); myMarker = null; }
+    if (houseMarker) { houseMarker.remove(); houseMarker = null; }
     if (map) { map._cleanupFn?.(); map.remove(); map = null; }
 
     clearPersisted();
@@ -298,11 +308,14 @@ const _initMeetPageImpl = () => {
     if (lastFix && map) map.easeTo({ center: [lastFix.lng, lastFix.lat], zoom: 15, animate: true });
   });
 
-  // Fit-all: zoom out so every roster member (me + peers) is visible.
+  // Fit-all: zoom out so every roster member (me + peers) — and the property
+  // pin, when this room is a live viewing — is visible.
   document.getElementById("fabFitAll")?.addEventListener("click", () => {
     if (!map) return;
     const pts = [];
     if (lastFix) pts.push([lastFix.lng, lastFix.lat]);
+    if (houseCtx && Number.isFinite(+houseCtx.lat) && Number.isFinite(+houseCtx.lng))
+      pts.push([+houseCtx.lng, +houseCtx.lat]);
     for (const p of peers.values()) pts.push([p.data.lng, p.data.lat]);
     if (pts.length < 2) {
       if (pts.length === 1) map.easeTo({ center: pts[0], zoom: 14 });
@@ -334,6 +347,7 @@ const _initMeetPageImpl = () => {
       const here = map.getCenter(), z = map.getZoom();
       map.remove();
       initMap();
+      attachHouseToMap();
       map.once("load", () => map.jumpTo({ center: here, zoom: z }));
     }
   });
@@ -392,7 +406,7 @@ const _initMeetPageImpl = () => {
   shareCodeBtn?.addEventListener("click", () => {
     if (!activeRoom) return;
     const url  = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}meet.html?code=${activeRoom.code}`;
-    const text = `${window.t("meet_share_text") || "Join me on Pawa Cargo Meet"}: ${activeRoom.code}\n${url}`;
+    const text = `${window.t("meet_share_text") || "Join me on Maisha Meet"}: ${activeRoom.code}\n${url}`;
     if (navigator.share) navigator.share({ title: "Pawa Meet", text, url }).catch(() => {});
     else                 navigator.clipboard.writeText(text);
   });
@@ -1206,6 +1220,105 @@ const _initMeetPageImpl = () => {
     else           startCamera();
   };
   window._meetCameraToggle = cameraToggle;
+
+  // Strip a phone to bare digits for a wa.me link, and build a WhatsApp link
+  // to a specific peer with a prompt to start a video call.
+  function waDigits(p) { return String(p || "").replace(/[^\d]/g, ""); }
+  function waVideoHref(phone) {
+    const msg = window.t("meet_wa_video_text") || "Let's start a video call on Pawa Meet";
+    return `https://wa.me/${waDigits(phone)}?text=${encodeURIComponent(msg)}`;
+  }
+
+  // ── Live view over WhatsApp ─────────────────────────────────────────────
+  // The in-app WebRTC camera stays; this is an *alternative* way to go live
+  // when requested. WhatsApp has no public "start a video call" deep-link, so
+  // we open the chat (a direct 1:1 when exactly one peer shared a number, or
+  // the contact picker otherwise) pre-filled with the room link + a prompt to
+  // start the video call there.
+  window._meetWhatsAppVideo = () => {
+    const url = activeRoom
+      ? `${location.origin}${location.pathname.replace(/[^/]*$/, '')}meet.html?code=${activeRoom.code}`
+      : location.href;
+    const msg = `${window.t("meet_wa_video_text") || "Let's start a video call on Pawa Meet"}${activeRoom ? ` (room ${activeRoom.code})` : ""}:\n${url}`;
+    const withPhone = [...peers.values()]
+      .map(p => p.data)
+      .filter(d => d && d.user_id !== myUserId && d.phone);
+    const href = withPhone.length === 1
+      ? `https://wa.me/${waDigits(withPhone[0].phone)}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;   // 0 or many → pick contact/group
+    window.open(href, "_blank", "noopener");
+  };
+
+  // ── One-click "Share my live location on WhatsApp" ──────────────────────
+  // The headline action: from a cold lobby OR inside a room, a single tap
+  //   1. puts the user in a live room (creates one if they're not in one yet),
+  //   2. starts broadcasting their GPS,
+  //   3. opens WhatsApp pre-filled with a live-view link the recipient opens
+  //      in one tap to watch the sender move on the map in real time.
+  // Pop-up blockers require window.open() to fire inside the click gesture, so
+  // when room setup is async we reserve the tab synchronously (about:blank) and
+  // redirect it once the room exists.
+  function buildLiveViewUrl() {
+    const base = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}meet.html?code=${activeRoom.code}`;
+    return (houseCtx && houseCtx.id)
+      ? `${base}&house=${encodeURIComponent(houseCtx.id)}`
+      : base;
+  }
+  function buildLiveViewMessage() {
+    const url = buildLiveViewUrl();
+    const lead = window.t("meet_wa_live_text") || "Follow my live location on Pawa";
+    let msg = `${lead} (room ${activeRoom.code}):\n${url}`;
+    // Best-effort static pin so the recipient gets *something* even before they
+    // open the live map. Only when we already have a fix (don't stall the tap).
+    if (lastFix && Number.isFinite(lastFix.lat) && Number.isFinite(lastFix.lng)) {
+      msg += `\n\n${window.t("meet_wa_pin_text") || "My location right now"}: ` +
+             `https://maps.google.com/?q=${lastFix.lat.toFixed(6)},${lastFix.lng.toFixed(6)}`;
+    }
+    return msg;
+  }
+  async function shareLiveViewWhatsApp() {
+    let win = null;
+    const needRoom = !activeRoom;
+    if (needRoom) {
+      // Reserve the popup within the user gesture so it isn't blocked.
+      try { win = window.open("about:blank", "_blank"); } catch (_) { win = null; }
+    }
+    try {
+      if (needRoom) {
+        const name = (
+          document.getElementById("createName")?.value ||
+          document.getElementById("joinName")?.value ||
+          localStorage.getItem("meet_name") || ""
+        ).trim() || "Me";
+        try { localStorage.setItem("meet_name", name); } catch (_) {}
+        myProfile = myProfile || { name, role: (inviteHouseId ? "agent" : "guest") };
+
+        let room;
+        if (inviteHouseId && inviteCode) {
+          // Live viewing of a listing → reuse the stable per-listing room.
+          room = await ensureListingRoom(inviteCode, name);
+        } else {
+          const purposeSel = document.getElementById("createPurpose");
+          const purpose = (purposeSel && purposeSel.value) || "meet";
+          const code = await createRoom({ purpose, tracking: null, created_by: name });
+          room = { code, purpose };
+        }
+        await enterRoom(room);
+      }
+
+      const href = `https://wa.me/?text=${encodeURIComponent(buildLiveViewMessage())}`;
+      if (win) win.location.href = href;
+      else window.open(href, "_blank", "noopener");
+    } catch (e) {
+      if (win) { try { win.close(); } catch (_) {} }
+      console.error("[meet] shareLiveViewWhatsApp failed", e);
+      alert("Could not start live sharing: " + (e?.message || e));
+    }
+  }
+  window._meetShareLiveWhatsApp = shareLiveViewWhatsApp;
+  document.getElementById("waLiveLobbyBtn")?.addEventListener("click", shareLiveViewWhatsApp);
+  document.getElementById("waLiveRoomBtn") ?.addEventListener("click", shareLiveViewWhatsApp);
+
   chatCameraBtn?.addEventListener("click", cameraToggle);
   camSwitchBtn?.addEventListener("click", switchCamera);
   camGalleryBtn?.addEventListener("click", openCameraGallery);
@@ -1226,11 +1339,101 @@ const _initMeetPageImpl = () => {
     if (camStream) stopCamera({ notify: true });
   });
 
-  // Auto-join via ?code=XXXX
+  // ── Invite deep-link (?code=XXXX [&house=<listing id>]) ──────────────────
+  // Opening a shared link (e.g. a client requesting a live viewing from a
+  // house page) compacts the lobby to a single focused Join card: code
+  // pre-filled, name remembered from last time, one tap to enter.
   const params = new URLSearchParams(location.search);
-  if (params.get("code")) {
-    document.getElementById("joinCode").value = params.get("code").toUpperCase();
-    document.getElementById("joinName").focus();
+  const inviteCode    = (params.get("code") || "").toUpperCase();
+  const inviteHouseId = params.get("house") || null;
+  const rememberedName = localStorage.getItem("meet_name") || "";
+
+  // Remembered name pre-fills both forms (invited or not).
+  if (rememberedName) {
+    const jn = document.getElementById("joinName");
+    const cn = document.getElementById("createName");
+    if (jn && !jn.value) jn.value = rememberedName;
+    if (cn && !cn.value) cn.value = rememberedName;
+  }
+
+  if (inviteCode) {
+    document.getElementById("joinCode").value = inviteCode;
+    // Compact invite mode: hide everything except the Join card.
+    document.querySelector(".fast-hero-card")?.setAttribute("hidden", "");
+    document.getElementById("meetCreateCard")?.setAttribute("hidden", "");
+    document.querySelector(".meet-features")?.setAttribute("hidden", "");
+    document.querySelector(".meet-lobby-grid")?.classList.add("invite-only");
+    const banner = document.getElementById("meetInviteBanner");
+    if (banner) banner.hidden = false;
+    (rememberedName ? joinRoomBtn : document.getElementById("joinName"))?.focus();
+  }
+
+  if (inviteHouseId) {
+    // This room is a live viewing of a specific listing.
+    const jr = document.getElementById("joinRole");
+    if (jr) jr.value = "client";
+    const icon = document.getElementById("mibIcon");
+    if (icon) icon.textContent = "";
+    loadHouseCtx(inviteHouseId);
+  }
+
+  async function loadHouseCtx(id) {
+    try {
+      const all = await window.DataStore.getHouses();
+      const h = all.find((x) => x.id === id);
+      if (!h) return;
+      houseCtx = h;
+      const t = document.getElementById("mibTitle");
+      if (t) t.textContent = `Live viewing: ${h.title}`;
+      const sub = document.getElementById("mibSub");
+      if (sub) sub.textContent = "Enter your name and tap Join — you'll see the agent live, the property pin on the map, and the room chat.";
+      fillListingCard(h);
+      if (activeRoom) attachHouseToMap();   // refresh-while-in-room case
+    } catch (_) {}
+  }
+
+  function fillListingCard(h) {
+    const card = document.getElementById("meetListingCard");
+    if (!card) return;
+    card.href = `house.html?id=${encodeURIComponent(h.id)}`;
+    const titleEl = document.getElementById("mlcTitle");
+    if (titleEl) titleEl.textContent = h.title || "Listing";
+    const price = h.price_tzs
+      ? "TZS " + Number(h.price_tzs).toLocaleString("en-US") + (h.listing === "sale" ? "" : " / " + (h.period || "month"))
+      : "";
+    const metaEl = document.getElementById("mlcMeta");
+    if (metaEl) metaEl.textContent = [h.area, h.region, price].filter(Boolean).join(" · ");
+    const photo = window.DataStore.housePhotoUrl ? window.DataStore.housePhotoUrl(h.photo) : (h.photo || "");
+    const ph = document.getElementById("mlcPhoto");
+    if (ph && photo) ph.style.backgroundImage = `url('${photo}')`;
+    card.hidden = false;
+  }
+
+  // Pin the property itself on the live map so the agent and the client can
+  // both see (and navigate to) where the viewing happens.
+  function attachHouseToMap() {
+    if (!map || !houseCtx) return;
+    const lat = +houseCtx.lat, lng = +houseCtx.lng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (houseMarker) { houseMarker.remove(); houseMarker = null; }
+    const el = document.createElement("div");
+    el.className = "meet-house-pin";
+    el.innerHTML = `
+      <svg width="38" height="48" viewBox="0 0 32 42" fill="none">
+        <path d="M16 0C7.2 0 0 7.2 0 16c0 12 16 26 16 26s16-14 16-26C32 7.2 24.8 0 16 0z" fill="#0a6f4d" stroke="#fff" stroke-width="2"/>
+        <text x="16" y="21" text-anchor="middle" font-size="13"></text>
+      </svg>
+      <div class="pawa-name-tag" style="background:#0a6f4d">Property</div>`;
+    houseMarker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup({ offset: 22, maxWidth: "240px" }).setHTML(
+        `<strong>${esc(houseCtx.title || "Listing")}</strong><br>` +
+        `<a href="house.html?id=${encodeURIComponent(houseCtx.id)}" target="_blank" rel="noopener">Open listing →</a><br>` +
+        `<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener"> Navigate there</a>`))
+      .addTo(map);
+    // Until the first GPS fix lands, anchor the view on the property so
+    // everyone joins looking at the right place.
+    if (!lastFix) map.jumpTo({ center: [lng, lat], zoom: 15 });
   }
 
   // ====================================================================
@@ -1665,7 +1868,7 @@ const _initMeetPageImpl = () => {
     return `<div class="peer-popup">
       <strong>${esc(myProfile?.name || "Me")}</strong> <span class="muted">(you)</span><br>
       <span class="muted">${labelRole(myProfile?.role)}</span>
-      ${myStreetAddr ? `<div class="peer-street">📍 ${esc(myStreetAddr)}</div>` : ""}
+      ${myStreetAddr ? `<div class="peer-street"> ${esc(myStreetAddr)}</div>` : ""}
     </div>`;
   }
 
@@ -1676,17 +1879,18 @@ const _initMeetPageImpl = () => {
     const roadDur  = p?.roadDurMin;
     const crowDist = lastFix ? haversineKm(lastFix.lat, lastFix.lng, row.lat, row.lng) : null;
     const distLine = roadDist != null
-      ? `🛣 <strong>${roadDist.toFixed(1)} km by road</strong> · ~${roadDur} min drive`
-      : crowDist != null ? `📐 ${crowDist.toFixed(2)} km (est)` : "";
+      ? ` <strong>${roadDist.toFixed(1)} km by road</strong> · ~${roadDur} min drive`
+      : crowDist != null ? ` ${crowDist.toFixed(2)} km (est)` : "";
     return `
       <div class="peer-popup">
         <strong>${esc(row.display_name || "—")}</strong>
         <span class="muted">${labelRole(row.role)}</span>
-        ${p?.streetAddr ? `<div class="peer-street">📍 ${esc(p.streetAddr)}</div>` : ""}
+        ${p?.streetAddr ? `<div class="peer-street"> ${esc(p.streetAddr)}</div>` : ""}
         ${row.status_text ? `<div class="peer-status">"${esc(row.status_text)}"</div>` : ""}
         ${distLine ? `<div class="peer-meta">${distLine}</div>` : ""}
         <div class="peer-meta muted">last seen ${seenAgo}</div>
         ${row.phone ? `<a class="btn btn-outline btn-xs" href="tel:${row.phone}">Call</a>` : ""}
+        ${row.phone ? `<a class="btn btn-xs" style="background:#25d366;color:#fff" target="_blank" rel="noopener" href="${waVideoHref(row.phone)}"> WhatsApp</a>` : ""}
         <a class="btn btn-primary btn-xs" target="_blank" rel="noopener"
            href="https://www.google.com/maps/dir/?api=1&destination=${row.lat},${row.lng}">Navigate</a>
       </div>`;
@@ -1700,7 +1904,7 @@ const _initMeetPageImpl = () => {
       const roadKm   = p?.roadDistKm;
       const crowKm   = lastFix ? haversineKm(lastFix.lat, lastFix.lng, r.lat, r.lng) : null;
       const distStr  = roadKm != null
-        ? (roadKm < 1 ? Math.round(roadKm*1000)+' m' : roadKm.toFixed(1)+' km') + ' 🛣'
+        ? (roadKm < 1 ? Math.round(roadKm*1000)+' m' : roadKm.toFixed(1)+' km') + ' '
         : crowKm != null
           ? (crowKm < 1 ? Math.round(crowKm*1000)+' m' : crowKm.toFixed(1)+' km') + '~'
           : '';
@@ -1725,7 +1929,7 @@ const _initMeetPageImpl = () => {
         const roadKm  = peer?.roadDistKm;
         const crowKm  = lastFix ? haversineKm(lastFix.lat, lastFix.lng, r.lat, r.lng) : null;
         const distStr = roadKm != null
-          ? (roadKm < 1 ? Math.round(roadKm * 1000) + " m" : roadKm.toFixed(1) + " km") + " 🛣"
+          ? (roadKm < 1 ? Math.round(roadKm * 1000) + " m" : roadKm.toFixed(1) + " km") + " "
           : crowKm != null
             ? (crowKm < 1 ? Math.round(crowKm * 1000) + " m" : crowKm.toFixed(1) + " km") + "~"
             : "";
@@ -1760,10 +1964,11 @@ const _initMeetPageImpl = () => {
       : (bestKm < 1 ? Math.round(bestKm*1000)+" m" : bestKm.toFixed(2)+" km") + " (est)";
     closestBody.innerHTML = `
       <div class="closest-name">${esc(nearest.display_name)} <span class="muted">${labelRole(nearest.role)}</span></div>
-      <div class="closest-distance">🛣 ${distLabel} away</div>
+      <div class="closest-distance"> ${distLabel} away</div>
       <div class="muted small">ETA about ${eta} min</div>
       <div class="closest-actions">
         ${nearest.phone ? `<a class="btn btn-outline btn-xs" href="tel:${nearest.phone}">Call</a>` : ""}
+        ${nearest.phone ? `<a class="btn btn-xs" style="background:#25d366;color:#fff" target="_blank" rel="noopener" href="${waVideoHref(nearest.phone)}"> WhatsApp</a>` : ""}
         <a class="btn btn-primary btn-xs" target="_blank" rel="noopener"
            href="https://www.google.com/maps/dir/?api=1&destination=${nearest.lat},${nearest.lng}">Navigate</a>
       </div>`;
@@ -1934,9 +2139,9 @@ const _initMeetPageImpl = () => {
         </div>
         <div class="w-meta">
           <span title="Conditions">${desc}</span>
-          <span>· 💨 ${wind} km/h</span>
-          <span>· 💧 ${c.relative_humidity_2m}%</span>
-          ${c.precipitation > 0 ? `<span>· 🌧 ${c.precipitation} mm</span>` : ""}
+          <span>·  ${wind} km/h</span>
+          <span>·  ${c.relative_humidity_2m}%</span>
+          ${c.precipitation > 0 ? `<span>·  ${c.precipitation} mm</span>` : ""}
         </div>`;
 
       // Update map weather overlay card
@@ -1944,7 +2149,7 @@ const _initMeetPageImpl = () => {
       if (mc) {
         document.getElementById("mapWeatherIcon").textContent = emoji;
         document.getElementById("mapWeatherTemp").textContent = tempC + "°C";
-        document.getElementById("mapWeatherDesc").textContent = desc + " · 💨 " + wind + " km/h";
+        document.getElementById("mapWeatherDesc").textContent = desc + " ·  " + wind + " km/h";
         mc.hidden = false;
         getCityName(lastFix.lat, lastFix.lng).then(city => {
           const el = document.getElementById("mapWeatherCity");
@@ -1978,6 +2183,25 @@ const _initMeetPageImpl = () => {
     if (!data || data.status !== "active") return null;
     if (new Date(data.expires_at).getTime() < Date.now()) return null;
     return data;
+  }
+
+  // Create — or re-open, since per-listing codes are stable — the meet room
+  // for a live property viewing. Safe under races: a duplicate insert means
+  // the other party just created it, which is exactly what we wanted.
+  async function ensureListingRoom(code, created_by) {
+    if (!sb) return { code, purpose: "viewing" };
+    const { data } = await sb.from("meet_rooms").select("*").eq("code", code).maybeSingle();
+    if (!data) {
+      const { error } = await sb.from("meet_rooms")
+        .insert({ code, purpose: "viewing", created_by });
+      if (error && error.code !== "23505") throw error;
+    } else if (data.status !== "active" || new Date(data.expires_at).getTime() < Date.now()) {
+      const { error } = await sb.from("meet_rooms")
+        .update({ status: "active", expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString() })
+        .eq("code", code);
+      if (error) throw error;
+    }
+    return (await fetchRoom(code)) || { code, purpose: "viewing" };
   }
 
   // ====================================================================
@@ -2038,11 +2262,20 @@ const _initMeetPageImpl = () => {
 
   function labelRole(r) {
     const k = "meet_role_" + (r || "guest");
-    return window.t(k) || (r || "guest");
+    return window.t(k) || ({
+      agent: "House agent", provider: "Service provider", landlord: "Landlord / Owner",
+      client: "Client / Buyer", tenant: "Tenant / Renter", guest: "Other",
+    })[r] || (r || "guest");
   }
   function labelPurpose(p) {
     const k = "meet_purpose_" + (p || "meet");
-    return window.t(k) || (p || "meet");
+    return window.t(k) || ({
+      viewing: "Live property viewing",
+      service: "Service visit",
+      agent: "Meeting a house agent",
+      handover: "Key / property handover",
+      meet: "Meeting up",
+    })[p] || (p || "meet");
   }
   function roleColorClass(r) { return "role-" + (r || "guest"); }
 
@@ -2155,24 +2388,24 @@ const _initMeetPageImpl = () => {
 
   // ---- Role colour & emoji (Bolt-style per-role identity) -----------------
   function roleColor(role) {
-    return { sender: '#22c55e', receiver: '#3b82f6', driver: '#f59e0b', agent: '#8b5cf6', guest: '#6b7280' }[role] || '#6b7280';
+    return { agent: '#8b5cf6', provider: '#f59e0b', landlord: '#ec4899', client: '#0ea5e9', tenant: '#22c55e', guest: '#6b7280' }[role] || '#6b7280';
   }
   function roleEmoji(role) {
-    return { sender: '📦', receiver: '🤝', driver: '🚌', agent: '⭐', guest: '👤' }[role] || '👤';
+    return { agent: '', provider: '', landlord: '', client: '', tenant: '', guest: '' }[role] || '';
   }
 
   // Open-Meteo weather codes (WMO)
   function weatherEmoji(code) {
-    if (code == null) return "🌤";
-    if (code === 0) return "☀️";
-    if (code <= 2)  return "🌤";
-    if (code === 3) return "☁️";
-    if (code === 45 || code === 48) return "🌫";
-    if (code >= 51 && code <= 67)   return "🌧";
-    if (code >= 71 && code <= 77)   return "❄️";
-    if (code >= 80 && code <= 82)   return "🌦";
-    if (code >= 95)                 return "⛈";
-    return "🌤";
+    if (code == null) return "";
+    if (code === 0) return "";
+    if (code <= 2)  return "";
+    if (code === 3) return "";
+    if (code === 45 || code === 48) return "";
+    if (code >= 51 && code <= 67)   return "";
+    if (code >= 71 && code <= 77)   return "";
+    if (code >= 80 && code <= 82)   return "";
+    if (code >= 95)                 return "";
+    return "";
   }
   function weatherText(code) {
     if (code == null) return "—";

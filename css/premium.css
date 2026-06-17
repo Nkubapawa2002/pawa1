@@ -259,13 +259,18 @@ button[type="submit"], #callAgentBtn {
 /* ── Hero section: deep gradient bg, parallax glow, 3D card stack ──────── */
 .hero, .saas-hero, .page-hero {
   position: relative;
-  background:
-    var(--grad-hero-glow),
-    var(--grad-dark) !important;
   color: #fff !important;
   overflow: hidden;
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   box-shadow: var(--shadow-3d-xl);
+}
+/* Gradient backdrop ONLY for heroes that don't bring their own photo —
+   the old unconditional !important here was wiping the inline
+   background-image on page-hero photo pages (houses, services, …). */
+.hero, .saas-hero, .page-hero:not([style*="background-image"]) {
+  background:
+    var(--grad-hero-glow),
+    var(--grad-dark) !important;
 }
 .hero::after, .saas-hero::after {
   content: ""; position: absolute; inset: 0;

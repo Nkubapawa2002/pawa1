@@ -43,7 +43,7 @@ for (const j of JOBS) {
   const { error } = await sb.storage.from(j.bucket).upload(j.key, buf, {
     contentType: "image/jpeg", upsert: true,
   });
-  if (error) console.error(`✗ ${j.bucket}/${j.key}: ${error.message}`);
-  else console.log(`✓ ${j.bucket}/${j.key}`);
+  if (error) console.error(` ${j.bucket}/${j.key}: ${error.message}`);
+  else console.log(` ${j.bucket}/${j.key}`);
 }
 console.log("Done.");

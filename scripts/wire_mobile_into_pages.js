@@ -80,7 +80,7 @@ const pages = fs.readdirSync(ROOT).filter(n => n.endsWith(".html"));
 let changed = 0, skipped = 0;
 for (const f of pages) {
   const r = patchFile(path.join(ROOT, f));
-  console.log(`  ${r.changed ? "✓" : "·"} ${f}${r.reason ? " ("+r.reason+")" : ""}`);
+  console.log(`  ${r.changed ? "" : "·"} ${f}${r.reason ? " ("+r.reason+")" : ""}`);
   if (r.changed) changed++; else skipped++;
 }
 console.log(`patched=${changed}, skipped=${skipped}, total=${pages.length}`);

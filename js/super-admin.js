@@ -49,13 +49,12 @@ window.initSuperAdmin = async () => {
     const email = document.getElementById("saEmail").value.trim();
     const password = document.getElementById("saPassword").value;
     const errEl = document.getElementById("saLoginError");
-    errEl.hidden = true;
+    window.authMsg(errEl, "", "");
     try {
       await window.Auth.signIn(email, password);
       await evaluateAuth();
     } catch (err) {
-      errEl.textContent = err.message || String(err);
-      errEl.hidden = false;
+      window.authMsg(errEl, "error", err.message || String(err));
     }
   });
 

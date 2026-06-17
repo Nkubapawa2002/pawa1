@@ -19,10 +19,9 @@
   }
 
   ready(() => {
-    // Don't mount on the dedicated book-fast page (it has its own bigger UI)
-    // or admin/agent dashboards (clutter).
+    // Don't mount on the admin panel or the chat page (clutter / redundant).
     const path = location.pathname.split("/").pop();
-    if (["book-fast.html","admin.html","agent.html","chat.html"].includes(path)) return;
+    if (["admin.html","chat.html"].includes(path)) return;
 
     mountWidget();
   });
@@ -45,7 +44,7 @@
           <strong>${t("pcw_title", "Talk to Pawa")}</strong>
           <button class="pcw-close" aria-label="Close">&times;</button>
         </header>
-        <p class="pcw-sub">${t("pcw_sub", "Our AI agent can book your seat, take payment and send your ticket — in Swahili or English.")}</p>
+        <p class="pcw-sub">${t("pcw_sub", "Our AI agent helps you find houses & rooms to rent or buy and daily services — and connects you to the right agent, in Swahili or English.")}</p>
 
         <button class="pcw-btn primary" data-action="call-now">
           ${t("pcw_call_now", "Call Pawa now (in browser)")}

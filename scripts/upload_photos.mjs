@@ -22,7 +22,7 @@ async function ensureBucket() {
   const { data: buckets, error } = await sb.storage.listBuckets();
   if (error) throw error;
   if (buckets.find(b => b.name === BUCKET)) {
-    console.log(`✓ bucket "${BUCKET}" already exists`);
+    console.log(` bucket "${BUCKET}" already exists`);
     // Make sure it's public
     const { error: upErr } = await sb.storage.updateBucket(BUCKET, { public: true });
     if (upErr) console.warn("could not update bucket:", upErr.message);
@@ -30,7 +30,7 @@ async function ensureBucket() {
   }
   const { error: cErr } = await sb.storage.createBucket(BUCKET, { public: true });
   if (cErr) throw cErr;
-  console.log(`✓ created public bucket "${BUCKET}"`);
+  console.log(` created public bucket "${BUCKET}"`);
 }
 
 async function uploadAll() {
@@ -45,10 +45,10 @@ async function uploadAll() {
       contentType, upsert: true
     });
     if (error) {
-      console.error(`✗ ${f}: ${error.message}`);
+      console.error(` ${f}: ${error.message}`);
     } else {
       const { data } = sb.storage.from(BUCKET).getPublicUrl(f);
-      console.log(`✓ ${f} → ${data.publicUrl}`);
+      console.log(` ${f} → ${data.publicUrl}`);
     }
   }
 }

@@ -1,5 +1,5 @@
 /* ============================================
-   Pawa Bus Cargo - Stylesheet
+   Maisha na Lifeza - Stylesheet
    ============================================ */
 
 :root {
@@ -1865,7 +1865,26 @@ body[data-bg] .container > .page-subtitle {
   text-align: center;
   overflow: hidden;
   isolation: isolate;
-  animation: hero-zoom 20s ease-in-out infinite alternate;
+}
+
+/* Cinematic Ken Burns on the PHOTO only — ::before inherits the section's
+   (inline) background-image and animates, so the title/subtitle stay crisp
+   instead of zooming with the old section-level hero-zoom animation. */
+.page-hero::before {
+  content: "";
+  position: absolute; inset: 0; z-index: 0;
+  background: inherit;
+  transform-origin: 50% 40%;
+  animation: page-hero-kenburns 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes page-hero-kenburns {
+  0%   { transform: scale(1.02) translate3d(-0.6%, 0.3%, 0); }
+  50%  { transform: scale(1.12) translate3d(0.5%, -0.7%, 0); }
+  100% { transform: scale(1.06) translate3d(1.2%, 0.5%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-hero::before { animation: none; }
 }
 
 .page-hero::after {
@@ -4285,7 +4304,7 @@ body[data-bg] .container > .page-subtitle {
   box-shadow: 0 0 0 2px rgba(10, 111, 77, 0.12);
 }
 .drv-cap-card.captured::after {
-  content: "✓";
+  content: "";
   position: absolute; top: 6px; right: 8px;
   width: 20px; height: 20px;
   background: var(--green);

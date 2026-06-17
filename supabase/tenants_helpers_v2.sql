@@ -229,7 +229,8 @@ grant execute on function public.update_tenant_branding(uuid, jsonb, text[], tex
 -- 6. tenant_secret_status — booleans showing which keys are configured,
 --    safe to expose to the browser/dashboard.
 -- ---------------------------------------------------------------------
-create or replace view public.tenant_secret_status as
+create or replace view public.tenant_secret_status
+with (security_invoker = true) as
   select
     tenant_id,
     (anthropic_api_key_enc      is not null) as anthropic_configured,

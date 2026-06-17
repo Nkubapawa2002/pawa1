@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Near me — rooms &amp; trucks around you — Pawa Bus Cargo</title>
+  <title>Near me — rooms &amp; trucks around you — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
 
@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/mobile.css" />
   <link rel="stylesheet" href="css/premium.css" />
@@ -63,9 +63,11 @@
     /* Unified card (room or truck) */
     .nm-card {
       background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 14px; overflow: hidden; cursor: pointer; text-decoration: none; color: inherit;
+      border-radius: 14px; overflow: hidden; cursor: pointer; text-decoration: none;
+      color: var(--c-text, #1a1915);
       display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
     }
+    .nm-card-title { color: var(--c-text, #1a1915); }
     .nm-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
     .nm-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eceae4 center/cover no-repeat; }
     .nm-card-emoji { display: flex; height: 100%; align-items: center; justify-content: center; font-size: 2.4rem; }
@@ -109,10 +111,10 @@
     }
   </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')" data-page="near-me">
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')" data-page="near-me">
   <div id="nav-slot"></div>
 
-  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title" data-i18n="nearme_title">What's near me</h1>
       <p class="page-subtitle" data-i18n="nearme_sub">From your location, see available rooms and moving trucks around you — sorted by distance.</p>
@@ -122,6 +124,27 @@
   <main id="nearMeMain" class="container" style="padding-top:18px;">
 
     <!-- Filter bar -->
+    <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
+    <div class="find-mode" id="fmNearMe" data-near="nmNearBtn" data-area="nmAi" style="display:none">
+      <button class="fm-x" type="button" aria-label="Dismiss">&times;</button>
+      <div class="fm-q">How do you want to find rooms & trucks?</div>
+      <div class="fm-actions">
+        <button type="button" class="fm-btn fm-near"> Near me<small>Show what's closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"> A specific area<small>Type a town, district or ward — browse anywhere in Tanzania</small></button>
+      </div>
+    </div>
+
+    <div class="nm-ai" style="margin-bottom:10px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input id="nmAi" type="search" autocomplete="off"
+               placeholder="Ask in your words — e.g. “2-bed for rent near Mikocheni” or “trucks near Mwanza”"
+               style="flex:1;min-width:200px;padding:11px 14px;border:1px solid #d0d7de;border-radius:10px;font-size:.95rem;" />
+        <button id="nmAiBtn" type="button"
+                style="padding:10px 16px;border:1px solid #0a6f4d;background:#0a6f4d;color:#fff;border-radius:10px;font-weight:600;cursor:pointer;white-space:nowrap;"> AI search</button>
+      </div>
+      <small id="nmAiMsg" style="display:block;margin-top:6px;color:#0a6f4d;"></small>
+    </div>
+
     <div class="nm-toolbar">
       <select id="nmKind" title="What to show">
         <option value="all">Show: rooms &amp; trucks</option>
@@ -175,11 +198,13 @@
   <script src="js/config.js"></script>
   <script src="js/fx.js"></script>
   <script src="js/geo.js"></script>
+  <script src="js/ai-search.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/data.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/geolocate.js"></script>
+  <script src="js/find-mode.js"></script>
   <script src="js/near-me.js"></script>
   <script>
     window.renderNav("near-me.html");

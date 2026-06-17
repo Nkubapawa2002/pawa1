@@ -1,10 +1,10 @@
 // =====================================================================
-// Pawa Bus Cargo — Service Worker
+// Maisha na Lifeza — Service Worker
 // Strategy: app-shell precache + network-first for HTML + stale-while-
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v127-2026-06-06-agent-monthly-subscription";
+const VERSION = "v210-2026-06-17-matchlife-load-fix-realroad";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -15,7 +15,10 @@ const APP_SHELL = [
   "./css/mobile.css",
   "./css/houses-pro.css",
   "./css/neon-pro.css",
+  "./css/auth.css",
   "./js/config.js",
+  "./js/analytics.js",
+  "./js/auth-clerk.js",
   "./js/fx.js",
   "./js/near-me.js",
   "./js/geo.js",
@@ -24,12 +27,16 @@ const APP_SHELL = [
   "./js/i18n.js",
   "./js/data.js",
   "./js/auth.js",
+  "./js/auth-ui.js",
   "./js/nav.js",
   "./js/mobile-nav.js",
   "./js/fab.js",
   "./js/tenant.js",
   "./manifest.json",
   "./icons/icon-maskable.svg",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/apple-touch-icon.png",
 ];
 
 // Install — precache app shell.

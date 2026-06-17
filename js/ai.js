@@ -58,5 +58,39 @@
     return post(url, opts);
   }
 
-  window.AI = { chat, think, map };
+  // ---- locate --------------------------------------------------------
+  // AI-assisted geocode for a free-text place description. Uses ai-map to
+  // refine the description (landmark, "behind X", vague area) into a clean
+  // place + region, then the browser geocoder (window.pawaGeo) to resolve
+  // coordinates. Degrades to a plain geocode when AI is unavailable, so the
+  // caller always gets a best-effort pin.
+  // AI.locate(query, { regions? }) → { lat, lng, label, region, answer } | null
+  async function locate(query, opts = {}) {
+    query = (query || "").trim();
+    if (!query) return null;
+    let geoQuery = query, region = null, answer = null;
+    try {
+      const r = await map({ query, regions: opts.regions });
+      const intent = r && r.intent;
+      if (intent) {
+        answer = intent.answer || null;
+        region = intent.region || null;
+        const name = (intent.from && intent.from.name) || (intent.to && intent.to.name) || null;
+        if (name) geoQuery = (region && !name.includes(region)) ? `${name}, ${region}` : name;
+        else if (region) geoQuery = region;
+      }
+    } catch (_) { /* AI off/unreachable → geocode the raw text */ }
+    const geo = window.pawaGeo;
+    if (!geo || !geo.suggest) return null;
+    const tryGeo = async (q) => {
+      try {
+        const hits = await geo.suggest(q, { limit: 5 });
+        const hit = (hits || []).find((h) => Number.isFinite(h.lat) && Number.isFinite(h.lng));
+        return hit ? { lat: hit.lat, lng: hit.lng, label: hit.name, region, answer } : null;
+      } catch (_) { return null; }
+    };
+    return (await tryGeo(geoQuery)) || (geoQuery !== query ? await tryGeo(query) : null);
+  }
+
+  window.AI = { chat, think, map, locate };
 })();

@@ -1,5 +1,5 @@
 /* ============================================================
-   Pawa Bus Cargo — Accounting Dashboard Styles
+   Maisha na Lifeza — Accounting Dashboard Styles
    ============================================================ */
 
 /* ── Login Page ──────────────────────────────────────────── */
@@ -79,7 +79,7 @@
 .fin-field-wrap input {
   width: 100%; padding: 12px 44px 12px 40px;
   border: 1.5px solid #cbd5e1; border-radius: 11px;
-  font-size: 0.95rem; background: #fff; color: #0f172a;
+  font-size: 16px; background: #fff; color: #0f172a;
   transition: border-color 0.18s, box-shadow 0.18s;
   outline: none;
 }
@@ -718,7 +718,7 @@ code { font-family: monospace; font-size: 0.82rem; background: var(--gray-light)
   margin: 0 0 8px;
 }
 
-/* ── Ledger adjustment header (✏️ + EDITABLE + add btn) ── */
+/* ── Ledger adjustment header ( + EDITABLE + add btn) ── */
 .ladj-header {
   display: flex;
   align-items: center;

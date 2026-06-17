@@ -3,14 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Admin — Pawa Bus Cargo</title>
+  <title>Admin — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/auth.css" />
 
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0a6f4d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="css/mobile.css" />
 <!-- pawa-mobile-bundle -->
@@ -21,19 +22,24 @@
     /* All Agents (monetization tracker) tab */
     .aa-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
     .aa-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
-    .aa-stat { background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; padding: 12px 14px; }
+    /* These cards/tables keep a white (--c-surface) background, but neon-pro.css
+       loads last and sets a light body text colour — without an explicit dark
+       text colour their content renders white-on-white (invisible). */
+    .aa-stat { background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; padding: 12px 14px; color: var(--c-text, #1a1915); }
     .aa-stat .num { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--c-brand, #0a6f4d); }
     .aa-stat .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted, #6b6960); margin-top: 5px; font-weight: 700; }
     .aa-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
     .aa-controls input, .aa-controls select { padding: 9px 11px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 9px; font-size: 15px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915); }
     .aa-controls input { flex: 1; min-width: 180px; }
     .aa-role-tag { display: inline-block; font-size: .66rem; font-weight: 800; letter-spacing: .3px; padding: 2px 7px; border-radius: 999px; color: #fff; margin-right: 3px; }
-    .aa-role-tag.bus   { background: #1e40af; }
-    .aa-role-tag.house { background: var(--c-brand, #0a6f4d); }
-    .aa-role-tag.truck { background: var(--c-accent, #bc5c00); }
+    .aa-role-tag.bus     { background: #1e40af; }
+    .aa-role-tag.house   { background: var(--c-brand, #0a6f4d); }
+    .aa-role-tag.truck   { background: var(--c-accent, #bc5c00); }
+    .aa-role-tag.service { background: #7c3aed; }
     .aa-reg-rel { color: var(--c-muted, #6b6960); font-size: .76rem; display: block; }
     .aa-stat.pay .num { color: var(--c-success, #0d8050); }
     .aa-stat.rev .num { color: var(--c-accent, #bc5c00); font-size: 1.25rem; }
+    .aa-stat.warn .num { color: #d97706; }
     /* Subscription state + pay button (All Agents table) */
     .aa-sub { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
     .aa-sub.sub-ok   { background: #f0fdf4; color: #0d8050; }
@@ -42,11 +48,14 @@
     .aa-sub.sub-none { background: var(--c-bg-elev, #f4f3ee); color: #6b6960; }
     .aa-pay-btn { margin-left: 6px; padding: 3px 9px; font-size: .72rem; font-weight: 700; cursor: pointer; border: 1px solid var(--c-brand, #0a6f4d); background: var(--c-brand, #0a6f4d); color: #fff; border-radius: 7px; }
     .aa-pay-btn:hover { filter: brightness(1.05); }
+    .aa-active-btn { margin-left: 6px; padding: 3px 9px; font-size: .72rem; font-weight: 700; cursor: pointer; border: 1px solid #b91c1c; background: #fff; color: #b91c1c; border-radius: 7px; }
+    .aa-active-btn:hover { background: #b91c1c; color: #fff; }
     .aa-sub-cell { white-space: nowrap; }
     /* Paid-vs-unpaid breakdown by category */
     .aa-breakdown { margin-bottom: 16px; overflow-x: auto; }
     .aa-breakdown table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; overflow: hidden; }
     .aa-breakdown th, .aa-breakdown td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--c-border, #e7e4dd); }
+    .aa-breakdown td { color: var(--c-text, #1a1915); }
     .aa-breakdown th:first-child, .aa-breakdown td:first-child { text-align: left; }
     .aa-breakdown thead th { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted, #6b6960); font-weight: 700; }
     .aa-breakdown tbody tr:last-child td { border-bottom: none; }
@@ -62,6 +71,60 @@
     #allAgentsList tr.aa-bill-overdue  td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
     #allAgentsList tr.aa-bill-trial    td:first-child { box-shadow: inset 3px 0 0 #1e40af; }
     #allAgentsList tr.aa-bill-cancelled td:first-child { opacity: .6; }
+    #allAgentsList td.aa-nextdue { font-size: .8rem; color: var(--c-muted, #6b6960); white-space: nowrap; }
+    /* Bulk control bar — loop-over-all-agents actions */
+    .aa-bulk-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 12px; background: var(--c-bg-elev, #f7f6f2); border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; }
+    .aa-bulk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .aa-bulk-actions strong { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted, #6b6960); }
+    .aa-bulk-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 180px; }
+    .aa-bulk-status { font-size: .8rem; font-weight: 700; color: var(--c-brand, #0a6f4d); }
+
+    /* Help legend — collapsible explainer for the billing actions/columns */
+    .aa-help { margin: 0 0 14px; background: var(--c-bg-elev, #f7f6f2); border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; }
+    .aa-help > summary { cursor: pointer; padding: 10px 14px; font-weight: 700; font-size: .9rem; color: var(--c-brand-deep, #064a33); list-style: none; display: flex; align-items: center; gap: 8px; }
+    .aa-help > summary::-webkit-details-marker { display: none; }
+    .aa-help > summary::before { content: "?"; flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; background: var(--c-brand, #0a6f4d); color: #fff; font-size: .78rem; line-height: 20px; text-align: center; }
+    .aa-help[open] > summary::before { content: "i"; }
+    .aa-help > summary:hover { color: var(--c-brand, #0a6f4d); }
+    .aa-help-body { padding: 0 16px 14px 16px; font-size: .88rem; line-height: 1.55; color: var(--c-text, #1a1915); }
+    .aa-help-lead { margin: 4px 0 6px; font-weight: 600; }
+    .aa-help-list { margin: 0 0 4px; padding-left: 18px; }
+    .aa-help-list li { margin: 3px 0; }
+    .aa-help-list strong { color: var(--c-brand-deep, #064a33); }
+    .aa-help-note { margin: 10px 0 0; padding: 9px 12px; background: var(--c-brand-faint, #f0f7f2); border: 1px solid var(--c-brand-soft, #d9ecdf); border-radius: 9px; font-size: .84rem; color: var(--c-text-soft, #3f3d36); }
+
+    /* Header, tab bar and panels sit directly on the page photo — give each a
+       frosted white surface so every word stays readable on ANY photo. */
+    #adminPanel .admin-header {
+      background: rgba(255,255,255,.93);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      border-radius: 14px; padding: 12px 18px; margin-bottom: 14px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.08);
+    }
+    #adminPanel .admin-header .page-subtitle { margin: 0; }
+    #adminPanel .tabs {
+      background: rgba(255,255,255,.93);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      border-radius: 12px; padding: 8px; margin-bottom: 14px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.08);
+    }
+    #adminPanel .tab-btn { color: var(--c-text, #1a1915) !important; }
+    #adminPanel .tab-btn.active { color: #fff !important; }
+    #adminPanel .tab-panel {
+      background: rgba(255,255,255,.95);
+      border-radius: 14px; padding: 16px 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    }
+
+    /* Tenants tab — days-left badges */
+    .ten-dleft { display: inline-block; font-size: .72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .ten-ok      { background: #e7f5ee; color: #0a6f4d; }
+    .ten-warn    { background: #fff4dc; color: #9a6700; }
+    .ten-soon    { background: #fde6e2; color: #b3261e; }
+    .ten-expired { background: #fbe0e0; color: #b91c1c; }
+    #tenantsList tr:has(.ten-soon)    td:first-child { box-shadow: inset 3px 0 0 #b3261e; }
+    #tenantsList tr:has(.ten-expired) td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
+    #tenantsList tr:has(.ten-warn)    td:first-child { box-shadow: inset 3px 0 0 #9a6700; }
   </style>
 </head>
 <body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="admin">
@@ -70,30 +133,63 @@
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title">Admin Panel</h1>
-      <p class="page-subtitle">Pawa Bus Cargo — Authorized access only.</p>
+      <p class="page-subtitle">Maisha na Lifeza — Authorized access only.</p>
     </div>
   </section>
 
   <main class="container">
     <!-- Login gate -->
-    <section id="loginGate" class="auth-card" hidden>
-      <h1 class="page-title">Admin Login</h1>
-      <p class="page-subtitle">This area is restricted to authorized administrators.</p>
-      <form id="loginForm" class="form-grid">
-        <label>Email
-          <input type="email" id="loginEmail" required autocomplete="username" />
-        </label>
-        <label>Password
-          <input type="password" id="loginPassword" required autocomplete="current-password" minlength="6" />
-        </label>
-        <button class="btn btn-primary" type="submit">Sign in</button>
-      </form>
-      <p id="loginError" class="banner error" hidden></p>
-      <p style="margin-top:14px;font-size:0.9rem;color:var(--gray)">
-        First time? Use the same authorized email
-        and click <a href="#" id="signupLink">create admin account</a>
-        to set a password.
-      </p>
+    <section id="loginGate" class="auth-scene" hidden>
+      <div class="login-split">
+        <aside class="login-brand">
+          <span class="login-brand__logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <h2 class="login-brand__name">Platform <em>admin</em></h2>
+          <p class="login-brand__lead">Oversee listings, agents and day jobs across Maisha na Lifeza. Authorized administrators only.</p>
+          <ul class="login-brand__list">
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Manage agents &amp; billing</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span> Monitor tenants &amp; listings</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Restricted, audited access</li>
+          </ul>
+        </aside>
+        <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-head">
+          <span class="auth-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <h1 class="auth-title">Admin login</h1>
+          <p class="auth-lead">This area is restricted to authorized administrators.</p>
+        </div>
+        <form id="loginForm" class="auth-form" novalidate>
+          <div class="auth-field">
+            <label for="loginEmail">Email</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+              <input class="auth-input" type="email" id="loginEmail" required autocomplete="username" placeholder="you@example.com" />
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="loginPassword">Password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="auth-input auth-input--pw" type="password" id="loginPassword" required autocomplete="current-password" minlength="6" placeholder="Your password" />
+              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="auth-submit" type="submit">Sign in</button>
+          <div id="loginError" class="auth-msg" role="alert" aria-live="polite"></div>
+        </form>
+        <p class="auth-hint" style="margin-top:16px">
+          First time? Use the same authorized email and click
+          <a href="#" id="signupLink">create admin account</a> to set a password.
+        </p>
+      </div>
+        </div>
+      </div>
     </section>
 
     <!-- Forbidden -->
@@ -106,83 +202,33 @@
 
     <!-- Admin panel -->
     <section id="adminPanel" hidden>
+      <!-- (The page hero above already says "Admin Panel" — no duplicate title.) -->
       <div class="admin-header">
-        <div>
-          <h1 class="page-title">Admin Panel</h1>
-          <p class="page-subtitle">Signed in as <strong id="adminEmail"></strong></p>
-        </div>
+        <p class="page-subtitle">Signed in as <strong id="adminEmail"></strong></p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <a href="accounting.html" class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">
-            📊 Finance &amp; Accounting
-          </a>
           <button id="logoutBtn" class="btn btn-outline btn-sm">Sign out</button>
         </div>
       </div>
 
-      <!-- Finance shortcut banner -->
-      <div style="background:linear-gradient(90deg,var(--green-dark),#0e7a56);color:#fff;border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div>
-          <strong style="font-size:1rem">📊 Finance &amp; Accounting Dashboard</strong>
-          <p style="font-size:0.82rem;opacity:0.85;margin:3px 0 0">
-            View income statements, tax computations, per-bus-company revenue, and the full transaction ledger.
-          </p>
-        </div>
-        <a href="accounting.html" class="btn btn-sm" style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);white-space:nowrap;text-decoration:none">
-          Open Finance Portal →
-        </a>
-      </div>
-
+      <!-- The bus-era tabs (Shipments, Routes, Manual Booking, Collect
+           Payment, Trip Cancellations) and the legacy Approvals / Agent
+           applications queues were removed in the housing/services pivot —
+           their code lives on in git history if ever needed. -->
       <div class="tabs">
-        <button class="tab-btn active" data-tab="shipments">Shipments</button>
-        <button class="tab-btn" data-tab="pending">Approvals <span id="pendingBadge" class="badge"></span></button>
-        <button class="tab-btn" data-tab="applications">Agent applications <span id="appBadge" class="badge"></span></button>
-        <button class="tab-btn" data-tab="agents">Agents</button>
-        <button class="tab-btn" data-tab="allagents">All Agents <span id="allAgentsBadge" class="badge"></span></button>
-        <button class="tab-btn" data-tab="routes">Routes</button>
-        <button class="tab-btn" data-tab="manual">Manual Booking</button>
-        <button class="tab-btn" data-tab="collect">Collect Payment</button>
-        <button class="tab-btn" data-tab="cancellations">Trip Cancellations <span id="cancelBadge" class="badge"></span></button>
+        <button class="tab-btn active" data-tab="allagents">All Agents <span id="allAgentsBadge" class="badge"></span></button>
+        <button class="tab-btn" data-tab="tenants">Tenants <span id="tenantsBadge" class="badge"></span></button>
+        <button class="tab-btn" data-tab="dayjobs">Day Jobs <span id="djBadge" class="badge"></span></button>
       </div>
 
-      <!-- Shipments tab -->
-      <div class="tab-panel" id="tab-shipments">
-        <div class="filter-bar">
-          <input type="text" id="searchInput" placeholder="Search..." />
-          <select id="statusFilter">
-            <option value="">All statuses</option>
-            <option value="Registered">Registered</option>
-            <option value="Picked Up">Picked Up</option>
-            <option value="In Transit">In Transit</option>
-            <option value="Arrived">Arrived</option>
-            <option value="Delivered">Delivered</option>
-          </select>
-        </div>
-        <div id="shipmentsTable"></div>
-      </div>
 
-      <!-- Pending Approvals tab -->
-      <div class="tab-panel" id="tab-pending" hidden>
-        <div id="pendingList"></div>
-      </div>
-
-      <!-- Applications tab -->
-      <div class="tab-panel" id="tab-applications" hidden>
-        <div id="applicationsList"></div>
-      </div>
-
-      <!-- Agents tab -->
-      <div class="tab-panel" id="tab-agents" hidden>
-        <div id="agentsAdminList"></div>
-      </div>
-
-      <!-- All Agents tab — unified monetization tracker (bus + house + truck) -->
-      <div class="tab-panel" id="tab-allagents" hidden>
+      <!-- All Agents tab — unified monetization tracker (default) -->
+      <div class="tab-panel" id="tab-allagents">
         <div class="aa-head">
           <div>
             <h3 style="margin:0;">All agents — monetization tracker</h3>
-            <p class="hint" style="margin:2px 0 0;">Every agent across the platform: bus/cargo agents, house-listing agents and truck owners, de-duplicated by phone/account and sorted by when they registered.</p>
+            <p class="hint" style="margin:2px 0 0;">Every agent across the platform: house-listing agents, service providers and truck owners — de-duplicated by phone/account and sorted by when they registered.</p>
           </div>
-          <button id="aaExportBtn" class="btn btn-outline btn-sm" type="button">⬇ Export CSV</button>
+          <button id="aaExportBtn" class="btn btn-outline btn-sm" type="button"> Export CSV</button>
         </div>
         <div id="aaSummary" class="aa-summary"></div>
         <div id="aaBreakdown" class="aa-breakdown"></div>
@@ -191,12 +237,14 @@
           <input type="text" id="aaSearch" placeholder="Search name, phone or region…" />
           <select id="aaRole">
             <option value="">All roles</option>
-            <option value="bus">Bus / cargo agents</option>
             <option value="house">House agents</option>
+            <option value="service">Service providers</option>
             <option value="truck">Truck owners</option>
           </select>
           <select id="aaBilling">
             <option value="">All billing</option>
+            <option value="pending">Pending approval</option>
+            <option value="approved">Approved</option>
             <option value="paid">Paying</option>
             <option value="unpaid">Unpaid (not paying)</option>
             <option value="trial">Trial</option>
@@ -209,171 +257,98 @@
             <option value="oldest">Registered: oldest first</option>
           </select>
         </div>
+        <div id="aaBulkBar" class="aa-bulk-bar">
+          <div class="aa-bulk-actions">
+            <strong>Bulk:</strong>
+            <button id="aaBulkApprove" class="btn btn-primary btn-sm" type="button" title="Approve targeted agents — lifts the 7-day approval window so they stay live">Approve</button>
+            <button id="aaBulkMonth" class="btn btn-primary btn-sm" type="button" title="Record one month for every targeted agent — each extends a full month from their own expiry (or today if lapsed)">Record month</button>
+            <button id="aaBulkEnroll" class="btn btn-outline btn-sm" type="button" title="Put targeted agents on the standard monthly plan (sets the fee). Does not mark them paid.">Enrol on plan</button>
+            <button id="aaBulkFee" class="btn btn-outline btn-sm" type="button" title="Set the monthly fee for targeted agents">Set fee</button>
+            <button id="aaBulkActivate" class="btn btn-outline btn-sm" type="button">Activate</button>
+            <button id="aaBulkDeactivate" class="btn btn-danger btn-sm" type="button">Deactivate</button>
+          </div>
+          <div class="aa-bulk-meta">
+            <span id="aaBulkInfo" class="hint"></span>
+            <span id="aaBulkStatus" class="aa-bulk-status"></span>
+          </div>
+        </div>
+
+        <!-- Help legend — what each billing action & column means -->
+        <details class="aa-help">
+          <summary>What do these mean? (Approve · Record month · Enrol on plan · Set fee)</summary>
+          <div class="aa-help-body">
+            <p class="aa-help-lead">New agents are <strong>live the moment they register, for 7 days</strong>. Within those 7 days you must <strong>Approve</strong> them, or their listings auto-hide until you do. Approval is one-time; billing (below) is the ongoing monthly part.</p>
+            <ul class="aa-help-list">
+              <li><strong>Approve</strong> — confirm a new agent so they stay live permanently (button turns to "Approved"; click again to revoke). Unapproved agents show <em>"Preview · Nd to approve"</em> and then <em>"Unapproved — hidden"</em> after day 7. The <strong>Awaiting approval</strong> stat + the <em>Pending approval</em> filter show who still needs you.</li>
+              <li><strong>Set fee</strong> — set <em>how much</em> this agent pays per month (TZS). Defaults to the standard fee; use it to charge an agent a custom amount. <em>Does not</em> mark them paid.</li>
+              <li><strong>Enrol on plan</strong> — put the agent on the monthly plan: sets their fee and records their billing start. <em>Does not</em> take money or mark them paid.</li>
+              <li><strong>Record month</strong> (per-row <strong>+1&nbsp;month</strong>) — the one that means "they paid": marks <em>paid</em>, re-activates the account, and pushes <strong>Paid until</strong> forward by one full month. <strong>Each agent is billed on their own timeline</strong> — they don't all pay on the same day. Paying early <em>stacks</em> (current expiry + 1 month, no lost days); paying after lapsing starts a fresh month from today.</li>
+              <li><strong>Activate / Deactivate</strong> — admin override, independent of payment. Deactivating hides the agent's listings and shows them the reason you type.</li>
+            </ul>
+            <p class="aa-help-lead" style="margin-top:10px;">Columns</p>
+            <ul class="aa-help-list">
+              <li><strong>Billing start</strong> — the day they were first billed / went live (informational; the cycle rolls from each payment, not this date).</li>
+              <li><strong>Status &amp; approval</strong> — the live lifecycle badge (Preview · Nd, Unapproved — hidden, Active · Nd left, Expired, Deactivated…) plus the Approve / +1 month / Activate buttons.</li>
+              <li><strong>Billing</strong> — status (free / trial / paid / overdue / cancelled). <strong>Plan</strong> — a free-text tier label. <strong>Amount</strong> — the monthly fee.</li>
+              <li><strong>Paid until</strong> — the exact coverage expiry for this agent. <strong>Next due</strong> — the date "+1 month" would extend them to. <strong>Subscription</strong> — a live badge (Active · Nd left, Grace · Nh to pay, Expired, Deactivated…).</li>
+            </ul>
+            <p class="aa-help-note">Each agent runs on an independent monthly cycle measured from their own payment — no shared due date. Agents can now also pay by mobile money themselves, which auto-does the “Record month” step (identical maths). This panel is for cash/offline payments and overrides. Tick rows (or none = all shown) for a bulk action.</p>
+          </div>
+        </details>
+
         <div id="allAgentsList"></div>
       </div>
 
-      <!-- Routes tab -->
-      <div class="tab-panel" id="tab-routes" hidden>
-        <h3>Register a new bus</h3>
-        <p class="hint">Add a bus company to the system so you can assign routes to it.</p>
-        <form id="newBusForm" class="form-grid">
-          <label>Bus name
-            <input type="text" id="newBusName" required placeholder="e.g. Kilimanjaro Express" />
-          </label>
-          <label>Contact phone (cargo)
-            <input type="tel" id="newBusContact" required placeholder="e.g. +255 712 000 000" />
-          </label>
-          <label>Ticket prefix
-            <input type="text" id="newBusPrefix" maxlength="5" autocomplete="off"
-              placeholder="e.g. KILI"
-              style="text-transform:uppercase;letter-spacing:2px;font-family:monospace;font-weight:700" />
-            <span style="font-size:0.78rem;color:var(--gray)">2–5 letters · unique per company · appears on every ticket (e.g. KILI-260508-00001)</span>
-          </label>
-          <label>Bus profile photo
-            <input type="file" id="newBusPhoto" accept="image/*" />
-            <span style="font-size:0.8rem;color:var(--gray)">Optional — will appear on the buses directory</span>
-          </label>
-          <div id="newBusPhotoPreviewWrap" style="display:none;margin-bottom:8px">
-            <img id="newBusPhotoPreview" src="" alt="Preview"
-              style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:2px solid var(--green)" />
+      <!-- Tenants tab -->
+      <div class="tab-panel" id="tab-tenants" hidden>
+        <div class="aa-head">
+          <div>
+            <h3 style="margin:0;">Tenants — rent expiry tracker</h3>
+            <p class="hint" style="margin:2px 0 0;">Every recorded house tenant across all agents, sorted by soonest rent end. Contact customers as their minimum stay ends, then tick "Contacted".</p>
           </div>
-          <button class="btn btn-primary" type="submit">Register bus</button>
-        </form>
-        <p id="newBusMsg" class="banner" hidden></p>
-        <hr style="margin:24px 0;opacity:0.2"/>
-
-        <h3>Add a new route</h3>
-        <p class="hint">A return leg from destination → origin is created automatically.</p>
-        <form id="routeForm" class="form-grid">
-          <label>Bus
-            <select id="routeBus" required></select>
-          </label>
-          <label>From (origin region)
-            <input type="text" id="routeFrom" list="routeRegionList" required
-              placeholder="e.g. Dar es Salaam" autocomplete="off" />
-          </label>
-          <label>To (destination region)
-            <input type="text" id="routeTo" list="routeRegionList" required
-              placeholder="e.g. Mwanza" autocomplete="off" />
-          </label>
-          <datalist id="routeRegionList"></datalist>
-          <label>Departure (forward)
-            <input type="time" id="routeDep" required value="06:00" />
-          </label>
-          <label>Departure (return)
-            <input type="time" id="routeRet" required value="06:00" />
-          </label>
-          <label>Duration hours
-            <input type="number" id="routeDur" min="1" max="48" step="0.5" value="6" required />
-          </label>
-          <button class="btn btn-primary" type="submit">Add route + return leg</button>
-        </form>
-        <p id="routeMsg" class="banner success" hidden></p>
-        <hr style="margin:24px 0;opacity:0.2"/>
-        <h3>Existing routes</h3>
-        <div id="existingRoutes"></div>
-
-        <hr style="margin:24px 0;opacity:0.2"/>
-        <h3>Edit Bus Seat Structure</h3>
-        <p class="hint">Change total seats or rename individual seats for any bus.</p>
-        <div class="form-grid" style="max-width:480px;">
-          <label>Bus
-            <select id="seBus"><option value="">— select bus —</option></select>
-          </label>
-          <div style="display:flex;align-items:flex-end;">
-            <button type="button" class="btn btn-outline" id="seLoadBtn">Load seat editor</button>
-          </div>
+          <button id="tenExportBtn" class="btn btn-outline btn-sm" type="button"> Export CSV</button>
         </div>
-        <div id="seatEditorWrap" hidden style="margin-top:16px;"></div>
-      </div>
-
-      <!-- Manual Booking tab -->
-      <div class="tab-panel" id="tab-manual" hidden>
-        <h3>Manual Booking</h3>
-        <p class="hint">Book a seat on behalf of a customer. SMS ticket is sent to their phone automatically. WhatsApp is optional — used to send bus service images.</p>
-
-        <div class="form-grid" style="max-width:700px;">
-          <label>Bus
-            <select id="mbBus"><option value="">— select bus —</option></select>
-          </label>
-          <label>Route
-            <select id="mbRoute" disabled><option value="">— select route —</option></select>
-          </label>
-          <label>Travel date
-            <input type="date" id="mbDate" />
-          </label>
-          <div style="display:flex;align-items:flex-end;">
-            <button type="button" class="btn btn-outline" id="mbLoadSeats">Load seat map</button>
-          </div>
-        </div>
-
-        <div id="mbSeatSection" hidden style="margin-top:20px;">
-          <h4 style="margin:0 0 10px;">Select a seat</h4>
-          <div id="mbSeatMap" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;max-width:400px;"></div>
-
-          <div class="form-grid" style="max-width:700px;">
-            <label>Passenger name *
-              <input type="text" id="mbName" placeholder="Full name" />
-            </label>
-            <label>Phone (SMS ticket) *
-              <input type="tel" id="mbPhone" placeholder="+255 7XX XXX XXX" />
-            </label>
-            <label>WhatsApp (optional)
-              <input type="tel" id="mbWhatsApp" placeholder="+255 7XX XXX XXX" />
-            </label>
-            <label>Fare (TZS) *
-              <input type="number" id="mbFare" min="0" placeholder="e.g. 25000" />
-            </label>
-            <label>ID / Passport (optional)
-              <input type="text" id="mbIdNo" placeholder="NIDA or passport" />
-            </label>
-          </div>
-
-          <button type="button" class="btn btn-primary" id="mbSubmit" style="margin-top:8px;">
-            Confirm &amp; send SMS ticket
-          </button>
-          <p id="mbMsg" class="banner" hidden style="margin-top:12px;"></p>
-          <div id="mbPostBooking" hidden style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"></div>
-        </div>
-      </div>
-
-      <!-- Collect Payment tab -->
-      <div class="tab-panel" id="tab-collect" hidden>
-        <h3>Collect Payment</h3>
-        <p class="hint">Authorize a payment for any pending booking — cash, mobile money, or bank transfer. The booking is confirmed and an SMS ticket is sent instantly.</p>
-
-        <div style="max-width:680px">
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:4px">
-            <label style="flex:1;min-width:200px;margin:0">
-              <span style="font-size:0.8rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px">Ticket Code</span>
-              <input type="text" id="cpAdminCode" placeholder="TK-…" autocomplete="off"
-                     style="text-transform:uppercase;width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;box-sizing:border-box" />
-            </label>
-            <button class="btn btn-outline" id="cpAdminSearchBtn" style="height:40px;padding:0 20px">Search</button>
-          </div>
-          <div id="cpAdminResult" style="margin-top:16px"></div>
-        </div>
-      </div>
-
-      <!-- Trip Cancellations tab -->
-      <div class="tab-panel" id="tab-cancellations" hidden>
-        <h3>Trip Cancellation Requests</h3>
-        <p class="hint">Review and approve or reject cancellation requests submitted by company operators. Approving a request immediately cancels all active bookings for that trip.</p>
-
-        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-          <select id="cancelStatusFilter" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem">
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="">All</option>
+        <div id="tenSummary" class="aa-summary"></div>
+        <p id="tenNote" class="banner error" hidden style="margin:0 0 12px;"></p>
+        <div class="aa-controls">
+          <input type="text" id="tenSearch" placeholder="Search customer, phone, house or agent…" />
+          <select id="tenFilter">
+            <option value="ending">Ending soon (≤30 days)</option>
+            <option value="active">Active</option>
+            <option value="all">All</option>
           </select>
-          <button class="btn btn-outline btn-sm" id="cancelRefreshBtn">Refresh</button>
+          <select id="tenSort">
+            <option value="soonest">Rent ends: soonest first</option>
+            <option value="latest">Rent ends: latest first</option>
+          </select>
         </div>
-
-        <div id="cancelRequestsWrap">
-          <div class="empty-state"><div class="es-icon">⏳</div><div>Loading…</div></div>
-        </div>
+        <div id="tenantsList"></div>
       </div>
+
+      <!-- Day Jobs tab — vibarua board oversight -->
+      <div class="tab-panel" id="tab-dayjobs" hidden>
+        <div class="aa-head">
+          <div>
+            <h3 style="margin:0;">Day jobs — vibarua board</h3>
+            <p class="hint" style="margin:2px 0 0;">Every job companies posted on the public board, with the workers who claimed each slot (names &amp; phones). Close abusive or finished posts; expired posts close themselves.</p>
+          </div>
+          <button id="djRefreshBtn" class="btn btn-outline btn-sm" type="button">↻ Refresh</button>
+        </div>
+        <div id="djSummary" class="aa-summary"></div>
+        <p id="djNote" class="banner error" hidden style="margin:0 0 12px;"></p>
+        <div class="aa-controls">
+          <input type="text" id="djSearch" placeholder="Search title, company or phone…" />
+          <select id="djStatus">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="full">Full</option>
+            <option value="closed">Closed</option>
+            <option value="expired">Expired</option>
+          </select>
+        </div>
+        <div id="dayJobsList"></div>
+      </div>
+
     </section>
   </main>
 
@@ -385,7 +360,7 @@
   <script src="js/data.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
-  <script src="js/seat-canvas-editor.js"></script>
+  <script src="js/auth-ui.js"></script>
   <script src="js/admin.js"></script>
   <script>
     window.renderNav("admin.html");

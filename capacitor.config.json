@@ -1,0 +1,11 @@
+{
+  "appId": "com.maishahub.app",
+  "appName": "Maisha na Lifeza",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

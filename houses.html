@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Houses for rent &amp; sale — Pawa Bus Cargo</title>
+  <title>Houses for rent &amp; sale — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
@@ -12,7 +12,7 @@
   <meta name="theme-color" content="#0a6f4d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="icons/icon-maskable.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/mobile.css" />
   <link rel="stylesheet" href="css/premium.css" />
@@ -102,7 +102,7 @@
 
     /* =====================================================================
        Houses directory — split list + map (desktop) /
-       tabbed list ↔ map (phones).
+       tabbed list  map (phones).
        ===================================================================== */
     .houses-toolbar {
       background: var(--c-surface, #fff);
@@ -194,7 +194,7 @@
     .houses-near-me svg, .houses-alert-btn svg { width: 16px; height: 16px; }
     .houses-alert-btn { background: var(--c-accent, #bc5c00); }
     .houses-alert-btn.subscribed { background: var(--c-success, #0d8050); }
-    .houses-alert-btn.subscribed::after { content: "✓"; margin-left: 2px; }
+    .houses-alert-btn.subscribed::after { content: ""; margin-left: 2px; }
 
     .houses-alert-banner {
       background: linear-gradient(135deg, var(--c-success, #0d8050), #075c39);
@@ -327,6 +327,49 @@
     .am-mini-btn:hover { border-color: var(--c-brand, #0a6f4d); }
     .am-mini-btn:disabled { opacity: .6; cursor: not-allowed; }
 
+    /* Mode toolbar: Circle / Draw area / Whole ward */
+    .am-modes { display: flex; gap: 6px; }
+    .am-mode {
+      flex: 1; padding: 9px 6px;
+      background: var(--c-bg-elev, #f4f3ee);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px;
+      font-weight: 600; font-size: .82rem;
+      color: var(--c-text-soft, #3f3d36);
+      cursor: pointer; white-space: nowrap;
+    }
+    .am-mode:hover { border-color: var(--c-brand, #0a6f4d); }
+    .am-mode.active {
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      border-color: var(--c-brand, #0a6f4d);
+    }
+    .am-draw-tools, .am-area-tools {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      font-size: .82rem; color: var(--c-text-soft, #3f3d36);
+    }
+    .am-draw-tools .am-mini-btn, .am-area-tools .am-mini-btn { padding: 7px 11px; font-size: .82rem; }
+    #alertDrawHint, .am-area-name { flex: 1; min-width: 120px; }
+    .am-area-name { font-weight: 600; color: var(--c-brand-deep, #064a33); }
+
+    /* Multiple areas in one alert */
+    .am-areas-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .am-areas-summary { font-size: .8rem; color: var(--c-text-muted, #6b6960); flex: 1; min-width: 120px; }
+    .am-areas-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .am-area-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--c-brand-faint, #f0f7f2);
+      border: 1px solid var(--c-brand, #0a6f4d);
+      color: var(--c-brand-deep, #064a33);
+      border-radius: 999px; padding: 4px 6px 4px 11px;
+      font-size: .8rem; font-weight: 600;
+    }
+    .am-area-chip button {
+      border: 0; background: transparent; cursor: pointer;
+      color: var(--c-brand-deep, #064a33); font-size: 1rem; line-height: 1;
+      padding: 0 4px;
+    }
+    .am-area-chip button:hover { color: #b91c1c; }
+
     .am-search-results {
       max-height: 180px; overflow-y: auto;
       border: 1px solid var(--c-border, #e7e4dd);
@@ -357,6 +400,14 @@
     .am-map {
       /* Big enough to comfortably pan/zoom and judge an area's boundary. */
       height: clamp(360px, 50vh, 560px);
+    }
+    .am-dots-badge {
+      position: absolute; top: 8px; left: 8px; z-index: 500;
+      background: rgba(10,111,77,.95); color: #fff;
+      font-size: .74rem; font-weight: 600;
+      padding: 5px 9px; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+      pointer-events: none; max-width: 75%;
     }
     .am-coords {
       position: absolute; bottom: 8px; left: 8px; right: 8px;
@@ -393,6 +444,24 @@
     }
     .am-radius-row strong { color: var(--c-brand-deep, #064a33); font-family: var(--c-font-mono, ui-monospace, monospace); }
     .am-radius-row input[type=range] { width: 100%; accent-color: var(--c-brand, #0a6f4d); }
+
+    /* Alert criteria — where/when/type/price so only the RIGHT rooms notify */
+    .am-filter-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      margin: 12px 0 4px;
+    }
+    .am-filter-grid label {
+      display: flex; flex-direction: column; gap: 4px;
+      font-size: .8rem; font-weight: 600; color: var(--c-text-soft, #3f3d36);
+    }
+    .am-filter-grid label small { font-weight: 400; color: var(--c-text-muted, #6b6960); }
+    .am-filter-grid select, .am-filter-grid input {
+      width: 100%; padding: 9px 10px;
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px;
+      font-size: 16px; font-family: inherit; background: #fff;
+      color: var(--c-text, #1a1915); box-sizing: border-box;
+    }
+    .am-filter-wide { grid-column: 1 / -1; }
 
     .am-name-row label {
       display: block;
@@ -498,9 +567,18 @@
     .house-card-title { font-size: .92rem; font-weight: 600; color: var(--c-text, #1a1915); line-height: 1.3; }
     .house-card-meta { font-size: .78rem; color: var(--c-text-muted, #6b6960); display: flex; gap: 10px; flex-wrap: wrap; }
     .house-card-meta span { display: inline-flex; align-items: center; gap: 3px; }
+    .house-card-meta .house-card-roomkind {
+      background: var(--c-brand-faint, #f0f7f2); color: var(--c-brand-deep, #064a33);
+      border: 1px solid var(--c-brand-soft, #d9ecdf);
+      padding: 1px 8px; border-radius: 999px; font-weight: 700; font-size: .72rem;
+    }
     .house-card-loc {
       font-size: .76rem; color: var(--c-text-soft, #3f3d36); margin-top: 4px;
       display: inline-flex; align-items: center; gap: 4px;
+    }
+    .house-card-road {
+      font-size: .76rem; color: var(--c-brand-deep, #064a33); margin-top: 2px;
+      display: inline-flex; align-items: center; gap: 4px; font-weight: 600;
     }
     .house-card-view {
       align-self: flex-start;
@@ -540,8 +618,12 @@
     .house-marker.active { background: var(--c-accent, #bc5c00); transform: translate(-50%, -100%) scale(1.08); z-index: 10; }
     .house-marker.type-plot     { background: #6b3aa3; }
     .house-marker.type-plot.active { background: var(--c-accent, #bc5c00); }
-    .house-marker.type-office   { background: #1e40af; }
-    .house-marker.type-office.active { background: var(--c-accent, #bc5c00); }
+    .house-marker.type-office,
+    .house-marker.type-shop,
+    .house-marker.type-warehouse   { background: #1e40af; }
+    .house-marker.type-office.active,
+    .house-marker.type-shop.active,
+    .house-marker.type-warehouse.active { background: var(--c-accent, #bc5c00); }
 
     .houses-empty {
       text-align: center;
@@ -595,14 +677,137 @@
       .house-card-photo { min-height: 84px; }
       .house-card-title { font-size: .85rem; }
     }
+
+    /* =====================================================================
+       Primary segment switcher — Rent / Sale / Business.
+       Splits residential rentals/sales from commercial premises so a user
+       picks their world in one tap before filtering further.
+       ===================================================================== */
+    #filterListing { display: none; }   /* superseded by the segment switcher */
+
+    .hp-segctl {
+      display: flex; gap: 6px;
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 16px; padding: 6px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.05);
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .hp-segctl::-webkit-scrollbar { display: none; }
+    .hp-seg {
+      flex: 1 1 0; min-width: max-content;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 11px 16px; border: none; border-radius: 11px;
+      background: transparent; cursor: pointer;
+      color: var(--c-text-soft, #3f3d36);
+      font-family: inherit; font-weight: 700; font-size: .92rem;
+      transition: background .2s ease, color .2s ease, box-shadow .2s ease, transform .12s ease;
+    }
+    .hp-seg svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .hp-seg .hp-seg-count {
+      font-size: .72rem; font-weight: 800;
+      background: rgba(0,0,0,.06); color: inherit;
+      padding: 1px 8px; border-radius: 999px;
+    }
+    .hp-seg:hover { background: var(--c-bg-elev, #f4f3ee); }
+    .hp-seg:active { transform: scale(.97); }
+    .hp-seg.active {
+      background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+      color: #fff; box-shadow: 0 6px 18px rgba(10,111,77,.28);
+    }
+    .hp-seg.active .hp-seg-count { background: rgba(255,255,255,.22); color: #fff; }
+    .hp-seg--biz.active {
+      background: linear-gradient(135deg, #1e40af, #3730a3);
+      box-shadow: 0 6px 18px rgba(30,64,175,.30);
+    }
+
+    /* Business sub-refine — only shown while the Business segment is active */
+    .hp-biz-refine { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+    .hp-biz-refine[hidden] { display: none; }
+    .hp-biz-refine .lbl { font-size: .82rem; font-weight: 600; color: var(--c-text-muted, #6b6960); }
+    .hp-biz-chip {
+      border: 1px solid var(--c-border, #e7e4dd); background: #fff;
+      color: var(--c-text-soft, #3f3d36);
+      padding: 6px 14px; border-radius: 999px;
+      font-family: inherit; font-size: .82rem; font-weight: 600; cursor: pointer;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .hp-biz-chip:hover { border-color: #1e40af; }
+    .hp-biz-chip.active { background: #1e40af; color: #fff; border-color: #1e40af; }
+
+    /* =====================================================================
+       Results arrangement bar — sort + view density + map toggle.
+       ===================================================================== */
+    .hp-resultsbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .hp-rb-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .hp-sort { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem; font-weight: 600; color: var(--c-text-muted, #6b6960); }
+    .hp-sort select {
+      padding: 8px 11px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px;
+      background: #fff; font-family: inherit; font-size: .86rem; color: var(--c-text, #1a1915);
+      cursor: pointer;
+    }
+    .hp-sort select:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .hp-viewtoggle { display: inline-flex; gap: 2px; background: var(--c-bg-elev, #f4f3ee); border-radius: 11px; padding: 3px; }
+    .hp-viewtoggle button {
+      width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+      border: none; background: transparent; border-radius: 8px; cursor: pointer;
+      color: var(--c-text-soft, #3f3d36); transition: background .15s ease, color .15s ease;
+    }
+    .hp-viewtoggle button svg { width: 17px; height: 17px; }
+    .hp-viewtoggle button:hover { color: var(--c-brand-deep, #064a33); }
+    .hp-viewtoggle button.active { background: #fff; color: var(--c-brand-deep, #064a33); box-shadow: 0 1px 5px rgba(0,0,0,.12); }
+    .hp-maptoggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 13px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px;
+      background: #fff; font-family: inherit; font-weight: 600; font-size: .82rem;
+      color: var(--c-text-soft, #3f3d36); cursor: pointer; transition: background .15s ease, color .15s ease;
+    }
+    .hp-maptoggle svg { width: 15px; height: 15px; }
+    .hp-maptoggle.off { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    @media (max-width: 900px) { .hp-maptoggle { display: none; } }
+
+    /* Map hidden → list expands to the full width (great for the gallery grid) */
+    .houses-stage.no-map { grid-template-columns: 1fr; }
+    .houses-stage.no-map .houses-map-wrap { display: none; }
+
+    /* ---- View density: grid gallery ---- */
+    .houses-list[data-vm="grid"] {
+      display: grid; align-content: start;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 12px;
+    }
+    .houses-list[data-vm="grid"] .house-card {
+      grid-template-columns: 1fr; grid-template-rows: auto auto;
+    }
+    .houses-list[data-vm="grid"] .house-card-photo { min-height: 0; aspect-ratio: 4 / 3; }
+    .houses-list[data-vm="grid"] .house-card-body { padding: 10px 13px; }
+
+    /* ---- View density: compact rows ---- */
+    .houses-list[data-vm="compact"] .house-card { grid-template-columns: 82px 1fr; border-radius: 9px; }
+    .houses-list[data-vm="compact"] .house-card-photo { min-height: 64px; }
+    .houses-list[data-vm="compact"] .house-card-body { padding: 7px 11px; gap: 1px; }
+    .houses-list[data-vm="compact"] .house-card-meta,
+    .houses-list[data-vm="compact"] .house-card-road,
+    .houses-list[data-vm="compact"] .house-card-bills,
+    .houses-list[data-vm="compact"] .house-card-commute,
+    .houses-list[data-vm="compact"] .house-card-view { display: none; }
+    .houses-list[data-vm="compact"] .house-card-title { font-size: .84rem; }
+    .houses-list[data-vm="compact"] .house-card-price { font-size: .98rem; }
   </style>
 </head>
 <body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/houses-hero.jpg')" data-page="houses">
   <a href="#housesMain" class="hp-skip-link">Skip to listings</a>
   <div id="nav-slot"></div>
 
-  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg')">
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/victor-0NJ9urGXrIg-unsplash.jpg')">
     <div class="page-hero-inner">
+      <img class="page-hero-icon" src="https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/house-icon.png" alt="" width="60" height="60"
+           style="display:block;margin:0 auto 8px;width:60px;height:60px;object-fit:contain;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));" />
       <h1 class="page-title" data-i18n="houses_title">Houses for rent &amp; sale</h1>
       <p class="page-subtitle" data-i18n="houses_sub">Property listings across Tanzania. Search on the map, filter by area, price and type.</p>
     </div>
@@ -616,7 +821,7 @@
          =========================================================== -->
     <form id="smartSearch" class="smart-search" autocomplete="off">
       <div class="ss-head">
-        <span class="ss-spark" aria-hidden="true">✨</span>
+        <span class="ss-spark" aria-hidden="true"></span>
         <label for="smartSearchInput" class="ss-label">Tell us what you're looking for</label>
       </div>
       <div class="ss-row">
@@ -632,6 +837,35 @@
         <button type="button" class="ss-ex" data-q="furnished apartment Masaki sea view 3 beds with pool and gym">furnished 3-bed, pool + gym</button>
       </div>
     </form>
+
+    <!-- ===========================================================
+         Primary segment switcher — Rent / Sale / Business.
+         One tap to pick your world before filtering further.
+         =========================================================== -->
+    <div id="hpSeg" class="hp-segctl" role="tablist" aria-label="Property category">
+      <button type="button" class="hp-seg active" data-seg="all" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>All</span><span class="hp-seg-count" id="hpSegCountAll">—</span>
+      </button>
+      <button type="button" class="hp-seg" data-seg="rent" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5L20 3"/><path d="M16 7l3 3"/><path d="M18 5l3 3"/></svg>
+        <span>For rent</span><span class="hp-seg-count" id="hpSegCountRent">—</span>
+      </button>
+      <button type="button" class="hp-seg" data-seg="sale" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7.2-7.2a2 2 0 0 1-.6-1.4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 1.4.6l6.4 6.4a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>
+        <span>For sale</span><span class="hp-seg-count" id="hpSegCountSale">—</span>
+      </button>
+      <button type="button" class="hp-seg hp-seg--biz" data-seg="business" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M15 9h2a2 2 0 0 1 2 2v10"/><path d="M9 7h2M9 11h2M9 15h2"/></svg>
+        <span>Business</span><span class="hp-seg-count" id="hpSegCountBiz">—</span>
+      </button>
+    </div>
+    <div id="hpBizRefine" class="hp-biz-refine" hidden>
+      <span class="lbl">Business premises for:</span>
+      <button type="button" class="hp-biz-chip active" data-listing="">Any</button>
+      <button type="button" class="hp-biz-chip" data-listing="rent">Rent</button>
+      <button type="button" class="hp-biz-chip" data-listing="sale">Sale</button>
+    </div>
 
     <!-- Bento overview tiles (quick filters / counts) -->
     <nav class="hp-bento" aria-label="Quick property filters">
@@ -650,6 +884,10 @@
         <span class="hp-bento__eyebrow">For sale</span>
         <div class="hp-bento__num" id="hpBentoSale">—</div>
       </a>
+      <a class="hp-bento__cell" href="#" data-quickfilter="business">
+        <span class="hp-bento__eyebrow">Business</span>
+        <div class="hp-bento__num" id="hpBentoBusiness">—</div>
+      </a>
       <a class="hp-bento__cell hp-bento__cell--accent" href="favorites.html">
         <span class="hp-bento__eyebrow">Saved</span>
         <div>
@@ -667,6 +905,16 @@
       </a>
     </nav>
 
+    <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
+    <div class="find-mode" id="fmHouses" data-near="houseNearMeBtn" data-area="filterArea" style="display:none">
+      <button class="fm-x" type="button" aria-label="Dismiss">&times;</button>
+      <div class="fm-q">How do you want to find a place?</div>
+      <div class="fm-actions">
+        <button type="button" class="fm-btn fm-near"> Near me<small>Show the places closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"> A specific area<small>Type a town, district or ward — browse anywhere in Tanzania</small></button>
+      </div>
+    </div>
+
     <!-- Filter bar -->
     <div class="houses-toolbar">
       <select id="filterListing">
@@ -679,7 +927,8 @@
         <option value="apartment">Apartment</option>
         <option value="house">House</option>
         <option value="plot">Plot</option>
-        <option value="office">Office / shop</option>
+        <option value="office">Office</option>
+        <option value="shop">Shop / business</option>
       </select>
       <input type="text" id="filterArea" list="filterAreaList" autocomplete="off"
              placeholder="Area — type e.g. Masaki, Mbezi…" title="Type any area, ward or neighbourhood" />
@@ -690,6 +939,12 @@
         <option value="2">2+ beds</option>
         <option value="3">3+ beds</option>
         <option value="4">4+ beds</option>
+      </select>
+      <select id="filterRoom" title="Single room, master room, or a whole unit">
+        <option value="">Room: any</option>
+        <option value="single">Single room</option>
+        <option value="master">Master room</option>
+        <option value="whole">Whole unit</option>
       </select>
       <input type="text" id="filterPrice" class="ht-budget" inputmode="text"
              placeholder="Budget — e.g. 900k, 1.5m, under 2m" title="Type your budget in your own words" />
@@ -718,7 +973,7 @@
 
     <!-- Workplace / daily-route distance: rank listings by closeness to work -->
     <div id="housesWorkplace" class="houses-workplace">
-      <label class="hw-label" for="hwInput">📍 Rank homes by distance to your workplace or daily route</label>
+      <label class="hw-label" for="hwInput"> Rank homes by distance to your workplace or daily route</label>
       <div class="hw-row">
         <input type="text" id="hwInput" autocomplete="off"
           placeholder="e.g. Mlimani City, Muhimbili Hospital, your office area…" />
@@ -744,28 +999,93 @@
         </header>
 
         <div class="am-body">
-          <p class="am-help">
+          <p class="am-help" id="alertHelp">
             Search a place, drop a pin on the map, or use your GPS. We'll notify
             you whenever a property is listed inside the circle.
           </p>
 
+          <!-- Three ways to map the area you want to watch -->
+          <div class="am-modes" role="tablist" aria-label="How to map your area">
+            <button type="button" class="am-mode active" data-mode="circle" role="tab" aria-selected="true">◯ Circle</button>
+            <button type="button" class="am-mode" data-mode="draw" role="tab" aria-selected="false">✎ Draw area</button>
+            <button type="button" class="am-mode" data-mode="area" role="tab" aria-selected="false">▦ Whole ward</button>
+          </div>
+
           <div class="am-search-row">
             <input id="alertSearchInput" type="search" placeholder="Search a place (e.g. Masaki, Mlimani City, Mbezi…)" autocomplete="off" />
-            <button id="alertGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS">📍 GPS</button>
+            <button id="alertGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS"> GPS</button>
           </div>
           <div id="alertSearchResults" class="am-search-results" hidden></div>
 
           <div class="am-map-wrap">
             <div id="alertModalMap" class="am-map"></div>
+            <div class="am-dots-badge" id="alertDotsBadge" hidden></div>
             <div class="am-coords" id="alertCoords">Pin not placed yet — search or tap the map</div>
           </div>
 
-          <div class="am-radius-row">
+          <!-- Draw-area controls (only while in Draw mode) -->
+          <div class="am-draw-tools" id="alertDrawTools" hidden>
+            <span id="alertDrawHint">Tap the map to add the corners of your area (3+ points).</span>
+            <button type="button" id="alertUndoPt" class="am-mini-btn">↶ Undo point</button>
+            <button type="button" id="alertClearPts" class="am-mini-btn">✕ Clear</button>
+          </div>
+
+          <!-- Whole-ward controls (only while in Whole-ward mode) -->
+          <div class="am-area-tools" id="alertAreaTools" hidden>
+            <button type="button" id="alertUseAreaBtn" class="am-mini-btn" disabled>Use this whole area</button>
+            <span id="alertAreaName" class="am-area-name">Search or tap a spot to find its ward / suburb.</span>
+          </div>
+
+          <div class="am-radius-row" id="alertRadiusRow">
             <label for="alertRadius">
               <span>Alert radius</span>
               <strong id="alertRadiusLabel">1.5 km</strong>
             </label>
             <input id="alertRadius" type="range" min="250" max="10000" step="250" value="1500" />
+          </div>
+
+          <!-- Stack several areas into ONE alert: define an area above, tap to
+               add it, repeat. You'll be alerted for a listing in ANY of them. -->
+          <div class="am-areas-row">
+            <button type="button" id="alertAddAreaBtn" class="am-mini-btn" disabled>+ Add this area</button>
+            <span id="alertAreasSummary" class="am-areas-summary">Add one or more areas — you'll be alerted in any of them.</span>
+          </div>
+          <div id="alertAreasList" class="am-areas-list" hidden></div>
+
+          <!-- What exactly are you looking for? Only matching listings fire
+               the alert — no more notifications about the wrong rooms. -->
+          <div class="am-filter-grid">
+            <label>Listing
+              <select id="alertListing">
+                <option value="">Any</option>
+                <option value="rent" selected>For rent</option>
+                <option value="sale">For sale</option>
+              </select>
+            </label>
+            <label>Type
+              <select id="alertType">
+                <option value="">Any</option>
+                <option value="apartment">Apartment / room</option>
+                <option value="house">House</option>
+                <option value="plot">Plot</option>
+                <option value="office">Office / shop</option>
+              </select>
+            </label>
+            <label>Max price (TZS)
+              <input id="alertPriceMax" type="text" inputmode="numeric" placeholder="e.g. 300k or 300,000" />
+            </label>
+            <label>Min bedrooms
+              <select id="alertBeds">
+                <option value="">Any</option>
+                <option value="1">1+</option>
+                <option value="2">2+</option>
+                <option value="3">3+</option>
+                <option value="4">4+</option>
+              </select>
+            </label>
+            <label class="am-filter-wide">Needed by <small>(alerts stop after this date)</small>
+              <input id="alertUntil" type="date" />
+            </label>
           </div>
 
           <div class="am-name-row">
@@ -808,7 +1128,7 @@
           <div class="am-search-row" style="margin-top:12px">
             <input id="mpSearchInput" type="search" autocomplete="off"
                    placeholder="Search region, district, ward, village, or a place / service…" />
-            <button id="mpGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS">📍 GPS</button>
+            <button id="mpGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS"> GPS</button>
           </div>
           <div id="mpSearchResults" class="am-search-results" hidden></div>
 
@@ -828,6 +1148,43 @@
 
     <div id="housesCount" class="houses-result-count" role="status" aria-live="polite"></div>
     <span class="hp-sr-only" id="housesAnnounce" aria-live="polite" aria-atomic="true"></span>
+
+    <!-- ===========================================================
+         Results arrangement: sort order + list density + map toggle.
+         Choices persist (localStorage) so the directory remembers how
+         each visitor likes to browse.
+         =========================================================== -->
+    <div class="hp-resultsbar">
+      <div class="hp-rb-controls">
+        <label class="hp-sort">Sort
+          <select id="hpSort" aria-label="Sort listings">
+            <option value="recommended">Recommended</option>
+            <option value="newest">Newest first</option>
+            <option value="price_asc">Price: low to high</option>
+            <option value="price_desc">Price: high to low</option>
+            <option value="beds">Most bedrooms</option>
+            <option value="nearest">Nearest first</option>
+          </select>
+        </label>
+      </div>
+      <div class="hp-rb-controls">
+        <div id="hpViewToggle" class="hp-viewtoggle" role="group" aria-label="List density">
+          <button type="button" data-vm="comfortable" class="active" title="Comfortable" aria-label="Comfortable view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="6" rx="1"/><line x1="13" y1="5" x2="21" y2="5"/><line x1="13" y1="9" x2="19" y2="9"/><rect x="3" y="14" width="7" height="6" rx="1"/><line x1="13" y1="15" x2="21" y2="15"/><line x1="13" y1="19" x2="19" y2="19"/></svg>
+          </button>
+          <button type="button" data-vm="grid" title="Grid gallery" aria-label="Grid view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+          <button type="button" data-vm="compact" title="Compact" aria-label="Compact view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+          </button>
+        </div>
+        <button type="button" id="hpMapToggle" class="hp-maptoggle" aria-label="Toggle map">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/></svg>
+          <span>Hide map</span>
+        </button>
+      </div>
+    </div>
 
     <!-- Mobile tab switcher -->
     <div class="houses-mobile-tabs">
@@ -886,8 +1243,10 @@
   <script src="js/tz-places.js"></script>
   <script src="js/house-match.js"></script>
   <script src="js/area-boundary.js"></script>
+  <script src="js/geo-poly.js"></script>
   <script src="js/ai-search.js"></script>
   <script src="js/geolocate.js"></script>
+  <script src="js/find-mode.js"></script>
   <script src="js/houses.js"></script>
   <script>
     window.renderNav("houses.html");

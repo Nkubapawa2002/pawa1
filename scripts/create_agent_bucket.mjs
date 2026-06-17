@@ -11,9 +11,9 @@ const sb = createClient(URL, KEY, { auth: { persistSession: false } });
 const { data: buckets } = await sb.storage.listBuckets();
 if (buckets.find(b => b.name === BUCKET)) {
   await sb.storage.updateBucket(BUCKET, { public: true });
-  console.log(`✓ ensured "${BUCKET}" exists & public`);
+  console.log(` ensured "${BUCKET}" exists & public`);
 } else {
   const { error } = await sb.storage.createBucket(BUCKET, { public: true });
   if (error) { console.error(error.message); process.exit(1); }
-  console.log(`✓ created public bucket "${BUCKET}"`);
+  console.log(` created public bucket "${BUCKET}"`);
 }

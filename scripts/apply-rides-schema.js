@@ -48,10 +48,10 @@ const sql = fs.readFileSync(SCHEMA_FILE, "utf8");
     await client.query("begin");
     await client.query(sql);
     await client.query("commit");
-    console.log("\n✓ Schema applied.");
+    console.log("\n Schema applied.");
   } catch (e) {
     await client.query("rollback").catch(() => {});
-    console.error("\n✗ Failed:", e.message);
+    console.error("\n Failed:", e.message);
     process.exitCode = 1;
   } finally {
     await client.end();

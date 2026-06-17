@@ -137,14 +137,14 @@ body[data-page="chat"] .pawa-fab,
 body[data-page="meet"] .pawa-fab { display: none; }
 
 /* On meet.html the map should take the full viewport — hide the global
-   footer ("© 2026 Pawa Bus Cargo — Tanzania Mainland. Need help?") and
+   footer ("© 2026 Maisha na Lifeza — Tanzania Mainland. Need help?") and
    its slot so nothing covers the map. */
 body[data-page="meet"] .footer,
 body[data-page="meet"] #footer-slot { display: none !important; }
 
 /* The mobile bottom-nav (z:950) was covering the collapsed side-panel
    handle (~52 px at the bottom of #meetRoom). Hide it on meet.html —
-   the prominent Exit ✕ button already gives users a clear way back to
+   the prominent Exit  button already gives users a clear way back to
    index.html, and we need every pixel of the bottom edge for the
    "▲ Maximize · Chat & info" tap target. */
 body[data-page="meet"] .bottom-nav { display: none !important; }
@@ -153,7 +153,7 @@ body[data-page="meet"] { padding-bottom: 0 !important; }
 /* Pill-shaped Exit button — top-left, floats above the map so the user
    always has a clear way out. Only renders on meet.html. On phones in
    the active-room state the existing topbar already has its own Leave
-   button, so we collapse the Exit to a small ✕ icon-only pinned to the
+   button, so we collapse the Exit to a small  icon-only pinned to the
    top-right corner where it doesn't cover the room code. */
 body[data-page="meet"] .meet-exit-btn {
   position: fixed;
@@ -214,7 +214,7 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
 }
 
 /* Make the bottom-sheet drag handle obviously tappable — the previous
-   thin 4px bar was easy to miss. Adds a "💬 Chat & info" label so the
+   thin 4px bar was easy to miss. Adds a " Chat & info" label so the
    user knows what's behind it. */
 .side-pull-label {
   display: inline-flex;
@@ -367,7 +367,8 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
   .hero-feature .hf-tag { font-size: .54rem; padding: 2px 6px; margin-bottom: 5px; }
 
   .stats-strip {
-    grid-template-columns: repeat(4, 1fr) !important;
+    /* 3 stats on the homepage (the only stats-strip page) — 4 cols left a dead column */
+    grid-template-columns: repeat(3, 1fr) !important;
     gap: 6px; padding: 14px 10px;
   }
   .stats-strip .stat-value { font-size: 1.2rem; }

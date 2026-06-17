@@ -72,11 +72,21 @@ window.initAgentHousesPage = async () => {
   const MAX_VIDEO_B   = 20 * 1024 * 1024;  // 20 MB
   const fTitle        = document.getElementById("ahTitle");
   const fType         = document.getElementById("ahType");
+  const fTypeOther    = document.getElementById("ahTypeOther");
+  const fTypeOtherRow = document.getElementById("ahTypeOtherRow");
+  // Property types the dropdown offers directly; anything else is free text ("other").
+  const KNOWN_TYPES   = ["apartment", "house", "plot", "office", "shop", "warehouse"];
+  // Show the free-text box only when the provider picks "Other (any kind)".
+  function syncTypeOther() {
+    if (fTypeOtherRow) fTypeOtherRow.style.display = fType.value === "other" ? "" : "none";
+  }
+  if (fType) fType.addEventListener("change", syncTypeOther);
   const fListing      = document.getElementById("ahListing");
   const fPrice        = document.getElementById("ahPrice");
   const fPeriod       = document.getElementById("ahPeriod");
   const fMinMonths    = document.getElementById("ahMinMonths");
   const fMinMonthsRow = document.getElementById("ahMinMonthsRow");
+  const fRoomKind     = document.getElementById("ahRoomKind");
   const fBedrooms     = document.getElementById("ahBedrooms");
   const fBathrooms    = document.getElementById("ahBathrooms");
   const fSize         = document.getElementById("ahSize");
@@ -149,7 +159,7 @@ window.initAgentHousesPage = async () => {
 create table if not exists public.houses (
   id                text primary key,
   title             text not null,
-  type              text not null check (type in ('apartment','house','plot','office')),
+  type              text not null,  -- apartment/house/plot/office/shop/warehouse or free-text ("other")
   listing           text not null check (listing in ('rent','sale')),
   price_tzs         bigint not null default 0 check (price_tzs >= 0),
   currency          text not null default 'TZS',
@@ -158,6 +168,7 @@ create table if not exists public.houses (
   bathrooms         int  not null default 0,
   size_sqm          int,
   min_months        int  not null default 1,  -- min months a renter pays upfront
+  room_kind         text,  -- 'single' | 'master' | null (whole unit) — for room-by-room rentals
   region            text,
   area              text,
   address           text,
@@ -185,6 +196,7 @@ alter table public.houses add column if not exists videos text[] not null defaul
 alter table public.houses add column if not exists nearby jsonb  not null default '{}'::jsonb;
 alter table public.houses add column if not exists extra_costs jsonb not null default '[]'::jsonb;
 alter table public.houses add column if not exists min_months int not null default 1;
+alter table public.houses add column if not exists room_kind text;
 alter table public.houses add column if not exists owner_user_id uuid references auth.users(id) on delete set null;
 -- Drop legacy furnished CHECK if it exists, so the field can hold free text.
 do $$
@@ -280,9 +292,7 @@ create policy "house-photos upload" on storage.objects for insert
   // ---- Hard requirement: Supabase must be configured -----------------------
   if (!sb) {
     authCard.hidden = false;
-    authMsg.textContent = tr("ah_msg_supabase_missing");
-    authMsg.className = "ah-msg error";
-    authMsg.hidden = false;
+    setAuthMsg(tr("ah_msg_supabase_missing"), "error");
     authForm.querySelectorAll("input, button").forEach(el => el.disabled = true);
     return;
   }
@@ -317,24 +327,15 @@ create policy "house-photos upload" on storage.objects for insert
   await routeOnAuth();
   sb.auth.onAuthStateChange((_event, session) => routeOnAuth(session));
 
-  // Monthly subscription guard: if the owner's subscription lapsed, RLS hides
-  // their listings from the public — show them a paywall so they renew.
+  // Subscription / activation guard: deactivation, lapsed subscription, or the
+  // 48h pay-or-pause grace expiring → paywall (RLS also hides the listings);
+  // during grace, a live countdown demanding payment.
   async function checkSubscription() {
     if (!sb) return;
     try {
       const { data } = await sb.rpc("my_agent_subscription");
       const sub = Array.isArray(data) ? data[0] : data;
-      if (sub && sub.active === false) {
-        if (document.getElementById("ahSubPaywall")) return;
-        const when = sub.paid_until ? ` on ${sub.paid_until}` : "";
-        const el = document.createElement("div");
-        el.id = "ahSubPaywall";
-        el.style.cssText = "margin:0 0 16px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
-        el.innerHTML = `<strong>⚠️ Subscription expired${when}.</strong> Your listings are hidden from clients until you renew. Please pay <strong>TZS 10,000/month</strong> to reactivate — contact the Pawa admin.`;
-        dashboard.insertBefore(el, dashboard.firstChild);
-      } else {
-        document.getElementById("ahSubPaywall")?.remove();
-      }
+      window.renderAgentSubBanner(sub, { mount: dashboard, id: "ahSubPaywall", what: "listings" });
     } catch (_) { /* RPC not deployed yet — ignore */ }
   }
 
@@ -364,7 +365,7 @@ create policy "house-photos upload" on storage.objects for insert
     authSubmit.textContent = tr("ah_tab_signin");
     authPassword.autocomplete = "current-password";
     if (authPasswordConfirmRow) authPasswordConfirmRow.hidden = true;
-    authMsg.hidden = true;
+    setAuthMsg("", "");
   });
   tabSignUp.addEventListener("click", () => {
     authMode = "signup";
@@ -373,13 +374,13 @@ create policy "house-photos upload" on storage.objects for insert
     authSubmit.textContent = tr("ah_tab_signup");
     authPassword.autocomplete = "new-password";
     if (authPasswordConfirmRow) { authPasswordConfirmRow.hidden = false; authPasswordConfirm.value = ""; }
-    authMsg.hidden = true;
+    setAuthMsg("", "");
   });
 
   function setAuthMsg(html, kind /* "error" | "success" */) {
-    authMsg.className = "ah-msg" + (kind ? " " + kind : "");
-    authMsg.innerHTML = html;
-    authMsg.hidden = !html;
+    const mod = kind === "error" ? "is-error" : (kind === "success" || kind === "ok") ? "is-ok" : "";
+    authMsg.className = "auth-msg" + (mod && html ? " " + mod + " is-show" : "");
+    authMsg.innerHTML = html || "";
   }
   // Reject anything that isn't a syntactically valid address before we call
   // Supabase. (Real deliverability is proven by the verification email.)
@@ -412,7 +413,7 @@ create policy "house-photos upload" on storage.objects for insert
 
   authForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    authMsg.hidden = true;
+    setAuthMsg("", "");
     const email = authEmail.value.trim();
     const password = authPassword.value;
 
@@ -552,22 +553,28 @@ create policy "house-photos upload" on storage.objects for insert
     // Listings render as a compact table (one row per property) so an agent
     // can scan/manage many listings at a glance, like the parcel dashboard.
     listEl.classList.add("ah-table-mode");
-    const typeLabel = t => ({ apartment: "Apartment", house: "House", plot: "Plot", office: "Office / shop" }[t] || (t || "—"));
+    const typeLabel = t => ({ apartment: "Apartment", house: "House", plot: "Plot", office: "Office", shop: "Shop / business", warehouse: "Warehouse" }[t] || (t || "—"));
     const rows = data.map(h => {
       const photo = window.DataStore.housePhotoUrl(h.photo);
       const listing = h.listing === "sale" ? tr("ah_for_sale") : tr("ah_for_rent");
       const price = formatPrice(h);
       const where = esc(h.area || "—") + (h.region ? ", " + esc(h.region) : "");
+      // Listings auto-delete (row + photos/videos) 15 days after posting.
+      const daysLeft = Math.ceil((new Date(h.created_at).getTime() + 15 * 864e5 - Date.now()) / 864e5);
+      const expChip = daysLeft <= 3
+        ? `<span title="This listing and its photos/videos are removed automatically 15 days after posting" style="display:inline-block;background:#fde6e2;color:#b3261e;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">${daysLeft <= 0 ? "Expires today" : "Expires in " + daysLeft + "d"}</span>`
+        : `<span title="This listing and its photos/videos are removed automatically 15 days after posting" style="display:inline-block;background:#eef2f7;color:#5b6472;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">Expires in ${daysLeft}d</span>`;
       return `<tr data-id="${h.id}">
         <td class="ah-td-photo">
           <span class="ah-thumb" data-loading="true" style="background-image:url('${photo}')"></span>
         </td>
-        <td class="ah-td-title"><span class="ah-row-title">${esc(h.title)}</span></td>
-        <td class="ah-td-type">${esc(typeLabel(h.type))}</td>
+        <td class="ah-td-title"><span class="ah-row-title">${esc(h.title)}</span>${h.available === false ? ` <span style="display:inline-block;background:#fde6e2;color:#b3261e;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">Rented · off-market</span>` : ""} ${expChip}</td>
+        <td class="ah-td-type">${esc(typeLabel(h.type))}${h.room_kind === "single" ? ` · ${esc("Single room")}` : h.room_kind === "master" ? ` · ${esc("Master room")}` : ""}</td>
         <td class="ah-td-listing"><span class="ah-pill ah-pill-${h.listing === "sale" ? "sale" : "rent"}">${esc(listing)}</span></td>
         <td class="ah-td-price"><strong>${price.value}</strong> <small>${price.unit}</small></td>
         <td class="ah-td-area">${where}</td>
         <td class="ah-td-actions">
+          ${h.listing === "rent" ? `<button class="ah-btn ah-tenant-btn" aria-label="Mark deal completed for ${esc(h.title)}">${esc(tr("ah_completed_btn"))}</button>` : ""}
           <button class="ah-btn ah-edit-btn" aria-label="Edit ${esc(h.title)}">${esc(tr("ah_edit"))}</button>
           <button class="ah-btn ah-btn-danger ah-delete-btn" aria-label="Delete ${esc(h.title)}">${esc(tr("ah_delete"))}</button>
         </td>
@@ -592,6 +599,7 @@ create policy "house-photos upload" on storage.objects for insert
       const row = data.find(x => x.id === id);
       tr.querySelector(".ah-edit-btn").addEventListener("click", () => openForm(row));
       tr.querySelector(".ah-delete-btn").addEventListener("click", () => deleteListing(row));
+      tr.querySelector(".ah-tenant-btn")?.addEventListener("click", () => openTenantPanel(row));
     });
     // Drop shimmer on each row thumbnail when its image is ready.
     listEl.querySelectorAll(".ah-thumb[data-loading]").forEach(el => {
@@ -640,15 +648,27 @@ create policy "house-photos upload" on storage.objects for insert
     fAmenities.querySelectorAll(".ah-chip--custom").forEach(c => c.remove());
     if (fFurnished) fFurnished.value = "";
     if (fMinMonths) fMinMonths.value = 1;
+    if (fRoomKind) fRoomKind.value = "";
     if (fCostsList) fCostsList.innerHTML = "";
+    if (fTypeOther) fTypeOther.value = "";
+    syncTypeOther();
 
     if (row) {
       fTitle.value       = row.title || "";
-      fType.value        = row.type || "apartment";
+      // A free-text "any kind" type lands in the Other box; known types select directly.
+      if (row.type && !KNOWN_TYPES.includes(row.type)) {
+        fType.value = "other";
+        if (fTypeOther) fTypeOther.value = row.type;
+      } else {
+        fType.value = row.type || "apartment";
+        if (fTypeOther) fTypeOther.value = "";
+      }
+      syncTypeOther();
       fListing.value     = row.listing || "rent";
       fPrice.value       = row.price_tzs || "";
       fPeriod.value      = row.period || (row.listing === "sale" ? "total" : "month");
       if (fMinMonths) fMinMonths.value = row.min_months ?? 1;
+      if (fRoomKind) fRoomKind.value = row.room_kind || "";
       fBedrooms.value    = row.bedrooms ?? 0;
       fBathrooms.value   = row.bathrooms ?? 0;
       fSize.value        = row.size_sqm ?? "";
@@ -982,8 +1002,8 @@ create policy "house-photos upload" on storage.objects for insert
     const isVideo = kind === "video";
     const cover  = (!isVideo && idx === 0) ? `<span class="ah-cover-flag">Cover</span>` : "";
     const enhanced = (t.kind === "staged-photo")
-      ? `<span class="ah-enhanced-flag" title="Auto-enhanced for clarity & colour">✨ Enhanced</span>` : "";
-    const flag   = isVideo ? `<span class="ah-video-flag">▶ Video</span>` : enhanced;
+      ? `<span class="ah-enhanced-flag" title="Auto-enhanced for clarity & colour"> Enhanced</span>` : "";
+    const flag   = isVideo ? `<span class="ah-video-flag"> Video</span>` : enhanced;
     const media  = isVideo
       ? `<video src="${esc(src)}" muted playsinline preload="metadata"></video>`
       : `<img src="${esc(src)}" alt="" loading="lazy" decoding="async">`;
@@ -1014,34 +1034,18 @@ create policy "house-photos upload" on storage.objects for insert
       updatePinReadout();
       return;
     }
+    // Shared hybrid base (satellite + Esri road overlay + street-name labels,
+    // labels from z≥9 so agents can read road names while zoomed out) with the
+    // shared Map ⇄ Satellite toggle — both from config.js.
     pinMap = new maplibregl.Map({
       container: "ahPinMap",
-      style: {
-        version: 8,
-        sources: {
-          esri: { type: "raster",
-            tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-            tileSize: 256, maxzoom: 19, attribution: "Tiles © Esri" },
-          carto_labels: { type: "raster",
-            tiles: [
-              "https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
-              "https://b.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png"
-            ],
-            tileSize: 256, maxzoom: 19,
-            attribution: "© CARTO © OpenStreetMap contributors" }
-        },
-        layers: [
-          { id: "esri",         type: "raster", source: "esri" },
-          // Street + place-name labels kick in earlier (z≥9) so agents can
-          // read road names while still zoomed out and pin the exact street.
-          { id: "carto_labels", type: "raster", source: "carto_labels", minzoom: 9 }
-        ]
-      },
+      style: window.pawaGlHybridStyle ? window.pawaGlHybridStyle() : { version: 8, sources: {}, layers: [] },
       center: pickedLatLng ? [pickedLatLng.lng, pickedLatLng.lat] : [39.2789, -6.7924],
       zoom: pickedLatLng ? 16 : 11,
       maxBounds: [[29.34, -11.75], [40.45, -0.99]]
     });
     pinMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    if (window.pawaGlBasemapToggle) pinMap.addControl(window.pawaGlBasemapToggle(), "top-right");
     // Maximize / minimize the pin map in place (shared helper). Grow the picker
     // wrapper (the map fills it via inset:0) so the absolute map follows.
     window.pawaMapExpand && window.pawaMapExpand(".ah-pin-picker", () => pinMap);
@@ -1107,7 +1111,7 @@ create policy "house-photos upload" on storage.objects for insert
     }
     const acc = accuracyBadge();
     fPinCoords.innerHTML =
-      `📍 ${pickedLatLng.lat.toFixed(5)}, ${pickedLatLng.lng.toFixed(5)}${acc}`;
+      ` ${pickedLatLng.lat.toFixed(5)}, ${pickedLatLng.lng.toFixed(5)}${acc}`;
     scheduleNearbyRefresh();
     scheduleReverseGeocode();
     drawPinBoundary();
@@ -1192,8 +1196,12 @@ create policy "house-photos upload" on storage.objects for insert
                  || a.town || a.city_district || a.hamlet || "";
       const city = a.city || a.town || a.municipality || a.county || "";
       const region = a.state || a.region || "";
+      // Admin hierarchy (TZ): district = county-level, ward = suburb-level. Saved
+      // on the listing so a searcher can find it by region / district / ward.
+      const district = a.county || a.state_district || a.city_district || a.municipality || a.city || a.town || "";
+      const ward = a.suburb || a.quarter || a.neighbourhood || a.ward || a.village || "";
       resolvedPlace = {
-        road, area, region, city,
+        road, area, region, city, district, ward,
         label: j.display_name || "",
         found: !!(road || area || city)
       };
@@ -1309,6 +1317,98 @@ create policy "house-photos upload" on storage.objects for insert
     if (fPinSearchResults?.children.length) fPinSearchResults.style.display = "block";
   });
 
+  // AI-assisted pin: the agent types a free description (landmark, "behind X")
+  // and the AI resolves it to a map pin — no need to pick from the list.
+  const fPinAi = document.getElementById("ahPinAi");
+  const fPinAiMsg = document.getElementById("ahPinAiMsg");
+  fPinAi?.addEventListener("click", async () => {
+    const q = (fPinSearch?.value || "").trim();
+    if (!q) { fPinSearch?.focus(); return; }
+    if (!window.AI?.locate) { fPinAiMsg && (fPinAiMsg.textContent = "AI is unavailable — use the search list or GPS."); return; }
+    const label0 = fPinAi.textContent;
+    fPinAi.disabled = true; fPinAi.textContent = "Locating…";
+    if (fPinAiMsg) fPinAiMsg.textContent = "";
+    try {
+      const loc = await window.AI.locate(q, { regions: window.APP_CONFIG?.REGIONS });
+      if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
+        pickedLatLng = { lat: loc.lat, lng: loc.lng };
+        gpsAccuracyM = null; drawAccuracyCircle(null);
+        if (pinMarker) pinMarker.setLngLat([loc.lng, loc.lat]);
+        if (pinMap) pinMap.easeTo({ center: [loc.lng, loc.lat], zoom: 16, duration: 600 });
+        updatePinReadout();
+        if (fPinSearchResults) fPinSearchResults.style.display = "none";
+        if (fPinAiMsg) fPinAiMsg.textContent = " " + (loc.label || "Pinned") + (loc.answer ? " — " + loc.answer : "") + " (drag the pin to fine-tune)";
+      } else if (fPinAiMsg) {
+        fPinAiMsg.textContent = "Couldn't locate that — try a nearby landmark or place the pin manually.";
+      }
+    } finally { fPinAi.disabled = false; fPinAi.textContent = label0; }
+  });
+
+  // ---- Remote location: someone at the house shares their GPS to this form --
+  // Reuses the meet room + live_locations realtime infra. The agent generates a
+  // share link; the person there taps "Share my location" (share-location.html);
+  // the pin drops here automatically — so a house can be registered off-site.
+  function randomMeetCode() {
+    const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let s = ""; for (let i = 0; i < 6; i++) s += A[Math.floor(Math.random() * A.length)];
+    return s;
+  }
+  const reqBtn = document.getElementById("ahReqLoc");
+  let reqChannel = null, reqPoll = null;
+  function reqCleanup() {
+    if (reqChannel) { try { sb.removeChannel(reqChannel); } catch (_) {} reqChannel = null; }
+    if (reqPoll) { clearInterval(reqPoll); reqPoll = null; }
+  }
+  function reqApply(row) {
+    if (!row || !Number.isFinite(+row.lat) || !Number.isFinite(+row.lng)) return;
+    pickedLatLng = { lat: +row.lat, lng: +row.lng };
+    gpsAccuracyM = row.accuracy_m || null; drawAccuracyCircle(gpsAccuracyM);
+    if (pinMarker) pinMarker.setLngLat([+row.lng, +row.lat]);
+    if (pinMap) pinMap.easeTo({ center: [+row.lng, +row.lat], zoom: 16, duration: 600 });
+    updatePinReadout();
+    const st = document.getElementById("ahReqLocStatus");
+    if (st) st.textContent = " Location received from the house — drag the pin to fine-tune if needed.";
+    reqCleanup();
+  }
+  reqBtn?.addEventListener("click", async () => {
+    if (!sb) return;
+    reqBtn.disabled = true;
+    const st = document.getElementById("ahReqLocStatus");
+    try {
+      const code = randomMeetCode();
+      const { error } = await sb.from("meet_rooms").insert({ code, purpose: "house_pin", created_by: "agent" });
+      if (error) throw error;
+      const base = location.origin + location.pathname.replace(/[^/]*$/, "");
+      const link = `${base}share-location.html?c=${code}`;
+      document.getElementById("ahReqLocBox").style.display = "block";
+      document.getElementById("ahReqLocLink").value = link;
+      document.getElementById("ahReqLocWa").href =
+        `https://wa.me/?text=${encodeURIComponent("Please share the house location for the listing: " + link)}`;
+      if (st) st.textContent = "Waiting for the location… keep this open.";
+      reqCleanup();
+      reqChannel = sb.channel(`house_pin_${code}`)
+        .on("postgres_changes",
+          { event: "*", schema: "public", table: "live_locations", filter: `room_code=eq.${code}` },
+          ({ new: row }) => reqApply(row))
+        .subscribe();
+      // Poll fallback in case realtime isn't enabled.
+      reqPoll = setInterval(async () => {
+        const { data } = await sb.from("live_locations")
+          .select("lat,lng,accuracy_m").eq("room_code", code)
+          .order("last_seen", { ascending: false }).limit(1);
+        if (data && data[0]) reqApply(data[0]);
+      }, 4000);
+    } catch (e) {
+      if (st) st.textContent = "Couldn't start the request: " + (e.message || e);
+    } finally { reqBtn.disabled = false; }
+  });
+  document.getElementById("ahReqLocCopy")?.addEventListener("click", () => {
+    const inp = document.getElementById("ahReqLocLink");
+    inp.select(); navigator.clipboard?.writeText(inp.value).catch(() => {});
+    const b = document.getElementById("ahReqLocCopy"); const t = b.textContent;
+    b.textContent = "Copied "; setTimeout(() => (b.textContent = t), 1500);
+  });
+
   // ---- Overpass nearby POI lookup -----------------------------------------
   let NEARBY_RADIUS_M = 1500;
   function setNearbyStatus(text) { if (fNearbyStatus) fNearbyStatus.textContent = text || ""; }
@@ -1328,7 +1428,7 @@ create policy "house-photos upload" on storage.objects for insert
     }
     nearbyFetchKey = key;
     const radiusKm = (NEARBY_RADIUS_M / 1000).toFixed(NEARBY_RADIUS_M < 1000 ? 0 : 1);
-    fNearbyPanel.innerHTML = `<p class="muted" style="margin:0;font-size:.9rem;">🔎 Scanning ${radiusKm} km around your pin for schools, hospitals, transport…</p>`;
+    fNearbyPanel.innerHTML = `<p class="muted" style="margin:0;font-size:.9rem;"> Scanning ${radiusKm} km around your pin for schools, hospitals, transport…</p>`;
     setNearbyStatus("scanning…");
     const lat = pickedLatLng.lat, lng = pickedLatLng.lng;
     const q = `
@@ -1392,16 +1492,16 @@ create policy "house-photos upload" on storage.objects for insert
   });
   function groupNearby(elements, lat, lng) {
     const G = {
-      schools:    { label: "Schools",            icon: "🏫", items: [] },
-      hospitals:  { label: "Hospitals & clinics",icon: "🏥", items: [] },
-      pharmacies: { label: "Pharmacies",         icon: "💊", items: [] },
-      worship:    { label: "Mosques & churches", icon: "🕌", items: [] },
-      markets:    { label: "Markets & shops",    icon: "🛒", items: [] },
-      banks:      { label: "Banks & ATMs",       icon: "🏧", items: [] },
-      transport:  { label: "Transport",          icon: "🚌", items: [] },
-      food:       { label: "Restaurants & cafes",icon: "🍽️", items: [] },
-      services:   { label: "Public services",    icon: "🏛️", items: [] },
-      leisure:    { label: "Parks & leisure",    icon: "🌳", items: [] }
+      schools:    { label: "Schools",            icon: "", items: [] },
+      hospitals:  { label: "Hospitals & clinics",icon: "", items: [] },
+      pharmacies: { label: "Pharmacies",         icon: "", items: [] },
+      worship:    { label: "Mosques & churches", icon: "", items: [] },
+      markets:    { label: "Markets & shops",    icon: "", items: [] },
+      banks:      { label: "Banks & ATMs",       icon: "", items: [] },
+      transport:  { label: "Transport",          icon: "", items: [] },
+      food:       { label: "Restaurants & cafes",icon: "", items: [] },
+      services:   { label: "Public services",    icon: "", items: [] },
+      leisure:    { label: "Parks & leisure",    icon: "", items: [] }
     };
     for (const el of elements) {
       const t = el.tags || {};
@@ -1657,7 +1757,7 @@ create policy "house-photos upload" on storage.objects for insert
         .find(o => o.value.toLowerCase() === resolvedPlace.region.toLowerCase());
       if (opt) fRegion.value = opt.value;
     }
-    fPinFill.textContent = "✓ Filled";
+    fPinFill.textContent = " Filled";
     setTimeout(() => { fPinFill.textContent = "Use this address"; }, 1500);
   });
 
@@ -1704,18 +1804,27 @@ create policy "house-photos upload" on storage.objects for insert
       const row = {
         id,
         title:       fTitle.value.trim(),
-        type:        fType.value,
+        // "Other" stores whatever kind the provider typed (falls back to "other").
+        type:        fType.value === "other"
+                       ? ((fTypeOther && fTypeOther.value.trim().toLowerCase()) || "other")
+                       : fType.value,
         listing:     fListing.value,
         price_tzs:   Number(fPrice.value) || 0,
         currency:    "TZS",
         period:      fPeriod.value,
         // Minimum months a tenant must pay upfront — rent only (null for sale).
         min_months:  fListing.value === "rent" ? (Math.max(1, Number(fMinMonths?.value) || 1)) : null,
+        // Room category for room-by-room rentals: single vs master
+        // (self-contained); null/"" means the whole unit is listed.
+        room_kind:   (fRoomKind && fRoomKind.value) || null,
         bedrooms:    Number(fBedrooms.value) || 0,
         bathrooms:   Number(fBathrooms.value) || 0,
         size_sqm:    fSize.value ? Number(fSize.value) : null,
         region:      fRegion.value || null,
         area:        fArea.value.trim() || null,
+        // Auto admin classification from the pin (region/district/ward search).
+        district:    (resolvedPlace && resolvedPlace.district) || null,
+        ward:        (resolvedPlace && resolvedPlace.ward) || null,
         address:     fAddress.value.trim() || null,
         lat:         pickedLatLng.lat,
         lng:         pickedLatLng.lng,
@@ -1729,7 +1838,9 @@ create policy "house-photos upload" on storage.objects for insert
         description: fDescription.value.trim() || null,
         available_from: fAvailable.value || null,
         agent: {
-          name:  session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Agent",
+          // Public on the directory — never derive a name from the email
+          // (its local-part would expose part of the agent's private address).
+          name:  session.user.user_metadata?.name || "Agent",
           phone: fAgentPhone.value.trim() || null,
           whatsapp: true
         },
@@ -1746,8 +1857,8 @@ create policy "house-photos upload" on storage.objects for insert
         ? sb.from("houses").update(payload).eq("id", editingId).eq("owner_user_id", uid).select()
         : sb.from("houses").insert(payload).select();
       let { data: savedRows, error } = await trySave(row);
-      if (error && /column .*(photos|videos|nearby|extra_costs|min_months).* (does not exist|not found)/i.test(error.message)) {
-        const { photos: _p, videos: _v, nearby: _n, extra_costs: _e, min_months: _m, ...legacy } = row;
+      if (error && /column .*(photos|videos|nearby|extra_costs|min_months|room_kind).* (does not exist|not found)/i.test(error.message)) {
+        const { photos: _p, videos: _v, nearby: _n, extra_costs: _e, min_months: _m, room_kind: _rk, ...legacy } = row;
         ({ data: savedRows, error } = await trySave(legacy));
       }
       if (error) {
@@ -1898,14 +2009,14 @@ create policy "house-photos upload" on storage.objects for insert
           <small>${esc(bits.join(" · "))}</small>
         </div>
         <div class="ah-wait-cta">
-          <a class="ah-wait-btn call" href="tel:${esc(phone)}">📞 Call</a>
+          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> Call</a>
           ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         </div>
       </div>`;
     }).join("");
     panel.innerHTML = `
       <div class="ah-wait-card">
-        <div class="ah-wait-head">🔔 ${rows.length} ${rows.length === 1 ? "person is" : "people are"} waiting near ${esc(area)}</div>
+        <div class="ah-wait-head"> ${rows.length} ${rows.length === 1 ? "person is" : "people are"} waiting near ${esc(area)}</div>
         <div class="ah-wait-sub">They pinned this area for a ${listing.listing === "sale" ? "property to buy" : "place to rent"} matching your new listing. Reach out before someone else does.</div>
         ${items}
         <button type="button" id="ahWaitDone" class="ah-wait-done">Done — back to my listings</button>
@@ -2089,7 +2200,7 @@ create policy "house-photos upload" on storage.objects for insert
     listEl.innerHTML = `
       <div class="ah-setup-card">
         <div class="ah-setup-head">
-          <div class="ah-setup-icon">⚙️</div>
+          <div class="ah-setup-icon"></div>
           <div>
             <h3>${esc(tr("ah_setup_title"))}</h3>
             <p>${tr("ah_setup_desc_html")}</p>
@@ -2138,6 +2249,165 @@ create policy "house-photos upload" on storage.objects for insert
     document.getElementById("ahSetupReload")?.addEventListener("click", () => {
       newBtn.hidden = false;
       loadMyListings();
+    });
+  }
+
+  // ---- Tenant tracking (rent listings) -------------------------------------
+  // The owning agent records each renter + rental length; the DB computes the
+  // end date. Admin monitors all tenancies centrally (admin.html → Tenants).
+  let _tenantModal = null;
+
+  function computeEnd(startIso, months) {
+    if (!startIso || !months || months < 1) return "";
+    const d = new Date(startIso + "T00:00:00");
+    if (isNaN(d)) return "";
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function daysLeftBadge(endIso) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const end = new Date(endIso + "T00:00:00");
+    const days = Math.round((end - today) / 86400000);
+    if (days < 0)   return { cls: "expired", label: `${Math.abs(days)}d overdue` };
+    if (days === 0) return { cls: "soon", label: "ends today" };
+    if (days <= 7)  return { cls: "soon", label: `${days}d left` };
+    if (days <= 30) return { cls: "warn", label: `${days}d left` };
+    return { cls: "ok", label: `${days}d left` };
+  }
+
+  function closeTenantPanel() { if (_tenantModal) _tenantModal.style.display = "none"; }
+
+  async function openTenantPanel(house) {
+    const { data: { session } } = await sb.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) { alert(tr("ah_must_signin") || "Please sign in."); return; }
+    if (!_tenantModal) {
+      _tenantModal = document.createElement("div");
+      _tenantModal.className = "ah-tenant-overlay";
+      _tenantModal.innerHTML = `<div class="ah-tenant-modal" role="dialog" aria-modal="true">
+        <button class="ah-tenant-close" aria-label="Close">&times;</button>
+        <div class="ah-tenant-body"></div>
+      </div>`;
+      document.body.appendChild(_tenantModal);
+      _tenantModal.addEventListener("click", (e) => { if (e.target === _tenantModal) closeTenantPanel(); });
+      _tenantModal.querySelector(".ah-tenant-close").addEventListener("click", closeTenantPanel);
+    }
+    _tenantModal.style.display = "flex";
+    const body = _tenantModal.querySelector(".ah-tenant-body");
+    body.innerHTML = `<div class="ah-tenant-empty">${esc(tr("ah_loading") || "Loading…")}</div>`;
+    await renderTenantPanel(house, uid, body, null);
+  }
+
+  async function renderTenantPanel(house, uid, body, editRow) {
+    const { data, error } = await sb.from("house_tenancies")
+      .select("*").eq("house_id", house.id).order("end_date", { ascending: false });
+    const list = !error && Array.isArray(data) ? data : [];
+
+    // A completed deal (an ACTIVE tenant) drops the house from the public list;
+    // when no tenancy is active it's re-listed. New listings default to available.
+    if (!error) {
+      const shouldAvail = !list.some((t) => t.status === "active");
+      if (house.available !== shouldAvail) {
+        house.available = shouldAvail;
+        sb.from("houses").update({ available: shouldAvail, updated_at: new Date().toISOString() })
+          .eq("id", house.id).eq("owner_user_id", uid).then(() => { if (typeof loadMyListings === "function") loadMyListings(); });
+      }
+    }
+
+    const defMonths = editRow?.months ?? (house.min_months || 1);
+    const defStart  = editRow?.start_date ?? new Date().toISOString().slice(0, 10);
+
+    const existing = list.length ? list.map(t => {
+      const b = daysLeftBadge(t.end_date);
+      const active = t.status === "active";
+      return `<div class="ah-tenant-row ${active ? "is-active" : ""}" data-tid="${esc(t.id)}">
+        <div class="ah-tenant-main">
+          <strong>${esc(t.customer_name)}</strong> · <a href="tel:${esc(t.customer_phone)}">${esc(t.customer_phone)}</a>
+          ${t.landlord_phone ? `<div class="ah-tenant-meta"> ${esc(tr("ah_tenant_landlord"))}: <a href="tel:${esc(t.landlord_phone)}">${esc(t.landlord_phone)}</a></div>` : ""}
+          <div class="ah-tenant-meta">${esc(t.start_date)} → <strong>${esc(t.end_date)}</strong>
+            ${active ? `<span class="ah-dleft ah-dleft-${b.cls}">${esc(b.label)}</span>`
+                     : `<span class="ah-tenant-status">${esc(t.status)}</span>`}
+          </div>
+          ${t.notes ? `<div class="ah-tenant-note">${esc(t.notes)}</div>` : ""}
+        </div>
+        <div class="ah-tenant-acts">
+          <button class="ah-btn ah-t-edit">${esc(tr("ah_edit"))}</button>
+          ${active ? `<button class="ah-btn ah-t-end">${esc(tr("ah_tenant_mark_ended"))}</button>
+                      <button class="ah-btn ah-t-renew">${esc(tr("ah_tenant_renew"))}</button>` : ""}
+          <button class="ah-btn ah-btn-danger ah-t-del">${esc(tr("ah_delete"))}</button>
+        </div>
+      </div>`;
+    }).join("") : `<div class="ah-tenant-empty">${esc(tr("ah_tenant_none"))}</div>`;
+
+    body.innerHTML = `
+      <h3 class="ah-tenant-h">${esc(tr("ah_tenant_title"))}</h3>
+      <div class="ah-tenant-sub">${esc(house.title)}</div>
+      <div class="ah-tenant-list">${existing}</div>
+      <form class="ah-tenant-form" autocomplete="off">
+        <h4>${editRow && editRow.id ? esc(tr("ah_edit")) : esc(tr("ah_tenant_add"))}</h4>
+        <label>${esc(tr("ah_tenant_name"))}<input id="tnName" required maxlength="120" value="${editRow ? esc(editRow.customer_name) : ""}"></label>
+        <label>${esc(tr("ah_tenant_phone"))}<input id="tnPhone" type="tel" required maxlength="30" value="${editRow ? esc(editRow.customer_phone) : ""}"></label>
+        <label>${esc(tr("ah_tenant_landlord"))}<input id="tnLandlord" type="tel" maxlength="30" value="${editRow ? esc(editRow.landlord_phone || "") : ""}"></label>
+        <div class="ah-tenant-grid">
+          <label>${esc(tr("ah_tenant_start"))}<input id="tnStart" type="date" required value="${esc(defStart)}"></label>
+          <label>${esc(tr("ah_tenant_months"))}<input id="tnMonths" type="number" min="1" step="1" required value="${defMonths}"></label>
+        </div>
+        <div class="ah-tenant-endprev">${esc(tr("ah_tenant_end"))}: <strong id="tnEndPrev">—</strong></div>
+        <label>${esc(tr("ah_tenant_notes"))}<textarea id="tnNotes" rows="2" maxlength="400">${editRow ? esc(editRow.notes || "") : ""}</textarea></label>
+        <div class="ah-tenant-msg" id="tnMsg" hidden></div>
+        <div class="ah-tenant-formacts">
+          <button type="submit" class="ah-btn ah-btn-brand">${esc(tr("ah_tenant_save"))}</button>
+          ${editRow && editRow.id ? `<button type="button" class="ah-btn ah-t-cancel">${esc(tr("ah_cancel") || "Cancel")}</button>` : ""}
+        </div>
+      </form>`;
+
+    const startEl = body.querySelector("#tnStart"), monthsEl = body.querySelector("#tnMonths"), prevEl = body.querySelector("#tnEndPrev");
+    const updatePrev = () => { prevEl.textContent = computeEnd(startEl.value, parseInt(monthsEl.value, 10)) || "—"; };
+    startEl.addEventListener("input", updatePrev); monthsEl.addEventListener("input", updatePrev); updatePrev();
+
+    body.querySelectorAll(".ah-tenant-row").forEach(rowEl => {
+      const t = list.find(x => x.id === rowEl.dataset.tid);
+      rowEl.querySelector(".ah-t-edit").addEventListener("click", () => renderTenantPanel(house, uid, body, t));
+      rowEl.querySelector(".ah-t-del")?.addEventListener("click", async () => {
+        if (!confirm(tr("ah_tenant_del_confirm") || "Delete this tenant record?")) return;
+        await sb.from("house_tenancies").delete().eq("id", t.id).eq("owner_user_id", uid);
+        renderTenantPanel(house, uid, body, null);
+      });
+      rowEl.querySelector(".ah-t-end")?.addEventListener("click", async () => {
+        await sb.from("house_tenancies").update({ status: "ended", updated_at: new Date().toISOString() }).eq("id", t.id).eq("owner_user_id", uid);
+        renderTenantPanel(house, uid, body, null);
+      });
+      rowEl.querySelector(".ah-t-renew")?.addEventListener("click", async () => {
+        await sb.from("house_tenancies").update({ status: "renewed", updated_at: new Date().toISOString() }).eq("id", t.id).eq("owner_user_id", uid);
+        renderTenantPanel(house, uid, body, { customer_name: t.customer_name, customer_phone: t.customer_phone, landlord_phone: t.landlord_phone, start_date: t.end_date, months: house.min_months || t.months, notes: t.notes });
+      });
+    });
+
+    const form = body.querySelector(".ah-tenant-form");
+    body.querySelector(".ah-t-cancel")?.addEventListener("click", () => renderTenantPanel(house, uid, body, null));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = body.querySelector("#tnMsg");
+      const payload = {
+        house_id: house.id,
+        house_label: [house.title, house.area].filter(Boolean).join(" — "),
+        owner_user_id: uid,
+        customer_name: body.querySelector("#tnName").value.trim(),
+        customer_phone: body.querySelector("#tnPhone").value.trim(),
+        landlord_phone: body.querySelector("#tnLandlord").value.trim() || null,
+        start_date: body.querySelector("#tnStart").value,
+        months: Math.max(1, parseInt(body.querySelector("#tnMonths").value, 10) || 1),
+        notes: body.querySelector("#tnNotes").value.trim() || null,
+        updated_at: new Date().toISOString()
+      };
+      const isEdit = editRow && editRow.id;
+      const q = isEdit
+        ? sb.from("house_tenancies").update(payload).eq("id", editRow.id).eq("owner_user_id", uid)
+        : sb.from("house_tenancies").insert({ ...payload, id: generateId().replace(/^h-/, "ht-"), status: "active" });
+      const { error: e2 } = await q;
+      if (e2) { msg.hidden = false; msg.className = "ah-tenant-msg err"; msg.textContent = e2.message; return; }
+      renderTenantPanel(house, uid, body, null);
     });
   }
 

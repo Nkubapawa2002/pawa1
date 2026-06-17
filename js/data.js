@@ -3,13 +3,102 @@
 // Uses Supabase if configured, falls back to local JSON.
 // =====================================================
 
+// Global HTML-escape helper. Use it on ANY user-controlled value before
+// interpolating into innerHTML / template strings, to prevent stored XSS
+// (listing names, agent profiles, messages, etc. all come from untrusted users).
+window.escHtml = function (v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[m]));
+};
+
+// Returns the URL only if it uses a safe scheme, else "". Use for any
+// user-supplied link (listing website, etc.) before putting it in an href,
+// so a `javascript:` / `data:` URL can't run script on click.
+window.safeUrl = function (u) {
+  const s = String(u == null ? "" : u).trim();
+  if (/^https?:\/\//i.test(s) || /^(mailto:|tel:)/i.test(s)) return s;
+  if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(s)) return "https://" + s; // bare domain
+  return "";
+};
+
 (function () {
   const cfg = window.APP_CONFIG || {};
   const hasSupabase = cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase;
   let sb = null;
   if (hasSupabase) {
-    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    const opts = {};
+    // Clerk third-party auth: attach Clerk's session token to every request so
+    // Supabase RLS resolves the Clerk user. The function is called lazily per
+    // request, so it works even though Clerk finishes loading after this runs
+    // (returns null → anonymous, which is correct for public reads). NOTE:
+    // supabase-js disables its own sb.auth.* methods when accessToken is set,
+    // so we only enable this in Clerk mode.
+    if (window.CLERK_ENABLED) {
+      const tpl = cfg.CLERK_JWT_TEMPLATE || null;  // adds role+email claims for RLS
+      opts.accessToken = async () => {
+        try {
+          const c = window.Clerk;
+          if (c && c.session) return (await c.session.getToken(tpl ? { template: tpl } : undefined)) || null;
+        } catch (_) {}
+        return null;
+      };
+    }
+    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, opts);
     window.SB = sb;
+
+    // In Clerk mode, supabase-js THROWS on ANY sb.auth.* access (because the
+    // accessToken option is set). The whole app calls sb.auth.* (~40 sites:
+    // agent portals, login, dashboards), so we install ONE durable Clerk-backed
+    // sb.auth here. It is the single source of truth (auth-clerk.js no longer
+    // swaps sb.auth) and delegates the interactive methods to window.Auth (the
+    // Clerk facade auth-clerk.js installs), so login/sign-up/reset code flows are
+    // handled in one place. Reads + the auth-state listener wait for Clerk to
+    // finish loading, so any page reading the session at load gets the REAL one.
+    if (window.CLERK_ENABLED) {
+      let _readyResolve;
+      const _clerkReady = new Promise((res) => { _readyResolve = res; });
+      window.addEventListener("clerk-ready", () => _readyResolve(), { once: true });
+      setTimeout(() => _readyResolve(), 8000);   // never hang if Clerk fails to load
+      const _mapClerk = () => {
+        const c = window.Clerk;
+        if (!c || !c.user || !c.session) return null;
+        let email = "";
+        try { email = c.user.primaryEmailAddress ? c.user.primaryEmailAddress.emailAddress : ""; } catch (_) {}
+        return { user: { id: c.user.id, email: email }, clerk: true };
+      };
+      // Delegate to the Clerk facade (window.Auth = ClerkAuth) at call time, so
+      // we always hit the real implementation once auth-clerk.js has loaded.
+      const A = () => window.Auth || {};
+      const shim = {
+        getSession: async () => { await _clerkReady; return { data: { session: _mapClerk() }, error: null }; },
+        getUser:    async () => { await _clerkReady; const s = _mapClerk(); return { data: { user: s ? s.user : null }, error: null }; },
+        // Fire on load AND on every subsequent Clerk auth change (durable), so a
+        // page that subscribed before Clerk finished loading still gets routed
+        // after a later sign-in / sign-out.
+        onAuthStateChange: (cb) => {
+          let off = null;
+          _clerkReady.then(() => {
+            const fire = () => { try { cb(window.Clerk && window.Clerk.session ? "SIGNED_IN" : "SIGNED_OUT", _mapClerk()); } catch (_) {} };
+            fire();
+            try { const u = window.Clerk && window.Clerk.addListener(fire); if (typeof u === "function") off = u; } catch (_) {}
+          });
+          return { data: { subscription: { unsubscribe: () => { try { off && off(); } catch (_) {} } } } };
+        },
+        signInWithPassword: async (a) => { try { const s = await A().signIn(a.email, a.password); return { data: { user: s && s.user, session: s }, error: null }; } catch (e) { return { data: { user: null, session: null }, error: e }; } },
+        signUp:             async (a) => { try { const s = await A().signUp(a.email, a.password); return { data: { user: s && s.user, session: s }, error: null }; } catch (e) { return { data: { user: null, session: null }, error: e }; } },
+        signOut:            async () => { try { await A().signOut(); } catch (_) {} return { error: null }; },
+        resend:             async () => ({ data: {}, error: null }),   // Clerk emails its own codes
+        updateUser:         async () => ({ data: { user: null }, error: new Error("Manage your account in Clerk.") }),
+        resetPasswordForEmail: async (email) => { try { if (A().resetPassword) { await A().resetPassword(email); return { data: {}, error: null }; } return { data: {}, error: new Error("Password reset is handled by Clerk.") }; } catch (e) { return { data: {}, error: e }; } },
+      };
+      try {
+        sb.auth = shim;
+        if (sb.auth !== shim) Object.defineProperty(sb, "auth", { value: shim, writable: true, configurable: true });
+      } catch (_) {
+        try { Object.defineProperty(sb, "auth", { value: shim, writable: true, configurable: true }); } catch (__) {}
+      }
+    }
   }
 
   const cache = {};
@@ -180,13 +269,17 @@
     // Used by every contact-rendering helper so the UX is consistent across
     // the site (bus directory, agent directory, dashboards, etc.).
     renderCallButtons(num, opts = {}) {
-      const clean = this.cleanPhone(num);
+      // Phone is user-controlled (agent/bus/ride registration). Restrict the
+      // href to digits/+ and HTML-escape the displayed number so a value like
+      // `" onerror=…` can't break out of the attribute (stored XSS).
+      const tel = this.cleanPhone(num).replace(/[^\d+]/g, "");
+      const numSafe = window.escHtml(num);
       const showWa = opts.whatsapp !== false;
       const callLabel = (window.t && window.t("action_call")) || "Call";
       const waLabel   = (window.t && window.t("action_whatsapp")) || "WhatsApp";
-      const callBtn = `<a href="tel:${clean}" class="btn btn-call btn-xs" title="${callLabel} ${num}" aria-label="${callLabel} ${num}">${this._phoneIconSvg()}<span>${callLabel}</span></a>`;
+      const callBtn = `<a href="tel:${tel}" class="btn btn-call btn-xs" title="${callLabel} ${numSafe}" aria-label="${callLabel} ${numSafe}">${this._phoneIconSvg()}<span>${callLabel}</span></a>`;
       const waBtn = showWa
-        ? `<a href="${this.waLink(num)}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-xs" title="${waLabel}" aria-label="${waLabel}">${this._waIconSvg()}<span>${waLabel}</span></a>`
+        ? `<a href="https://wa.me/${tel.replace(/^\+/, "")}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-xs" title="${waLabel}" aria-label="${waLabel}">${this._waIconSvg()}<span>${waLabel}</span></a>`
         : "";
       return callBtn + waBtn;
     },
@@ -199,10 +292,10 @@
       return `<ul class="phone-list">${contacts.map(c => {
         const num = c.number || "";
         if (!num) return "";
-        const lbl = showLabels && c.label ? `<span class="phone-label">${c.label}</span>` : "";
+        const lbl = showLabels && c.label ? `<span class="phone-label">${window.escHtml(c.label)}</span>` : "";
         return `<li>
           ${lbl}
-          <a class="phone-num" href="tel:${this.cleanPhone(num)}">${num}</a>
+          <a class="phone-num" href="tel:${this.cleanPhone(num).replace(/[^\d+]/g, "")}">${window.escHtml(num)}</a>
           <span class="phone-actions">${this.renderCallButtons(num, { whatsapp: c.whatsapp !== false })}</span>
         </li>`;
       }).join("")}</ul>`;
@@ -213,7 +306,7 @@
       if (!Array.isArray(phones) || !phones.length) return "";
       return `<ul class="phone-list">${phones.map((num, i) => `
         <li>
-          <a class="phone-num" href="tel:${this.cleanPhone(num)}">${num}</a>
+          <a class="phone-num" href="tel:${this.cleanPhone(num).replace(/[^\d+]/g, "")}">${window.escHtml(num)}</a>
           <span class="phone-actions">${this.renderCallButtons(num, { whatsapp: true })}</span>
           ${i === 0 ? `<span class="phone-label">primary</span>` : ""}
         </li>`).join("")}</ul>`;
@@ -271,9 +364,19 @@
       return cached("houses", TTL.houses, async () => {
         if (sb) {
           try {
-            const { data, error } = await sb.from("houses").select("*").order("created_at", { ascending: false });
+            // Listings live 15 days from the day posted (see supabase/house_media_ttl.sql).
+            // A daily cron purges expired rows + their media; this filter hides any
+            // that are already past 15 days in the window before the sweep runs.
+            const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+            const { data, error } = await sb.from("houses").select("*")
+              .gte("created_at", cutoff)
+              .order("created_at", { ascending: false });
             if (error) throw error;
-            if (Array.isArray(data) && data.length) return data;
+            // Trust a successful query even when it returns zero rows — an empty
+            // directory (e.g. every owner deactivated/suspended) is a real state,
+            // NOT a reason to show the bundled demo seed. The JSON fallback below
+            // is only for when the table is missing / the request errors.
+            if (Array.isArray(data)) return data;
           } catch (e) {
             console.warn("[houses] Supabase query failed, falling back to JSON:", e?.message || e);
           }
@@ -291,12 +394,32 @@
           try {
             const { data, error } = await sb.from("trucks").select("*").order("created_at", { ascending: false });
             if (error) throw error;
-            if (Array.isArray(data) && data.length) return data;
+            // Trust a successful query even when empty (see getHouses note).
+            if (Array.isArray(data)) return data;
           } catch (e) {
             console.warn("[trucks] Supabase query failed, falling back to JSON:", e?.message || e);
           }
         }
         return loadJSON("trucks");
+      }, opts);
+    },
+
+    // Services — public daily-services marketplace listings (cleaning,
+    // plumbing, electrical, etc.). Same pattern as getTrucks: Supabase first,
+    // falling back to data/services.json when the table isn't applied yet.
+    async getServices(opts = {}) {
+      return cached("services", TTL.houses, async () => {
+        if (sb) {
+          try {
+            const { data, error } = await sb.from("services").select("*").order("created_at", { ascending: false });
+            if (error) throw error;
+            // Trust a successful query even when empty (see getHouses note).
+            if (Array.isArray(data)) return data;
+          } catch (e) {
+            console.warn("[services] Supabase query failed, falling back to JSON:", e?.message || e);
+          }
+        }
+        return loadJSON("services");
       }, opts);
     },
 
@@ -319,6 +442,15 @@
       if (path.startsWith("http") || path.startsWith("data/")) return path;
       if (!sb) return `data/${path}`;
       const bucket = (window.APP_CONFIG && window.APP_CONFIG.TRUCK_PHOTOS_BUCKET) || "truck-photos";
+      const { data } = sb.storage.from(bucket).getPublicUrl(path);
+      return data.publicUrl;
+    },
+
+    servicePhotoUrl(path) {
+      if (!path) return "";
+      if (path.startsWith("http") || path.startsWith("data/")) return path;
+      if (!sb) return `data/${path}`;
+      const bucket = (window.APP_CONFIG && window.APP_CONFIG.SERVICE_PHOTOS_BUCKET) || "service-photos";
       const { data } = sb.storage.from(bucket).getPublicUrl(path);
       return data.publicUrl;
     },

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Share location — Maisha na Lifeza</title>
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0a6f4d; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .sl-card { background: #fff; color: #1a1915; max-width: 420px; width: 100%; border-radius: 18px;
+      padding: 28px 24px; box-shadow: 0 12px 40px rgba(0,0,0,.25); text-align: center; }
+    .sl-card h1 { font-size: 1.25rem; margin: 0 0 6px; color: #064a33; }
+    .sl-card p { color: #4b5563; font-size: .95rem; line-height: 1.5; margin: 0 0 18px; }
+    #slBtn { width: 100%; padding: 16px; border: 0; border-radius: 12px; background: #0a6f4d; color: #fff;
+      font-size: 1.05rem; font-weight: 700; cursor: pointer; }
+    #slBtn:disabled { opacity: .6; }
+    #slStatus { margin-top: 14px; font-size: .92rem; min-height: 1.2em; color: #0a6f4d; font-weight: 600; }
+    .sl-emoji { font-size: 2.4rem; }
+  </style>
+</head>
+<body>
+  <div class="sl-card">
+    <div class="sl-emoji"></div>
+    <h1>Share this place's location</h1>
+    <p>An agent is registering this house. Tap the button below <strong>while you are at the property</strong> to send its exact location. Nothing else is shared.</p>
+    <button id="slBtn" type="button">Share my current location</button>
+    <div id="slStatus"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/share-location.js"></script>
+</body>
+</html>

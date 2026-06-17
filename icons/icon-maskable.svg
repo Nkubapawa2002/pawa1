@@ -1,26 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Pawa app icon — maskable. Safe zone is the inner 80% (40px padding on each side). -->
+  <!-- Maisha app icon — maskable. Safe zone is the inner 80% (51px padding each side). -->
   <rect width="512" height="512" fill="#0a6f4d"/>
-  <g transform="translate(96 144)">
-    <!-- Bus silhouette -->
-    <rect x="0" y="0" width="320" height="180" rx="28" fill="#fcd116"/>
-    <rect x="20" y="22" width="280" height="80" rx="12" fill="#0a6f4d"/>
-    <!-- Windows -->
-    <rect x="40" y="38" width="50" height="50" rx="6" fill="#bff5da"/>
-    <rect x="100" y="38" width="50" height="50" rx="6" fill="#bff5da"/>
-    <rect x="160" y="38" width="50" height="50" rx="6" fill="#bff5da"/>
-    <rect x="220" y="38" width="60" height="50" rx="6" fill="#bff5da"/>
-    <!-- Door -->
-    <rect x="40" y="110" width="44" height="64" rx="6" fill="#0a6f4d"/>
-    <!-- Wheels -->
-    <circle cx="80" cy="200" r="34" fill="#111827"/>
-    <circle cx="80" cy="200" r="14" fill="#fcd116"/>
-    <circle cx="240" cy="200" r="34" fill="#111827"/>
-    <circle cx="240" cy="200" r="14" fill="#fcd116"/>
-  </g>
-  <!-- Chat bubble overlay (signals AI / agent) -->
-  <g transform="translate(330 60)">
-    <circle cx="60" cy="60" r="60" fill="#fcd116"/>
-    <text x="60" y="78" font-family="-apple-system,sans-serif" font-size="64" font-weight="800" text-anchor="middle" fill="#0a6f4d">P</text>
-  </g>
+  <circle cx="256" cy="256" r="190" fill="#0e7a56"/>
+  <!-- House — gold, the core of the brand (homes to rent) -->
+  <path d="M256 118 L420 256 L382 256 L382 398 L130 398 L130 256 L92 256 Z" fill="#fcd116"/>
+  <!-- Door -->
+  <rect x="222" y="306" width="68" height="92" rx="10" fill="#0a6f4d"/>
+  <circle cx="276" cy="354" r="6" fill="#fcd116"/>
+  <!-- Windows -->
+  <rect x="156" y="276" width="48" height="48" rx="8" fill="#bff5da"/>
+  <rect x="308" y="276" width="48" height="48" rx="8" fill="#bff5da"/>
+  <!-- Service spark badge (daily services) -->
+  <circle cx="392" cy="128" r="56" fill="#fcd116"/>
+  <path d="M404 92 L368 136 L388 136 L380 164 L416 120 L396 120 Z" fill="#0a6f4d"/>
 </svg>

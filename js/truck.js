@@ -7,8 +7,9 @@
 
   const TYPE_LABEL = {
     pickup: "Pickup", canter: "Canter", "3ton": "3-tonne",
-    "7ton": "7-tonne lorry", "10ton_plus": "10-tonne+ lorry", other: "Truck",
+    "7ton": "7-tonne lorry", "10ton_plus": "10-tonne+ lorry", other: "Other",
   };
+  const typeLabel = (tt) => TYPE_LABEL[tt] || (tt ? tt.charAt(0).toUpperCase() + tt.slice(1) : "Truck");
   const SERVICE_LABEL = {
     within_city: "Within city only", region_wide: "Region-wide", cross_region: "Cross-region",
   };
@@ -57,7 +58,7 @@
     const waText = encodeURIComponent(`Hi, I saw your truck "${t.title || "moving truck"}" on Pawa. Is it available to help me move?`);
 
     const specs = [
-      ["Truck type", TYPE_LABEL[t.truck_type] || "Truck"],
+      ["Truck type", typeLabel(t.truck_type)],
       ["Capacity", t.capacity_tonnes ? `${t.capacity_tonnes} tonnes` : "—"],
       ["Coverage", SERVICE_LABEL[t.service_area] || "—"],
       ["Driver", t.driver_included ? "Included" : "Not included"],
@@ -69,7 +70,7 @@
     bodyEl.innerHTML = `
       <div class="td-grid">
         <div>
-          <div class="td-gallery-main" id="tdMain" style="${cover ? `background-image:url('${esc(cover)}')` : ""}">${cover ? "" : "🚚"}</div>
+          <div class="td-gallery-main" id="tdMain" style="${cover ? `background-image:url('${esc(cover)}')` : ""}">${cover ? "" : ""}</div>
           ${imgs.length > 1 ? `<div class="td-thumbs">${imgs.map((u, i) =>
             `<div class="td-thumb ${i === 0 ? "active" : ""}" data-url="${esc(u)}" style="background-image:url('${esc(u)}')"></div>`).join("")}</div>` : ""}
 
@@ -87,13 +88,13 @@
           <div class="td-panel">
             <div class="td-price">${formatPrice(t)}</div>
             <div class="td-title">${esc(t.title || "Moving truck")}</div>
-            <div class="td-loc">📍 ${esc(loc || t.region || "Tanzania")}</div>
+            <div class="td-loc"> ${esc(loc || t.region || "Tanzania")}</div>
             <div class="td-badges">
-              <span class="td-badge">${esc(TYPE_LABEL[t.truck_type] || "Truck")}</span>
+              <span class="td-badge">${esc(typeLabel(t.truck_type))}</span>
               ${t.capacity_tonnes ? `<span class="td-badge">${esc(t.capacity_tonnes)}t</span>` : ""}
               ${t.driver_included ? `<span class="td-badge">Driver</span>` : ""}
               ${t.loaders_included ? `<span class="td-badge">Loaders</span>` : ""}
-              ${t.verified ? `<span class="td-badge verified">✓ Verified</span>` : ""}
+              ${t.verified ? `<span class="td-badge verified"> Verified</span>` : ""}
             </div>
           </div>
 
@@ -101,9 +102,9 @@
             <p class="td-h">Contact the owner</p>
             <div class="td-owner">${esc((t.owner && t.owner.name) || "Truck owner")}</div>
             <div class="td-cta">
-              ${phone ? `<a class="td-cta-call" href="tel:${esc(cleanPhone(phone))}">📞 Call ${esc(phone)}</a>` : ""}
-              ${wa ? `<a class="td-cta-wa" href="https://wa.me/${esc(waNumber(wa))}?text=${waText}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ""}
-              <a class="td-cta-move" href="meet.html" target="_blank" rel="noopener">📍 Share live location for pickup</a>
+              ${phone ? `<a class="td-cta-call" href="tel:${esc(cleanPhone(phone))}"> Call ${esc(phone)}</a>` : ""}
+              ${wa ? `<a class="td-cta-wa" href="https://wa.me/${esc(waNumber(wa))}?text=${waText}" target="_blank" rel="noopener"> WhatsApp</a>` : ""}
+              <a class="td-cta-move" href="meet.html" target="_blank" rel="noopener"> Share live location for pickup</a>
             </div>
             ${(Number.isFinite(+t.lat) && Number.isFinite(+t.lng)) ? `<div class="td-minimap" id="tdMap"></div>` : ""}
           </div>
@@ -125,9 +126,7 @@
     const mapEl = document.getElementById("tdMap");
     if (mapEl && window.L) {
       const m = L.map(mapEl, { scrollWheelZoom: false }).setView([+t.lat, +t.lng], 13);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO",
-      }).addTo(m);
+      window.addSatelliteHybrid(m);
       L.marker([+t.lat, +t.lng]).addTo(m).bindPopup(esc(t.title || "Moving truck"));
       setTimeout(() => m.invalidateSize(), 80);
     }

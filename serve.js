@@ -10,12 +10,12 @@ const MIME = {
 };
 
 http.createServer((req, res) => {
-  let url = req.url.split('?')[0];
+  let url = decodeURIComponent(req.url.split('?')[0]);
   if (url === '/' || url === '') url = '/index.html';
-  const file = path.join(ROOT, url);
-  if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
+  const file = path.normalize(path.join(ROOT, url));
+  if (!file.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
-    if (err) { res.writeHead(404); return res.end('Not found: ' + url); }
+    if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
     res.end(data);
   });

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Day Jobs — Maisha na Lifeza</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .jobs-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 900px) { .jobs-layout { grid-template-columns: 1fr; } }
+    .jobs-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+    .jobs-toolbar .spacer { flex: 1; }
+    /* Outline buttons float directly on the dark page photo — give them a
+       solid surface so their labels stay readable. */
+    .jobs-toolbar .btn-outline {
+      background: #fff !important;
+      color: var(--c-brand-deep, #064a33) !important;
+      border: 1px solid var(--c-brand, #0a6f4d);
+    }
+    #jobsMap { height: 480px; border-radius: 14px; overflow: hidden; position: sticky; top: 70px; }
+    @media (max-width: 900px) { #jobsMap { height: 320px; position: static; } }
+    .jobs-count { font-size: .85rem; color: var(--c-text-soft, #3f3d36); font-weight: 700; }
+
+    /* Job cards */
+    .job-list { display: flex; flex-direction: column; gap: 12px; }
+    .job-card {
+      background: #fff; border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px; padding: 14px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    .job-card.active { border-color: var(--c-brand, #0a6f4d); box-shadow: 0 0 0 2px var(--c-brand-soft, #d9ecdf); }
+    .job-card.is-full { opacity: .82; }
+    .job-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .job-title { font-weight: 800; font-size: 1.02rem; color: var(--c-text, #1a1915); line-height: 1.3; }
+    .job-company { font-size: .8rem; color: var(--c-text-muted, #6b6960); margin-top: 2px; }
+    .job-pay { text-align: right; white-space: nowrap; }
+    .job-pay strong { color: var(--c-brand-deep, #064a33); font-size: 1.02rem; }
+    .job-pay small { display: block; color: var(--c-text-muted, #6b6960); font-size: .72rem; }
+    .job-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: .8rem; color: var(--c-text-soft, #3f3d36); margin-top: 8px; }
+    .job-desc { font-size: .86rem; color: var(--c-text-soft, #3f3d36); margin-top: 8px; line-height: 1.5; }
+    .job-req  { font-size: .8rem; color: var(--c-text-muted, #6b6960); margin-top: 4px; }
+    .job-dist { font-size: .8rem; font-weight: 700; color: var(--c-brand-deep, #064a33); }
+
+    /* The fill-up bar: claimed / needed */
+    .job-quota { margin-top: 10px; }
+    .job-quota-row { display: flex; justify-content: space-between; font-size: .76rem; font-weight: 700; margin-bottom: 4px; }
+    .job-quota-row .jq-label { color: var(--c-text-soft, #3f3d36); }
+    .job-quota-row .jq-count { color: var(--c-brand-deep, #064a33); font-family: var(--c-font-mono, ui-monospace, monospace); }
+    .job-quota-bar { height: 10px; background: #eef1f4; border-radius: 999px; overflow: hidden; }
+    .job-quota-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--c-brand, #0a6f4d), #2fbe8a);
+      border-radius: 999px; transition: width .5s ease;
+    }
+    .job-card.is-full .job-quota-fill { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+    .job-full-badge {
+      display: inline-block; background: #fee2e2; color: #b91c1c;
+      font-weight: 800; font-size: .72rem; letter-spacing: .8px;
+      padding: 2px 9px; border-radius: 999px; text-transform: uppercase;
+    }
+    .job-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .job-actions .btn { flex: 1; min-width: 120px; }
+    .job-claim-btn[disabled] { opacity: .55; cursor: not-allowed; }
+
+    /* Job pin on the map */
+    .job-pin {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--c-brand, #0a6f4d); color: #fff;
+      border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; cursor: pointer;
+    }
+    .job-pin.full { background: #b91c1c; }
+
+    /* Post / claim modals (reuse the houses alert-modal look) */
+    .jobs-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 5000;
+      display: flex; align-items: center; justify-content: center; padding: 14px;
+    }
+    /* display:flex above would defeat the hidden attribute — restore it. */
+    .jobs-modal-backdrop[hidden] { display: none !important; }
+    .jobs-modal {
+      background: #fff; border-radius: 16px; width: 100%; max-width: 560px;
+      max-height: 92vh; overflow-y: auto; padding: 20px 20px 16px;
+    }
+    .jobs-modal h3 { margin: 0 0 4px; color: var(--c-brand-deep, #064a33); }
+    .jobs-modal .jm-sub { font-size: .84rem; color: var(--c-text-muted, #6b6960); margin: 0 0 14px; }
+    .jm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .jm-grid .wide { grid-column: 1 / -1; }
+    .jobs-modal label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; font-weight: 600; color: var(--c-text-soft, #3f3d36); }
+    .jobs-modal input, .jobs-modal textarea, .jobs-modal select {
+      width: 100%; padding: 9px 10px; border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px; font-size: 16px; font-family: inherit; box-sizing: border-box;
+    }
+    .jm-map { height: 240px; border-radius: 12px; overflow: hidden; margin-top: 4px; }
+    .jm-map-hint { font-size: .74rem; color: var(--c-text-muted, #6b6960); margin-top: 4px; }
+    .jm-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .jm-actions .btn { flex: 1; }
+    .jm-status { margin-top: 10px; padding: 10px 12px; border-radius: 9px; font-size: .86rem; display: none; }
+    .jm-status.err { display: block; background: #ffe6e6; color: #8a1a1a; }
+    .jm-status.ok  { display: block; background: #e8f7ee; color: #1a5a30; }
+
+    /* My jobs & workers results */
+    .jm-job {
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px;
+      padding: 12px 14px; margin-bottom: 10px; background: #fff;
+    }
+    .jm-job-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .jm-job-title { font-weight: 800; font-size: .94rem; }
+    .jm-job-meta { font-size: .78rem; color: var(--c-text-muted, #6b6960); }
+    .jm-workers { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .jm-worker {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      background: var(--c-brand-faint, #f0f7f2); border-radius: 9px; padding: 7px 11px;
+      font-size: .86rem;
+    }
+    .jm-worker a { font-weight: 700; color: var(--c-brand-deep, #064a33); text-decoration: none; white-space: nowrap; }
+    .jm-no-workers { font-size: .8rem; color: var(--c-text-muted, #6b6960); margin-top: 6px; }
+    .jm-code {
+      font-family: var(--c-font-mono, ui-monospace, monospace); font-weight: 800;
+      background: #064a33; color: #fff; border-radius: 6px; padding: 1px 7px; margin-right: 6px;
+      font-size: .8rem; letter-spacing: .5px;
+    }
+    /* The worker's own on-site number, shown on cards they claimed */
+    .job-mycode {
+      margin-top: 10px; padding: 8px 12px; border-radius: 9px;
+      background: var(--c-brand-faint, #f0f7f2); border: 1px dashed var(--c-brand, #0a6f4d);
+      font-size: .84rem; color: var(--c-brand-deep, #064a33);
+    }
+    .job-mycode strong { font-family: var(--c-font-mono, ui-monospace, monospace); letter-spacing: 1px; }
+
+    .jobs-empty {
+      text-align: center; padding: 36px 20px; background: #fff;
+      border: 1px dashed var(--c-border, #e7e4dd); border-radius: 14px;
+      color: var(--c-text-muted, #6b6960); font-size: .92rem; line-height: 1.6;
+    }
+  </style>
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a6f4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/mobile.css" />
+<!-- pawa-mobile-bundle -->
+    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+</head>
+<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="jobs">
+  <div id="nav-slot"></div>
+
+  <main class="container">
+
+    <div class="fast-hero-card">
+      <span class="fast-hero-badge"> NEW · VIBARUA</span>
+      <h1>Day jobs near you</h1>
+      <p>Companies post short-term jobs with a pin on the map. Tap <strong>“I'll do it”</strong> to claim a slot —
+         the bar fills up as workers join, and closes automatically when the team is complete.</p>
+    </div>
+
+    <div class="jobs-toolbar">
+      <button id="jobsNearBtn" class="btn btn-outline"> Jobs near me</button>
+      <button id="jobsMineBtn" class="btn btn-outline"> My jobs &amp; workers</button>
+      <span class="jobs-count" id="jobsCount"></span>
+      <span class="spacer"></span>
+      <button id="jobsPostBtn" class="btn btn-primary">＋ Post a job</button>
+    </div>
+
+    <div id="jobsBanner" class="banner" style="display:none"></div>
+
+    <div class="jobs-layout">
+      <div class="job-list" id="jobList" aria-busy="true">
+        <div class="jobs-empty">Loading jobs…</div>
+      </div>
+      <div id="jobsMap"></div>
+    </div>
+
+  </main>
+
+  <!-- Post-a-job modal -->
+  <div id="jobPostBackdrop" class="jobs-modal-backdrop" hidden>
+    <div class="jobs-modal" role="dialog" aria-modal="true">
+      <h3>Post a day job</h3>
+      <p class="jm-sub">Workers nearby will see it instantly. Slots close automatically when enough workers claim.</p>
+      <form id="jobPostForm">
+        <div class="jm-grid">
+          <label class="wide">Job title *
+            <input id="jpTitle" required maxlength="80" placeholder="e.g. Offloading a truck of cement" />
+          </label>
+          <label class="wide">What to do *
+            <textarea id="jpDesc" rows="2" required maxlength="500" placeholder="Describe the work clearly…"></textarea>
+          </label>
+          <label class="wide">Requirements
+            <input id="jpReq" maxlength="200" placeholder="e.g. Strong, 18+, bring gloves" />
+          </label>
+          <label>Workers needed *
+            <input id="jpWorkers" type="number" min="1" max="500" value="1" required />
+          </label>
+          <label>Pay per worker (TZS) *
+            <input id="jpPay" type="text" inputmode="numeric" required placeholder="e.g. 15,000 or 15k" />
+          </label>
+          <label>Work date *
+            <input id="jpDate" type="date" required />
+          </label>
+          <label>Time
+            <input id="jpTime" maxlength="60" placeholder="e.g. 07:00 – 16:00" />
+          </label>
+          <label class="wide">Payment note
+            <input id="jpPayNote" maxlength="120" placeholder="e.g. Cash, paid the same evening" />
+          </label>
+          <label>Company / your name *
+            <input id="jpCompany" required maxlength="80" placeholder="e.g. Bonite Traders" />
+          </label>
+          <label>Phone *
+            <input id="jpPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
+          </label>
+          <div class="wide">
+            <label>Where is the job? * <small>(tap the map or use GPS — workers navigate to this pin)</small></label>
+            <div class="jm-map" id="jpMap"></div>
+            <div class="jm-map-hint" id="jpCoords">Pin not placed yet — tap the map, or</div>
+            <button type="button" id="jpGpsBtn" class="btn btn-outline btn-sm" style="margin-top:6px"> Use my GPS location</button>
+          </div>
+        </div>
+        <div class="jm-status" id="jpStatus"></div>
+        <div class="jm-actions">
+          <button type="button" id="jpCancel" class="btn btn-outline">Cancel</button>
+          <button type="submit" id="jpSubmit" class="btn btn-primary">Post job</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- My jobs: the company owner sees their posts + every worker who claimed -->
+  <div id="jobMineBackdrop" class="jobs-modal-backdrop" hidden>
+    <div class="jobs-modal" role="dialog" aria-modal="true">
+      <h3>My jobs &amp; workers</h3>
+      <p class="jm-sub">These are the jobs you posted <strong>from this device</strong> — only you can see the workers who claimed slots (names &amp; numbers). Post from the same phone/browser to manage a job; clearing your browser data removes this access.</p>
+      <form id="jobMineForm">
+        <div class="jm-actions">
+          <button type="button" id="jmCancel" class="btn btn-outline">Close</button>
+          <button type="submit" id="jmSubmit" class="btn btn-primary">Refresh</button>
+        </div>
+        <div class="jm-status" id="jmStatus"></div>
+      </form>
+      <div id="jmResults" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <!-- Claim modal: name + phone so the company can reach the worker -->
+
+  <div id="jobClaimBackdrop" class="jobs-modal-backdrop" hidden>
+    <div class="jobs-modal" role="dialog" aria-modal="true" style="max-width:420px">
+      <h3 id="jcTitle">Claim this job</h3>
+      <p class="jm-sub" id="jcSub">Your name and phone go to the company so they can confirm you.</p>
+      <form id="jobClaimForm">
+        <div class="jm-grid">
+          <label class="wide">Your name *
+            <input id="jcName" required maxlength="60" placeholder="e.g. Juma Hassani" />
+          </label>
+          <label class="wide">Your phone *
+            <input id="jcPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
+          </label>
+        </div>
+        <div class="jm-status" id="jcStatus"></div>
+        <div class="jm-actions">
+          <button type="button" id="jcCancel" class="btn btn-outline">Cancel</button>
+          <button type="submit" id="jcSubmit" class="btn btn-primary"> I'll do it</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/geolocate.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/jobs.js"></script>
+  <script>
+    window.renderNav && window.renderNav("jobs.html");
+    window.renderFooter && window.renderFooter();
+    window.applyTranslations && window.applyTranslations();
+    window.initJobsPage && window.initJobsPage();
+  </script>
+
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/fab.js"></script>
+    <script src="js/sw-register.js"></script>
+<!-- pawa-mobile-bundle -->
+  <script src="js/premium.js" defer></script>
+</body>
+</html>
