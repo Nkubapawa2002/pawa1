@@ -55,3 +55,30 @@ Installed and verified **2026-06-01**:
 Each language has a dependency-free `/health` stub under `services/` so you can
 confirm the toolchain end-to-end. See [`../services/README.md`](../services/README.md)
 to run them.
+
+## Decision: the demand → agent match lives in Postgres (not Java/Python)
+
+The seeker's request and every agent's region+district both already live in
+Postgres. "Find the agents whose region+district cover this request" is therefore
+an **indexed SQL lookup**, implemented as the SECURITY-DEFINER RPC
+`house_demand_for_agent(region, district, listing, limit)`
+(`supabase/house_demand_for_agent.sql`). Putting this match in a separate
+Java/Python service would either duplicate the data (cache-invalidation bugs) or
+just proxy to Postgres anyway — a new tier that can crash, not a safer one.
+
+It is a **two-slice** query — the agent's own district first, then the rest of
+their region — each fetched in index order off a partial index and capped, then a
+trivial merge. Urgency uses `coalesce(needed_by, 'infinity')` so the filter +
+ordering collapse into one index range (no post-scan sort).
+
+**Verified at scale** (`scripts/bench_demand_match.mjs`, 1,000,000 synthetic
+active rows on the real Supabase instance, temp table, no prod data touched):
+warm execution **~1.2 ms**, 30-region/district average **~3 ms**, worst **~6 ms**,
+two index scans of 200 rows — **no sequential scan**. ~326 matches/sec per core,
+multiplied by Supabase's pooled connections → tens of thousands/sec.
+
+**Where Java/Go DO belong:** the async **fan-out** layer — when a new request
+should be *pushed* to matched agents (SMS / push / WhatsApp) with queues, retries
+and rate-limiting. That is a high-throughput concurrent-IO problem (`services/go`
+or `services/java`), separate from the match itself. Not built yet; the current
+model is pull (each agent's dashboard runs the match), which needs no app tier.

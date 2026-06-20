@@ -430,9 +430,11 @@ window.initJobsPage = () => {
       // Reverse-geocode a readable area name for the card (best effort).
       let area = "", region = "";
       try {
-        const j = await pawaGeo.reverse(`format=jsonv2&zoom=14&lat=${postPin.lat}&lon=${postPin.lng}`);
+        const j = await pawaGeo.reverse(`format=jsonv2&zoom=16&addressdetails=1&lat=${postPin.lat}&lon=${postPin.lng}`);
         const a = j?.address || {};
-        area   = a.suburb || a.village || a.town || a.city_district || a.county || "";
+        // Name the job's area by its ward (Tanzania-wide), falling through the
+        // equivalent neighbourhood tags when the ward field isn't filled.
+        area   = a.ward || a.suburb || a.quarter || a.neighbourhood || a.village || a.town || a.city_district || a.county || "";
         region = a.state || a.region || a.city || "";
       } catch (_) {}
       const row = {

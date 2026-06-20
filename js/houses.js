@@ -51,6 +51,12 @@ window.initHousesPage = async () => {
   let matchScores   = new Map();   // house id -> match % (when smart search active)
   let landmarkLoc   = null;        // { lat, lng, name } anchor when a known place is searched
   let landmarkMarker= null;        // MapLibre marker for the landmark anchor
+  // Area filter → live circle on the map. Typing an area (e.g. "Kigamboni")
+  // geocodes it, draws a circle there and filters listings spatially (inside the
+  // circle OR tagged with the name) so browsing an area is visual and forgiving.
+  let areaCircle    = null;        // { lat, lng, radius_m, name } | null
+  let areaRadiusM   = 3000;        // chosen circle radius in metres
+  let areaGeoSeq    = 0;           // guards against out-of-order async geocodes
   const roadKmCache = new Map();   // "oLat,oLng>dLat,dLng" → real road km | null (no route)
   let enrichingHousesRoad = false;
   const mainRoadCache = new Map(); // house id → {name,meters} | null (no main road within 3 km)
@@ -95,12 +101,21 @@ window.initHousesPage = async () => {
     fav:    { icon: "", label: "Favourite spot" },
     custom: { icon: "", label: "Place" }
   };
-  const ROAD_DETOUR = 1.3;         // straight-line km × this ≈ road km in a TZ city
 
   // ---- Map opens immediately, independent of data/network speed ----------
   // (initMap is hoisted; it only needs the static container, not the listings.)
   // A slow Supabase/data fetch must never leave the user staring at a blank map.
-  initMap();
+  // The main directory map must NEVER take the page down with it: if MapLibre's
+  // CDN didn't load or WebGL is unavailable, initMap() throws — but the list,
+  // the area-alert button and every other control below still have to work. So
+  // a map failure is caught and the page carries on (callers already null-check
+  // `map`, and the alert modal uses its own independent Leaflet map).
+  try {
+    initMap();
+  } catch (e) {
+    console.warn("[houses] main map failed to init — continuing without it:", e?.message || e);
+    map = null;
+  }
   // Warm up the Rust→WASM matching engine while data + tiles load.
   window.HouseMatch?.warmup?.();
 
@@ -108,8 +123,13 @@ window.initHousesPage = async () => {
   try {
     houses = await window.DataStore.getHouses();
   } catch (e) {
-    listEl.innerHTML = `<div class="banner error">Couldn't load properties: ${e.message}</div>`;
-    return;
+    // A failed listings load must NOT abort the rest of init — the area-alert
+    // button, Near-me, smart search and "match to my life" are all wired up
+    // below and stay useful with zero listings (you can still set up an alert
+    // for when a place appears). Show the error in the list, then carry on.
+    console.warn("[houses] load failed — continuing with no listings:", e?.message || e);
+    if (listEl) listEl.innerHTML = `<div class="banner error">Couldn't load properties right now: ${esc(e?.message || "network error")}. You can still set up an area alert below.</div>`;
+    houses = [];
   }
 
   // Populate the area autocomplete from the data so it stays in sync. The area
@@ -134,6 +154,11 @@ window.initHousesPage = async () => {
   [fArea, fPrice, fSearch].forEach(el => el?.addEventListener("input", () => {
     clearTimeout(window._hf); window._hf = setTimeout(apply, 180);
   }));
+  // The Area box also drives the live map circle (geocoded, debounced a little
+  // longer so we don't hit the geocoder on every keystroke).
+  fArea?.addEventListener("input", () => {
+    clearTimeout(window._haf); window._haf = setTimeout(geocodeAreaFilter, 350);
+  });
 
   apply();
 
@@ -397,6 +422,12 @@ window.initHousesPage = async () => {
   function setupGeoAlerts() {
     renderWatchChips();
     alertBtn?.addEventListener("click", () => openAlertModal());
+    // Type-only request (where + price + when) → demand tagged with its region,
+    // shown to agents who operate in that region. No map needed.
+    document.getElementById("houseRequestBtn")?.addEventListener("click", () => {
+      if (window.pawaRequestPlace) window.pawaRequestPlace.open();
+      else openAlertModal();
+    });
 
     // Diff current listings against the "seen" set and fire alerts for
     // anything new that falls inside any watched circle.
@@ -413,6 +444,7 @@ window.initHousesPage = async () => {
     if (a.type)      parts.push(a.type);
     if (a.beds)      parts.push(a.beds + "+ beds");
     if (a.price_max) parts.push("≤" + (a.price_max >= 1e6 ? (a.price_max / 1e6) + "M" : Math.round(a.price_max / 1e3) + "k"));
+    if (a.from)      parts.push("from " + a.from);
     if (a.until)     parts.push("until " + a.until);
     return parts.join(" · ");
   }
@@ -493,13 +525,23 @@ window.initHousesPage = async () => {
   }
 
   // Drop alerts whose "needed by" date has passed — the user found a place
-  // (or stopped looking); silence beats stale notifications.
+  // (or stopped looking); silence beats stale notifications. Alerts that haven't
+  // STARTED yet (a future "from" date) are KEPT — they just don't fire until then.
   function activeGeoAlerts() {
     const all = getGeoAlerts();
     const today = new Date().toISOString().slice(0, 10);
     const live = all.filter(a => !a.until || a.until >= today);
     if (live.length !== all.length) { saveGeoAlerts(live); renderWatchChips(); }
     return live;
+  }
+
+  // Is an alert within its active window right now? It fires only on/after its
+  // "from" date and on/before its "needed by" date. No dates → always open.
+  function alertWindowOpen(a) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (a.from && a.from > today) return false;     // hasn't started yet
+    if (a.until && a.until < today) return false;   // already ended
+    return true;
   }
 
   // "300k" / "1.2m" / "300,000" → TZS number (0 = not set / unparseable).
@@ -527,6 +569,7 @@ window.initHousesPage = async () => {
       if (seen.has(h.id)) continue;
       if (h.lat == null || h.lng == null) continue;
       for (const a of alerts) {
+        if (!alertWindowOpen(a)) continue;   // not started yet / already ended
         if (alertMatches(h, a)) {
           const d = haversineKm(h.lat, h.lng, a.lat, a.lng) * 1000;
           matches.push({ h, alert: a, dist_m: Math.round(d) });
@@ -618,7 +661,7 @@ window.initHousesPage = async () => {
           const row = payload?.new;
           if (!row || row.lat == null || row.lng == null) return;
           const alerts = activeGeoAlerts();
-          const hit = alerts.find(a => alertMatches(row, a));
+          const hit = alerts.find(a => alertWindowOpen(a) && alertMatches(row, a));
           if (!hit) return;
           if (!houses.find(h => h.id === row.id)) {
             houses.unshift(row);
@@ -697,7 +740,9 @@ window.initHousesPage = async () => {
     setVal("alertType", "");
     setVal("alertBeds", "");
     setVal("alertPriceMax", "");
+    setVal("alertFrom", "");
     setVal("alertUntil", "");
+    setVal("alertPhone", "");
     coordsEl.textContent = "Pin not placed yet — search or tap the map";
     coordsEl.classList.remove("has-pin");
     saveBtn.disabled = true;
@@ -714,6 +759,7 @@ window.initHousesPage = async () => {
       b.setAttribute("aria-selected", on ? "true" : "false");
     });
     committedAreas = [];
+    document.getElementById("alertMapOffline")?.setAttribute("hidden", "");
     if (addAreaBtn) addAreaBtn.disabled = true;
     if (areasListEl) { areasListEl.hidden = true; areasListEl.innerHTML = ""; }
     if (areasSummary) areasSummary.textContent = "Add one or more areas — you'll be alerted in any of them.";
@@ -739,7 +785,10 @@ window.initHousesPage = async () => {
       if (committedLayer)    { committedLayer.remove();    committedLayer    = null; }
       if (listingDotsLayer)  { listingDotsLayer.remove();  listingDotsLayer  = null; }
       if (dotsBadge) dotsBadge.hidden = true;
-      if (alertModalMap)     { alertModalMap.remove();     alertModalMap     = null; }
+      if (alertModalMap)     {
+        try { alertModalMap._pawaRO && alertModalMap._pawaRO.disconnect(); } catch (_) {}
+        alertModalMap.remove(); alertModalMap = null;
+      }
       alertPicked = null; drawPts = []; areaGeo = null; lastBoundary = null; committedAreas = [];
     };
     closeBtn.onclick = close;
@@ -1055,6 +1104,7 @@ window.initHousesPage = async () => {
         type:      document.getElementById("alertType")?.value || "",
         beds:      +(document.getElementById("alertBeds")?.value || 0) || 0,
         price_max: parseTzsValue(document.getElementById("alertPriceMax")?.value),
+        from:      document.getElementById("alertFrom")?.value || "",
         until:     document.getElementById("alertUntil")?.value || "",
         createdAt: new Date().toISOString()
       };
@@ -1064,13 +1114,27 @@ window.initHousesPage = async () => {
       houses.forEach(h => seen.add(h.id));
       saveSeenIds(seen);
       renderWatchChips();
+
+      // If they left a phone, also register this as an AGENT-facing demand pin so
+      // agents nearby see them waiting (and their "needed by" deadline) and can
+      // close before it — not just a local browser notification. Best-effort:
+      // a failure here never blocks the alert from saving.
+      const reachPhone = (document.getElementById("alertPhone")?.value || "").trim();
+      let reached = false;
+      if (reachPhone) {
+        try { reached = !!(await createDemandFromAlert(newAlert, reachPhone)); } catch (_) {}
+      }
+
       const where = areas.length > 1
         ? `in any of your ${areas.length} areas`
         : (areas[0].geo
             ? (areas[0].kind === "ward" ? `anywhere in ${newAlert.name}` : "anywhere inside your drawn area")
             : `within ${formatRadius(areas[0].radius_m)} of this spot`);
+      const reachNote = reached
+        ? ` Agents nearby can now see you're waiting${newAlert.until ? ` (needed by ${newAlert.until})` : ""} and will reach out.`
+        : "";
       flashBanner("", `Alert saved: ${newAlert.name}`,
-        `We'll notify you about ${alertCriteriaText(newAlert) || "new listings"} ${where}.`);
+        `We'll notify you about ${alertCriteriaText(newAlert) || "new listings"} ${where}.${reachNote}`);
       close();
     };
 
@@ -1173,6 +1237,16 @@ window.initHousesPage = async () => {
     // ---- initAlertMap (Leaflet — Canvas2D, no WebGL) -----------------
     function initAlertMap() {
       if (alertModalMap) { alertModalMap.invalidateSize(); return; }
+      // Leaflet may still be downloading on a slow connection — wait for it
+      // rather than throwing "Map error". Retry for ~6s, then give up clearly.
+      if (typeof L === "undefined" || !L.map) {
+        initAlertMap._tries = (initAlertMap._tries || 0) + 1;
+        if (initAlertMap._tries <= 30) { setTimeout(() => { if (isOpen) initAlertMap(); }, 200); return; }
+        const mapEl0 = document.getElementById("alertModalMap");
+        if (mapEl0) mapEl0.innerHTML =
+          `<div style="padding:20px;color:#b91c1c;font-size:.85rem">The map library didn't load. Check your connection and reopen.</div>`;
+        return;
+      }
       try {
         alertModalMap = L.map("alertModalMap", {
           center: [-6.7924, 39.2789],
@@ -1182,15 +1256,57 @@ window.initHousesPage = async () => {
         });
         // Satellite + crisp street-name labels, with a Map/Satellite toggle so
         // the user can switch to a plain street map and read road names clearly
-        // when choosing the area to be alerted about.
-        window.addSatelliteHybrid(alertModalMap);
+        // when choosing the area to be alerted about. If the shared helper is
+        // missing, fall back to a plain OSM base so the map is never blank.
+        try {
+          if (window.addSatelliteHybrid) window.addSatelliteHybrid(alertModalMap);
+          else throw new Error("no hybrid");
+        } catch (_) {
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(alertModalMap);
+        }
         L.control.zoom({ position: "topright" }).addTo(alertModalMap);
         alertModalMap.on("click", (e) => {
           if (mode === "draw") addDrawPoint(e.latlng.lat, e.latlng.lng);
           else setPin(e.latlng.lat, e.latlng.lng, null);   // circle + area both drop a locating pin
         });
+        // Robust sizing: a Leaflet map created inside a just-opened modal often
+        // measures 0×0 or a mid-animation size and renders grey. Re-measure
+        // across several frames AND whenever the container resizes (the modal
+        // finishing its slide-in, an orientation change, late layout).
+        const fixSize = () => { try { alertModalMap && alertModalMap.invalidateSize(); } catch (_) {} };
+        requestAnimationFrame(fixSize);
+        [100, 300, 600, 1000].forEach((d) => setTimeout(() => { if (isOpen) fixSize(); }, d));
+        try {
+          if ("ResizeObserver" in window) {
+            const ro = new ResizeObserver(fixSize);
+            ro.observe(document.getElementById("alertModalMap"));
+            alertModalMap._pawaRO = ro;
+          }
+        } catch (_) {}
         // Force layout recalc after Leaflet renders its tiles
-        alertModalMap.whenReady(() => { alertModalMap.invalidateSize(); renderListingDots(); });
+        alertModalMap.whenReady(() => { fixSize(); renderListingDots(); });
+        // If the base tiles can't load (offline), show a clear overlay instead of
+        // a blank box — drawing needs the streets visible. Clears as soon as a
+        // tile loads, so it self-heals when the connection returns.
+        const offlineHint = document.getElementById("alertMapOffline");
+        if (offlineHint) {
+          offlineHint.hidden = true;                       // assume online; prove offline
+          const mapEl = document.getElementById("alertModalMap");
+          let tries = 0;
+          const checkTiles = () => {
+            if (!alertModalMap || !mapEl) return;          // modal closed
+            const loaded = [...mapEl.querySelectorAll("img.leaflet-tile")]
+              .some((im) => im.complete && im.naturalWidth > 0);
+            if (loaded) { offlineHint.hidden = true; return; }   // tiles painted → done
+            // No tiles yet: don't flash the overlay while they're merely still
+            // downloading — only show it after a couple of failed polls (~2.5s),
+            // and keep checking so it clears the moment a tile arrives.
+            if (tries >= 2) offlineHint.hidden = false;
+            if (tries++ < 12) setTimeout(checkTiles, 1200);
+          };
+          setTimeout(checkTiles, 1200);
+        }
         // If GPS / search already fired before map was ready, place the pin
         if (alertPicked) placePinOnMap(alertPicked.lat, alertPicked.lng);
       } catch (err) {
@@ -1528,22 +1644,40 @@ window.initHousesPage = async () => {
     return String(name || "").split(",")[0].trim();
   }
 
-  function updateLandmarkInfo() {
+  async function updateLandmarkInfo() {
     if (!landmarkLoc) return;
     const name = landmarkShort(landmarkLoc.name);
-    const body = userLoc
-      ? `Your location is ${distKm(userLoc, landmarkLoc).toFixed(1)} km from ${name} · listings below are sorted nearest-first`
-      : `Tap “Near me” to measure how far ${name} is from where you live · listings below are sorted nearest-first`;
-    alertBanner.innerHTML = `
-      <span class="ab-icon"></span>
-      <div class="ab-body">
-        <strong>${esc(name)}</strong>
-        <small>${esc(body)}</small>
-      </div>
-      <button id="lmBannerDismiss" type="button" aria-label="Dismiss" style="background:transparent;padding:6px 8px"></button>`;
-    alertBanner.hidden = false;
-    alertBanner.dataset.kind = "landmark";
-    document.getElementById("lmBannerDismiss")?.addEventListener("click", () => { alertBanner.hidden = true; });
+    const render = (body) => {
+      alertBanner.innerHTML = `
+        <span class="ab-icon"></span>
+        <div class="ab-body">
+          <strong>${esc(name)}</strong>
+          <small>${esc(body)}</small>
+        </div>
+        <button id="lmBannerDismiss" type="button" aria-label="Dismiss" style="background:transparent;padding:6px 8px"></button>`;
+      alertBanner.hidden = false;
+      alertBanner.dataset.kind = "landmark";
+      document.getElementById("lmBannerDismiss")?.addEventListener("click", () => { alertBanner.hidden = true; });
+    };
+    if (!userLoc) {
+      render(`Tap “Near me” to measure how far ${name} is from where you live · listings below are sorted nearest-first`);
+      return;
+    }
+    // REAL road distance from where you are to the searched area — never a
+    // crow-flies number. Show "measuring…" until a routing engine answers.
+    render(`Measuring road distance to ${name}… · listings below are sorted nearest-first`);
+    let km = null;
+    try {
+      const arr = window.pawaRoute
+        ? await window.pawaRoute.table({ lat: userLoc.lat, lng: userLoc.lng },
+            [{ lat: landmarkLoc.lat, lng: landmarkLoc.lng }])
+        : null;
+      if (arr && Number.isFinite(arr[0])) km = arr[0];
+    } catch (_) {}
+    if (!landmarkLoc || landmarkShort(landmarkLoc.name) !== name) return;   // user moved on
+    render(km != null
+      ? `Your location is ${km.toFixed(1)} km by road from ${name} · listings below are sorted nearest-first`
+      : `Couldn’t measure the road distance to ${name} right now · listings below are sorted nearest-first`);
   }
 
   function ensureLandmarkStyles() {
@@ -1679,14 +1813,15 @@ window.initHousesPage = async () => {
   //  "Match to my life" — personalised distance / commute matching
   //
   //  The user lists the places that matter to them (workplace, a child's
-  //  school, a favourite area). For every listing we estimate, per place:
-  //    road_km  = haversine(listing, place) × DETOUR  (straight-line → road)
+  //  school, a favourite area). For every listing, per place:
+  //    road_km  = REAL driving distance (pawaRoute.table, multi-engine)
   //    minutes  = road_km / mode_speed × 60           (per transport mode)
   //  A listing is kept only if it satisfies every place's max-time limit
-  //  (when one is set), and the list is ranked by the *total* estimated
-  //  travel time across all places — i.e. the home that fits your life best
-  //  sits at the top. Everything runs client-side (no routing API needed).
-  //  (MODES / PLACE_KINDS / ROAD_DETOUR are declared near the top of the file.)
+  //  (when one is set), and the list is ranked by the *total* travel time
+  //  across all places — i.e. the home that fits your life best sits at the
+  //  top. Distances are NEVER straight-line: an un-measured leg shows
+  //  "measuring…" until the real road figure arrives (see commuteFor).
+  //  (MODES / PLACE_KINDS declared near the top of the file.)
   // ====================================================================
   function getMyPlaces() {
     try { return JSON.parse(localStorage.getItem("pawa_house_my_places") || "[]"); }
@@ -1700,7 +1835,6 @@ window.initHousesPage = async () => {
   }
   function modeOf(m)  { return MODES[m] || MODES.car; }
   function kindOf(k)  { return PLACE_KINDS[k] || PLACE_KINDS.custom; }
-  function roadKm(a, b) { return distKm(a, b) * ROAD_DETOUR; }
   function travelMin(km, mode) { return km / modeOf(mode).kmh * 60; }
   function fmtMin(min) {
     if (min < 1) return "<1 min";
@@ -1709,20 +1843,34 @@ window.initHousesPage = async () => {
     return mm ? `${h}h ${mm}m` : `${h}h`;
   }
 
-  // Per-listing commute breakdown, or null when it can't be evaluated. Uses the
-  // REAL road distance per leg once enrichCommuteRoad() has fetched it; until
-  // then (or if routing is down) it falls back to the straight-line × detour
-  // estimate so the feature always works offline.
+  // Per-listing commute breakdown, or null when it can't be evaluated. Uses ONLY
+  // the REAL road distance per leg (fetched by enrichCommuteRoad via pawaRoute's
+  // multi-engine table). It deliberately NEVER falls back to a straight-line
+  // estimate — a crow-flies number to your workplace is misleading, so an
+  // un-measured leg shows "measuring…" and a leg no engine could route shows
+  // "no road route", rather than a fake distance.
+  //   commuteRoadKm value:  number = real road km · null = routed, no road found
+  //                         · undefined = not fetched yet (measuring)
   function commuteFor(h) {
     if (!myPlaces.length || !Number.isFinite(h.lat) || !Number.isFinite(h.lng)) return null;
+    let pending = false, knownMin = 0, knownLegs = 0;
     const legs = myPlaces.map(p => {
       const real = commuteRoadKm.get(p.id + "|" + h.id);
-      const road = Number.isFinite(real);
-      const km = road ? real : roadKm(p, h);
-      const min = travelMin(km, p.mode);
-      return { place: p, km, min, road, ok: p.maxMin ? min <= p.maxMin : true };
+      if (real === undefined) { pending = true; return { place: p, km: null, min: null, state: "measuring", ok: true }; }
+      if (real === null)      {                 return { place: p, km: null, min: null, state: "noroad",    ok: true }; }
+      const min = travelMin(real, p.mode);
+      knownMin += min; knownLegs++;
+      return { place: p, km: real, min, state: "road", ok: p.maxMin ? min <= p.maxMin : true };
     });
-    return { legs, total: legs.reduce((s, l) => s + l.min, 0), pass: legs.every(l => l.ok) };
+    return {
+      legs, pending,
+      // Only real road legs can fail the max-time gate; a listing is never hidden
+      // on the strength of a straight-line guess (or while still measuring).
+      pass: legs.every(l => l.state !== "road" || l.ok),
+      // Rank by total measured time; not-yet-measured listings sink to the bottom
+      // until their real legs arrive, then enrichCommuteRoad() re-ranks.
+      total: knownLegs ? knownMin : Infinity,
+    };
   }
 
   // Background: fill in the real road distance for each place→listing leg via the
@@ -1817,12 +1965,17 @@ window.initHousesPage = async () => {
 
   // Friendly "nearby area" name from a reverse-geocode address — used when
   // the exact spot isn't a named place (a map tap, drag or GPS fix).
+  //
+  // Canonical rule (shared with the agent pin): identify the spot by its WARD,
+  // not by a street name (in Tanzania street names are often unofficial or
+  // missing online). Every place sits in a ward, so this always lands on a real,
+  // recognisable area, shown with the wider city for context.
   function placeAreaLabel(j) {
     const a = (j && j.address) || {};
-    const near  = a.suburb || a.neighbourhood || a.quarter || a.village || a.hamlet ||
-                  a.ward || a.residential || a.city_district;
+    const ward  = a.ward || a.suburb || a.quarter || a.neighbourhood || a.village || a.hamlet ||
+                  a.city_district;
     const wider = a.city || a.town || a.municipality || a.county || a.state_district || a.state;
-    const parts = [...new Set([near, wider].filter(Boolean))].slice(0, 2);
+    const parts = [...new Set([ward, wider].filter(Boolean))].slice(0, 2);
     if (parts.length) return parts.join(", ");
     return (j && j.display_name || "").split(",").slice(0, 2).join(", ");
   }
@@ -1845,10 +1998,16 @@ window.initHousesPage = async () => {
     return out;
   }
 
-  // Reverse-geocode a tapped/dragged point into a nearby-area label.
+  // Reverse-geocode a tapped/dragged point into a "ward, city · near <landmark>"
+  // label — the ward identifies the area and a nearby well-known place is the
+  // landmark people navigate by (same rule as the agent pin). The landmark is
+  // best-effort: if the lookup fails or finds nothing, the ward label still stands.
   async function reverseName(lat, lng) {
     try {
-      return placeAreaLabel(await pawaGeo.reverse(`format=jsonv2&zoom=16&addressdetails=1&lat=${lat}&lon=${lng}`));
+      const area = placeAreaLabel(await pawaGeo.reverse(`format=jsonv2&zoom=16&addressdetails=1&lat=${lat}&lon=${lng}`));
+      let mark = null;
+      try { mark = await window.pawaPlaces?.nearestLandmark({ lat, lng }); } catch (_) {}
+      return (mark && mark.name) ? `${area} · near ${mark.name}` : area;
     } catch (_) { return null; }
   }
 
@@ -1878,6 +2037,7 @@ window.initHousesPage = async () => {
     let mpMap = null, mpMarkers = {};
 
     backdrop.hidden = false;
+    document.getElementById("mpMapOffline")?.setAttribute("hidden", "");
     if (searchIn) searchIn.value = "";
     if (resultsEl) { resultsEl.hidden = true; resultsEl.innerHTML = ""; }
     renderRows();
@@ -2007,6 +2167,20 @@ window.initHousesPage = async () => {
         L.control.zoom({ position: "topright" }).addTo(mpMap);
         mpMap.on("click", (e) => setActiveLocation(e.latlng.lat, e.latlng.lng, null));
         mpMap.whenReady(() => mpMap.invalidateSize());
+        // Clear "map can't load" overlay once a tile loads; show it if offline.
+        const mpOffline = document.getElementById("mpMapOffline");
+        if (mpOffline) {
+          const mapEl = document.getElementById("mpModalMap");
+          let tries = 0;
+          const checkTiles = () => {
+            if (!mpMap || !mapEl) return;                  // modal closed
+            const loaded = [...mapEl.querySelectorAll("img.leaflet-tile")]
+              .some((im) => im.complete && im.naturalWidth > 0);
+            mpOffline.hidden = loaded;
+            if (!loaded && tries++ < 12) setTimeout(checkTiles, 1500);
+          };
+          setTimeout(checkTiles, 1500);
+        }
         draft.forEach(refreshMarker);
         const first = draft.find(p => Number.isFinite(p.lat));
         if (first) mpMap.setView([first.lat, first.lng], 13);
@@ -2094,6 +2268,9 @@ window.initHousesPage = async () => {
     const price   = fPrice.value;
     const q       = fSearch.value.toLowerCase().trim();
 
+    // Area box emptied (by typing or any "clear filters" path) → drop the circle.
+    if (!area && areaCircle) { areaCircle = null; clearAreaCircleOnMap(); hideAreaCircleChip(); }
+
     visible = houses.filter(h => {
       if (h.available === false) return false;   // deal completed → off the public list
       if (!passesSegment(h)) return false;       // Rent / Sale / Business world
@@ -2104,7 +2281,16 @@ window.initHousesPage = async () => {
         // + area/address, so a region, district ("Kinondoni") OR ward ("Mikocheni")
         // each surfaces every listing an agent registered in that exact area.
         const areaHay = [h.area, h.address, h.region, h.district, h.ward].filter(Boolean).join(" ").toLowerCase();
-        if (!areaHay.includes(area)) return false;
+        const textMatch = areaHay.includes(area);
+        // When the area geocoded to a circle, a listing also qualifies if it sits
+        // INSIDE that circle — so a place 300 m from Kigamboni that an agent
+        // labelled "Vijibweni" still shows. Flexible beats exact text. With no
+        // geocode (unknown area) we fall back to the text match alone.
+        let inCircle = false;
+        if (areaCircle && Number.isFinite(h.lat) && Number.isFinite(h.lng)) {
+          inCircle = haversineKm(h.lat, h.lng, areaCircle.lat, areaCircle.lng) * 1000 <= areaCircle.radius_m;
+        }
+        if (areaCircle ? !(inCircle || textMatch) : !textMatch) return false;
       }
       if (beds    && (h.bedrooms || 0) < beds) return false;
       if (room) {
@@ -2180,7 +2366,14 @@ window.initHousesPage = async () => {
   // me" beats a raw distance list when the user also set a budget or bedrooms.
   // Real road distance (OSRM) from the current anchor (searched place or GPS) to
   // each home — upgrades the straight-line distance shown + sorted in the list.
-  function houseAnchor() { return landmarkLoc || userLoc || null; }
+  // Ranking/road anchor: an explicitly searched place wins, then a typed area
+  // circle (so listings sort by closeness to the area you're browsing), then the
+  // user's own location.
+  function houseAnchor() {
+    return landmarkLoc
+      || (areaCircle ? { lat: areaCircle.lat, lng: areaCircle.lng, name: areaCircle.name } : null)
+      || userLoc || null;
+  }
   function roadKeyH(h) {
     const a = houseAnchor();
     if (!a || !Number.isFinite(h.lat) || !Number.isFinite(h.lng)) return null;
@@ -2191,7 +2384,10 @@ window.initHousesPage = async () => {
   async function enrichHousesRoad() {
     const a = houseAnchor();
     if (!a || enrichingHousesRoad || !window.pawaRoute) return;
-    const targets = visible.filter((h) => roadKeyH(h) && roadKmCache.get(roadKeyH(h)) === undefined).slice(0, 40);
+    // 99 = one OSRM/Valhalla matrix call covers the whole rendered list (and
+    // then some), so listings show a real "by road" distance instead of lingering
+    // on "measuring…". pawaRoute.table chunks beyond this if needed.
+    const targets = visible.filter((h) => roadKeyH(h) && roadKmCache.get(roadKeyH(h)) === undefined).slice(0, 99);
     if (!targets.length) return;
     enrichingHousesRoad = true;
     try {
@@ -2211,7 +2407,7 @@ window.initHousesPage = async () => {
   }
 
   async function rankAndRender() {
-    const anchor = landmarkLoc || userLoc || null;
+    const anchor = houseAnchor();
     const useComposite = !!(anchor && !myPlaces.length && !smartCriteria && window.HouseMatch);
     if (useComposite) {
       try {
@@ -2342,11 +2538,17 @@ window.initHousesPage = async () => {
       ].filter(Boolean).join("");
       const loc = `${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}`;
       const hasCoords = Number.isFinite(h.lat) && Number.isFinite(h.lng);
-      const rk = hasCoords ? roadOf(h) : null;
+      // REAL road distance only — never crow-flies. Raw cache tells us which:
+      //   number = real road km · undefined = still being fetched · null = no road route
+      const rkRaw = hasCoords ? roadKmCache.get(roadKeyH(h)) : undefined;
       const dist = (landmarkLoc && hasCoords)
-        ? ` · ${(rk != null ? rk : distKm(landmarkLoc, h)).toFixed(1)} km${rk != null ? " " : ""} to ${esc(landmarkShort(landmarkLoc.name))}`
+        ? (Number.isFinite(rkRaw)   ? ` · ${rkRaw.toFixed(1)} km by road to ${esc(landmarkShort(landmarkLoc.name))}`
+           : rkRaw === undefined    ? ` · measuring road distance to ${esc(landmarkShort(landmarkLoc.name))}…`
+           : "")
         : (userLoc && hasCoords)
-          ? ` · ${(rk != null ? rk : distKm(userLoc, h)).toFixed(1)} km ${rk != null ? "by road" : "away"}`
+          ? (Number.isFinite(rkRaw) ? ` · ${rkRaw.toFixed(1)} km by road`
+             : rkRaw === undefined  ? ` · measuring road distance…`
+             : "")
           : "";
       const ariaLabel = `${esc(h.title)}, ${price.value} ${price.unit}, ${loc}`;
       const matchPct = smartCriteria ? matchScores.get(h.id) : null;
@@ -2363,7 +2565,17 @@ window.initHousesPage = async () => {
         : "";
       const commute = commuteScores.get(h.id);
       const commuteHtml = commute ? `<div class="house-card-commute">${
-        commute.legs.map(l => `<span class="hc-leg${l.ok ? "" : " over"}">${kindOf(l.place.kind).icon} ${esc(l.place.label)} · ${l.km.toFixed(1)} km · ~${fmtMin(l.min)} ${modeOf(l.place.mode).icon}</span>`).join("")
+        commute.legs.map(l => {
+          const head = `${kindOf(l.place.kind).icon} ${esc(l.place.label)}`;
+          // Real road distance only — never a straight-line guess to your workplace.
+          const val = l.state === "road"
+            ? `${l.km.toFixed(1)} km · ~${fmtMin(l.min)} ${modeOf(l.place.mode).icon}`
+            : l.state === "measuring"
+              ? `measuring road distance…`
+              : `no road route`;
+          const cls = l.state === "road" ? (l.ok ? "" : " over") : " pending";
+          return `<span class="hc-leg${cls}">${head} · ${val}</span>`;
+        }).join("")
       }</div>` : "";
       // Nearest MAIN road (tarmac) — filled from cache now, or patched in
       // place once the batched Overpass lookup resolves (enrichMainRoads).
@@ -2458,13 +2670,18 @@ window.initHousesPage = async () => {
 
   // ---- Bento overview tiles ---------------------------------------------
   function updateBentoCounts() {
-    const total = houses.length;
+    // Count only BROWSABLE listings (a completed/withdrawn deal has
+    // available === false and is hidden from the list) so these tiles never
+    // claim "1" while the property list shows nothing. They must reflect the
+    // same inventory the list filters down from.
+    const browsable = houses.filter(h => h.available !== false);
+    const total = browsable.length;
     // Residential rent/sale exclude commercial premises so the counts line up
     // with what each segment actually shows.
-    const rent = houses.filter(h => !isBusinessType(h.type) && h.listing === "rent").length;
-    const sale = houses.filter(h => !isBusinessType(h.type) && h.listing === "sale").length;
-    const business = houses.filter(h => isBusinessType(h.type)).length;
-    const verified = houses.filter(h => h.verified).length;
+    const rent = browsable.filter(h => !isBusinessType(h.type) && h.listing === "rent").length;
+    const sale = browsable.filter(h => !isBusinessType(h.type) && h.listing === "sale").length;
+    const business = browsable.filter(h => isBusinessType(h.type)).length;
+    const verified = browsable.filter(h => h.verified).length;
     let favs = 0;
     try { favs = JSON.parse(localStorage.getItem("pawa.houseFavs") || "[]").length; } catch {}
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -2555,6 +2772,13 @@ window.initHousesPage = async () => {
     // the nearby listings are visible together.
     const pts = (mappable || []).map(h => [h.lng, h.lat]);
     if (landmarkLoc) pts.push([landmarkLoc.lng, landmarkLoc.lat]);
+    // Keep the area circle in frame too, so the user always sees the area they
+    // typed even when its listings cluster on one side (or there are none).
+    if (areaCircle) {
+      const dLat = areaCircle.radius_m / 111320;
+      const dLng = areaCircle.radius_m / (111320 * Math.cos(areaCircle.lat * Math.PI / 180));
+      pts.push([areaCircle.lng - dLng, areaCircle.lat - dLat], [areaCircle.lng + dLng, areaCircle.lat + dLat]);
+    }
     if (!pts.length) return;
     if (pts.length === 1) {
       map.easeTo({ center: pts[0], zoom: Math.max(13, map.getZoom()), duration: 500 });
@@ -2570,6 +2794,119 @@ window.initHousesPage = async () => {
   function distToLandmark(h) {
     if (!landmarkLoc || !Number.isFinite(h.lat) || !Number.isFinite(h.lng)) return Infinity;
     return distKm(landmarkLoc, h);
+  }
+
+  // ====================================================================
+  //  Area filter circle — see the area you typed, then refine
+  // ====================================================================
+  const AREA_CIRCLE_SRC = "pawa-area-circle";
+  const AREA_RADII = [1000, 2000, 3000, 5000, 10000];
+
+  // Draw / move the area circle on the MapLibre map (its own source/layers so it
+  // coexists with any admin-boundary shading). Waits for the style if needed.
+  function showAreaCircleOnMap(lat, lng, radius_m, fit) {
+    if (!map) return;
+    if (!map.isStyleLoaded || !map.isStyleLoaded()) {
+      map.once("load", () => showAreaCircleOnMap(lat, lng, radius_m, fit));
+      return;
+    }
+    const data = { type: "Feature", geometry: circlePolygon(lat, lng, radius_m) };
+    const src = map.getSource(AREA_CIRCLE_SRC);
+    if (src) { src.setData(data); }
+    else {
+      map.addSource(AREA_CIRCLE_SRC, { type: "geojson", data });
+      map.addLayer({ id: AREA_CIRCLE_SRC + "-fill", type: "fill", source: AREA_CIRCLE_SRC,
+        paint: { "fill-color": "#0a6f4d", "fill-opacity": 0.10 } });
+      map.addLayer({ id: AREA_CIRCLE_SRC + "-line", type: "line", source: AREA_CIRCLE_SRC,
+        paint: { "line-color": "#0a6f4d", "line-width": 2, "line-dasharray": [2, 1.5] } });
+    }
+    if (fit) {
+      const dLat = radius_m / 111320;
+      const dLng = radius_m / (111320 * Math.cos(lat * Math.PI / 180));
+      try { map.fitBounds([[lng - dLng, lat - dLat], [lng + dLng, lat + dLat]],
+        { padding: 50, maxZoom: 14, duration: 600 }); } catch (_) {}
+    }
+  }
+  function clearAreaCircleOnMap() {
+    if (!map || !map.getSource || !map.getSource(AREA_CIRCLE_SRC)) return;
+    [AREA_CIRCLE_SRC + "-line", AREA_CIRCLE_SRC + "-fill"].forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
+    map.removeSource(AREA_CIRCLE_SRC);
+  }
+
+  // Geocode whatever is in the Area box (gazetteer first, then the online
+  // geocoder) and, if found, drop a circle there + filter spatially. Unknown
+  // text just leaves the plain text filter in charge.
+  async function geocodeAreaFilter() {
+    const q = (fArea?.value || "").trim();
+    const seq = ++areaGeoSeq;
+    if (q.length < 2) { areaCircle = null; clearAreaCircleOnMap(); hideAreaCircleChip(); return; }
+    let pt = null;
+    const known = window.resolveTzPlace && window.resolveTzPlace(q);
+    if (known) pt = { lat: known.lat, lng: known.lng, name: known.name };
+    if (!pt && window.pawaGeo?.suggest) {
+      try {
+        const hits = await pawaGeo.suggest(q, { limit: 1 });
+        const h0 = hits && hits[0];
+        if (h0 && Number.isFinite(+h0.lat) && Number.isFinite(+h0.lng))
+          pt = { lat: +h0.lat, lng: +h0.lng, name: h0.name || q };
+      } catch (_) {}
+    }
+    if (seq !== areaGeoSeq) return;        // a newer keystroke superseded this one
+    if (!pt) { areaCircle = null; clearAreaCircleOnMap(); hideAreaCircleChip(); apply(); return; }
+    areaCircle = { lat: pt.lat, lng: pt.lng, radius_m: areaRadiusM, name: pt.name };
+    showAreaCircleOnMap(pt.lat, pt.lng, areaRadiusM, true);
+    showAreaCircleChip(pt.name);
+    apply();
+  }
+
+  // A small overlay chip on the map: "◯ Kigamboni  radius [3 km ▾]  ✕". The
+  // radius select is the "flexible" part — widen/narrow and the circle + results
+  // update live.
+  function ensureAreaCircleChip() {
+    let chip = document.getElementById("hpAreaCircleChip");
+    if (chip) return chip;
+    const mapEl = document.getElementById("housesMap");
+    const wrap = mapEl && mapEl.parentElement;
+    if (!wrap) return null;
+    if (getComputedStyle(wrap).position === "static") wrap.style.position = "relative";
+    chip = document.createElement("div");
+    chip.id = "hpAreaCircleChip";
+    chip.style.cssText = "position:absolute;left:12px;top:12px;z-index:5;background:#fff;border:1px solid #d7d3ca;" +
+      "border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.14);padding:6px 10px;display:none;align-items:center;" +
+      "gap:8px;max-width:calc(100% - 24px);font:600 12px/1.3 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1915;";
+    chip.innerHTML =
+      '<span aria-hidden="true">◯</span>' +
+      '<span class="hpac-name" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>' +
+      '<label style="font-weight:500;color:#6b6960;display:flex;align-items:center;gap:4px;">radius' +
+        '<select id="hpAreaRadius" style="font:inherit;border:1px solid #d7d3ca;border-radius:7px;padding:2px 4px;">' +
+          AREA_RADII.map((r) => `<option value="${r}" ${r === areaRadiusM ? "selected" : ""}>${r >= 1000 ? (r / 1000) + " km" : r + " m"}</option>`).join("") +
+        '</select></label>' +
+      '<button type="button" id="hpAreaClear" aria-label="Clear area" ' +
+        'style="border:0;background:none;cursor:pointer;color:#6b6960;font-size:15px;line-height:1;">✕</button>';
+    wrap.appendChild(chip);
+    chip.querySelector("#hpAreaRadius").addEventListener("change", (e) => {
+      areaRadiusM = +e.target.value || 3000;
+      if (areaCircle) {
+        areaCircle.radius_m = areaRadiusM;
+        showAreaCircleOnMap(areaCircle.lat, areaCircle.lng, areaRadiusM, true);
+        apply();
+      }
+    });
+    chip.querySelector("#hpAreaClear").addEventListener("click", () => {
+      if (fArea) fArea.value = "";
+      areaCircle = null; clearAreaCircleOnMap(); hideAreaCircleChip(); apply();
+    });
+    return chip;
+  }
+  function showAreaCircleChip(name) {
+    const chip = ensureAreaCircleChip();
+    if (!chip) return;
+    chip.querySelector(".hpac-name").textContent = landmarkShort(name);
+    chip.style.display = "flex";
+  }
+  function hideAreaCircleChip() {
+    const chip = document.getElementById("hpAreaCircleChip");
+    if (chip) chip.style.display = "none";
   }
 
   function focusHouse(id, opts = {}) {
@@ -2719,11 +3056,15 @@ window.initHousesPage = async () => {
             <input id="hpPinPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+255 7XX XXX XXX">
             <input id="hpPinName" type="text" autocomplete="name" placeholder="Your name (optional)">
           </div>
+          <label class="hp-pin-form__by" for="hpPinNeededBy">Needed by <small>(optional — agents prioritise the soonest)</small>
+            <input id="hpPinNeededBy" type="date" min="${new Date().toISOString().slice(0,10)}">
+          </label>
           <button type="button" id="hpPinSubmit" class="hp-empty__cta"> Notify me when a room appears</button>
           <div id="hpPinMsg" class="hp-pin-form__msg" hidden></div>
         </div>`;
       const phoneEl = document.getElementById("hpPinPhone");
       const nameEl  = document.getElementById("hpPinName");
+      const byEl    = document.getElementById("hpPinNeededBy");
       const subEl   = document.getElementById("hpPinSubmit");
       const msgEl   = document.getElementById("hpPinMsg");
       phoneEl?.focus();
@@ -2731,10 +3072,13 @@ window.initHousesPage = async () => {
         msgEl.hidden = true;
         subEl.disabled = true; subEl.textContent = "Saving…";
         try {
-          await createDemandPin(anchor, { phone: phoneEl.value, name: nameEl.value });
+          await createDemandPin(anchor, { phone: phoneEl.value, name: nameEl.value, needed_by: byEl?.value });
+          const byNote = byEl?.value
+            ? ` They'll see you need it by <strong>${esc(byEl.value)}</strong> and prioritise closing before then.`
+            : "";
           formWrap.innerHTML = `<div class="hp-pin-form hp-pin-form--done">
              <strong>You're on the waiting list for ${esc(anchor.label)}.</strong>
-            <span>The moment an agent posts a matching room nearby, they'll see your number and call you.</span>
+            <span>The moment an agent posts a matching room nearby, they'll see your number and call you.${byNote}</span>
           </div>`;
         } catch (err) {
           subEl.disabled = false; subEl.textContent = " Notify me when a room appears";
@@ -2745,7 +3089,7 @@ window.initHousesPage = async () => {
     });
   }
 
-  async function createDemandPin(anchor, { phone, name }) {
+  async function createDemandPin(anchor, { phone, name, needed_by }) {
     const digits = String(phone || "").replace(/[^\d+]/g, "");
     if (digits.replace(/\D/g, "").length < 9) throw new Error("Please enter a valid phone number.");
     const area = (landmarkLoc && landmarkShort(landmarkLoc.name)) || fArea.value || (smartCriteria?.area) || null;
@@ -2763,11 +3107,51 @@ window.initHousesPage = async () => {
       min_bedrooms: parseInt(fBeds.value || "0", 10) || (smartCriteria?.bedrooms || 0) || 0,
       max_budget_tzs: budgetCapFromFilter() || (smartCriteria?.priceMax || 0) || 0,
       phone: digits,
-      name: (name || "").trim() || null
+      name: (name || "").trim() || null,
+      needed_by: (needed_by || "").trim() || null,   // when they need the place by
     };
+    return insertDemandPin(pin);
+  }
+
+  // Build a demand pin straight from a saved area ALERT, so an alert that carries
+  // a "needed by" date + a phone also reaches AGENTS (not just this browser): an
+  // agent posting nearby — or one whose tenant is about to vacate — sees the
+  // waiting seeker and their deadline and can close before it. Silent no-op when
+  // there's no usable phone/point, so it never blocks the alert from saving.
+  async function createDemandFromAlert(a, phone) {
+    const digits = String(phone || "").replace(/[^\d+]/g, "");
+    if (digits.replace(/\D/g, "").length < 9) return null;
+    const lat = Number(a.lat), lng = Number(a.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const first = (Array.isArray(a.areas) && a.areas[0]) || null;
+    // Acceptance ring: a circle's own radius, else a sensible default for a
+    // drawn/ward area (the agent match still uses the pin's lat/lng centre).
+    let radius = 2500;
+    if (first && first.kind === "circle" && Number(first.radius_m) > 0) radius = Number(first.radius_m);
+    const allowedTypes = new Set(["apartment", "house", "plot", "office", "shop"]);
+    const pin = {
+      id: "dp-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      lat, lng,
+      area: a.name || null,
+      radius_m: Math.round(radius),
+      listing: a.listing === "sale" ? "sale" : "rent",
+      type: allowedTypes.has(a.type) ? a.type : null,
+      min_bedrooms: Number(a.beds) || 0,
+      max_budget_tzs: Number(a.price_max) || 0,
+      phone: digits,
+      name: null,
+      needed_from: a.from || null,
+      needed_by: a.until || null,
+    };
+    return insertDemandPin(pin);
+  }
+
+  // Persist a demand pin: tie it to the signed-in user when there is one, write
+  // to public.house_demand_pins, and remember it locally. Throws on a real error
+  // (caller decides how loud to be); degrades to localStorage with no backend.
+  async function insertDemandPin(pin) {
     const sb = window.DataStore?.sb;
     if (!sb) {
-      // No backend wired — keep it locally so the intent isn't lost.
       const local = JSON.parse(localStorage.getItem("pawa_demand_pins") || "[]");
       local.push(pin); localStorage.setItem("pawa_demand_pins", JSON.stringify(local));
       return pin;
@@ -2776,7 +3160,31 @@ window.initHousesPage = async () => {
       const { data: { session } } = await sb.auth.getSession();
       pin.user_id = session?.user?.id || null;
     } catch (_) { pin.user_id = null; }
-    const { error } = await sb.from("house_demand_pins").insert(pin);
+    // Tag the pin with its region (reverse-geocoded from the point) so agents who
+    // operate in that region see it — not only those who list within a few km.
+    if (!pin.region && Number.isFinite(+pin.lat) && Number.isFinite(+pin.lng) && window.pawaGeo) {
+      try {
+        const j = await window.pawaGeo.reverse(`format=json&zoom=12&addressdetails=1&lat=${pin.lat}&lon=${pin.lng}`);
+        const a = (j && j.address) || {};
+        let reg = a.state || a.region || a.county || a.state_district || null;
+        pin.region = window.pawaCanonRegion ? (await window.pawaCanonRegion(reg)) : reg;
+        let dist = a.county || a.state_district || a.city_district || a.district || a.municipality || null;
+        pin.district = window.pawaCanonDistrict ? window.pawaCanonDistrict(dist) : dist;
+      } catch (_) {}
+    }
+    // Strip any column the live schema doesn't have yet (needed_from / needed_by
+    // on older DBs) and retry, so the pin always saves — the dates are an
+    // enhancement, not a requirement.
+    let payload = { ...pin };
+    let error;
+    for (let i = 0; i < 4; i++) {
+      ({ error } = await sb.from("house_demand_pins").insert(payload));
+      if (!error) break;
+      const m = /column "?([a-z_]+)"?\s+.*does not exist|Could not find the '([a-z_]+)' column/i.exec(error.message || "");
+      const col = m && (m[1] || m[2]);
+      if (col && col in payload) { delete payload[col]; continue; }
+      break;
+    }
     if (error) {
       if (/relation .* does not exist|schema cache/i.test(error.message || ""))
         throw new Error("Waiting lists aren't set up yet on this server. Run supabase/setup_house_demand.sql.");
@@ -2799,6 +3207,9 @@ window.initHousesPage = async () => {
         border:1px solid #d8e6df;border-radius:14px;padding:14px 16px}
       .hp-pin-form__lead{margin:0 0 10px;font-size:.86rem;line-height:1.45;color:#33403a}
       .hp-pin-form__row{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+      .hp-pin-form__by{display:block;font-size:.8rem;font-weight:600;color:#41504a;margin-bottom:10px}
+      .hp-pin-form__by small{font-weight:400;color:#6b7a73}
+      .hp-pin-form__by input{margin-top:4px}
       .hp-pin-form input{width:100%;padding:10px 12px;border:1px solid #cdd9d3;border-radius:9px;font-size:.92rem}
       .hp-pin-form input:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
       .hp-pin-form .hp-empty__cta{width:100%}

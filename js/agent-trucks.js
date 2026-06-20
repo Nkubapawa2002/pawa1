@@ -80,6 +80,7 @@ create policy "truck-photos upload" on storage.objects for insert
   let authMode = "signin";
   let editingId = null;
   let photoState = [];       // [{path} | {file, preview}]
+  let agentProfile = null;   // region + area this owner operates in
   let pin = { lat: null, lng: null };
   let pinMap = null, pinMarker = null;
   // Admin hierarchy (region/district/ward) auto-derived from the pin so the
@@ -132,15 +133,30 @@ create policy "truck-photos upload" on storage.objects for insert
 
   // ---- auth ----------------------------------------------------------------
   await routeOnAuth();
-  sb.auth.onAuthStateChange((_e, session) => routeOnAuth(session));
+  // Only react to genuine sign-in / sign-out. Supabase also fires this event on
+  // TOKEN_REFRESHED, USER_UPDATED and tab-refocus — re-routing on those would
+  // hide an open registration form and reload the list mid-entry (it looks like
+  // the page "auto-refreshed" and wiped what you were typing).
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT") { routeOnAuth(null); return; }
+    if (event === "SIGNED_IN" && !authCard.hidden) routeOnAuth(session);
+  });
 
   async function routeOnAuth(session) {
     const s = session ?? (await sb.auth.getSession()).data.session;
     if (s?.user) {
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
       userEmailEl.textContent = s.user.email || "—";
+      // Make sure the owner has declared the region they belong to + the area
+      // they operate in before they list — so their trucks surface to searchers
+      // in that area.
+      try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
+      if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyTrucks();
       checkSubscription();
+      window.renderAgentClientTip?.({ mount: dashboard, id: "atClientTip", kind: "trucks" });
+      window.renderAgentMessages?.({ sb, mount: dashboard });
+      window.AgentDemandBoard?.load({ sb, agentProfile, mount: dashboard, kind: "trucks" });
     } else {
       authCard.hidden = false; dashboard.hidden = true; formSection.hidden = true;
     }
@@ -437,12 +453,15 @@ create policy "truck-photos upload" on storage.objects for insert
         const a = (j && j.address) || {};
         const region = a.state || a.region || "";
         const district = a.county || a.state_district || a.city_district || a.municipality || a.city || a.town || "";
-        const ward = a.suburb || a.quarter || a.neighbourhood || a.ward || a.village || "";
+        const ward = a.ward || a.suburb || a.quarter || a.neighbourhood || a.village || "";
         const area = a.neighbourhood || a.suburb || a.quarter || a.village || a.town || a.city_district || a.hamlet || "";
         pinAdmin = { region, district, ward, area };
         if (region && fRegion && !fRegion.value) fRegion.value = region;
         const areaEl = $("atArea");
-        if (area && areaEl && !areaEl.value.trim()) areaEl.value = area;
+        // Tag by the neighbourhood area when there is one, else by the ward — so a
+        // truck pinned on a nameless street still gets a real, searchable area.
+        const areaFill = area || ward;
+        if (areaFill && areaEl && !areaEl.value.trim()) areaEl.value = areaFill;
       } catch (_) { /* offline → the pin still saves */ }
     }, 600);
   }
@@ -557,10 +576,10 @@ create policy "truck-photos upload" on storage.objects for insert
         driver_included: $("atDriver").checked,
         loaders_included: $("atLoaders").checked,
         service_area: $("atService").value,
-        region: fRegion.value || (pinAdmin && pinAdmin.region) || null,
-        area: $("atArea").value.trim() || (pinAdmin && pinAdmin.area) || null,
-        district: (pinAdmin && pinAdmin.district) || null,
-        ward: (pinAdmin && pinAdmin.ward) || null,
+        region: fRegion.value || (pinAdmin && pinAdmin.region) || agentProfile?.region || null,
+        area: $("atArea").value.trim() || (pinAdmin && pinAdmin.area) || agentProfile?.area_of_operations || null,
+        district: (pinAdmin && pinAdmin.district) || agentProfile?.district || null,
+        ward: (pinAdmin && pinAdmin.ward) || agentProfile?.ward || null,
         address: $("atAddress").value.trim() || null,
         lat: pin.lat, lng: pin.lng,
         photo: paths[0] || null,

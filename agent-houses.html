@@ -74,6 +74,10 @@
     .ah-btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--c-border, #e7e4dd); background: #fff; color: var(--c-text, #1a1915); cursor: pointer; font-weight: 600; font-size: .88rem; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
     .ah-btn:hover { border-color: var(--c-brand, #0a6f4d); color: var(--c-brand-deep, #064a33); }
     .ah-btn-brand { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .ah-btn-complete { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .ah-close-reminder { display: flex; gap: 11px; align-items: flex-start; margin: 0 0 14px; padding: 12px 15px; border: 1px solid #cde7db; border-radius: 13px; background: linear-gradient(180deg, #f1fbf6, #fff); font-size: .87rem; line-height: 1.5; color: #2c4a3c; }
+    .ah-close-reminder__ic { font-size: 1.2rem; line-height: 1.2; flex-shrink: 0; }
+    .ah-close-reminder strong { color: #0a6f4d; }
     .ah-btn-brand:hover { background: var(--c-brand-deep, #064a33); color: #fff; }
     .ah-btn-danger { color: var(--c-danger, #b91c1c); border-color: var(--c-danger-soft, #fce4e4); }
     .ah-btn-danger:hover { background: var(--c-danger-soft, #fce4e4); color: var(--c-danger, #b91c1c); }
@@ -561,6 +565,11 @@
         </div>
       </div>
 
+      <div class="ah-close-reminder" role="note">
+        <span class="ah-close-reminder__ic" aria-hidden="true">✅</span>
+        <span data-i18n-html="ah_close_reminder"><strong>Closed a house deal?</strong> Tap <strong>Completed</strong> (rentals) or <strong>Mark sold</strong> (sales) so the listing disappears from clients straight away. A house is taken once — leaving it up means buyers keep calling about a place that's gone (double-booking). Trucks &amp; services stay up; only houses come off when booked.</span>
+      </div>
+
       <div id="ahList" class="ah-list" aria-live="polite" aria-busy="true">
         <div class="hp-sk-card" style="grid-template-columns:1fr;grid-template-rows:160px auto" aria-hidden="true">
           <div class="hp-sk-card__photo" style="height:160px"></div>
@@ -588,7 +597,7 @@
         <p class="muted" data-i18n="ah_form_sub">Fill in the property details. The map pin tells buyers exactly where it is — drag it or tap "Use my GPS" while standing at the property.</p>
         <p class="muted" style="display:flex;gap:8px;align-items:flex-start;background:#eef2f7;border-radius:10px;padding:10px 12px;margin:0 0 8px;font-size:.85rem;color:#5b6472">
           <span aria-hidden="true">⏳</span>
-          <span data-i18n="ah_ttl_notice">Listings are temporary: this property and its photos/videos are removed automatically <strong>15 days</strong> after posting. You can delete it sooner any time, or re-post it to refresh the 15 days.</span>
+          <span data-i18n-html="ah_ttl_notice">Listings are temporary: this property and its photos/videos are removed automatically <strong>15 days</strong> after posting. You can delete it sooner any time, or re-post it to refresh the 15 days.</span>
         </p>
 
         <!-- 1. Photos + videos -->
@@ -650,6 +659,15 @@
             <label for="ahTypeOther" data-i18n="ah_field_type_other">Specify the kind</label>
             <input id="ahTypeOther" type="text" maxlength="40" placeholder="e.g. Warehouse, market stall, frame…" data-i18n-placeholder="ah_field_type_other_ph" />
           </div>
+          <div class="ah-form-row">
+            <label for="ahIsFrame" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-weight:600;">
+              <input id="ahIsFrame" type="checkbox" style="margin-top:3px;width:18px;height:18px;flex-shrink:0;" />
+              <span style="flex:1;min-width:0;">
+                <span data-i18n-html="ah_field_is_frame">This is a <strong>Frame</strong> — a room/space for business</span>
+                <small style="display:block;font-weight:400;color:var(--c-text-muted,#6b6960);font-size:.78rem;margin-top:3px;" data-i18n="ah_field_is_frame_hint">Tick if this is a shop, office, godown, stall, kiosk or any business space (a “room for business”). Frames show on the Frame opportunity map; normal residential rooms don’t.</small>
+              </span>
+            </label>
+          </div>
           <div class="ah-grid-2">
             <div class="ah-form-row">
               <label for="ahPrice" data-i18n="ah_field_price">Price (TZS)</label>
@@ -669,6 +687,16 @@
             <input id="ahMinMonths" type="number" min="1" max="60" step="1" value="1" placeholder="e.g. 6" />
             <small style="color:var(--c-text-muted,#6b6960);font-size:.78rem;margin-top:2px;" data-i18n="ah_field_min_months_hint">
               How many months the tenant must pay at once for this room, shop or office (e.g. 6 months). Ignored for properties listed for sale.
+            </small>
+          </div>
+
+          <!-- Agent commission ("dalali" fee) the tenant pays you — rent only -->
+          <div class="ah-form-row" id="ahAgentFeeRow">
+            <label for="ahAgentFee">Your agent fee (TZS)</label>
+            <input id="ahAgentFee" type="number" min="0" step="50000" placeholder="Leave blank = one month's rent" />
+            <small style="color:var(--c-text-muted,#6b6960);font-size:.78rem;margin-top:2px;">
+              The commission the tenant pays you for the deal, shown separately from the rent. Leave blank to use the
+              standard one month's rent, or type any amount (e.g. half a month or a flat fee).
             </small>
           </div>
         </div>
@@ -875,6 +903,7 @@
   <script src="js/geolocate.js"></script>
   <script src="js/map-expand.js"></script>
   <script src="js/auth-ui.js"></script>
+  <script src="js/agent-profile.js"></script>
   <script src="js/agent-houses.js"></script>
   <script>
     window.renderNav("agent-houses.html");

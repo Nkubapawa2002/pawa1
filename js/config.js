@@ -21,7 +21,14 @@ window.APP_CONFIG = {
   // is true AND the keys are set. Leave USE_CLERK false until you've completed
   // the SupabaseClerk dashboard setup in docs/CLERK_SETUP.md — otherwise
   // Supabase will reject Clerk tokens and authenticated requests will fail.
-  USE_CLERK: true,
+  //
+  // KEEP THIS FALSE FOR PRODUCTION: a Clerk user id ("user_xxx") is NOT a UUID,
+  // so when Supabase Storage stamps objects.owner_id (a uuid column) from the
+  // JWT `sub`, every authenticated upload — house photos, truck/service media —
+  // fails with `invalid input syntax for type uuid`. Native Supabase Auth issues
+  // real UUID ids, so Storage + RLS + owner_user_id all work. Only flip this on
+  // after the full Clerk↔Supabase setup (incl. a UUID-shaped subject claim).
+  USE_CLERK: false,
   CLERK_PUBLISHABLE_KEY: "pk_test_ZGlzY3JldGUtcHJhd24tNTcuY2xlcmsuYWNjb3VudHMuZGV2JA",
   CLERK_DOMAIN: "discrete-prawn-57.clerk.accounts.dev",
   // Clerk JWT template that adds the claims Supabase RLS needs: `role`
@@ -83,6 +90,7 @@ window.APP_CONFIG = {
   AI_THINK_PATH:  "/functions/v1/ai-think",         // structured decision / algorithm
   AI_MAP_PATH:    "/functions/v1/ai-map",           // NL → map intent
   AI_SEARCH_PATH: "/functions/v1/ai-search",        // NL → house/ride/near-me search intent
+  SEND_SMS_PATH:  "/functions/v1/send-sms",          // admin → agent SMS fallback (deploy supabase/functions/send-sms)
   // Master switch for the AI search brain (houses smart-search + ride trip box
   // + near-me AI search). Now LIVE: ai-search is deployed on Gemini (reuses
   // GEMINI_API_KEY, --no-verify-jwt). Everything still works without it
@@ -94,15 +102,18 @@ window.APP_CONFIG = {
   AI_SEARCH_URL: "",
 
   // ---------- Agent subscriptions ----------
-  // Every agent (bus/cargo, house owner, truck owner) pays this monthly fee.
-  // New agents must pay within AGENT_GRACE_HOURS of registering or their account
-  // auto-pauses (listings hidden) until the admin records a payment. Enforced in
-  // supabase/agent_grace_active.sql; these mirror it for the UI copy + countdown.
+  // Admin-controlled billing, NO payment gateway (gateway comes later). Every
+  // agent (house owner, truck owner, service provider, bus/cargo) pays this
+  // monthly fee to the admin offline; the admin records it in admin.html →
+  // "All Agents" and the amount sets how long coverage lasts. Authoritative DB
+  // logic: supabase/agent_billing_setup.sql; these mirror it for the UI copy.
   AGENT_MONTHLY_FEE_TZS: 10000,
+  // Legacy 48h "pay-or-pause" grace — no longer enforced (the model is now
+  // approval-based, see AGENT_APPROVAL_DAYS). Kept only for old UI copy paths.
   AGENT_GRACE_HOURS: 48,
   // New agents are live immediately but must be APPROVED by an admin within this
   // many days of registering, or their listings auto-hide until approved.
-  // Enforced in supabase/agent_approval.sql; mirrored here for the UI copy.
+  // Enforced in supabase/agent_billing_setup.sql; mirrored here for the UI copy.
   AGENT_APPROVAL_DAYS: 7,
 
   // ---------- Hidden navigation ----------
@@ -298,12 +309,19 @@ if (window.CLERK_ENABLED) {
 // =====================================================
 // Agent subscription banner — shared across all 3 agent dashboards
 // =====================================================
-// Renders the right notice from a my_agent_subscription() result:
-//   • grace          → amber warning + live "Xh Ym left" countdown (non-blocking)
-//   • grace_expired  → red paywall: 48h free period ended, pay to activate
-//   • deactivated    → red paywall: deactivated by admin, contact admin
-//   • expired/cancelled/overdue → red paywall: subscription lapsed, renew
-//   • active/none    → nothing (removes any prior banner)
+// Renders the right notice from a my_agent_subscription() result. The live model
+// is ADMIN-controlled (no payment gateway): an agent is live on registering,
+// must be approved by an admin within AGENT_APPROVAL_DAYS, then stays live while
+// the admin keeps their paid_until current. Reasons the RPC emits:
+//   • preview          → blue: live, pending admin approval (N days left)
+//   • approval_expired → red paywall: preview ended, awaiting admin approval
+//   • active           → subtle status bar (renew is handled by the admin)
+//   • expired          → red paywall: coverage lapsed, pay the admin to renew
+//   • deactivated      → red paywall: admin switched the account off (+ reason)
+//   • cancelled/overdue→ red paywall: pay the admin to reinstate
+//   • none             → nothing (removes any prior banner)
+// (The legacy `grace`/`grace_expired` branches below are kept for backward
+//  compatibility but are no longer emitted by the current RPC.)
 // opts: { mount: HTMLElement, id: string, what: "profile"|"listings"|"trucks" }
 window.adminContactHtml = () => {
   const c = (window.APP_CONFIG?.SUPPORT_CONTACTS || [])[0] || {};
@@ -349,39 +367,26 @@ window.renderAgentSubBanner = (sub, opts) => {
   el.id = id;
   if (!prior) mount.insertBefore(el, mount.firstChild);
 
-  // Self-serve "Pay now" CTA (mobile money). Shown for billing-driven states —
-  // NOT for an admin 'deactivated' hold (only the admin can lift that).
-  const payBtn = `<div style="margin-top:10px"><button type="button" data-agent-pay style="display:inline-flex;align-items:center;gap:6px;background:#0a6f4d;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:.9rem;cursor:pointer">Pay now — ${fee}/month</button></div>`;
-  // Wire the CTA once via delegation, so the live grace countdown (which
-  // re-renders innerHTML) never loses the handler.
-  if (!el._payWired) {
-    el._payWired = true;
-    el.addEventListener("click", (e) => {
-      if (e.target.closest("[data-agent-pay]")) {
-        e.preventDefault();
-        window.openAgentSubscribeModal &&
-          window.openAgentSubscribeModal({ agentKey: (sub && sub.agent_key) || null });
-      }
-    });
-  }
+  // Renewals are ADMIN-ONLY: an agent never pays through the app. To extend or
+  // reactivate a subscription they pay the admin, who records it in the All
+  // Agents tab (the amount they pay determines how long it lasts). So every
+  // "renew/pay" state simply directs the agent to contact the admin.
+  const renewViaAdmin = `<div style="margin-top:10px;font-weight:600">To renew, pay the admin and they'll extend your subscription.</div>` +
+    `<div style="margin-top:4px">${window.adminContactHtml()}</div>`;
 
-  // ---- Active: subtle status bar + proactive "Renew" (pay before expiry) ----
+  // ---- Active: subtle status bar (renew handled by the admin) ----
   if (reason === "active") {
     const pu = sub && sub.paid_until ? new Date(sub.paid_until) : null;
     const daysLeft = pu ? Math.ceil((pu - new Date()) / 86400000) : null;
     const soon = daysLeft != null && daysLeft <= 7;
     const untilStr = pu ? pu.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
     el.style.cssText = "margin:0 0 16px;padding:11px 16px;border-radius:12px;font-size:.9rem;line-height:1.5;" +
-      "display:flex;align-items:center;gap:12px;flex-wrap:wrap;" +
       (soon ? "background:#fff7ed;border:1px solid #fdba74;color:#9a3412"
             : "background:#f0fdf4;border:1px solid #bbf7d0;color:#166534");
-    const msg = soon
-      ? `<span>Subscription ends in <strong>${daysLeft} day${daysLeft === 1 ? "" : "s"}</strong>${untilStr ? ` (${untilStr})` : ""} — renew to stay live.</span>`
+    el.innerHTML = soon
+      ? `<span>Subscription ends in <strong>${daysLeft} day${daysLeft === 1 ? "" : "s"}</strong>${untilStr ? ` (${untilStr})` : ""}.</span>` +
+        ` <span>To renew, pay the admin to extend it. ${window.adminContactHtml()}</span>`
       : `<span>Subscription active${untilStr ? ` until <strong>${untilStr}</strong>` : ""}.</span>`;
-    const renew = `<button type="button" data-agent-pay style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;` +
-      `background:${soon ? "#bc5c00" : "#0a6f4d"};color:#fff;border:none;border-radius:10px;padding:8px 14px;` +
-      `font-weight:700;font-size:.86rem;cursor:pointer;white-space:nowrap">Renew${soon ? " now" : ""} — ${fee}/month</button>`;
-    el.innerHTML = msg + renew;
     return;
   }
 
@@ -417,8 +422,8 @@ window.renderAgentSubBanner = (sub, opts) => {
         left = ` You have <strong>${h}h ${m}m</strong> left before your account is paused.`;
       }
       el.innerHTML = `<strong> Payment required to keep your account active.</strong> ` +
-        `New agents must pay <strong>${fee}/month</strong> within ${graceH} hours of registering.${left} ` +
-        window.adminContactHtml() + payBtn;
+        `New agents must pay the <strong>${fee}/month</strong> subscription within ${graceH} hours of registering.${left} ` +
+        renewViaAdmin;
     };
     tick();
     if (deadline) el._timer = setInterval(tick, 30000);
@@ -438,23 +443,228 @@ window.renderAgentSubBanner = (sub, opts) => {
       `${window.adminContactHtml()} Once you reach the admin it'll be sorted out as fast as possible.`;
   } else if (reason === "grace_expired") {
     el.innerHTML = `<strong> Your ${graceH}-hour free period has ended — payment required.</strong> ` +
-      `${noun} hidden until you pay <strong>${fee}/month</strong>. ${window.adminContactHtml()}` + payBtn;
+      `${noun} hidden until your <strong>${fee}/month</strong> subscription is paid.` + renewViaAdmin;
   } else {
     const when = sub && sub.paid_until ? ` on ${sub.paid_until}` : "";
-    el.innerHTML = `<strong> Subscription expired${when}.</strong> ${noun} hidden from clients until you renew. ` +
-      `Pay <strong>${fee}/month</strong> to reactivate. ${window.adminContactHtml()}` + payBtn;
+    el.innerHTML = `<strong> Subscription expired${when}.</strong> ${noun} hidden from clients until it's renewed. ` +
+      `The <strong>${fee}/month</strong> subscription is paid to the admin, who extends it.` + renewViaAdmin;
   }
 };
 
 // =====================================================
-// Agent self-serve subscription — mobile-money "Pay now" modal
+// Agent awareness — "your client list is your business"
 // =====================================================
-// Charges the monthly fee through the existing create-payment rail with
-// reference_type='agent_subscription'. The DB trigger (agent_subscription_selfpay.sql)
-// extends agent_billing.paid_until by a month when the payment completes; we
-// then poll my_agent_subscription() and reload so listings unhide automatically.
-//   opts: { agentKey?: string }  (agentKey resolved from the RPC if omitted)
+// Shown once (then snoozed) on every agent dashboard. Teaches agents that the
+// contacts they capture (phone + what the customer wants + their dates) are the
+// asset that grows their income: instant matches, repeat business, beating
+// deadlines, and never losing a deal to a lost number. Dismissible; re-appears
+// after RESHOW_DAYS so the habit keeps getting reinforced.
+//   opts: { mount, id?, kind?: "houses"|"services"|"trucks", captureHint? }
+window.renderAgentClientTip = (opts) => {
+  opts = opts || {};
+  const mount = opts.mount;
+  if (!mount) return;
+  const id = opts.id || "agentClientTip";
+  const kind = opts.kind || "houses";
+  const RESHOW_DAYS = 14;
+  const KEY = "pawa.agentClientTip.dismissedAt." + kind;
+
+  // Respect a recent dismissal.
+  try {
+    const at = +localStorage.getItem(KEY) || 0;
+    if (at && (Date.now() - at) < RESHOW_DAYS * 86400000) { document.getElementById(id)?.remove(); return; }
+  } catch (_) {}
+  if (document.getElementById(id)) return;   // already on screen
+
+  const item = kind === "trucks" ? "truck job" : kind === "services" ? "service request" : "room";
+  const captureHint = opts.captureHint ||
+    (kind === "houses"
+      ? "Save every caller's phone, what they want, their budget and their move-in dates — use the <strong>Tenant</strong> button to log renters and keep the <strong>waiting-renters</strong> board full."
+      : "Save every caller's phone, what they need, their budget and their dates.");
+  const beatLine = kind === "houses"
+    ? " — even before a tenant's rent ends"
+    : "";
+
+  const el = document.createElement("div");
+  el.id = id;
+  el.style.cssText = "margin:0 0 16px;border:1px solid #e3d3a6;border-radius:14px;overflow:hidden;" +
+    "background:linear-gradient(180deg,#fffaf0,#ffffff);box-shadow:0 1px 3px rgba(0,0,0,.05);";
+  el.innerHTML =
+    '<div style="display:flex;gap:12px;padding:14px 16px;align-items:flex-start;font-family:inherit;">' +
+      '<div style="font-size:1.5rem;line-height:1;flex-shrink:0;">💼</div>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-weight:800;color:#7a5a10;font-size:1rem;margin:0 0 3px;">Your client list is your business</div>' +
+        '<p style="margin:0 0 8px;font-size:.88rem;line-height:1.5;color:#5b5036;">' + captureHint +
+          ' The contacts you keep today are the deals you close tomorrow — this is the single most valuable asset you build here.</p>' +
+        '<ul style="margin:0;padding-left:18px;font-size:.84rem;line-height:1.6;color:#5b5036;">' +
+          '<li><strong>Instant matches</strong> — when a new ' + item + ' comes up you already have customers waiting, so you call them first and close before anyone else.</li>' +
+          '<li><strong>Repeat &amp; referrals</strong> — a client you served well comes back and sends their friends.</li>' +
+          '<li><strong>Beat deadlines</strong> — knowing each customer’s dates lets you line up the next deal early' + beatLine + '.</li>' +
+          '<li><strong>Never lose income</strong> — a saved number is a deal you can still close; a lost number is money gone.</li>' +
+        '</ul>' +
+        '<button type="button" id="' + id + 'Dismiss" style="margin-top:10px;background:#7a5a10;color:#fff;border:0;' +
+          'border-radius:9px;padding:8px 16px;font-weight:600;font-size:.85rem;cursor:pointer;">Got it</button>' +
+      '</div>' +
+    '</div>';
+
+  // Sit at the top of the dashboard. The subscription paywall (if any) inserts at
+  // firstChild too and may mount after this — that's fine, it lands above the tip.
+  mount.insertBefore(el, mount.firstChild);
+  document.getElementById(id + "Dismiss")?.addEventListener("click", () => {
+    try { localStorage.setItem(KEY, String(Date.now())); } catch (_) {}
+    el.remove();
+  });
+};
+
+// =====================================================
+// SMS fallback — reach phone-only / offline agents
+// =====================================================
+// Best-effort: POSTs to the send-sms Edge Function (which holds the Africa's
+// Talking / Twilio secrets and verifies the caller is an admin). Passes the
+// signed-in admin's token so the function can authorise. Degrades silently to
+// { configured:false } if the function isn't deployed yet (404), so the in-app
+// message still works without it.  to: string | string[]
+window.pawaSendSms = async (to, message) => {
+  const cfg = window.APP_CONFIG || {};
+  const base = (cfg.SUPABASE_URL || "").replace(/\/$/, "");
+  const path = cfg.SEND_SMS_PATH || "/functions/v1/send-sms";
+  const anon = cfg.SUPABASE_ANON_KEY || "";
+  const list = (Array.isArray(to) ? to : [to]).map((s) => String(s || "").trim()).filter(Boolean);
+  if (!base || !list.length || !message) return { configured: false, sent: 0 };
+  let token = anon;
+  try { const s = await window.Auth?.getSession?.(); if (s?.access_token) token = s.access_token; } catch (_) {}
+  try {
+    const res = await fetch(base + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: anon, Authorization: "Bearer " + token },
+      body: JSON.stringify({ to: list, message }),
+    });
+    if (res.status === 404) return { configured: false, sent: 0 };
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { configured: true, sent: 0, error: data.error || ("HTTP " + res.status) };
+    return { configured: true, sent: data.sent ?? list.length, provider: data.provider };
+  } catch (_) { return { configured: false, sent: 0 }; }
+};
+
+// =====================================================
+// Agent inbox — messages the admin sent to this agent's account
+// =====================================================
+// Shows the agent any UNREAD messages the admin sent them (individually, or as
+// part of "everyone unpaid / deactivated"). Dismissing one marks it read so it
+// won't show again. Silently no-ops if the agent_messages table isn't installed
+// or the agent has no messages. Call from every agent dashboard.
+//   opts: { sb?, mount }
+window.renderAgentMessages = async (opts) => {
+  opts = opts || {};
+  const sb = opts.sb || (window.DataStore && window.DataStore.sb);
+  const mount = opts.mount;
+  if (!sb || !mount) return;
+
+  let rows = [];
+  try {
+    const { data, error } = await sb.from("agent_messages")
+      .select("id,body,created_at")
+      .is("read_at", null)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) return;            // table missing / no access → silently skip
+    rows = Array.isArray(data) ? data : [];
+  } catch (_) { return; }
+
+  const id = "agentMsgInbox";
+  document.getElementById(id)?.remove();
+  if (!rows.length) return;
+
+  const esc = window.escHtml || ((s) => String(s == null ? "" : s)
+    .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
+
+  const el = document.createElement("div");
+  el.id = id;
+  el.style.cssText = "margin:0 0 16px;display:flex;flex-direction:column;gap:10px";
+  el.innerHTML = rows.map((m) => {
+    let when = "";
+    try { when = " · " + new Date(m.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch (_) {}
+    const body = esc(m.body).replace(/\n/g, "<br>");
+    return `<div class="agent-msg" data-id="${esc(m.id)}" style="position:relative;border:1px solid #bfdbfe;background:linear-gradient(180deg,#eff6ff,#fff);border-radius:13px;padding:13px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+      <button type="button" class="agent-msg-x" aria-label="Dismiss" style="position:absolute;top:8px;right:11px;border:0;background:none;font-size:19px;line-height:1;color:#1e40af;cursor:pointer;opacity:.6">×</button>
+      <div style="font-weight:800;color:#1e40af;font-size:.86rem;margin:0 18px 4px 0">Message from Pawa admin${when}</div>
+      <div style="font-size:.9rem;line-height:1.5;color:#1e293b">${body}</div>
+    </div>`;
+  }).join("");
+  mount.insertBefore(el, mount.firstChild);
+
+  el.querySelectorAll(".agent-msg-x").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const card = btn.closest(".agent-msg");
+      const mid = card && card.dataset.id;
+      card?.remove();
+      if (!el.querySelector(".agent-msg")) el.remove();
+      if (mid) { try { await sb.from("agent_messages").update({ read_at: new Date().toISOString() }).eq("id", mid); } catch (_) {} }
+      window.refreshAgentMsgBadge?.();   // keep the nav count in sync
+    });
+  });
+};
+
+// Unread-message count badge in the shared nav (Account menu) + a dot on the
+// mobile hamburger, so an agent notices a new admin message immediately on any
+// page. Scoped to the signed-in user (eq to_user_id), so an admin's own badge
+// stays at their own count, not everyone's. Called from nav.js once logged in.
+window.refreshAgentMsgBadge = async () => {
+  const badge = document.getElementById("navMsgBadge");
+  const dot = document.getElementById("navMsgDot");
+  const mdot = document.getElementById("mnavMsgDot");
+  if (!badge && !dot && !mdot) return;
+
+  if (!document.getElementById("navMsgBadgeStyles")) {
+    const st = document.createElement("style");
+    st.id = "navMsgBadgeStyles";
+    st.textContent =
+      ".nav-msg-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin:0 3px;border-radius:999px;background:#e11d48;color:#fff;font-size:.68rem;font-weight:800;line-height:1;vertical-align:middle}" +
+      ".nav-msg-badge[hidden]{display:none}" +
+      ".nav-toggle{position:relative}" +
+      ".nav-msg-dot{position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:50%;background:#e11d48;border:1.5px solid #fff}" +
+      ".nav-msg-dot[hidden]{display:none}";
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  let n = 0;
+  const sb = window.DataStore && window.DataStore.sb;
+  if (sb) {
+    let uid = null;
+    try { const s = await window.Auth?.getSession?.(); uid = s?.user?.id || null; } catch (_) {}
+    if (uid) {
+      try {
+        const { count, error } = await sb.from("agent_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("to_user_id", uid).is("read_at", null);
+        if (!error && typeof count === "number") n = count;
+      } catch (_) {}
+    }
+  }
+
+  if (badge) {
+    if (n > 0) { badge.textContent = n > 99 ? "99+" : String(n); badge.hidden = false; }
+    else { badge.hidden = true; badge.textContent = ""; }
+  }
+  if (dot) dot.hidden = n <= 0;
+  if (mdot) mdot.hidden = n <= 0;
+};
+
+// =====================================================
+// Agent subscription renewal — ADMIN-ONLY
+// =====================================================
+// Renewals are no longer self-serve: an agent pays the admin (cash / mobile
+// money / however), and the admin records it in the All Agents tab where the
+// amount paid determines how long the subscription runs. So this entry point
+// just directs the agent to the admin. The legacy mobile-money flow below is
+// disabled (kept unreachable for reference / possible future re-enable).
 window.openAgentSubscribeModal = async (opts) => {
+  const contact = (window.adminContactHtml && window.adminContactHtml()) || "Please contact the Pawa admin.";
+  // Strip the HTML tags for a plain-text alert.
+  const plain = contact.replace(/<[^>]+>/g, "");
+  alert("Renewals are handled by the admin.\n\nPay the admin to extend your subscription and they'll activate it right away.\n\n" + plain);
+  return;
+  /* --- disabled: legacy self-serve mobile-money flow (unreachable) --------- */
   opts = opts || {};
   const cfg = window.APP_CONFIG || {};
   const sb  = (window.DataStore && window.DataStore.sb) || window.SB;

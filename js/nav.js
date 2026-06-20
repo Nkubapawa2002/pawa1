@@ -14,7 +14,7 @@ window.renderNav = (active) => {
   const groupActive = (pages) => pages.includes(active) ? "active" : "";
 
   const SERVICES = ["meet.html", "chat.html"];
-  const NETWORK  = ["houses.html", "services.html", "jobs.html", "trucks.html", "near-me.html", "favorites.html"];
+  const NETWORK  = ["houses.html", "services.html", "jobs.html", "trucks.html", "near-me.html", "frame.html", "favorites.html"];
   const ACCOUNT  = ["login.html", "agent-houses.html", "agent-trucks.html", "agent-services.html", "admin.html", "super-admin.html"];
 
   const onlinePill = window.DataStore?.isOnline
@@ -41,6 +41,7 @@ window.renderNav = (active) => {
             <line x1="3" y1="12" x2="21" y2="12"/>
             <line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
+          <span id="navMsgDot" class="nav-msg-dot" hidden aria-hidden="true"></span>
         </button>
 
         <ul class="nav-links">
@@ -68,6 +69,7 @@ window.renderNav = (active) => {
               ${link("jobs.html",      "nav_jobs")}
               ${link("trucks.html",    "nav_trucks")}
               ${link("near-me.html",   "nav_near_me")}
+              ${link("frame.html",     "nav_frame")}
               ${link("favorites.html", "nav_favorites")}
             </div>
           </li>
@@ -75,6 +77,7 @@ window.renderNav = (active) => {
           <li class="nav-group">
             <button class="nav-top-link nav-group-btn ${groupActive(ACCOUNT)}" aria-expanded="false">
               ${window.t("nav_group_account")}
+              <span id="navMsgBadge" class="nav-msg-badge" hidden title="Unread messages from the admin"></span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="nav-dropdown">
@@ -136,10 +139,10 @@ window.renderNav = (active) => {
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
   });
 
-  // Hide company/admin links until auth is confirmed (fail-closed).
+  // Hide admin links until auth is confirmed (fail-closed).
   // NOTE: this is a UX gate only; real authorization is enforced on the
   // destination pages + Supabase RLS. See mobile-nav.js for full security note.
-  document.querySelectorAll(".nav-company-link, .nav-admin-link").forEach(el => el.style.display = "none");
+  document.querySelectorAll(".nav-admin-link").forEach(el => el.style.display = "none");
 
   // Universal "Sign out" — works on EVERY page that has the shared nav, so a
   // logged-in user is never stranded without a way out (previously logout
@@ -165,27 +168,13 @@ window.renderNav = (active) => {
       // Logged in (any Supabase user) → expose the universal Sign-out button.
       if (navSignOut) navSignOut.style.display = "";
 
+      // Show the unread admin-message count on the Account menu (+ hamburger dot).
+      window.refreshAgentMsgBadge?.();
+
       // Admin allowlist (APP_CONFIG.ADMIN_EMAILS + admins table).
       if (window.Auth.isAllowedEmail(email)) {
-        document.querySelectorAll(".nav-company-link, .nav-admin-link").forEach(el => el.style.display = "");
-        return;
+        document.querySelectorAll(".nav-admin-link").forEach(el => el.style.display = "");
       }
-
-      // Tenant users get company links only — NOT admin.
-      const sb = window.SB || window.DataStore?.sb;
-      if (!sb) return;
-      const session = await window.Auth.getSession();
-      const uid = session?.user?.id;
-      if (!uid) return;
-
-      const { data, error } = await sb
-        .from("tenant_users")
-        .select("tenant_id")
-        .eq("user_id", uid)
-        .limit(1);
-      if (error || !data || data.length === 0) return;
-
-      document.querySelectorAll(".nav-company-link").forEach(el => el.style.display = "");
     } catch {
       // Fail-closed: any error → links stay hidden.
     }

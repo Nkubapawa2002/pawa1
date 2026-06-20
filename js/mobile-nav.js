@@ -1,7 +1,7 @@
 // =====================================================
 // Mobile bottom-nav + "More" drawer.
 // Bottom tab bar: Home / Book / Send / Chat / More
-// More drawer: all remaining services + auth-gated company & admin links.
+// More drawer: all remaining services + auth-gated admin links.
 // =====================================================
 
 (function () {
@@ -65,6 +65,7 @@
         ${row("services.html", "", t("nav_services","Services"))}
         ${row("trucks.html",   "", t("nav_trucks","Moving Trucks"))}
         ${row("near-me.html",  "", t("nav_near_me","Near Me"))}
+        ${row("frame.html",    "", t("nav_frame","The Frame"))}
         ${row("favorites.html","", t("nav_favorites","Favorites"))}
 
         <div class="mnav-section-label">Account</div>
@@ -151,8 +152,9 @@
     return `<nav class="bottom-nav" role="navigation" aria-label="Primary">
       <div class="bottom-nav-inner">
         ${tabs.map(tab => tab.isMore
-          ? `<button class="mnav-more-btn ${tab.active ? 'active' : ''}" id="mnav-more-btn" aria-haspopup="dialog">
+          ? `<button class="mnav-more-btn ${tab.active ? 'active' : ''}" id="mnav-more-btn" aria-haspopup="dialog" style="position:relative">
               ${tab.icon}<span>${tab.label}</span>
+              <span id="mnavMsgDot" class="nav-msg-dot" hidden aria-hidden="true" style="top:6px;right:18px"></span>
              </button>`
           : `<a href="${tab.href}" class="${tab.active ? 'active' : ''}" aria-current="${tab.active ? 'page' : 'false'}">
               ${tab.icon}<span>${tab.label}</span>
@@ -162,23 +164,21 @@
     </nav>`;
   }
 
-  // ── Auth-gate company/admin rows ─────────────────────────────
+  // ── Auth-gate admin rows ─────────────────────────────────────
   // SECURITY NOTE: This only controls *visibility* of links in the drawer.
   // It is NOT a security boundary — a determined user can navigate to admin
   // pages directly. Real authorization MUST be enforced by:
-  //   1. The destination page (admin.html, dashboard.html, etc.) checking
-  //      auth on load and redirecting away if unauthorized.
+  //   1. The destination page (admin.html, etc.) checking auth on load and
+  //      redirecting away if unauthorized.
   //   2. Supabase Row-Level Security on every sensitive table.
   // Hiding here is purely UX — it prevents accidental clicks and clutter
   // for users who shouldn't see those features.
   async function applyAuthGating() {
     const show = (sel) => document.querySelectorAll(sel).forEach(el => el.style.display = "");
     const hide = (sel) => document.querySelectorAll(sel).forEach(el => el.style.display = "none");
-    const COMPANY = ".mnav-company-row, .mnav-company-section";
-    const ADMIN   = ".mnav-admin-row, .mnav-admin-section";
+    const ADMIN = ".mnav-admin-row, .mnav-admin-section";
 
     // Default-deny: always hide first, then reveal only what auth proves.
-    hide(COMPANY);
     hide(ADMIN);
 
     if (!window.Auth) return;
@@ -187,28 +187,7 @@
       if (!email) return;  // not logged in → keep everything hidden
 
       // Admin path — strict allowlist from APP_CONFIG.ADMIN_EMAILS + admins table.
-      if (window.Auth.isAllowedEmail(email)) {
-        show(COMPANY);
-        show(ADMIN);
-        return;
-      }
-
-      // Company/tenant path — must have a row in tenant_users (RLS-protected).
-      const sb = window.SB || window.DataStore?.sb;
-      if (!sb) return;
-      const session = await window.Auth.getSession();
-      const uid = session?.user?.id;
-      if (!uid) return;
-
-      const { data, error } = await sb
-        .from("tenant_users")
-        .select("tenant_id")
-        .eq("user_id", uid)
-        .limit(1);
-      if (error || !data || data.length === 0) return;
-
-      show(COMPANY);
-      // NOTE: tenant users do NOT get admin links — admin stays hidden.
+      if (window.Auth.isAllowedEmail(email)) show(ADMIN);
     } catch {
       // On any failure, leave links hidden (fail-closed).
     }
@@ -249,10 +228,13 @@
     moreBtn?.addEventListener("click", openDrawer);
     backdrop.addEventListener("click", closeDrawer);
 
-    // Pre-evaluate auth at mount so admin/company rows are already in the
+    // Pre-evaluate auth at mount so admin rows are already in the
     // correct state before the user even taps "More". Re-runs on open as
     // a safety net (auth state could change while the page is open).
     applyAuthGating();
+
+    // Unread admin-message dot on the "More" button (mobile parity with the nav).
+    window.refreshAgentMsgBadge?.();
 
     // Swipe down to close
     let startY = 0;

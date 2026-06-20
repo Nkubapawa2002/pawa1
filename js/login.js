@@ -3,12 +3,10 @@
 // One Supabase session works across every portal on this origin, so this
 // page signs the user in once, detects which portal(s) their account is
 // linked to, and routes them there:
-//   - admin       → admin.html        (email in APP_CONFIG.ADMIN_EMAILS)
-//   - bus company → dashboard.html    (tenant_users row)
-//   - houses      → agent-houses.html (houses.owner_user_id)
-//   - trucks      → agent-trucks.html (trucks.owner_user_id)
-//   - services    → agent-services.html (services.owner_user_id)
-//   - parcel      → agent.html        (claim_agent_profile RPC)
+//   - admin    → admin.html          (email in APP_CONFIG.ADMIN_EMAILS)
+//   - houses   → agent-houses.html   (houses.owner_user_id)
+//   - trucks   → agent-trucks.html   (trucks.owner_user_id)
+//   - services → agent-services.html (services.owner_user_id)
 // Also handles "forgot password" + the recovery link flow (Supabase emits
 // PASSWORD_RECOVERY when the user lands here from the reset email).
 // =====================================================
@@ -41,7 +39,6 @@ window.initLoginPage = () => {
     `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
   const ICON = {
     admin:    svg('<path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/>'),
-    tenant:   svg('<path d="M4 6h13v11H4z"/><path d="M4 11h13"/><path d="M17 9h3l1 3v5h-4z"/><circle cx="7.5" cy="18.5" r="1.5"/><circle cx="17.5" cy="18.5" r="1.5"/>'),
     houses:   svg('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/>'),
     trucks:   svg('<path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/>'),
     services: svg('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/>'),

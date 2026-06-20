@@ -80,6 +80,7 @@ create policy "service-photos upload" on storage.objects for insert
   let authMode = "signin";
   let editingId = null;
   let photoState = [];
+  let agentProfile = null;            // region + area this agent operates in
   let pin = { lat: null, lng: null };
   let pinMap = null, pinMarker = null;
 
@@ -118,15 +119,30 @@ create policy "service-photos upload" on storage.objects for insert
   } catch (_) { /* provider can leave region blank */ }
 
   await routeOnAuth();
-  sb.auth.onAuthStateChange((_e, session) => routeOnAuth(session));
+  // Only react to genuine sign-in / sign-out. Supabase also fires this event on
+  // TOKEN_REFRESHED, USER_UPDATED and tab-refocus — re-routing on those would
+  // hide an open registration form and reload the list mid-entry (it looks like
+  // the page "auto-refreshed" and wiped what you were typing).
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT") { routeOnAuth(null); return; }
+    if (event === "SIGNED_IN" && !authCard.hidden) routeOnAuth(session);
+  });
 
   async function routeOnAuth(session) {
     const s = session ?? (await sb.auth.getSession()).data.session;
     if (s?.user) {
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
       userEmailEl.textContent = s.user.email || "—";
+      // First thing after sign-in: make sure the agent has declared the region
+      // they belong to + the area they operate in. New listings inherit these
+      // so searchers in that area find this provider's services.
+      try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
+      if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyServices();
       checkSubscription();
+      window.renderAgentClientTip?.({ mount: dashboard, id: "asClientTip", kind: "services" });
+      window.renderAgentMessages?.({ sb, mount: dashboard });
+      window.AgentDemandBoard?.load({ sb, agentProfile, mount: dashboard, kind: "services" });
     } else {
       authCard.hidden = false; dashboard.hidden = true; formSection.hidden = true;
     }
@@ -492,8 +508,10 @@ create policy "service-photos upload" on storage.objects for insert
         experience_years: $("asExperience").value ? parseInt($("asExperience").value, 10) : null,
         availability: $("asAvailability").value.trim() || null,
         service_area: $("asService").value,
-        region: fRegion.value || null,
-        area: $("asArea").value.trim() || null,
+        // Fall back to the agent's declared region / operating area so the
+        // listing always surfaces for searchers in the area they work in.
+        region: fRegion.value || agentProfile?.region || null,
+        area: $("asArea").value.trim() || agentProfile?.area_of_operations || null,
         address: $("asAddress").value.trim() || null,
         lat: pin.lat, lng: pin.lng,
         photo: paths[0] || null,

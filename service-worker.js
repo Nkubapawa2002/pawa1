@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v210-2026-06-17-matchlife-load-fix-realroad";
+const VERSION = "v257-2026-06-20-manifesto-responsive";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -21,6 +21,8 @@ const APP_SHELL = [
   "./js/auth-clerk.js",
   "./js/fx.js",
   "./js/near-me.js",
+  "./js/frame.js",
+  "./js/request-place.js",
   "./js/geo.js",
   "./js/geolocate.js",
   "./js/map-expand.js",
@@ -28,6 +30,8 @@ const APP_SHELL = [
   "./js/data.js",
   "./js/auth.js",
   "./js/auth-ui.js",
+  "./js/agent-profile.js",
+  "./js/agent-demand-board.js",
   "./js/nav.js",
   "./js/mobile-nav.js",
   "./js/fab.js",

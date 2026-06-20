@@ -34,6 +34,13 @@
                 box-shadow: 0 3px 10px rgba(0,0,0,0.06); flex: 1; }
     .sa-count .n { font-size: 1.6rem; font-weight: 800; color: #0B6E4F; }
     .sa-count .l { font-size: 0.85rem; color: #666; text-transform: uppercase; letter-spacing: 0.4px; }
+    .sa-count .s { font-size: 0.78rem; color: #9aa19a; margin-top: 2px; }
+    .sa-counts--grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+    .sa-counts--grid .sa-count { flex: none; }
+    .sa-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .sa-intro { margin: 0; color: #555; font-size: 0.92rem; max-width: 640px; }
+    .sa-intro a { color: #0B6E4F; font-weight: 600; }
+    .sa-sub { font-size: 0.8rem; font-weight: 500; color: #9aa19a; text-transform: none; letter-spacing: 0; }
   </style>
 
     <link rel="manifest" href="manifest.json" />
@@ -54,7 +61,7 @@
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title">Super Admin</h1>
-      <p class="page-subtitle">Pawa SaaS — tenant approvals &amp; oversight.</p>
+      <p class="page-subtitle">Platform overview — the whole marketplace at a glance.</p>
     </div>
   </section>
 
@@ -66,10 +73,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
           </span>
           <h2 class="login-brand__name">Super <em>admin</em></h2>
-          <p class="login-brand__lead">Pawa SaaS control — approve tenants, manage organisations and oversee the whole platform.</p>
+          <p class="login-brand__lead">The owner's pulse — agents, listings, day-jobs, demand, revenue and reach across the whole marketplace.</p>
           <ul class="login-brand__list">
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/></svg></span> Approve &amp; manage tenants</li>
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="20" cy="14" r="2"/></svg></span> Platform-wide oversight</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/></svg></span> Live marketplace pulse</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="20" cy="14" r="2"/></svg></span> Revenue &amp; regional reach</li>
             <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Owner-level secure access</li>
           </ul>
         </aside>
@@ -80,7 +87,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
           </span>
           <h1 class="auth-title">Super admin</h1>
-          <p class="auth-lead">Pawa SaaS — tenant approvals &amp; oversight.</p>
+          <p class="auth-lead">Platform overview — the whole marketplace at a glance.</p>
         </div>
         <form id="saLoginForm" class="auth-form" novalidate>
           <div class="auth-field">
@@ -116,39 +123,59 @@
     </section>
 
     <section id="saPanel" hidden>
-      <div class="sa-counts">
-        <div class="sa-count"><div class="n" id="cntPending">0</div><div class="l">Pending</div></div>
-        <div class="sa-count"><div class="n" id="cntActive">0</div><div class="l">Active</div></div>
-        <div class="sa-count"><div class="n" id="cntSuspended">0</div><div class="l">Suspended</div></div>
-        <div class="sa-count"><div class="n" id="cntRejected">0</div><div class="l">Rejected</div></div>
+      <div class="sa-toolbar">
+        <p class="sa-intro">A read-only pulse of the whole marketplace. Day-to-day management — approving agents, recording payments, tracking renters — lives in the <a href="admin.html">Admin panel</a>.</p>
+        <button id="saRefresh" class="btn btn-outline">↻ Refresh</button>
       </div>
 
       <div id="saStatus"></div>
 
+      <!-- 1) Marketplace pulse -->
       <section class="sa-section">
-        <h2>Pending approvals</h2>
-        <table class="sa-table" id="pendingTable">
-          <thead>
-            <tr>
-              <th>Slug</th><th>Company</th><th>Owner</th><th>Submitted</th><th>Actions</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <div class="sa-empty" id="pendingEmpty" hidden>No pending applications.</div>
+        <h2>Marketplace pulse</h2>
+        <div class="sa-counts sa-counts--grid">
+          <div class="sa-count"><div class="n" id="pHouses">—</div><div class="l">Houses &amp; rooms</div><div class="s" id="pHousesSub">live rooms</div></div>
+          <div class="sa-count"><div class="n" id="pServices">—</div><div class="l">Services</div><div class="s">listed</div></div>
+          <div class="sa-count"><div class="n" id="pTrucks">—</div><div class="l">Trucks</div><div class="s">for moving</div></div>
+          <div class="sa-count"><div class="n" id="pJobs">—</div><div class="l">Day jobs</div><div class="s" id="pJobsSub">open jobs</div></div>
+          <div class="sa-count"><div class="n" id="pDemand">—</div><div class="l">Seeker demand</div><div class="s">people looking</div></div>
+          <div class="sa-count"><div class="n" id="pAgents">—</div><div class="l">Agents</div><div class="s" id="pAgentsSub">registered</div></div>
+        </div>
       </section>
 
+      <!-- 2) Revenue -->
       <section class="sa-section">
-        <h2>All tenants</h2>
-        <table class="sa-table" id="allTable">
+        <h2>Revenue collected</h2>
+        <div class="sa-counts sa-counts--grid">
+          <div class="sa-count"><div class="n" id="rTotal">—</div><div class="l">Total collected</div><div class="s">all time</div></div>
+          <div class="sa-count"><div class="n" id="rMonth">—</div><div class="l">This month</div><div class="s">so far</div></div>
+          <div class="sa-count"><div class="n" id="rActive">—</div><div class="l">Active subscriptions</div><div class="s">paid &amp; live</div></div>
+          <div class="sa-count"><div class="n" id="rReceipts">—</div><div class="l">Receipts logged</div><div class="s">payment records</div></div>
+        </div>
+      </section>
+
+      <!-- 3) Regional coverage -->
+      <section class="sa-section">
+        <h2>Regional coverage <span class="sa-sub" id="coverageCount"></span></h2>
+        <table class="sa-table" id="coverageTable">
           <thead>
-            <tr>
-              <th>Slug</th><th>Company</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th>
-            </tr>
+            <tr><th>Region</th><th>Houses</th><th>Services</th><th>Trucks</th><th>Total</th></tr>
           </thead>
           <tbody></tbody>
         </table>
-        <div class="sa-empty" id="allEmpty" hidden>No tenants yet.</div>
+        <div class="sa-empty" id="coverageEmpty" hidden>No listings with a region yet.</div>
+      </section>
+
+      <!-- 4) Platform access -->
+      <section class="sa-section">
+        <h2>Platform access</h2>
+        <table class="sa-table" id="accessTable">
+          <thead>
+            <tr><th>Admin</th><th>Since</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="sa-empty" id="accessEmpty" hidden>No admins found.</div>
       </section>
     </section>
   </main>

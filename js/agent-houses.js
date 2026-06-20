@@ -76,16 +76,24 @@ window.initAgentHousesPage = async () => {
   const fTypeOtherRow = document.getElementById("ahTypeOtherRow");
   // Property types the dropdown offers directly; anything else is free text ("other").
   const KNOWN_TYPES   = ["apartment", "house", "plot", "office", "shop", "warehouse"];
+  const fIsFrame      = document.getElementById("ahIsFrame");
   // Show the free-text box only when the provider picks "Other (any kind)".
   function syncTypeOther() {
     if (fTypeOtherRow) fTypeOtherRow.style.display = fType.value === "other" ? "" : "none";
   }
-  if (fType) fType.addEventListener("change", syncTypeOther);
+  if (fType) fType.addEventListener("change", () => {
+    syncTypeOther();
+    // Picking a clearly-commercial type pre-ticks "Frame" (never auto-unticks —
+    // the agent stays in control, e.g. to mark an "other" space as a frame too).
+    if (fIsFrame && /^(shop|office|warehouse)$/.test(fType.value)) fIsFrame.checked = true;
+  });
   const fListing      = document.getElementById("ahListing");
   const fPrice        = document.getElementById("ahPrice");
   const fPeriod       = document.getElementById("ahPeriod");
   const fMinMonths    = document.getElementById("ahMinMonths");
   const fMinMonthsRow = document.getElementById("ahMinMonthsRow");
+  const fAgentFee     = document.getElementById("ahAgentFee");
+  const fAgentFeeRow  = document.getElementById("ahAgentFeeRow");
   const fRoomKind     = document.getElementById("ahRoomKind");
   const fBedrooms     = document.getElementById("ahBedrooms");
   const fBathrooms    = document.getElementById("ahBathrooms");
@@ -112,6 +120,7 @@ window.initAgentHousesPage = async () => {
   let mode          = "auth";       // 'auth' | 'dashboard' | 'form'
   let authMode      = "signin";     // 'signin' | 'signup'
   let editingId     = null;         // null = create, set = editing this id
+  let agentProfile  = null;         // region + area this agent operates in
   let pickedLatLng  = null;         // { lat, lng }
   let pinMap        = null;
   let pinMarker     = null;
@@ -196,6 +205,7 @@ alter table public.houses add column if not exists videos text[] not null defaul
 alter table public.houses add column if not exists nearby jsonb  not null default '{}'::jsonb;
 alter table public.houses add column if not exists extra_costs jsonb not null default '[]'::jsonb;
 alter table public.houses add column if not exists min_months int not null default 1;
+alter table public.houses add column if not exists agent_fee_tzs bigint not null default 0;
 alter table public.houses add column if not exists room_kind text;
 alter table public.houses add column if not exists owner_user_id uuid references auth.users(id) on delete set null;
 -- Drop legacy furnished CHECK if it exists, so the field can hold free text.
@@ -325,7 +335,14 @@ create policy "house-photos upload" on storage.objects for insert
 
   // ---- Auth state ----------------------------------------------------------
   await routeOnAuth();
-  sb.auth.onAuthStateChange((_event, session) => routeOnAuth(session));
+  // Only react to genuine sign-in / sign-out. Supabase also fires this event on
+  // TOKEN_REFRESHED, USER_UPDATED and tab-refocus — re-routing on those would
+  // hide an open registration form and reload the list mid-entry (it looks like
+  // the page "auto-refreshed" and wiped what you were typing).
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT") { routeOnAuth(null); return; }
+    if (event === "SIGNED_IN" && !authCard.hidden) routeOnAuth(session);
+  });
 
   // Subscription / activation guard: deactivation, lapsed subscription, or the
   // 48h pay-or-pause grace expiring → paywall (RLS also hides the listings);
@@ -347,8 +364,15 @@ create policy "house-photos upload" on storage.objects for insert
       formSection.hidden = true;
       mode = "dashboard";
       userEmailEl.textContent = s.user.email || tr("ah_no_email");
+      // Capture (once) the region the agent belongs to + the area they operate
+      // in, so their listings surface for searchers in that area.
+      try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
+      if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyListings();
       checkSubscription();
+      loadWaitingNearMe();   // proactive demand board (renters waiting near them)
+      window.renderAgentClientTip?.({ mount: dashboard, id: "ahClientTip", kind: "houses" });
+      window.renderAgentMessages?.({ sb, mount: dashboard });   // admin → agent inbox
     } else {
       authCard.hidden = false;
       dashboard.hidden = true;
@@ -559,6 +583,15 @@ create policy "house-photos upload" on storage.objects for insert
       const listing = h.listing === "sale" ? tr("ah_for_sale") : tr("ah_for_rent");
       const price = formatPrice(h);
       const where = esc(h.area || "—") + (h.region ? ", " + esc(h.region) : "");
+      // Agent commission ("dalali" fee): what the TENANT pays the agent for the
+      // deal, separate from the rent. TZ standard = one month's rent (or an
+      // explicit agent_fee_tzs). Sale listings use a different model → "—".
+      const agentFee = h.listing === "rent"
+        ? (Number(h.agent_fee_tzs) > 0 ? Number(h.agent_fee_tzs) : (Number(h.price_tzs) || 0))
+        : 0;
+      const feeCell = agentFee > 0
+        ? `<strong>TZS ${agentFee.toLocaleString("en-US")}</strong>${Number(h.agent_fee_tzs) > 0 ? "" : ` <small style="color:#6b6960;">1 mo</small>`}`
+        : `<small style="color:#9aa0a6;">—</small>`;
       // Listings auto-delete (row + photos/videos) 15 days after posting.
       const daysLeft = Math.ceil((new Date(h.created_at).getTime() + 15 * 864e5 - Date.now()) / 864e5);
       const expChip = daysLeft <= 3
@@ -568,13 +601,15 @@ create policy "house-photos upload" on storage.objects for insert
         <td class="ah-td-photo">
           <span class="ah-thumb" data-loading="true" style="background-image:url('${photo}')"></span>
         </td>
-        <td class="ah-td-title"><span class="ah-row-title">${esc(h.title)}</span>${h.available === false ? ` <span style="display:inline-block;background:#fde6e2;color:#b3261e;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">Rented · off-market</span>` : ""} ${expChip}</td>
+        <td class="ah-td-title"><span class="ah-row-title">${esc(h.title)}</span>${h.available === false ? ` <span style="display:inline-block;background:#fde6e2;color:#b3261e;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">${h.listing === "sale" ? "Sold" : "Rented"} · off-market</span>` : ""} ${expChip}</td>
         <td class="ah-td-type">${esc(typeLabel(h.type))}${h.room_kind === "single" ? ` · ${esc("Single room")}` : h.room_kind === "master" ? ` · ${esc("Master room")}` : ""}</td>
         <td class="ah-td-listing"><span class="ah-pill ah-pill-${h.listing === "sale" ? "sale" : "rent"}">${esc(listing)}</span></td>
         <td class="ah-td-price"><strong>${price.value}</strong> <small>${price.unit}</small></td>
+        <td class="ah-td-fee">${feeCell}</td>
         <td class="ah-td-area">${where}</td>
         <td class="ah-td-actions">
           ${h.listing === "rent" ? `<button class="ah-btn ah-tenant-btn" aria-label="Mark deal completed for ${esc(h.title)}">${esc(tr("ah_completed_btn"))}</button>` : ""}
+          ${h.listing === "sale" ? `<button class="ah-btn ${h.available === false ? "" : "ah-btn-complete"} ah-sold-btn" aria-label="${h.available === false ? "Re-list" : "Mark sold"} ${esc(h.title)}">${h.available === false ? esc(tr("ah_relist_btn")) : esc(tr("ah_mark_sold_btn"))}</button>` : ""}
           <button class="ah-btn ah-edit-btn" aria-label="Edit ${esc(h.title)}">${esc(tr("ah_edit"))}</button>
           <button class="ah-btn ah-btn-danger ah-delete-btn" aria-label="Delete ${esc(h.title)}">${esc(tr("ah_delete"))}</button>
         </td>
@@ -588,6 +623,7 @@ create policy "house-photos upload" on storage.objects for insert
           <th>Type</th>
           <th>Listing</th>
           <th>Price</th>
+          <th title="The commission the tenant pays you — one month's rent, separate from the rent">Agent fee</th>
           <th>Area</th>
           <th class="ah-td-actions"></th>
         </tr>
@@ -600,6 +636,7 @@ create policy "house-photos upload" on storage.objects for insert
       tr.querySelector(".ah-edit-btn").addEventListener("click", () => openForm(row));
       tr.querySelector(".ah-delete-btn").addEventListener("click", () => deleteListing(row));
       tr.querySelector(".ah-tenant-btn")?.addEventListener("click", () => openTenantPanel(row));
+      tr.querySelector(".ah-sold-btn")?.addEventListener("click", () => markSold(row));
     });
     // Drop shimmer on each row thumbnail when its image is ready.
     listEl.querySelectorAll(".ah-thumb[data-loading]").forEach(el => {
@@ -618,6 +655,7 @@ create policy "house-photos upload" on storage.objects for insert
   // "Minimum months upfront" only makes sense for rentals — hide it for sale.
   function toggleMinMonths() {
     if (fMinMonthsRow) fMinMonthsRow.style.display = (fListing.value === "rent") ? "" : "none";
+    if (fAgentFeeRow)  fAgentFeeRow.style.display  = (fListing.value === "rent") ? "" : "none";
   }
   fListing?.addEventListener("change", toggleMinMonths);
 
@@ -648,7 +686,9 @@ create policy "house-photos upload" on storage.objects for insert
     fAmenities.querySelectorAll(".ah-chip--custom").forEach(c => c.remove());
     if (fFurnished) fFurnished.value = "";
     if (fMinMonths) fMinMonths.value = 1;
+    if (fAgentFee) fAgentFee.value = "";
     if (fRoomKind) fRoomKind.value = "";
+    if (fIsFrame) fIsFrame.checked = false;
     if (fCostsList) fCostsList.innerHTML = "";
     if (fTypeOther) fTypeOther.value = "";
     syncTypeOther();
@@ -668,7 +708,9 @@ create policy "house-photos upload" on storage.objects for insert
       fPrice.value       = row.price_tzs || "";
       fPeriod.value      = row.period || (row.listing === "sale" ? "total" : "month");
       if (fMinMonths) fMinMonths.value = row.min_months ?? 1;
+      if (fAgentFee) fAgentFee.value = row.agent_fee_tzs || "";
       if (fRoomKind) fRoomKind.value = row.room_kind || "";
+      if (fIsFrame) fIsFrame.checked = !!row.is_frame;
       fBedrooms.value    = row.bedrooms ?? 0;
       fBathrooms.value   = row.bathrooms ?? 0;
       fSize.value        = row.size_sqm ?? "";
@@ -1168,8 +1210,9 @@ create policy "house-photos upload" on storage.objects for insert
       features: [geoCircle(pickedLatLng.lat, pickedLatLng.lng, radiusM)] });
   }
 
-  // ---- Reverse geocoding (Nominatim — confirms the pin sits on a real,
-  //      named street/area so listings can't fake a location) --------------
+  // ---- Reverse geocoding (Nominatim — resolves the pin to its WARD + a known
+  //      surrounding landmark so listings are placed by real area, not a
+  //      street name that's often unofficial or missing in Tanzania) --------
   function scheduleReverseGeocode() {
     clearTimeout(geocodeTimer);
     geocodeTimer = setTimeout(() => reverseGeocode(), 600);
@@ -1182,7 +1225,7 @@ create policy "house-photos upload" on storage.objects for insert
     if (fPinPlace) {
       fPinPlace.hidden = false;
       fPinPlace.classList.add("is-loading");
-      fPinPlaceName.textContent = "Confirming the street…";
+      fPinPlaceName.textContent = "Confirming the area…";
       fPinPlaceMeta.textContent = "";
       if (fPinFill) fPinFill.hidden = true;
     }
@@ -1191,6 +1234,9 @@ create policy "house-photos upload" on storage.objects for insert
       // If the pin moved again while we were waiting, drop this stale answer.
       if (key !== geocodeKey) return;
       const a = j.address || {};
+      // Nominatim/LocationIQ only fills `road` when the street is OFFICIALLY
+      // NAMED in OSM — an unnamed track never comes back here. So the presence
+      // of `road` is exactly "an official street name is available online".
       const road = a.road || a.pedestrian || a.footway || a.residential || a.path || "";
       const area = a.neighbourhood || a.suburb || a.quarter || a.village
                  || a.town || a.city_district || a.hamlet || "";
@@ -1199,11 +1245,20 @@ create policy "house-photos upload" on storage.objects for insert
       // Admin hierarchy (TZ): district = county-level, ward = suburb-level. Saved
       // on the listing so a searcher can find it by region / district / ward.
       const district = a.county || a.state_district || a.city_district || a.municipality || a.city || a.town || "";
-      const ward = a.suburb || a.quarter || a.neighbourhood || a.ward || a.village || "";
+      const ward = a.ward || a.suburb || a.quarter || a.neighbourhood || a.village || "";
+      // CANONICAL AREA RULE (applies everywhere on the map): a spot is named by
+      // its WARD — not by a street name, which in Tanzania is often unofficial or
+      // missing online. Every place belongs to a ward, so this always resolves to
+      // a real, lookup-able area. The ward is then paired with a nearby KNOWN
+      // landmark (see nearestKnownPlace) so people can place it the way they
+      // actually navigate ("Mikocheni, near Mlimani City").
+      const areaLabel = ward || area || city || "";
       resolvedPlace = {
-        road, area, region, city, district, ward,
+        road, area, region, city, district, ward, areaLabel,
         label: j.display_name || "",
-        found: !!(road || area || city)
+        // True whenever we have a real handle on the spot (ward / area / city).
+        // A nameless street still confirms via its ward.
+        found: !!(ward || area || city)
       };
       renderPinPlace();
     } catch (err) {
@@ -1211,27 +1266,50 @@ create policy "house-photos upload" on storage.objects for insert
       resolvedPlace = null;
       if (fPinPlace) {
         fPinPlace.classList.remove("is-loading");
-        fPinPlaceName.textContent = "Couldn't verify the street (offline?)";
+        fPinPlaceName.textContent = "Couldn't verify the area (offline?)";
         fPinPlaceMeta.textContent = "Your pin still saves — buyers see it on the map.";
         if (fPinFill) fPinFill.hidden = true;
       }
     }
   }
+  // The single nearest NAMED landmark around the pin, taken from the Overpass
+  // nearby-places scan (nearbyData). This is the "known place surrounding the
+  // area" used to describe a spot the way people actually navigate in Tanzania,
+  // alongside the ward. Returns { name, dist } or null when the scan hasn't run
+  // or found nothing named.
+  function nearestKnownPlace() {
+    if (!nearbyData) return null;
+    let best = null;
+    for (const g of Object.values(nearbyData)) {
+      for (const it of g.items) {
+        if (!it.name) continue;
+        if (!best || it.dist < best.dist) best = it;
+      }
+    }
+    return best;
+  }
   function renderPinPlace() {
     if (!fPinPlace || !resolvedPlace) return;
     fPinPlace.classList.remove("is-loading");
     if (!resolvedPlace.found) {
-      fPinPlaceName.textContent = "No named street here";
+      fPinPlaceName.textContent = "Area not recognised here";
       fPinPlaceMeta.textContent = "This looks like open land — double-check the pin sits on the property.";
       if (fPinFill) fPinFill.hidden = true;
       return;
     }
-    const primary = resolvedPlace.road
-      ? `${resolvedPlace.road}${resolvedPlace.area ? ", " + resolvedPlace.area : ""}`
-      : (resolvedPlace.area || resolvedPlace.city);
-    fPinPlaceName.textContent = primary || "Location confirmed";
-    fPinPlaceMeta.textContent = [resolvedPlace.city, resolvedPlace.region]
-      .filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(" · ");
+    // Headline = the WARD of the area (never the street name). Tanzania-wide,
+    // this is how a place is reliably identified.
+    fPinPlaceName.textContent = resolvedPlace.areaLabel || "Location confirmed";
+    // Context = a known landmark people navigate by ("near Mlimani City") plus
+    // the wider city / region. The landmark comes from the nearby-places scan,
+    // which may still be loading — refreshNearby() re-renders this once it lands.
+    const known = nearestKnownPlace();
+    const bits = [];
+    if (known && known.name) bits.push(`near ${known.name}`);
+    for (const v of [resolvedPlace.city, resolvedPlace.region]) {
+      if (v && v !== resolvedPlace.areaLabel) bits.push(v);
+    }
+    fPinPlaceMeta.textContent = bits.filter((v, i, arr) => arr.indexOf(v) === i).join(" · ");
     if (fPinFill) fPinFill.hidden = false;
   }
 
@@ -1454,6 +1532,9 @@ create policy "house-photos upload" on storage.objects for insert
       const total = Object.values(nearbyData).reduce((s, g) => s + g.items.length, 0);
       setNearbyStatus(`${total} place${total === 1 ? "" : "s"} within ${radiusKm} km`);
       renderNearbyPanel();
+      // The pin label borrows the nearest landmark from this scan — refresh it
+      // now that we finally have one ("Mikocheni" → "Mikocheni · near …").
+      if (resolvedPlace) renderPinPlace();
     } catch (err) {
       console.warn("[agent-houses] overpass failed", err);
       setNearbyStatus("scan failed");
@@ -1746,11 +1827,16 @@ create policy "house-photos upload" on storage.objects for insert
   // reverse-geocoded place so the typed text always matches the real pin.
   fPinFill?.addEventListener("click", () => {
     if (!resolvedPlace) return;
-    const street = resolvedPlace.road
-      ? `${resolvedPlace.road}${resolvedPlace.area ? ", " + resolvedPlace.area : ""}`
-      : (resolvedPlace.area || resolvedPlace.city || "");
-    if (street && fAddress) fAddress.value = street;
-    if (resolvedPlace.area && fArea && !fArea.value.trim()) fArea.value = resolvedPlace.area;
+    // Address = the ward + a known surrounding landmark ("Mikocheni, near
+    // Mlimani City") — how places are actually found in Tanzania — not the
+    // (often unofficial) street name.
+    const known = nearestKnownPlace();
+    const address = [resolvedPlace.areaLabel, known && known.name ? "near " + known.name : ""]
+      .filter(Boolean).join(", ");
+    if (address && fAddress) fAddress.value = address;
+    // Area field is tagged with the ward (its searchable admin area).
+    const areaFill = resolvedPlace.ward || resolvedPlace.area || "";
+    if (areaFill && fArea && !fArea.value.trim()) fArea.value = areaFill;
     // Match the region <select> if the geocoded region is one of its options.
     if (resolvedPlace.region && fRegion) {
       const opt = Array.from(fRegion.options)
@@ -1814,17 +1900,24 @@ create policy "house-photos upload" on storage.objects for insert
         period:      fPeriod.value,
         // Minimum months a tenant must pay upfront — rent only (null for sale).
         min_months:  fListing.value === "rent" ? (Math.max(1, Number(fMinMonths?.value) || 1)) : null,
+        // Agent commission the tenant pays — rent only. 0/blank → the house
+        // detail + dashboard default it to one month's rent.
+        agent_fee_tzs: fListing.value === "rent" ? (Number(fAgentFee?.value) || 0) : 0,
         // Room category for room-by-room rentals: single vs master
         // (self-contained); null/"" means the whole unit is listed.
         room_kind:   (fRoomKind && fRoomKind.value) || null,
+        // Explicit "this is a business space (frame)" flag — drives the Frame map.
+        is_frame:    !!(fIsFrame && fIsFrame.checked),
         bedrooms:    Number(fBedrooms.value) || 0,
         bathrooms:   Number(fBathrooms.value) || 0,
         size_sqm:    fSize.value ? Number(fSize.value) : null,
-        region:      fRegion.value || null,
-        area:        fArea.value.trim() || null,
+        // Fall back to the agent's declared region / operating area so a listing
+        // always carries the area its agent works in (searchers find it there).
+        region:      fRegion.value || agentProfile?.region || null,
+        area:        fArea.value.trim() || agentProfile?.area_of_operations || null,
         // Auto admin classification from the pin (region/district/ward search).
-        district:    (resolvedPlace && resolvedPlace.district) || null,
-        ward:        (resolvedPlace && resolvedPlace.ward) || null,
+        district:    (resolvedPlace && resolvedPlace.district) || agentProfile?.district || null,
+        ward:        (resolvedPlace && resolvedPlace.ward) || agentProfile?.ward || null,
         address:     fAddress.value.trim() || null,
         lat:         pickedLatLng.lat,
         lng:         pickedLatLng.lng,
@@ -1857,8 +1950,8 @@ create policy "house-photos upload" on storage.objects for insert
         ? sb.from("houses").update(payload).eq("id", editingId).eq("owner_user_id", uid).select()
         : sb.from("houses").insert(payload).select();
       let { data: savedRows, error } = await trySave(row);
-      if (error && /column .*(photos|videos|nearby|extra_costs|min_months|room_kind).* (does not exist|not found)/i.test(error.message)) {
-        const { photos: _p, videos: _v, nearby: _n, extra_costs: _e, min_months: _m, room_kind: _rk, ...legacy } = row;
+      if (error && /column .*(photos|videos|nearby|extra_costs|min_months|room_kind|agent_fee_tzs|is_frame).* (does not exist|not found)/i.test(error.message)) {
+        const { photos: _p, videos: _v, nearby: _n, extra_costs: _e, min_months: _m, room_kind: _rk, agent_fee_tzs: _af, is_frame: _if, ...legacy } = row;
         ({ data: savedRows, error } = await trySave(legacy));
       }
       if (error) {
@@ -1985,6 +2078,25 @@ create policy "house-photos upload" on storage.objects for insert
     return String(p);
   }
 
+  // Whole days from today until a YYYY-MM-DD deadline (negative = passed).
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(String(dateStr).slice(0, 10) + "T00:00:00");
+    if (isNaN(d)) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.round((d - today) / 86400000);
+  }
+  // A "needs by <date> · N days left" urgency chip, coloured by how close it is.
+  // Sooner = hotter, so an agent's eye goes to the deals to close first.
+  function neededByChip(needed_by) {
+    const n = daysUntil(needed_by);
+    if (n == null) return "";
+    const date = String(needed_by).slice(0, 10);
+    const left = n <= 0 ? "today" : n === 1 ? "1 day left" : `${n} days left`;
+    const cls = n <= 3 ? "urgent" : n <= 14 ? "soon" : "later";
+    return `<span class="ah-by-chip ${cls}" title="Wants to move in by ${esc(date)}"> by ${esc(date)} · ${left}</span>`;
+  }
+
   function renderWaitingPanel(rows, listing) {
     ensureWaitStyles();
     let panel = document.getElementById("ahWaitingPanel");
@@ -2001,12 +2113,14 @@ create policy "house-photos upload" on storage.objects for insert
       const bits = [];
       if (r.max_budget_tzs) bits.push(`≤ ${fmtTzs(r.max_budget_tzs)} TZS`);
       if (r.min_bedrooms)   bits.push(`${r.min_bedrooms}+ bed`);
+      if (r.needed_from)    bits.push(`from ${String(r.needed_from).slice(0, 10)}`);
       if (r.distance_m != null)
         bits.push(`${r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km"} away`);
       return `<div class="ah-wait-row">
         <div class="ah-wait-who">
           <strong>${esc(r.name || "Waiting renter")}</strong>
           <small>${esc(bits.join(" · "))}</small>
+          ${neededByChip(r.needed_by)}
         </div>
         <div class="ah-wait-cta">
           <a class="ah-wait-btn call" href="tel:${esc(phone)}"> Call</a>
@@ -2047,8 +2161,163 @@ create policy "house-photos upload" on storage.objects for insert
       .ah-wait-btn.call{background:#0a6f4d;color:#fff}
       .ah-wait-btn.wa{background:#fff;color:#0a6f4d;box-shadow:inset 0 0 0 1.5px #0a6f4d}
       .ah-wait-done{margin-top:12px;width:100%;padding:10px;border:0;border-radius:9px;
-        background:#0a6f4d;color:#fff;font-weight:600;font-size:.9rem;cursor:pointer}`;
+        background:#0a6f4d;color:#fff;font-weight:600;font-size:.9rem;cursor:pointer}
+      .ah-by-chip{display:inline-block;margin-top:4px;font-size:.74rem;font-weight:700;
+        padding:2px 8px;border-radius:999px;white-space:nowrap}
+      .ah-by-chip.urgent{background:#fde6e2;color:#b3261e}
+      .ah-by-chip.soon{background:#fff3d6;color:#946200}
+      .ah-by-chip.later{background:#e7f0ea;color:#41504a}
+      #ahDemandBoard{margin:0 0 18px}
+      .ah-board{position:relative;background:#fff7ed;border-color:#fcd9a8}
+      .ah-board .ah-wait-head{color:#9a3412}
+      .ah-board-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:20px;
+        line-height:1;color:#9a3412;cursor:pointer;opacity:.6}
+      .ah-board-x:hover{opacity:1}
+      .ah-board-more{margin-top:10px;font-size:.8rem;color:#9a3412;font-weight:600;text-align:center}`;
     document.head.appendChild(s);
+  }
+
+  // ---- Proactive demand board: "renters waiting near you" -----------------
+  // Don't wait for the agent to post first — surface the people ALREADY waiting
+  // in their operating area, most-urgent deadline first, so they can line up a
+  // deal (or re-fill a unit before its rent expires) and call before the seeker's
+  // move-in date. Reuses house_demand_near at the agent's centre with a wide ring.
+  async function loadWaitingNearMe() {
+    if (!sb) return;
+    const center = await agentCenter();
+    const region = (agentProfile && agentProfile.region) || (center && center.label) || null;
+    if (!center && !region) { const ex = document.getElementById("ahDemandBoard"); if (ex) ex.remove(); return; }
+
+    // (a) Renters waiting NEAR the agent's centre (point + 12 km ring).
+    let rows = [];
+    if (center) {
+      try {
+        const calls = await Promise.all(["rent", "sale"].map((listing) =>
+          sb.rpc("house_demand_near", {
+            p_lat: center.lat, p_lng: center.lng, p_radius_m: 12000,
+            p_listing: listing, p_type: null, p_price: 0, p_bedrooms: 0,
+          }).then((r) => Array.isArray(r.data) ? r.data.map((x) => ({ ...x, listing })) : [])
+            .catch(() => [])));
+        const seen = new Set();
+        rows = calls.flat().filter((r) => r && r.id && !seen.has(r.id) && seen.add(r.id));
+      } catch (_) { rows = []; }
+    }
+
+    // (b) Everyone waiting anywhere in the agent's REGION (typed requests + map
+    // alerts tagged with this region), so a request from across the region shows
+    // too — not only within the 12 km ring. Region rows carry no distance.
+    const regionRows = await loadRegionDemand(region);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const r of regionRows) if (!byId.has(r.id)) byId.set(r.id, r);
+    rows = [...byId.values()];
+    if (!rows.length) { const ex = document.getElementById("ahDemandBoard"); if (ex) ex.remove(); return; }
+
+    // Most urgent first (soonest needed_by; open-ended last), then nearest.
+    rows.sort((a, b) => {
+      const da = daysUntil(a.needed_by), db = daysUntil(b.needed_by);
+      if ((da == null) !== (db == null)) return da == null ? 1 : -1;
+      if (da != null && db != null && da !== db) return da - db;
+      return (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9);
+    });
+    renderDemandBoard(rows, center || { label: region });
+  }
+
+  // The matching algorithm, run in Postgres: every active, non-expired request
+  // in the agent's REGION, with their own DISTRICT ranked first (match_level).
+  // Prefers house_demand_for_agent (region+district); falls back to the older
+  // region-only RPC, then to nothing — so the board always works, whatever SQL
+  // is installed. (See supabase/house_demand_for_agent.sql.)
+  async function loadRegionDemand(region) {
+    if (!sb || !region) return [];
+    const district = (agentProfile && agentProfile.district) || null;
+    try {
+      const { data, error } = await sb.rpc("house_demand_for_agent", {
+        p_region: region, p_district: district, p_listing: null, p_limit: 200,
+      });
+      if (!error && Array.isArray(data)) return data;
+    } catch (_) {}
+    try {
+      const { data, error } = await sb.rpc("house_demand_in_region", {
+        p_region: region, p_listing: null, p_limit: 200,
+      });
+      if (error) return [];
+      return Array.isArray(data) ? data : [];
+    } catch (_) { return []; }
+  }
+
+  // Where the agent operates: their declared profile point, else the average of
+  // their own listings' coordinates, else the centre of their declared region.
+  async function agentCenter() {
+    const p = agentProfile;
+    if (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng))
+      return { lat: +p.lat, lng: +p.lng, label: p.area_of_operations || p.region };
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const uid = session?.user?.id;
+      if (uid) {
+        const { data } = await sb.from("houses").select("lat,lng").eq("owner_user_id", uid);
+        const pts = (data || []).filter((h) => Number.isFinite(+h.lat) && Number.isFinite(+h.lng));
+        if (pts.length) {
+          return {
+            lat: pts.reduce((s, h) => s + +h.lat, 0) / pts.length,
+            lng: pts.reduce((s, h) => s + +h.lng, 0) / pts.length,
+            label: (p && (p.area_of_operations || p.region)) || "your area",
+          };
+        }
+      }
+    } catch (_) {}
+    if (p && p.region && window.resolveTzPlace) {
+      const r = window.resolveTzPlace(p.region);
+      if (r) return { lat: r.lat, lng: r.lng, label: p.region };
+    }
+    return null;
+  }
+
+  function renderDemandBoard(rows, center) {
+    let panel = document.getElementById("ahDemandBoard");
+    if (!rows.length) { if (panel) panel.remove(); return; }
+    ensureWaitStyles();
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "ahDemandBoard";
+      if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(panel, listEl);
+      else dashboard.appendChild(panel);
+    }
+    const top = rows.slice(0, 12);
+    const items = top.map((r) => {
+      const phone = String(r.phone || "").trim();
+      const digits = phone.replace(/\D/g, "");
+      const intl = digits.startsWith("0") ? "255" + digits.slice(1) : digits;
+      const bits = [r.listing === "sale" ? "buying" : "renting"];
+      if (r.type) bits.push(esc(r.type));               // the exact kind they typed
+      if (r.area) bits.push(esc(r.area));
+      if (r.max_budget_tzs) bits.push("≤ " + fmtTzs(r.max_budget_tzs) + " TZS");
+      if (r.min_bedrooms) bits.push(r.min_bedrooms + "+ bed");
+      if (r.needed_from) bits.push("from " + String(r.needed_from).slice(0, 10));
+      if (r.distance_m != null) bits.push(r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km");
+      // Requests in the agent's OWN district are the precise matches — flag them.
+      const inDistrict = r.match_level === "district";
+      return `<div class="ah-wait-row">
+        <div class="ah-wait-who">
+          <strong>${esc(r.name || "Waiting renter")}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> your district</span>` : ""}
+          <small>${bits.join(" · ")}</small>
+          ${neededByChip(r.needed_by)}
+        </div>
+        <div class="ah-wait-cta">
+          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> Call</a>
+          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+    const urgent = top.filter((r) => { const n = daysUntil(r.needed_by); return n != null && n <= 7; }).length;
+    panel.innerHTML = `<div class="ah-wait-card ah-board">
+      <button type="button" class="ah-board-x" id="ahBoardClose" aria-label="Hide">×</button>
+      <div class="ah-wait-head"> ${rows.length} ${rows.length === 1 ? "person is" : "people are"} waiting near ${esc(center.label || "your area")}</div>
+      <div class="ah-wait-sub">${urgent ? `<strong>${urgent} need a place within a week.</strong> ` : ""}Reach out and close before their move-in date — even from a unit about to free up.</div>
+      ${items}
+      ${rows.length > top.length ? `<div class="ah-board-more">+ ${rows.length - top.length} more waiting</div>` : ""}
+    </div>`;
+    document.getElementById("ahBoardClose")?.addEventListener("click", () => panel.remove());
   }
 
   // ---- Video faststart gateway (services/python) ---------------------------
@@ -2274,6 +2543,30 @@ create policy "house-photos upload" on storage.objects for insert
     if (days <= 7)  return { cls: "soon", label: `${days}d left` };
     if (days <= 30) return { cls: "warn", label: `${days}d left` };
     return { cls: "ok", label: `${days}d left` };
+  }
+
+  // Mark a SALE listing sold (off-market) — or re-list it. A house is
+  // non-permanent: once the deal is closed the agent marks it sold so it
+  // vanishes from buyers and no one enquires about a property that's gone
+  // (avoids double-booking / "doubledash"). Reversible.
+  async function markSold(house) {
+    if (!sb || !house || !house.id) return;
+    const goingOff = house.available !== false;
+    const msg = goingOff
+      ? `Mark "${house.title}" as SOLD?\n\nIt's removed from the public listings immediately, so no buyer enquires about a property that's already gone (prevents double-booking).`
+      : `Re-list "${house.title}"?\n\nIt becomes visible to buyers again.`;
+    if (!confirm(msg)) return;
+    try {
+      const { error } = await sb.from("houses")
+        .update({ available: !goingOff, updated_at: new Date().toISOString() })
+        .eq("id", house.id);
+      if (error) throw error;
+      house.available = !goingOff;
+      window.DataStore?.invalidateCache?.(["houses"]);
+      await loadMyListings();
+    } catch (e) {
+      alert("Couldn't update the listing: " + ((e && e.message) || e));
+    }
   }
 
   function closeTenantPanel() { if (_tenantModal) _tenantModal.style.display = "none"; }

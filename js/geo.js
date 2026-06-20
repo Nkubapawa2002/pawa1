@@ -309,6 +309,40 @@
   ];
   let osrmPref = 0;
 
+  // A THIRD, independent routing engine (FOSSGIS Valhalla) used as a fallback
+  // when both OSRM endpoints are down/rate-limited. It's a different codebase on
+  // different infrastructure, so it rarely fails at the same time — which means
+  // "distance to my workplace" stays a REAL road distance instead of silently
+  // collapsing to a straight line. No key, CORS-enabled. Its matrix endpoint is
+  // `/sources_to_targets`; distances come back in kilometres.
+  const VALHALLA_EPS = [
+    "https://valhalla1.openstreetmap.de",
+  ];
+
+  // One origin → many destinations via Valhalla's matrix API. Returns km per
+  // destination (aligned to `dests`), null where it couldn't measure. Never
+  // throws — a failure just yields all-null so the caller moves on.
+  async function valhallaTable(origin, dests) {
+    const body = JSON.stringify({
+      sources: [{ lat: origin.lat, lon: origin.lng }],
+      targets: dests.map((d) => ({ lat: d.lat, lon: d.lng })),
+      costing: "auto", units: "kilometers",
+    });
+    for (const ep of VALHALLA_EPS) {
+      try {
+        const r = await fetchTimeout(ep + "/sources_to_targets", BOUNDARY_TIMEOUT_MS, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body,
+        });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const row = j && j.sources_to_targets && j.sources_to_targets[0];
+        if (!Array.isArray(row)) continue;
+        return row.map((c) => (c && typeof c.distance === "number") ? c.distance : null);
+      } catch (_) { /* timeout/CORS/network → next endpoint */ }
+    }
+    return dests.map(() => null);
+  }
+
   // GET an OSRM service ("route" | "table") for a coordinate string, failing
   // over across endpoints and retrying transient 429/5xx. Returns parsed JSON
   // whose code === "Ok", or null when every endpoint+attempt failed (callers
@@ -379,6 +413,23 @@
       });
     }
 
+    // ---- Fallback engine: Valhalla ------------------------------------------
+    // Anything OSRM couldn't measure (both endpoints down, or no OSRM route) is
+    // retried on the independent Valhalla matrix, so a real road distance is
+    // returned far more often before any caller would resort to a straight line.
+    const stillNull = pending.filter((g) => result[g.i] == null);
+    if (stillNull.length) {
+      const VCHUNK = 50;
+      for (let off = 0; off < stillNull.length; off += VCHUNK) {
+        const group = stillNull.slice(off, off + VCHUNK);
+        const kms = await valhallaTable(origin, group);
+        group.forEach((g, k) => {
+          const km = kms[k];
+          if (Number.isFinite(km)) { result[g.i] = km; cacheSet(pairKey(origin, g), km); }
+        });
+      }
+    }
+
     // ---- Ferry-aware ranking ------------------------------------------------
     // OSRM's land route can be a long way round water — the classic Kigamboni
     // case: the bridge detour is ~25 km but the ferry hop is ~3 km. For the few
@@ -439,6 +490,47 @@
     return 2 * R * Math.asin(Math.sqrt(x));
   }
 
+  // Decode a Valhalla-encoded polyline (precision 6) → [[lng,lat], …] for GeoJSON.
+  function decodeShape(encoded, precision = 6) {
+    const factor = Math.pow(10, precision);
+    let index = 0, lat = 0, lon = 0; const coords = [];
+    while (index < encoded.length) {
+      let shift = 0, result = 0, byte;
+      do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+      lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+      shift = 0; result = 0;
+      do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+      lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+      coords.push([lon / factor, lat / factor]);
+    }
+    return coords;
+  }
+
+  // Single A→B driving route from Valhalla (the independent fallback engine),
+  // returning the same { km, durationMin, geojson } shape as the OSRM path so the
+  // map can draw a REAL road when both OSRM endpoints are down. null on failure.
+  async function valhallaRoute(origin, dest) {
+    const body = JSON.stringify({
+      locations: [{ lat: origin.lat, lon: origin.lng }, { lat: dest.lat, lon: dest.lng }],
+      costing: "auto", units: "kilometers",
+    });
+    for (const ep of VALHALLA_EPS) {
+      try {
+        const r = await fetchTimeout(ep + "/route", BOUNDARY_TIMEOUT_MS, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const trip = j && j.trip, leg = trip && trip.legs && trip.legs[0];
+        if (!trip || !leg || !leg.shape) continue;
+        const c = decodeShape(leg.shape, 6);
+        if (!c.length) continue;
+        return { km: trip.summary.length, durationMin: (trip.summary.time || 0) / 60,
+                 geojson: { type: "LineString", coordinates: c } };
+      } catch (_) { /* next endpoint */ }
+    }
+    return null;
+  }
+
   async function osrmRoute(coordList, { alternatives = 0 } = {}) {
     if (!coordList.every((p) => Number.isFinite(+p.lat) && Number.isFinite(+p.lng))) return [];
     const coords = coordList.map((p) => `${p.lng},${p.lat}`).join(";");
@@ -491,7 +583,15 @@
         ...viableFerries(origin, dest).map((pick) =>
           ferryOption(origin, dest, pick).catch(() => null)),
       ]);
-      if (!main.length) return null;
+      if (!main.length) {
+        // Both OSRM endpoints failed → draw the real road from Valhalla instead
+        // of returning null (which would force the caller to a straight line).
+        const v = await valhallaRoute(origin, dest);
+        if (!v) return null;
+        const out = { ...v, alts: (ferryHits || []).filter(Boolean) };
+        cacheSet(cacheKey, out);
+        return out;
+      }
       const options = main.map(asLeg);
       // Merge ferry options the default search missed (dedupe by distance —
       // if the fastest route already rides that ferry the km will match).
@@ -561,7 +661,9 @@
     if (t.name || t["name:en"]) return t.name || t["name:en"];
     if (t.ref) return t.ref + " road";
     return ({ motorway: "the highway", trunk: "the trunk road",
-              primary: "the main road", secondary: "the main road" })[t.highway] || "the main road";
+              primary: "the main road", secondary: "the main road",
+              tertiary: "a side road", unclassified: "a local road",
+              residential: "a residential street", living_street: "a local street" })[t.highway] || "a road";
   }
 
   function nearestFromWays(p, ways) {
@@ -615,6 +717,189 @@
     return out;
   }
 
+  // ---- pawaRoads.around(): the WHOLE main-road network of a frame ----------
+  // The road is the root — where people (and money) flow. So instead of only
+  // the single nearest road, this measures the perpendicular distance from a
+  // point to EVERY main road (motorway|trunk|primary|secondary) around it, and
+  // finds the JUNCTIONS where two different main roads cross — the nodes that
+  // "unite people", which is exactly where commerce concentrates.
+  //
+  //   const r = await pawaRoads.around({lat,lng}, 1500);
+  //   // → { roads: [{ name, highway, meters, near:{lat,lng}, geoms:[[{lat,lon}…]] }… sorted nearest-first],
+  //   //     junctions: [{ lat, lng, meters, roads:[names], classes:[…] }… nearest-first] }
+
+  // Closest point ON a polyline to (lat,lng): { meters, lat, lng }. Same local
+  // equirectangular projection as distToWayM, but it also returns the foot point
+  // so the map can draw the connector line to the road.
+  function closestOnWay(lat, lng, geom) {
+    const R = 6371000, rad = Math.PI / 180, cosLat = Math.cos(lat * rad);
+    let best = Infinity, bp = null;
+    const toLngLat = (px, py) => ({ lng: lng + px / (cosLat * rad * R), lat: lat + py / (rad * R) });
+    if (geom.length === 1) {
+      const ax = (geom[0].lon - lng) * cosLat * rad * R, ay = (geom[0].lat - lat) * rad * R;
+      return { meters: Math.round(Math.hypot(ax, ay)), lat: geom[0].lat, lng: geom[0].lon };
+    }
+    for (let i = 0; i < geom.length - 1; i++) {
+      const ax = (geom[i].lon - lng) * cosLat * rad * R, ay = (geom[i].lat - lat) * rad * R;
+      const bx = (geom[i + 1].lon - lng) * cosLat * rad * R, by = (geom[i + 1].lat - lat) * rad * R;
+      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      let t = L2 ? (-(ax * dx + ay * dy)) / L2 : 0; t = Math.max(0, Math.min(1, t));
+      const px = ax + t * dx, py = ay + t * dy, d = Math.hypot(px, py);
+      if (d < best) { best = d; bp = toLngLat(px, py); }
+    }
+    return { meters: Math.round(best), lat: bp && bp.lat, lng: bp && bp.lng };
+  }
+
+  // Segment a-b ∩ segment c-d in lon/lat space (fine at frame scale) → {lat,lng}|null.
+  function segIntersect(a, b, c, d) {
+    const x1 = a.lon, y1 = a.lat, x2 = b.lon, y2 = b.lat, x3 = c.lon, y3 = c.lat, x4 = d.lon, y4 = d.lat;
+    const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    if (Math.abs(den) < 1e-14) return null;
+    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+    const u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / den;
+    if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return null;
+    return { lat: y1 + t * (y2 - y1), lng: x1 + t * (x2 - x1) };
+  }
+
+  async function mainRoadsAround(center, radiusM) {
+    const lat = +(center && center.lat), lng = +(center && center.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { roads: [], junctions: [] };
+    const r = Math.min(Math.max(radiusM || ROAD_RADIUS_M, 500), 6000);
+
+    const cacheKey = `roadsv2:${lat.toFixed(4)},${lng.toFixed(4)},${r}`;
+    const cached = cacheGet(cacheKey);
+    if (cached !== undefined) return cached;
+
+    // Broadened: every drivable road, not only the carrying ones, so the map can
+    // draw EACH road nearby and measure how far it is — while `roads` (main) still
+    // drives the scoring + junction nodes and `others` carries the smaller roads.
+    const BROAD = '"highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)$"';
+    const q = `[out:json][timeout:25];(way[${BROAD}](around:${r},${lat.toFixed(5)},${lng.toFixed(5)}););out tags geom 700;`;
+    const j = await overpassFetch(q);
+    if (!j || !Array.isArray(j.elements)) return { roads: [], others: [], junctions: [] };
+    const ways = j.elements.filter((e) => e.type === "way" && Array.isArray(e.geometry) && e.geometry.length > 1);
+
+    // Group the many OSM ways of one road into a single entry (min distance +
+    // every segment kept, so the map can draw the whole road and the readout
+    // shows one "X — 120 m" line instead of a dozen fragments).
+    const CLASS_RANK = { motorway: 6, trunk: 6, primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residential: 1, living_street: 1 };
+    const groups = new Map();
+    for (const w of ways) {
+      const t = w.tags || {};
+      const key = t.name || t["name:en"] || t.ref || (t.highway + ":" + w.id);
+      const cp = closestOnWay(lat, lng, w.geometry);
+      const g = groups.get(key) || { key, name: roadLabel(t), highway: t.highway || "", meters: Infinity, near: null, geoms: [] };
+      g.geoms.push(w.geometry);
+      if (cp.meters < g.meters) { g.meters = cp.meters; g.near = { lat: cp.lat, lng: cp.lng }; }
+      // keep the strongest class label if a name spans classes
+      if ((CLASS_RANK[t.highway] || 0) > (CLASS_RANK[g.highway] || 0)) g.highway = t.highway;
+      groups.set(key, g);
+    }
+    const all = [...groups.values()].filter((g) => g.meters <= r).sort((a, b) => a.meters - b.meters);
+    const MAIN = { motorway: 1, trunk: 1, primary: 1, secondary: 1 };
+    const roads = all.filter((g) => MAIN[g.highway]);   // carrying roads — scoring + nodes
+    const others = all.filter((g) => !MAIN[g.highway]); // tertiary/residential/… — drawn, measured
+
+    // Junctions: where two DIFFERENT main roads cross. These are the nodes that
+    // gather people — the "money-flow" points. Bounded work (top 12 roads).
+    const list = roads.slice(0, 12);
+    let junctions = [];
+    for (let i = 0; i < list.length; i++) {
+      for (let k = i + 1; k < list.length; k++) {
+        if (list[i].name === list[k].name) continue;
+        let found = null;
+        outer:
+        for (const ga of list[i].geoms) {
+          for (let p = 0; p < ga.length - 1; p++) {
+            for (const gb of list[k].geoms) {
+              for (let q2 = 0; q2 < gb.length - 1; q2++) {
+                const x = segIntersect(ga[p], ga[p + 1], gb[q2], gb[q2 + 1]);
+                if (x) { found = x; break outer; }
+              }
+            }
+          }
+        }
+        if (found) {
+          const meters = Math.round(havKm({ lat, lng }, found) * 1000);
+          if (meters <= r) junctions.push({ lat: found.lat, lng: found.lng, meters,
+            roads: [list[i].name, list[k].name], classes: [list[i].highway, list[k].highway] });
+        }
+      }
+    }
+    // Merge junctions within ~70 m (a multi-road crossing) into one node.
+    junctions.sort((a, b) => a.meters - b.meters);
+    const dedup = [];
+    for (const jct of junctions) {
+      const near = dedup.find((d) => havKm(d, jct) * 1000 < 70);
+      if (near) { for (const rn of jct.roads) if (!near.roads.includes(rn)) near.roads.push(rn); continue; }
+      dedup.push(jct);
+    }
+
+    const result = { roads, others, junctions: dedup };
+    cacheSet(cacheKey, result);
+    return result;
+  }
+
+  // Given a point and the `roads` array from mainRoadsAround(), return the
+  // nearest main road to THAT point: { road, meters, near:{lat,lng} } | null.
+  // Pure geometry (no network) — used to measure each listing's / destination's
+  // distance to the road people use to reach it.
+  function nearestInSet(point, roads) {
+    const lat = +(point && point.lat), lng = +(point && point.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Array.isArray(roads) || !roads.length) return null;
+    let best = null;
+    for (const r of roads) {
+      for (const g of (r.geoms || [])) {
+        if (!Array.isArray(g) || g.length < 1) continue;
+        const cp = closestOnWay(lat, lng, g);
+        if (!best || cp.meters < best.meters) best = { road: r, meters: cp.meters, near: { lat: cp.lat, lng: cp.lng } };
+      }
+    }
+    return best;
+  }
+
+  // ---- pawaPlaces: nearest well-known LANDMARK to a point (Overpass / OSM) ---
+  // The recognisable place people actually navigate by in Tanzania — a market,
+  // mall, school, hospital, mosque/church, bus station, fuel station, stadium…
+  // Returns the nearest NAMED one within ~1.2 km as { name, kind, meters }, or
+  // null when none is near (caller then shows just the ward). Cached like the
+  // rest of geo — including a null result, so a barren area isn't re-queried.
+  const LANDMARK_RADIUS_M = 1200;
+  const LANDMARK_FILTER =
+    'nwr["name"]["amenity"~"^(marketplace|hospital|clinic|university|college|school|place_of_worship|bus_station|fuel|bank|police|townhall|courthouse)$"](around:R,LAT,LNG);' +
+    'nwr["name"]["shop"~"^(mall|supermarket|department_store)$"](around:R,LAT,LNG);' +
+    'nwr["name"]["leisure"~"^(stadium|park|sports_centre)$"](around:R,LAT,LNG);' +
+    'nwr["name"]["tourism"~"^(hotel|attraction|museum)$"](around:R,LAT,LNG);' +
+    'nwr["name"]["aeroway"="aerodrome"](around:R,LAT,LNG);';
+
+  async function nearestLandmark(point) {
+    const lat = +(point && point.lat), lng = +(point && point.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const cacheKey = `landmark:${lat.toFixed(4)},${lng.toFixed(4)}`;
+    const cached = cacheGet(cacheKey);
+    if (cached !== undefined) return cached;
+    const filt = LANDMARK_FILTER
+      .replace(/R/g, LANDMARK_RADIUS_M)
+      .replace(/LAT/g, lat.toFixed(5))
+      .replace(/LNG/g, lng.toFixed(5));
+    const j = await overpassFetch(`[out:json][timeout:25];(${filt});out center tags 60;`);
+    let best = null;
+    for (const el of (j && j.elements) || []) {
+      const t = el.tags || {};
+      const name = t.name || t["name:en"] || t["name:sw"];
+      if (!name) continue;
+      const elat = el.lat != null ? el.lat : (el.center && el.center.lat);
+      const elng = el.lon != null ? el.lon : (el.center && el.center.lon);
+      if (!Number.isFinite(elat) || !Number.isFinite(elng)) continue;
+      const meters = Math.round(havKm({ lat, lng }, { lat: elat, lng: elng }) * 1000);
+      if (!best || meters < best.meters) {
+        best = { name, kind: t.amenity || t.shop || t.leisure || t.tourism || t.aeroway || "", meters };
+      }
+    }
+    cacheSet(cacheKey, best);   // cache even a null hit for the session
+    return best;
+  }
+
   window.pawaGeo = {
     search: (qs) => call("search", qs),
     reverse: (qs) => call("reverse", qs),
@@ -626,6 +911,9 @@
   window.pawaRoute = { table: routeTable, route: routeLine };
   window.pawaRoads = {
     nearest: (p) => nearestRoadBatch([p]).then((r) => r[0]),
-    nearestBatch: nearestRoadBatch
+    nearestBatch: nearestRoadBatch,
+    around: mainRoadsAround,
+    nearestInSet
   };
+  window.pawaPlaces = { nearestLandmark };
 })();

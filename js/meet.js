@@ -86,6 +86,7 @@ const _initMeetPageImpl = () => {
   const peers       = new Map();   // user_id -> { marker, line, data, roadDistKm, roadDurMin }
   let watchId       = null;
   let pushTimer     = null;
+  let rosterTimer   = null;
   let lastPushed    = 0;
   let activeRoom    = null;        // { code, purpose, ... }
   let myUserId      = ensureUserId();
@@ -191,6 +192,12 @@ const _initMeetPageImpl = () => {
     attachHouseToMap();   // pin the listing when this room is a live viewing
     await refreshRoster();
     subscribeRealtime();
+    // The roster used to refresh off Postgres realtime, but securing
+    // live_locations (RPC-only, no direct table SELECT) means realtime can no
+    // longer read it. Poll the room RPC instead — broadcast events (chat / RTC)
+    // still flow over the channel in subscribeRealtime().
+    if (rosterTimer) clearInterval(rosterTimer);
+    rosterTimer = setInterval(refreshRoster, 2500);
     startGeolocate();
     startWeatherLoop();
 
@@ -209,6 +216,7 @@ const _initMeetPageImpl = () => {
   async function leaveRoom(silent = false) {
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     if (pushTimer)    { clearInterval(pushTimer);    pushTimer    = null; }
+    if (rosterTimer)  { clearInterval(rosterTimer);  rosterTimer  = null; }
     if (weatherTimer) { clearInterval(weatherTimer); weatherTimer = null; }
     // Stop camera BEFORE we drop the realtime channel, so peers get the
     // camera_stop broadcast and tear down their tiles for us.
@@ -220,9 +228,7 @@ const _initMeetPageImpl = () => {
 
     if (!silent && sb && activeRoom?.code) {
       try {
-        await sb.from("live_locations")
-          .delete()
-          .match({ room_code: activeRoom.code, user_id: myUserId });
+        await sb.rpc("meet_leave", { p_code: activeRoom.code, p_user_id: myUserId });
       } catch {}
     }
 
@@ -1707,20 +1713,19 @@ const _initMeetPageImpl = () => {
 
     lastPushed = Date.now();
     try {
-      await sb.from("live_locations").upsert({
-        room_code:    activeRoom.code,
-        user_id:      myUserId,
-        display_name: myProfile.name,
-        phone:        myProfile.phone || null,
-        role:         myProfile.role || "guest",
-        lat:          lastFix.lat,
-        lng:          lastFix.lng,
-        accuracy_m:   lastFix.accuracy || null,
-        heading:      lastFix.heading || null,
-        speed_mps:    lastFix.speed || null,
-        battery_pct:  batt,
-        last_seen:    new Date().toISOString()
-      }, { onConflict: "room_code,user_id" });
+      await sb.rpc("meet_upsert_presence", {
+        p_code:        activeRoom.code,
+        p_user_id:     myUserId,
+        p_name:        myProfile.name,
+        p_phone:       myProfile.phone || null,
+        p_role:        myProfile.role || "guest",
+        p_lat:         lastFix.lat,
+        p_lng:         lastFix.lng,
+        p_accuracy_m:  lastFix.accuracy || null,
+        p_heading:     lastFix.heading || null,
+        p_speed_mps:   lastFix.speed || null,
+        p_battery_pct: batt
+      });
     } catch (e) {
       console.warn("push", e);
     }
@@ -1729,10 +1734,9 @@ const _initMeetPageImpl = () => {
   async function pushStatus(text) {
     if (!sb || !activeRoom || !text) return;
     try {
-      await sb.from("live_locations").update({
-        status_text: text,
-        last_seen: new Date().toISOString()
-      }).match({ room_code: activeRoom.code, user_id: myUserId });
+      await sb.rpc("meet_upsert_presence", {
+        p_code: activeRoom.code, p_user_id: myUserId, p_status_text: text
+      });
     } catch {}
   }
 
@@ -1741,12 +1745,12 @@ const _initMeetPageImpl = () => {
   // ====================================================================
   async function refreshRoster() {
     if (!sb || !activeRoom) return;
-    const { data, error } = await sb
-      .from("live_locations")
-      .select("*")
-      .eq("room_code", activeRoom.code)
-      .order("last_seen", { ascending: false });
+    // Reads go through a SECURITY DEFINER RPC keyed by the room code (the
+    // shared-link capability) — the live_locations table is no longer directly
+    // readable, so names/phones/GPS can't be enumerated across rooms.
+    const { data, error } = await sb.rpc("meet_room_peers", { p_code: activeRoom.code });
     if (error) { console.warn(error); return; }
+    (data || []).sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
 
     // Drop stale entries (>5 min) so the roster stays clean
     const now = Date.now();
@@ -1778,13 +1782,10 @@ const _initMeetPageImpl = () => {
 
   function subscribeRealtime() {
     if (!sb || !activeRoom) return;
+    // NOTE: no postgres_changes listener — live_locations is RPC-only now
+    // (see meet_secure.sql), so the roster is polled (rosterTimer) instead.
+    // This channel still carries the broadcast events (chat + WebRTC signaling).
     realtimeCh = sb.channel(`meet_${activeRoom.code}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "live_locations",
-        filter: `room_code=eq.${activeRoom.code}`
-      }, () => refreshRoster())
       .on("broadcast", { event: "chat" }, ({ payload }) => receiveChatMessage(payload))
       .on("broadcast", { event: "camera_meta" }, ({ payload }) => onPeerCameraMeta(payload))
       .on("broadcast", { event: "camera_stop" }, ({ payload }) => onPeerCameraStop(payload))

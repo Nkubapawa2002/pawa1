@@ -78,7 +78,8 @@
   }
   function distanceLabel(s) {
     if (Number.isFinite(s._roadKm)) return ` ${kmText(s._roadKm)} by road · ~${driveMin(s._roadKm)} min`;
-    if (Number.isFinite(s._km)) return `${kmText(s._km)} direct`;
+    // Never show a crow-flies "direct" number — say we're measuring the real road.
+    if (Number.isFinite(s._km)) return `measuring road…`;
     return "";
   }
 
@@ -117,18 +118,13 @@
     const r = await window.pawaRoute.route(userLoc, dest);
     if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
     if (!r || !r.geojson) {
-      // Live road routing is down — draw an honest dashed straight-line estimate
-      // so the tap always produces a distance, then keep the marker popup open.
-      const km = haversineKm(userLoc.lat, userLoc.lng, dest.lat, dest.lng);
-      const geom = { type: "LineString", coordinates: [[userLoc.lng, userLoc.lat], [dest.lng, dest.lat]] };
-      routeLayer = L.layerGroup().addTo(map);
-      L.geoJSON(geom, { interactive: false, style: { color: "#fff", weight: 7, opacity: .9 } }).addTo(routeLayer);
-      L.geoJSON(geom, { style: { color: "#b26a00", weight: 4, opacity: .9, dashArray: "4 8" } }).addTo(routeLayer);
+      // No routing engine (OSRM ×2 + Valhalla) could measure it — show the honest
+      // state on the marker instead of drawing a misleading straight line.
       const mk = markers.get(s.id);
       if (mk) {
         mk.bindPopup(
-          `<strong>${esc(s.title || catLabel(s.category))}</strong><br>≈ ${km.toFixed(1)} km straight-line` +
-          `<br><small>Live road routing unavailable — the road is a bit longer.</small>`).openPopup();
+          `<strong>${esc(s.title || catLabel(s.category))}</strong>` +
+          `<br><small>Couldn’t measure the road distance right now — please try again.</small>`).openPopup();
       }
       return;
     }

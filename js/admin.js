@@ -118,6 +118,9 @@ window.initAdminPage = async () => {
     $("aaBulkFee")       ?.addEventListener("click", () => _aaBulkAction("fee"));
     $("aaBulkActivate")  ?.addEventListener("click", () => _aaBulkAction("activate"));
     $("aaBulkDeactivate")?.addEventListener("click", () => _aaBulkAction("deactivate"));
+    $("aaMsgTargeted")   ?.addEventListener("click", () => _aaMessageAgents("targeted"));
+    $("aaMsgUnpaid")     ?.addEventListener("click", () => _aaMessageAgents("unpaid"));
+    $("aaMsgDeactivated")?.addEventListener("click", () => _aaMessageAgents("deactivated"));
 
     // Tenants tab controls.
     $("tenSearch")?.addEventListener("input", _tenDraw);
@@ -647,6 +650,9 @@ window.initAdminPage = async () => {
   let _aaBillingMissing = false;  // true when the agent_billing table isn't applied yet
   let _aaByKey = new Map();        // agent_key -> unified agent (for billing saves)
   let _aaSelected = new Set();      // agent_keys ticked for bulk actions
+  // Real money received, summed from the agent_payments ledger (NOT a guess from
+  // monthly rates). `missing` = the ledger table/RPC isn't applied yet.
+  let _aaCollected = { allTime: 0, thisMonth: 0, count: 0, missing: true };
   const AA_BILLING_STATUSES = ["free", "trial", "paid", "overdue", "cancelled"];
   // Standard monthly subscription every agent is expected to pay. "Pay +1 month"
   // uses this when the agent has no custom amount set yet.
@@ -690,6 +696,19 @@ window.initAdminPage = async () => {
     if (status === "paid" || status === "trial") return { label: "Active (no expiry)", cls: "sub-ok" };
     return { label: "Approved · active", cls: "sub-ok" };
   }
+  // House activity: is the agent still working the (non-permanent, churning)
+  // houses product? "Active" = posted a house within 30 days; else "inactive".
+  // Trucks/services are long-term, so they don't drive this signal.
+  function _aaHouseActivity(u) {
+    if (!u.houseCount || !u.lastHousePost) return "";
+    const days = Math.floor((Date.now() - new Date(u.lastHousePost)) / 86400000);
+    const active = days <= 30;
+    const rel = days <= 0 ? "today" : days === 1 ? "1d ago" : days < 60 ? days + "d ago"
+              : days < 365 ? Math.floor(days / 30) + "mo ago" : Math.floor(days / 365) + "y ago";
+    return `<span title="Last house posted ${rel}" style="display:inline-block;font-size:.66rem;font-weight:800;padding:1px 6px;border-radius:20px;white-space:nowrap;`
+      + `background:${active ? "#dcfce7" : "#fee2e2"};color:${active ? "#166534" : "#b91c1c"}">${active ? "active" : "inactive"} · ${rel}</span>`;
+  }
+
   // Approve (or revoke) an agent. Approving stamps approved_at + approved_by and
   // re-activates; revoking clears approval so the agent re-enters the window.
   async function _aaApprove(key, approve) {
@@ -720,6 +739,23 @@ window.initAdminPage = async () => {
     r.setDate(Math.min(day, dim));
     return r;
   }
+  // Add N whole calendar months (N >= 1).
+  function _aaAddMonths(date, n) {
+    let d = new Date(date);
+    const months = Math.max(1, Math.round(n || 1));
+    for (let i = 0; i < months; i++) d = _aaAddMonth(d);
+    return d;
+  }
+  // The agent's monthly RATE (their custom fee, else the standard one).
+  function _aaRate(b) {
+    return Number(b && b.amount_tzs) > 0 ? Number(b.amount_tzs) : AA_MONTHLY_FEE;
+  }
+  // How long a payment buys: amount ÷ monthly rate, rounded, minimum 1 month.
+  // This is the rule "how much they pay determines how long it lasts".
+  function _aaMonthsForAmount(amount, rate) {
+    const r = Number(rate) > 0 ? Number(rate) : AA_MONTHLY_FEE;
+    return Math.max(1, Math.round((Number(amount) || 0) / r));
+  }
   // Per-agent ROLLING cycle: a payment buys exactly one month from THIS agent's
   // own timeline — extending from their current expiry if still active (so
   // paying early stacks and never loses days), otherwise starting today. This
@@ -734,19 +770,111 @@ window.initAdminPage = async () => {
     const base = (pu && pu > today) ? pu : today;   // active → extend; lapsed → start today
     return _aaAddMonth(base);
   }
-  // Record one month's subscription. Rolls one month forward from the agent's
-  // own coverage (see _aaComputeNextPaidUntil) and re-activates the account.
-  // Stamps started_on the first time as the agent's billing-start / approved day
-  // (informational only — it no longer drives the cycle).
-  function _aaPayMonth(key) {
+  // Apply a payment the admin received. Single source of truth: the server RPC
+  // record_agent_payment (atomic — writes the agent_payments ledger AND updates
+  // agent_billing: approve + activate + paid + rolled paid_until). Falls back to
+  // a client-side billing-only update if the RPC isn't deployed yet (older DB),
+  // so the action still works — just without a logged receipt. Updates the local
+  // caches so the table + collected totals reflect the payment without a refetch.
+  // Returns { ok, paid_until, months, viaRpc, error }.
+  async function _aaApplyPayment(key, amountPaid, opts = {}) {
     const u = _aaByKey.get(key);
     const b = (u && u.billing) || {};
-    const next = _aaComputeNextPaidUntil(u);
-    const amount = Number(b.amount_tzs) > 0 ? Number(b.amount_tzs) : AA_MONTHLY_FEE;
+    const rate = _aaRate(b);
+    // ---- Preferred path: atomic server RPC (writes the receipts ledger) ----
+    try {
+      const { data, error } = await sb.rpc("record_agent_payment", {
+        p_key: key, p_amount: amountPaid, p_monthly_fee: AA_MONTHLY_FEE,
+        p_method: opts.method || null, p_reference: opts.reference || null, p_note: opts.note || null,
+        p_name: (u && u.name) || null, p_phone: (u && u.phone) || null,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      const paidUntil = row && (row.paid_until || row.paidUntil) || null;
+      const months = row && Number(row.months) > 0 ? Number(row.months) : _aaMonthsForAmount(amountPaid, rate);
+      const newRate = row && Number(row.rate_tzs) > 0 ? Number(row.rate_tzs) : rate;
+      if (u) u.billing = { ...b, status: "paid", active: true, amount_tzs: newRate,
+        paid_until: paidUntil, approved_at: b.approved_at || new Date().toISOString(),
+        approved_by: b.approved_by || null, note: null };
+      if (_aaCollected && !_aaCollected.missing) {
+        _aaCollected.allTime  += amountPaid;
+        _aaCollected.thisMonth += amountPaid;
+        _aaCollected.count     += 1;
+      }
+      return { ok: true, paid_until: paidUntil, months, viaRpc: true };
+    } catch (err) {
+      // Only fall back when the function genuinely isn't deployed; surface any
+      // other failure (auth, constraint…) instead of silently masking it.
+      const msg = ((err && (err.message || err.hint || err.details)) || "") + "";
+      const missingFn = /PGRST202|could not find the function|function .* does not exist|schema cache/i.test(msg);
+      if (!missingFn) return { ok: false, error: err };
+    }
+    // ---- Fallback: client-side billing update (no receipt logged) ----
+    const months = _aaMonthsForAmount(amountPaid, rate);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pu = b.paid_until ? new Date(String(b.paid_until).slice(0, 10) + "T00:00:00") : null;
+    const base = (pu && pu > today) ? pu : today;     // active → extend; lapsed → start today
+    const until = _aaAddMonths(base, months).toISOString().slice(0, 10);
+    let email = null;
+    try { const s = await window.Auth.getSession(); email = s?.user?.email || null; } catch (_) {}
+    const patch = { status: "paid", active: true, paid_until: until };
+    if (!(Number(b.amount_tzs) > 0)) patch.amount_tzs = rate;   // remember their monthly rate
+    if (!b.approved_at) { patch.approved_at = new Date().toISOString(); patch.approved_by = email; }
     const anchor = _aaAnchor(u);
-    const patch = { status: "paid", active: true, amount_tzs: amount, paid_until: next.toISOString().slice(0, 10) };
     if (!b.started_on && anchor) patch.started_on = anchor.toISOString().slice(0, 10);
-    _aaSaveBilling(key, patch).then(() => _aaDraw());
+    const okSave = await _aaSaveBillingQuiet(key, patch);
+    return okSave ? { ok: true, paid_until: until, months, viaRpc: false }
+                  : { ok: false, error: { message: "billing save failed" } };
+  }
+
+  // Record a payment the admin received from this agent. THE AMOUNT DETERMINES
+  // HOW LONG: months = amount ÷ the agent's monthly rate (min 1). Coverage rolls
+  // forward from the current expiry if still active (paying early stacks, no lost
+  // days), otherwise from today. Recording a payment is also the admin CONFIRMING
+  // it — so it approves the agent and re-activates the account in one step.
+  async function _aaRecordPayment(key) {
+    const u = _aaByKey.get(key);
+    const b = (u && u.billing) || {};
+    const rate = _aaRate(b);
+    const fmt = (n) => (window.formatTZS ? window.formatTZS(n) : "TZS " + Number(n).toLocaleString("en-US"));
+    const raw = prompt(
+      "Record a payment from this agent.\n\n" +
+      "Monthly fee: " + fmt(rate) + ".\n" +
+      "Enter the amount they PAID (TZS). The duration is worked out from it — " +
+      fmt(rate) + " = 1 month, " + fmt(rate * 3) + " = 3 months, " + fmt(rate * 12) + " = 12 months.",
+      String(rate)
+    );
+    if (raw === null) return;
+    const paid = Math.max(0, Math.round(Number(raw) || 0));
+    if (paid <= 0) { alert("Enter the amount paid (a positive number)."); return; }
+
+    const months = _aaMonthsForAmount(paid, rate);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pu = b.paid_until ? new Date(String(b.paid_until).slice(0, 10) + "T00:00:00") : null;
+    const base = (pu && pu > today) ? pu : today;     // active → extend; lapsed → start today
+    const until = _aaAddMonths(base, months).toISOString().slice(0, 10);
+
+    if (!confirm(
+      fmt(paid) + " = " + months + " month" + (months === 1 ? "" : "s") + ".\n\n" +
+      "This approves the agent, marks them paid & active, and extends their subscription to " +
+      until + ".\n\nRecord it?"
+    )) return;
+
+    // How the money came in — stored on the receipt for your records. Optional:
+    // Cancel here just leaves it blank, the payment is still recorded.
+    let method = prompt("How was it paid? (cash / mobile money / bank — optional)", "cash");
+    method = method === null ? null : (method.trim() || null);
+
+    const res = await _aaApplyPayment(key, paid, { method });
+    if (!res.ok) {
+      alert("Couldn't record the payment: " + ((res.error && res.error.message) || "please try again."));
+      return;
+    }
+    if (!res.viaRpc) {
+      alert("Payment applied to the agent's coverage, but the receipts ledger isn't enabled yet, so it won't show in the collected totals.\n\nRun supabase/agent_billing_setup.sql in Supabase to enable receipt logging.");
+    }
+    _aaRenderSummary();
+    _aaDraw();
   }
   // Admin activate / deactivate switch — independent of payment status. A
   // deactivated agent's listings vanish and their dashboard shows a "contact
@@ -803,12 +931,14 @@ window.initAdminPage = async () => {
 
     // Fetch the three sources; any single failure (e.g. trucks table not yet
     // applied) degrades to an empty set rather than blanking the whole tab.
-    const [agRes, hRes, tRes, sRes, bRes] = await Promise.allSettled([
+    const [agRes, hRes, tRes, sRes, bRes, pRes, payRes] = await Promise.allSettled([
       sb.from("agents").select("id,name,phone,email,region,buses,experience_years,rating_avg,rating_count,verified,created_at"),
-      sb.from("houses").select("id,agent,owner_user_id,region,verified,created_at"),
+      sb.from("houses").select("id,agent,owner_user_id,region,verified,created_at,available"),
       sb.from("trucks").select("id,owner,owner_user_id,region,verified,created_at"),
       sb.from("services").select("id,owner,owner_user_id,region,verified,created_at"),
       sb.from("agent_billing").select("*"),
+      sb.from("agent_profiles").select("user_id,name,phone,region,area_of_operations,area_kind,district,ward"),
+      sb.from("agent_payments").select("agent_key,amount_tzs,created_at"),
     ]);
     const busAgents = agRes.status === "fulfilled" && Array.isArray(agRes.value.data) ? agRes.value.data : [];
     const houses    = hRes.status  === "fulfilled" && Array.isArray(hRes.value.data)  ? hRes.value.data  : [];
@@ -818,6 +948,11 @@ window.initAdminPage = async () => {
     _aaBillingMissing = !(bRes.status === "fulfilled" && !bRes.value.error);
     const billingRows = (bRes.status === "fulfilled" && Array.isArray(bRes.value.data)) ? bRes.value.data : [];
     const billingMap = new Map(billingRows.map((b) => [b.agent_key, b]));
+    // Agent profiles (region they belong to + area of operations), keyed by the
+    // SAME "uid:<id>" identity the tracker uses, so each agent's declared area
+    // lines up with their listings. Table may not be applied yet → empty map.
+    const profiles    = (pRes.status === "fulfilled" && Array.isArray(pRes.value.data)) ? pRes.value.data : [];
+    const profileMap  = new Map(profiles.map((p) => ["uid:" + p.user_id, p]));
 
     const map = new Map();
     const get = (key) => {
@@ -825,7 +960,7 @@ window.initAdminPage = async () => {
       if (!u) {
         u = { key, name: "", phone: "", email: "", regions: new Set(), roles: new Set(),
               busCount: 0, houseCount: 0, truckCount: 0, serviceCount: 0, registered: null, verified: false,
-              experience: null, rating: null };
+              experience: null, rating: null, lastHousePost: null, liveHouseCount: 0 };
         map.set(key, u);
       }
       return u;
@@ -851,8 +986,13 @@ window.initAdminPage = async () => {
       if (ag.phone && !u.phone) u.phone = ag.phone;
       if (h.region) u.regions.add(h.region);
       u.roles.add("house"); u.houseCount += 1;
+      if (h.available !== false) u.liveHouseCount += 1;     // still on-market
       if (h.verified) u.verified = true;
       u.registered = _aaEarlier(u.registered, h.created_at);
+      // Most-recent house post — the signal of whether the agent is active in
+      // houses (the churning, non-permanent product).
+      if (h.created_at && (!u.lastHousePost || new Date(h.created_at) > new Date(u.lastHousePost)))
+        u.lastHousePost = h.created_at;
     });
 
     trucks.forEach((t) => {
@@ -877,8 +1017,21 @@ window.initAdminPage = async () => {
       u.registered = _aaEarlier(u.registered, sv.created_at);
     });
 
+    // Fold each agent's declared profile in: their home region counts as one of
+    // their regions, and the operating area is carried for display/search. Also
+    // backfill a missing name/phone from the profile.
+    for (const [key, u] of map) {
+      const prof = profileMap.get(key);
+      if (!prof) continue;
+      u.profile = prof;
+      if (prof.region) u.regions.add(prof.region);
+      if (prof.name && !u.name) u.name = prof.name;
+      if (prof.phone && !u.phone) u.phone = prof.phone;
+    }
+
     _aaUnified = Array.from(map.values()).map((u) => ({
       ...u, regions: Array.from(u.regions), roles: Array.from(u.roles),
+      profile: u.profile || null,
       billing: billingMap.get(u.key) || { status: "free", plan: "", amount_tzs: 0, paid_until: null, active: true, started_on: null, approved_at: null, approved_by: null },
     }));
     _aaByKey = new Map(_aaUnified.map((u) => [u.key, u]));
@@ -888,8 +1041,29 @@ window.initAdminPage = async () => {
       serviceListings: servicesR.length,
     };
 
+    // Real receipts (cash actually collected) from the agent_payments ledger.
+    _aaCollected = _aaComputeCollected(payRes);
+
     _aaRenderSummary();
     _aaDraw();
+  }
+
+  // Sum the agent_payments ledger into all-time + this-month collected. Degrades
+  // to { missing:true } when the ledger table isn't applied yet, so the summary
+  // shows "—" rather than a misleading number.
+  function _aaComputeCollected(payRes) {
+    const ok = payRes && payRes.status === "fulfilled" && !payRes.value.error && Array.isArray(payRes.value.data);
+    if (!ok) return { allTime: 0, thisMonth: 0, count: 0, missing: true };
+    const rows = payRes.value.data;
+    const now = new Date();
+    const ym = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    let allTime = 0, thisMonth = 0;
+    for (const p of rows) {
+      const a = Number(p.amount_tzs) || 0;
+      allTime += a;
+      if (String(p.created_at || "").slice(0, 7) === ym) thisMonth += a;
+    }
+    return { allTime, thisMonth, count: rows.length, missing: false };
   }
 
   // Summary cards — recomputed whenever billing changes so the paying/revenue
@@ -897,11 +1071,14 @@ window.initAdminPage = async () => {
   function _aaRenderSummary() {
     if (!_aaUnified) return;
     const isPaying = (u) => u.billing && u.billing.status === "paid";
+    // Monthly run-rate = the recurring fees of every currently-paid agent (what
+    // the platform bills per month while they stay active). Distinct from cash
+    // actually collected, which comes from the receipts ledger (_aaCollected).
     const totals = {
       total: _aaUnified.length,
       paying: _aaUnified.filter(isPaying).length,
       pending: _aaUnified.filter((u) => !(u.billing && u.billing.approved_at)).length,
-      revenue: _aaUnified.filter(isPaying).reduce((s, u) => s + (Number(u.billing.amount_tzs) || 0), 0),
+      runRate: _aaUnified.filter(isPaying).reduce((s, u) => s + (Number(u.billing.amount_tzs) || 0), 0),
       bus:     _aaUnified.filter((u) => u.roles.includes("bus")).length,
       house:   _aaUnified.filter((u) => u.roles.includes("house")).length,
       truck:   _aaUnified.filter((u) => u.roles.includes("truck")).length,
@@ -911,13 +1088,17 @@ window.initAdminPage = async () => {
     const badge = $("allAgentsBadge");
     if (badge) badge.textContent = totals.total ? String(totals.total) : "";
 
+    const collected = _aaCollected || { missing: true };
+    const money = (v) => (collected.missing ? "—" : window.formatTZS(v));
     const sum = $("aaSummary");
     if (sum) {
       sum.innerHTML = [
         ["Total agents", totals.total, ""],
         ["Awaiting approval", totals.pending, "warn"],
-        ["Paying",       totals.paying, "pay"],
-        ["Total collected", window.formatTZS(totals.revenue), "rev"],
+        ["Paying now",       totals.paying, "pay"],
+        ["Collected (all time)", money(collected.allTime), "rev"],
+        ["Collected this month", money(collected.thisMonth), "rev"],
+        ["Monthly run-rate", window.formatTZS(totals.runRate), ""],
         ["House agents",      totals.house, ""],
         ["Service providers", totals.service, ""],
         ["Truck owners",      totals.truck, ""],
@@ -927,8 +1108,10 @@ window.initAdminPage = async () => {
 
     const note = $("aaBillingNote");
     if (note) {
-      note.hidden = !_aaBillingMissing;
-      if (_aaBillingMissing) note.textContent = "Billing not saved yet: run supabase/agent_billing.sql in Supabase to enable paid-status tracking. (Showing everyone as Free for now.)";
+      const ledgerMissing = !_aaBillingMissing && collected.missing;
+      note.hidden = !(_aaBillingMissing || ledgerMissing);
+      if (_aaBillingMissing) note.textContent = "Billing not saved yet: run supabase/agent_billing_setup.sql in Supabase to enable paid-status tracking. (Showing everyone as Free for now.)";
+      else if (ledgerMissing) note.textContent = "Receipts ledger not enabled: run supabase/agent_billing_setup.sql so each payment is logged and the collected totals are real. (Payments still extend coverage without it.)";
     }
 
     _aaRenderBreakdown();
@@ -968,7 +1151,7 @@ window.initAdminPage = async () => {
       <h4 style="margin:0 0 8px;font-size:.95rem;">Paid vs unpaid — by category</h4>
       <table>
         <thead><tr>
-          <th>Category</th><th>Total</th><th>Paid</th><th>Unpaid</th><th>Collected (TZS)</th>
+          <th>Category</th><th>Total</th><th>Paid</th><th>Unpaid</th><th>Monthly fees (TZS)</th>
         </tr></thead>
         <tbody>
           ${row("House owners", house)}
@@ -978,7 +1161,7 @@ window.initAdminPage = async () => {
           ${row("Overall (unique people)", overall, "aa-bd-total")}
         </tbody>
       </table>
-      <p class="hint" style="margin:6px 0 0;">Someone listed in more than one category is counted once per category here, but only once in the Overall row — so the Overall total can be lower than the categories added up. Use the Billing filter below to list everyone Paid or Unpaid by name.</p>`;
+      <p class="hint" style="margin:6px 0 0;">"Monthly fees" is the recurring run-rate of currently-paid agents in each category (not cash collected — see "Collected" in the cards above for real receipts). Someone in more than one category is counted once per category here, but only once in the Overall row — so the Overall total can be lower than the categories added up. Use the Billing filter below to list everyone Paid or Unpaid by name.</p>`;
   }
 
   function _aaDraw() {
@@ -1000,7 +1183,8 @@ window.initAdminPage = async () => {
         else if (st !== bill) return false;
       }
       if (q) {
-        const hay = `${u.name} ${u.phone} ${u.regions.join(" ")} ${u.email}`.toLowerCase();
+        const p = u.profile || {};
+        const hay = `${u.name} ${u.phone} ${u.regions.join(" ")} ${u.email} ${p.area_of_operations || ""} ${p.district || ""} ${p.ward || ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -1024,7 +1208,7 @@ window.initAdminPage = async () => {
       <div class="table-wrap"><table>
         <thead><tr>
           <th><input type="checkbox" id="aaSelectAll" title="Select all shown"></th>
-          <th>Name</th><th>Roles</th><th>Phone</th><th>Region(s)</th>
+          <th>Name</th><th>Roles</th><th>Phone</th><th>Region(s)</th><th>Operating area</th>
           <th>Houses</th><th>Services</th><th>Trucks</th><th>Buses</th><th>Verified</th><th>Registered</th>
           <th>Billing start</th>
           <th>Billing</th><th>Plan</th><th>Amount (TZS)</th><th>Paid until</th><th>Next due</th>
@@ -1040,7 +1224,13 @@ window.initAdminPage = async () => {
               <td>${roleTags(u)}</td>
               <td>${u.phone ? _aaEscHtml(u.phone) : "—"} ${u.phone ? window.DataStore.renderCallButtons(u.phone) : ""}</td>
               <td>${u.regions.map(_aaEscHtml).join(", ") || "—"}</td>
-              <td>${u.houseCount || "—"}</td>
+              <td>${(() => {
+                const p = u.profile;
+                if (!p || !p.area_of_operations) return "<span style='color:#94a3b8'>not set</span>";
+                const kind = p.area_kind ? ` <span class="aa-area-kind" style="color:#64748b;font-size:.78em;">(${_aaEscHtml(p.area_kind)})</span>` : "";
+                return _aaEscHtml(p.area_of_operations) + kind;
+              })()}</td>
+              <td>${u.houseCount ? `${u.houseCount}${u.liveHouseCount < u.houseCount ? ` <small style="color:#94a3b8">(${u.liveHouseCount} live)</small>` : ""}${_aaHouseActivity(u) ? "<br>" + _aaHouseActivity(u) : ""}` : "—"}</td>
               <td>${u.serviceCount || "—"}</td>
               <td>${u.truckCount || "—"}</td>
               <td>${u.busCount || "—"}</td>
@@ -1055,7 +1245,7 @@ window.initAdminPage = async () => {
               <td class="aa-nextdue">${_aaComputeNextPaidUntil(u).toISOString().slice(0, 10)}</td>
               <td class="aa-sub-cell">${(() => { const s = _aaSubInfo(b, u.registered); return `<span class="aa-sub ${s.cls}">${s.label}</span>`; })()}
                   <button type="button" class="aa-approve-btn" data-key="${_aaEscHtml(u.key)}" title="${b.approved_at ? `Approved ${String(b.approved_at).slice(0, 10)}${b.approved_by ? " by " + _aaEscHtml(b.approved_by) : ""} — click to revoke` : "Approve this agent (lifts the 7-day window)"}">${b.approved_at ? "Approved" : "Approve"}</button>
-                  <button type="button" class="aa-pay-btn" data-key="${_aaEscHtml(u.key)}" title="Record one month's subscription (${window.formatTZS(AA_MONTHLY_FEE)})">+1 month</button>
+                  <button type="button" class="aa-pay-btn" data-key="${_aaEscHtml(u.key)}" title="Record a payment from this agent — the amount they paid sets how long it lasts (${window.formatTZS(AA_MONTHLY_FEE)} = 1 month). Approves & activates them.">Record payment</button>
                   <button type="button" class="aa-active-btn" data-key="${_aaEscHtml(u.key)}" title="${b.active === false ? "Reactivate this agent" : "Deactivate — hide from clients"}">${b.active === false ? "Activate" : "Deactivate"}</button></td>
             </tr>`;
           }).join("")}
@@ -1076,9 +1266,10 @@ window.initAdminPage = async () => {
         }
       });
     });
-    // "Pay +1 month" — record a month's subscription for that agent.
+    // "Record payment" — log the cash the admin received from this agent (the
+    // amount sets how long it lasts) and approve + activate them in one step.
     list.querySelectorAll(".aa-pay-btn").forEach((btn) => {
-      btn.addEventListener("click", () => _aaPayMonth(btn.getAttribute("data-key")));
+      btn.addEventListener("click", () => _aaRecordPayment(btn.getAttribute("data-key")));
     });
     // Activate / Deactivate switch.
     list.querySelectorAll(".aa-active-btn").forEach((btn) => {
@@ -1155,7 +1346,7 @@ window.initAdminPage = async () => {
 
   async function _aaSaveBilling(key, patch) {
     if (_aaBillingMissing) {
-      alert("Billing isn't enabled yet. Run supabase/agent_billing.sql in your Supabase SQL editor, then reload this tab.");
+      alert("Billing isn't enabled yet. Run supabase/agent_billing_setup.sql in your Supabase SQL editor, then reload this tab.");
       return;
     }
     const u = _aaByKey.get(key);
@@ -1197,7 +1388,8 @@ window.initAdminPage = async () => {
         else if (st !== bill) return false;
       }
       if (q) {
-        const hay = `${u.name} ${u.phone} ${u.regions.join(" ")} ${u.email}`.toLowerCase();
+        const p = u.profile || {};
+        const hay = `${u.name} ${u.phone} ${u.regions.join(" ")} ${u.email} ${p.area_of_operations || ""} ${p.district || ""} ${p.ward || ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -1240,9 +1432,115 @@ window.initAdminPage = async () => {
     return { ok, fail };
   }
 
+  // ---------- Admin → agent messaging ----------
+  // Send any message to an agent's ACCOUNT (it shows on their dashboard until
+  // they dismiss it). Targets: the current targeted set (ticked/shown), everyone
+  // unpaid, or everyone deactivated. Only agents with an account (uid key) can
+  // receive an in-app message; phone-only agents are skipped (and counted).
+  function _aaIsDeactivated(u) { return !!(u.billing && u.billing.active === false); }
+  function _aaIsUnpaid(u) {
+    const b = u.billing || {};
+    if (b.active === false) return false;                 // that's "deactivated", a separate group
+    return _aaSubInfo(b, u.registered).cls === "sub-exp"; // expired / overdue / cancelled / unapproved-hidden
+  }
+  function _aaUidFromKey(key) { return (typeof key === "string" && key.startsWith("uid:")) ? key.slice(4) : null; }
+
+  // Compose modal → resolves to { body, sms } or null if cancelled. The SMS box
+  // (on by default) also texts the message so phone-only / offline agents get it.
+  function _aaComposeMessage(targetLabel, accountCount, phoneCount) {
+    return new Promise((resolve) => {
+      const ov = document.createElement("div");
+      ov.style.cssText = "position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,.6);padding:20px";
+      ov.innerHTML =
+        '<div style="background:#fff;color:#0f172a;max-width:460px;width:100%;border-radius:16px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35);font:14px/1.5 system-ui,sans-serif">' +
+          '<h2 style="margin:0 0 4px;font-size:1.15rem">Message ' + _aaEscHtml(targetLabel) + '</h2>' +
+          '<p style="margin:0 0 12px;color:#475569">Shows on <strong>' + accountCount + '</strong> agent account' + (accountCount === 1 ? "" : "s") + ' until dismissed.</p>' +
+          '<textarea id="_aaMsgBody" rows="5" placeholder="Type your message…" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit;resize:vertical"></textarea>' +
+          '<label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0 2px;font-size:.88rem;color:#334155;cursor:pointer">' +
+            '<input id="_aaMsgSms" type="checkbox" checked style="margin-top:3px">' +
+            '<span>Also send by <strong>SMS</strong> to ' + phoneCount + ' number' + (phoneCount === 1 ? "" : "s") + ' — reaches phone-only &amp; offline agents.</span></label>' +
+          '<div id="_aaMsgErr" style="min-height:16px;color:#b91c1c;font-size:.84rem;margin:4px 0"></div>' +
+          '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+            '<button id="_aaMsgCancel" type="button" style="padding:9px 16px;border:0;border-radius:9px;background:#e2e8f0;color:#334155;font-weight:600;cursor:pointer">Cancel</button>' +
+            '<button id="_aaMsgSend" type="button" style="padding:9px 18px;border:0;border-radius:9px;background:#0a6f4d;color:#fff;font-weight:700;cursor:pointer">Send</button>' +
+          '</div></div>';
+      document.body.appendChild(ov);
+      const body = ov.querySelector("#_aaMsgBody"), err = ov.querySelector("#_aaMsgErr");
+      const smsBox = ov.querySelector("#_aaMsgSms");
+      const close = (v) => { try { ov.remove(); } catch (_) {} resolve(v); };
+      ov.addEventListener("click", (e) => { if (e.target === ov) close(null); });
+      ov.querySelector("#_aaMsgCancel").addEventListener("click", () => close(null));
+      ov.querySelector("#_aaMsgSend").addEventListener("click", () => {
+        const t = (body.value || "").trim();
+        if (t.length < 2) { err.textContent = "Type a message first."; return; }
+        close({ body: t, sms: !!(smsBox && smsBox.checked) });
+      });
+      setTimeout(() => { try { body.focus(); } catch (_) {} }, 40);
+    });
+  }
+
+  async function _aaMessageAgents(target) {
+    let pool, label;
+    if (target === "unpaid")           { pool = (_aaUnified || []).filter(_aaIsUnpaid);      label = "all unpaid agents"; }
+    else if (target === "deactivated") { pool = (_aaUnified || []).filter(_aaIsDeactivated); label = "all deactivated agents"; }
+    else                               { pool = _aaBulkTargets();                            label = "the targeted agents"; }
+
+    // Account-holders (uid) get the in-app message; ALL with a phone get the SMS.
+    const recipients = [];     // uids for the dashboard inbox
+    const phones = [];         // numbers for the SMS fallback
+    let noAccount = 0;
+    for (const u of pool) {
+      const uid = _aaUidFromKey(u.key);
+      if (uid) recipients.push(uid); else noAccount++;
+      const ph = (u.phone || "").trim();
+      if (ph) phones.push(ph);
+    }
+    if (!recipients.length && !phones.length) { alert("No reachable agents in this group."); return; }
+
+    const out = await _aaComposeMessage(label, recipients.length, phones.length);
+    if (out == null) return;
+    const body = out.body;
+
+    let email = null;
+    try { const s = await window.Auth.getSession(); email = s?.user?.email || null; } catch (_) {}
+    const status = $("aaBulkStatus");
+    if (status) status.textContent = "Sending…";
+
+    // 1) In-app messages for account-holders.
+    let inAppNote = "";
+    if (recipients.length) {
+      const rows = recipients.map((uid) => ({
+        to_user_id: uid, body, kind: target === "targeted" ? "individual" : target, created_by: email,
+      }));
+      const { error } = await sb.from("agent_messages").insert(rows);
+      if (error) {
+        if (/relation .* does not exist|schema cache|could not find/i.test(error.message || ""))
+          alert("In-app messaging isn't set up yet. Run supabase/agent_messages.sql in Supabase.");
+        else alert("Couldn't send in-app message: " + error.message);
+        if (status) status.textContent = "Send failed.";
+        return;
+      }
+      inAppNote = `In-app: ${recipients.length}`;
+    }
+
+    // 2) SMS fallback (reaches phone-only + offline agents).
+    let smsNote = "";
+    if (out.sms && phones.length && window.pawaSendSms) {
+      if (status) status.textContent = (inAppNote ? inAppNote + " · " : "") + "sending SMS…";
+      const r = await window.pawaSendSms(phones, body);
+      smsNote = r.configured === false
+        ? "SMS not deployed (run supabase/functions/send-sms)"
+        : r.error ? `SMS failed (${r.error})` : `SMS: ${r.sent}`;
+    } else if (out.sms && phones.length) {
+      smsNote = "SMS unavailable";
+    }
+
+    if (status) status.textContent = ["Sent.", inAppNote, smsNote, noAccount ? `${noAccount} phone-only (SMS only)` : ""].filter(Boolean).join(" · ");
+  }
+
   async function _aaBulkAction(kind) {
     if (_aaBillingMissing) {
-      alert("Billing isn't enabled yet. Run supabase/agent_billing.sql (and agent_billing_anchor.sql) in Supabase, then reload.");
+      alert("Billing isn't enabled yet. Run supabase/agent_billing_setup.sql in Supabase, then reload.");
       return;
     }
     const targets = _aaBulkTargets();
@@ -1258,14 +1556,14 @@ window.initAdminPage = async () => {
     } else if (kind === "month") {
       confirmMsg = `Record one month's subscription for ${targets.length} agent(s)?\n\nEach agent gets a full month from their OWN timeline — extending from their current expiry if still active (paying early stacks, no lost days), otherwise starting today. Re-activates the account.`;
       label = "Recording month";
-      opFn = (u) => {
+      // One month = the agent's own rate. Goes through _aaApplyPayment so each
+      // bulk payment is logged to the receipts ledger and rolls a full month
+      // from that agent's own expiry (paying early stacks; lapsed starts today).
+      opFn = async (u) => {
         const b = u.billing || {};
-        const next = _aaComputeNextPaidUntil(u);
         const amount = Number(b.amount_tzs) > 0 ? Number(b.amount_tzs) : AA_MONTHLY_FEE;
-        const anchor = _aaAnchor(u);
-        const patch = { status: "paid", active: true, amount_tzs: amount, paid_until: next.toISOString().slice(0, 10) };
-        if (!b.started_on && anchor) patch.started_on = anchor.toISOString().slice(0, 10);
-        return _aaSaveBillingQuiet(u.key, patch);
+        const res = await _aaApplyPayment(u.key, amount, { method: "bulk" });
+        return res.ok;
       };
     } else if (kind === "activate") {
       confirmMsg = `Activate ${targets.length} agent(s)? Their listings/profile become visible again.`;
@@ -1318,15 +1616,17 @@ window.initAdminPage = async () => {
       const s = String(v == null ? "" : v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const header = ["Name", "Phone", "Email", "Roles", "Regions", "House listings", "Service listings", "Truck listings", "Bus records", "Verified", "Registered (ISO)", "Registered (local)", "Billing status", "Plan", "Amount (TZS)", "Approved on", "Paid until", "Next due"];
+    const header = ["Name", "Phone", "Email", "Roles", "Regions", "Operating area", "Area kind", "District", "Ward", "House listings", "Service listings", "Truck listings", "Bus records", "Verified", "Registered (ISO)", "Registered (local)", "Billing status", "Plan", "Amount (TZS)", "Approved on", "Paid until", "Next due"];
     const lines = _aaUnified
       .slice()
       .sort((a, b) => (new Date(b.registered || 0)) - (new Date(a.registered || 0)))
       .map((u) => {
         const b = u.billing || {};
+        const p = u.profile || {};
         const anchor = _aaAnchor(u);
         return [
           u.name, u.phone, u.email, u.roles.join("|"), u.regions.join("|"),
+          p.area_of_operations || "", p.area_kind || "", p.district || "", p.ward || "",
           u.houseCount, u.serviceCount, u.truckCount, u.busCount, u.verified ? "yes" : "no",
           u.registered || "", u.registered ? new Date(u.registered).toLocaleString() : "",
           b.status || "free", b.plan || "", Number(b.amount_tzs) || 0,

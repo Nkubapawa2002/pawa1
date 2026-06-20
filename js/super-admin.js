@@ -1,11 +1,18 @@
 // =====================================================
-// Super Admin — tenant approval + oversight.
+// Super Admin — platform overview (owner's bird's-eye pulse).
 // Gated by APP_CONFIG.ADMIN_EMAILS + admins table membership.
 // =====================================================
+// This is the READ-ONLY top-level view of the whole marketplace: how many
+// agents, live listings (houses / services / trucks), open day-jobs and seeker
+// demand exist, how much money has actually been collected, where the platform
+// reaches (regional coverage) and who has owner access. Day-to-day management
+// (approving agents, recording payments, tracking renters) lives in admin.html;
+// this page is the snapshot you open to know the platform's health at a glance.
+// Every query degrades gracefully — a missing table or RLS block shows "—"
+// instead of breaking the whole page.
 
 window.initSuperAdmin = async () => {
   const sb     = window.SB;
-  const cfg    = window.APP_CONFIG || {};
   const gate   = document.getElementById("saLoginGate");
   const forb   = document.getElementById("saForbidden");
   const panel  = document.getElementById("saPanel");
@@ -17,8 +24,11 @@ window.initSuperAdmin = async () => {
     status.innerHTML = `<div class="sa-banner ${kind}">${msg}</div>`;
     if (ttlMs) setTimeout(() => status.innerHTML = "", ttlMs);
   }
+  const escapeHTML = window.escHtml || ((s) =>
+    String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])));
 
-  // ---- Auth gate ----------
+  // ---- Auth gate (unchanged from the old tenant panel) ----------
   async function evaluateAuth() {
     const session = await window.Auth.getSession();
     if (!session) { hide(forb); hide(panel); show(gate); return; }
@@ -40,7 +50,7 @@ window.initSuperAdmin = async () => {
       return;
     }
     hide(gate); hide(forb); show(panel);
-    await loadAll();
+    await loadOverview();
   }
 
   // ---- Login form ----------
@@ -63,151 +73,204 @@ window.initSuperAdmin = async () => {
     location.reload();
   });
 
-  // ---- Data loading ----------
-  async function loadAll() {
-    const { data, error } = await sb.from("tenants")
-      .select("id, slug, display_name, legal_name, contact_email, contact_phone, status, owner_user_id, created_at, approved_at")
-      .order("created_at", { ascending: false });
-    if (error) { flash("err", "Load failed: " + error.message, 0); return; }
-    renderCounts(data);
-    renderPending(data);
-    renderAll(data);
-  }
-
-  function renderCounts(rows) {
-    const counts = { pending_approval: 0, active: 0, suspended: 0, rejected: 0 };
-    rows.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
-    document.getElementById("cntPending").textContent   = counts.pending_approval;
-    document.getElementById("cntActive").textContent    = counts.active;
-    document.getElementById("cntSuspended").textContent = counts.suspended;
-    document.getElementById("cntRejected").textContent  = counts.rejected;
-  }
-
-  function fmtDate(s) {
-    if (!s) return "—";
-    const d = new Date(s);
-    return d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-  }
-
-  function renderPending(rows) {
-    const pending = rows.filter(r => r.status === "pending_approval");
-    const tbody = document.querySelector("#pendingTable tbody");
-    const empty = document.getElementById("pendingEmpty");
-    tbody.innerHTML = "";
-    if (pending.length === 0) { empty.hidden = false; return; }
-    empty.hidden = true;
-    pending.forEach(r => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><code>${escapeHTML(r.slug)}</code></td>
-        <td><strong>${escapeHTML(r.display_name)}</strong>${r.legal_name ? `<br/><small>${escapeHTML(r.legal_name)}</small>` : ""}</td>
-        <td>${escapeHTML(r.contact_email)}<br/><small>${escapeHTML(r.contact_phone || "")}</small></td>
-        <td>${fmtDate(r.created_at)}</td>
-        <td class="sa-actions">
-          <button class="sa-btn approve" data-act="approve" data-id="${r.id}">Approve</button>
-          <button class="sa-btn reject"  data-act="reject"  data-id="${r.id}">Reject</button>
-        </td>`;
-      tbody.appendChild(tr);
-    });
-  }
-
-  function renderAll(rows) {
-    const tbody = document.querySelector("#allTable tbody");
-    const empty = document.getElementById("allEmpty");
-    tbody.innerHTML = "";
-    if (rows.length === 0) { empty.hidden = false; return; }
-    empty.hidden = true;
-    rows.forEach(r => {
-      const tr = document.createElement("tr");
-      const actions = r.status === "active"
-        ? `<button class="sa-btn suspend" data-act="suspend" data-id="${r.id}">Suspend</button>`
-        : r.status === "suspended"
-        ? `<button class="sa-btn approve" data-act="reactivate" data-id="${r.id}">Reactivate</button>`
-        : r.status === "rejected"
-        ? `<button class="sa-btn approve" data-act="reconsider" data-id="${r.id}">Reconsider</button>`
-        : "";
-      tr.innerHTML = `
-        <td><code>${escapeHTML(r.slug)}</code></td>
-        <td>${escapeHTML(r.display_name)}</td>
-        <td>${escapeHTML(r.contact_email)}</td>
-        <td><span class="sa-status ${r.status === "pending_approval" ? "pending" : r.status}">${r.status.replace("_"," ")}</span></td>
-        <td>${fmtDate(r.created_at)}</td>
-        <td class="sa-actions">${actions}</td>`;
-      tbody.appendChild(tr);
-    });
-  }
-
-  // ---- Action handlers ----------
-  document.addEventListener("click", async (e) => {
-    const btn = e.target.closest("[data-act]");
-    if (!btn) return;
-    const id  = btn.dataset.id;
-    const act = btn.dataset.act;
-    btn.disabled = true;
-
-    try {
-      if (act === "approve" || act === "reactivate" || act === "reconsider") {
-        await callApprove(id, "active");
-        flash("ok", "Tenant activated.");
-      } else if (act === "reject") {
-        const note = prompt("Optional rejection note (visible in audit only):") || null;
-        await callApprove(id, "rejected", note);
-        flash("ok", "Tenant marked rejected.");
-      } else if (act === "suspend") {
-        await callApprove(id, "suspended");
-        flash("ok", "Tenant suspended.");
-      }
-      // Refresh quietly — never let a refresh failure overwrite the success banner
-      loadAll().catch(e => console.warn("List refresh failed (DB change still saved):", e));
-    } catch (err) {
-      console.error("Action failed:", err);
-      const msg = err?.message || err?.error_description || err?.code || String(err);
-      flash("err", "Action failed: " + msg, 0);
-    } finally {
-      btn.disabled = false;
-    }
+  document.getElementById("saRefresh")?.addEventListener("click", () => {
+    loadOverview();
   });
 
-  // ---- Status change: try RPC, fall back to direct UPDATE ----
-  async function callApprove(tenantId, newStatus, rejectionNote) {
-    // 1) Preferred: SECURITY DEFINER RPC (admin check inside function)
+  // ---- Small query helpers ----------
+  // A filtered exact-count that never throws: returns a number, or null if the
+  // table is missing / blocked by RLS (so the card can show "—").
+  async function countWhere(table, build) {
     try {
-      const { data, error } = await sb.rpc("set_tenant_status", {
-        p_tenant_id: tenantId,
-        p_status:    newStatus,
-        p_note:      rejectionNote || null
-      });
-      if (!error) {
-        console.log("RPC ok:", data);
-        return { ok: true, data };
-      }
-      console.warn("RPC failed, falling back to direct UPDATE:", error);
+      let q = sb.from(table).select("*", { count: "exact", head: true });
+      if (build) q = build(q);
+      const { count, error } = await q;
+      if (error) { console.warn(`count ${table} failed:`, error.message); return null; }
+      return count ?? 0;
     } catch (e) {
-      console.warn("RPC threw, falling back to direct UPDATE:", e?.message || e);
+      console.warn(`count ${table} threw:`, e?.message || e);
+      return null;
     }
-
-    // 2) Fallback: direct UPDATE (admin RLS allows it)
-    const session = await window.Auth.getSession();
-    const patch = { status: newStatus };
-    if (newStatus === "active") {
-      patch.approved_at = new Date().toISOString();
-      patch.approved_by = session?.user?.id || null;
-    } else if (newStatus === "rejected") {
-      patch.rejection_note = rejectionNote || null;
-    } else {
-      patch.rejection_note = null;
-    }
-    const { data, error } = await sb.from("tenants").update(patch).eq("id", tenantId).select();
-    if (error) throw error;
-    if (!data || data.length === 0) throw new Error("Tenant not found or update blocked by RLS");
-    console.log("Direct UPDATE ok:", data);
-    return { ok: true, data };
   }
 
-  function escapeHTML(s) {
-    return String(s == null ? "" : s).replace(/[&<>"]/g, c => (
-      { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]
-    ));
+  // Fetch a column (or columns) defensively; [] on any failure.
+  async function fetchCol(table, cols, build) {
+    try {
+      let q = sb.from(table).select(cols);
+      if (build) q = build(q);
+      const { data, error } = await q;
+      if (error) { console.warn(`fetch ${table} failed:`, error.message); return []; }
+      return data || [];
+    } catch (e) {
+      console.warn(`fetch ${table} threw:`, e?.message || e);
+      return [];
+    }
+  }
+
+  const fmtNum = (n) => (n == null ? "—" : Number(n).toLocaleString("en-US"));
+  const fmtTzs = (n) => (n == null ? "—" : (window.formatTZS ? window.formatTZS(n) : "TZS " + Number(n).toLocaleString("en-US")));
+  const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const setSub  = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
+  function startOfMonthISO() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
+  }
+  const todayISO = () => new Date().toISOString().slice(0, 10);
+
+  // ---- Main load ----------
+  async function loadOverview() {
+    flash("ok", "Loading platform overview…", 0);
+
+    await Promise.all([
+      loadPulse(),
+      loadRevenue(),
+      loadCoverage(),
+      loadAccess(),
+    ]);
+
+    status.innerHTML = "";
+  }
+
+  // 1) Marketplace pulse — live counts across every offering.
+  async function loadPulse() {
+    // Houses: "live" matches the public directory rule (available !== false).
+    const housesLive = await countWhere("houses", (q) => q.or("available.is.null,available.eq.true"));
+    const housesTotal = await countWhere("houses");
+    setText("pHouses", fmtNum(housesLive));
+    setSub("pHousesSub", housesTotal == null ? "live rooms" :
+      `${fmtNum(housesLive)} live of ${fmtNum(housesTotal)} total`);
+
+    const services = await countWhere("services");
+    setText("pServices", fmtNum(services));
+
+    const trucks = await countWhere("trucks");
+    setText("pTrucks", fmtNum(trucks));
+
+    // Day jobs still hiring (open or assembling a team).
+    const jobsOpen = await countWhere("day_jobs", (q) => q.in("status", ["open", "full"]));
+    const jobsTotal = await countWhere("day_jobs");
+    setText("pJobs", fmtNum(jobsOpen));
+    setSub("pJobsSub", jobsTotal == null ? "open jobs" : `${fmtNum(jobsOpen)} hiring of ${fmtNum(jobsTotal)} posted`);
+
+    // Seeker demand pins (people looking — agents' lead board).
+    const demand = await countWhere("house_demand_pins");
+    setText("pDemand", fmtNum(demand));
+
+    // Agents on the platform (one billing row per agent).
+    const agents = await countWhere("agent_billing");
+    const pending = await countWhere("agent_billing", (q) => q.is("approved_at", null));
+    setText("pAgents", fmtNum(agents));
+    setSub("pAgentsSub", pending == null ? "registered" :
+      (pending > 0 ? `${fmtNum(pending)} awaiting approval` : "all approved"));
+  }
+
+  // 2) Revenue — real money collected (source of truth = agent_payments ledger).
+  async function loadRevenue() {
+    const rows = await fetchCol("agent_payments", "amount_tzs, created_at");
+    if (!rows.length) {
+      // Could be genuinely zero, or the ledger table isn't live yet.
+      setText("rTotal", fmtTzs(0));
+      setText("rMonth", fmtTzs(0));
+    } else {
+      const monthStart = startOfMonthISO();
+      let total = 0, month = 0;
+      rows.forEach((r) => {
+        const amt = Number(r.amount_tzs) || 0;
+        total += amt;
+        if (r.created_at && r.created_at >= monthStart) month += amt;
+      });
+      setText("rTotal", fmtTzs(total));
+      setText("rMonth", fmtTzs(month));
+    }
+
+    // Active subscriptions = switched on AND coverage not yet lapsed.
+    const activeSubs = await countWhere("agent_billing", (q) =>
+      q.eq("active", true).gte("paid_until", todayISO()));
+    setText("rActive", fmtNum(activeSubs));
+
+    const receipts = rows.length;
+    setText("rReceipts", fmtNum(receipts));
+  }
+
+  // 3) Regional coverage — where the platform actually reaches. Combine the
+  //    region of every live listing across houses / services / trucks.
+  async function loadCoverage() {
+    const tbody = document.querySelector("#coverageTable tbody");
+    const empty = document.getElementById("coverageEmpty");
+    if (!tbody) return;
+
+    const [houses, services, trucks] = await Promise.all([
+      fetchCol("houses",   "region", (q) => q.or("available.is.null,available.eq.true").limit(5000)),
+      fetchCol("services", "region", (q) => q.limit(5000)),
+      fetchCol("trucks",   "region", (q) => q.limit(5000)),
+    ]);
+
+    const map = new Map(); // region -> { houses, services, trucks }
+    const bump = (rows, key) => rows.forEach((r) => {
+      const region = (r.region || "").trim() || "Unspecified";
+      const e = map.get(region) || { houses: 0, services: 0, trucks: 0 };
+      e[key]++; map.set(region, e);
+    });
+    bump(houses, "houses");
+    bump(services, "services");
+    bump(trucks, "trucks");
+
+    const regions = [...map.entries()]
+      .map(([region, c]) => ({ region, ...c, total: c.houses + c.services + c.trucks }))
+      .sort((a, b) => b.total - a.total);
+
+    tbody.innerHTML = "";
+    if (!regions.length) { if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
+
+    setText("coverageCount", `${regions.length} region${regions.length === 1 ? "" : "s"} covered`);
+
+    regions.slice(0, 25).forEach((r) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        `<td><strong>${escapeHTML(r.region)}</strong></td>` +
+        `<td>${fmtNum(r.houses)}</td>` +
+        `<td>${fmtNum(r.services)}</td>` +
+        `<td>${fmtNum(r.trucks)}</td>` +
+        `<td><strong>${fmtNum(r.total)}</strong></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // 4) Platform access — who holds owner/admin keys.
+  async function loadAccess() {
+    const tbody = document.querySelector("#accessTable tbody");
+    const empty = document.getElementById("accessEmpty");
+    if (!tbody) return;
+
+    const admins = await fetchCol("admins", "email, created_at, name", (q) => q.limit(200));
+    tbody.innerHTML = "";
+
+    if (!admins.length) {
+      // RLS commonly hides the row list even from an admin (head-count works,
+      // full read may not) — fall back to the configured allow-list so the
+      // section is never blank for a legitimate owner.
+      const cfgEmails = (window.APP_CONFIG?.ADMIN_EMAILS) || [];
+      if (!cfgEmails.length) { if (empty) empty.hidden = false; return; }
+      if (empty) empty.hidden = true;
+      cfgEmails.forEach((em) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${escapeHTML(em)}</td><td><em>config allow-list</em></td>`;
+        tbody.appendChild(tr);
+      });
+      return;
+    }
+
+    if (empty) empty.hidden = true;
+    admins.forEach((a) => {
+      const tr = document.createElement("tr");
+      const when = a.created_at
+        ? new Date(a.created_at).toLocaleDateString("en-GB", { dateStyle: "medium" })
+        : "—";
+      tr.innerHTML = `<td>${escapeHTML(a.email || a.name || "—")}</td><td>${escapeHTML(when)}</td>`;
+      tbody.appendChild(tr);
+    });
   }
 
   await evaluateAuth();

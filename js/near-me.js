@@ -168,10 +168,12 @@
   function cardHtml(it) {
     const badges = [];
     badges.push(`<span class="nm-badge kind ${it.kind}">${it.kind === "room" ? "Room" : "Truck"}</span>`);
-    const dkm = Number.isFinite(it._dispKm) ? it._dispKm : it._km;
-    if (Number.isFinite(dkm)) {
-      const lbl = it._byRoad ? " " + distanceLabel(dkm).replace(" away", " by road") : distanceLabel(dkm);
-      badges.push(`<span class="nm-badge dist">${esc(lbl)}</span>`);
+    // REAL road distance only. Until a routing engine answers, say "measuring…"
+    // rather than a crow-flies "X km away" that overstates how close it is.
+    if (it._byRoad && Number.isFinite(it._dispKm)) {
+      badges.push(`<span class="nm-badge dist"> ${esc(distanceLabel(it._dispKm).replace(" away", " by road"))}</span>`);
+    } else if (Number.isFinite(it._km)) {
+      badges.push(`<span class="nm-badge dist measuring">measuring road…</span>`);
     }
     if (it.verified) badges.push(`<span class="nm-badge verified"></span>`);
     const photoStyle = it.photo ? `background-image:url('${esc(it.photo)}')` : "background:#dfe7e2;";
@@ -293,20 +295,12 @@
     const r = await window.pawaRoute.route(userLoc, { lat: +it.lat, lng: +it.lng });
     if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
     if (!r || !r.geojson) {
-      // Live road routing is down — never leave the tap with no answer. Draw a
-      // clearly-dashed straight line, honestly labelled as an estimate.
-      const km = haversineKm(userLoc.lat, userLoc.lng, +it.lat, +it.lng);
-      const geom = { type: "LineString", coordinates: [[userLoc.lng, userLoc.lat], [+it.lng, +it.lat]] };
+      // No routing engine (OSRM ×2 + Valhalla) could measure it — show the honest
+      // state at the destination instead of drawing a misleading straight line.
       routeLayer = L.layerGroup().addTo(map);
-      L.geoJSON(geom, { interactive: false, style: { color: "#fff", weight: 7, opacity: .9 } }).addTo(routeLayer);
-      const ln = L.geoJSON(geom,
-        { style: { color: "#b26a00", weight: 4, opacity: .9, dashArray: "4 8" } }
-      ).addTo(routeLayer);
-      ln.bindPopup(
-        `<strong>${esc(it.title)}</strong><br>≈ ${km.toFixed(1)} km straight-line` +
-        `<br><small>Live road routing unavailable — the road is a bit longer.</small>`);
-      try { map.fitBounds(ln.getBounds().pad(0.25)); } catch (_) {}
-      ln.openPopup();
+      L.popup().setLatLng([+it.lat, +it.lng])
+        .setContent(`<strong>${esc(it.title)}</strong><br><small>Couldn’t measure the road distance right now — please try again.</small>`)
+        .openOn(map);
       return;
     }
     const options = [

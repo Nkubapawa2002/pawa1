@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>The Frame — read any area as a room for business — Maisha na Lifeza</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/houses-pro.css" />
+  <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <style>
+    /* ---- Control toolbar ---- */
+    .fr-toolbar {
+      background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px; padding: 12px; margin-bottom: 12px;
+      display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center;
+    }
+    .fr-search { display: flex; gap: 8px; }
+    .fr-search input {
+      flex: 1; min-width: 160px; padding: 11px 14px; border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 10px; font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915);
+    }
+    .fr-btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 11px 16px; border: none;
+      border-radius: 10px; cursor: pointer; background: var(--c-brand, #0a6f4d); color: #fff;
+      font-weight: 700; font-size: .92rem; white-space: nowrap; font-family: inherit;
+    }
+    .fr-btn.ghost { background: #fff; color: var(--c-text, #1a1915); border: 1px solid var(--c-border, #e7e4dd); }
+    .fr-btn:disabled { opacity: .6; cursor: default; }
+    .fr-btn svg { width: 18px; height: 18px; }
+    .fr-toolbar select {
+      padding: 11px 12px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px;
+      font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915);
+    }
+    .fr-hint { font-size: .85rem; color: var(--c-muted, #6b6960); margin: 2px 2px 10px; }
+
+    /* ---- Stage: readout panel + map ---- */
+    .fr-stage { display: grid; grid-template-columns: .95fr 1.05fr; gap: 14px; align-items: start; }
+    .fr-map-wrap { position: sticky; top: 14px; }
+    .fr-map { height: 76vh; min-height: 460px; border-radius: 14px; overflow: hidden; border: 1px solid var(--c-border, #e7e4dd); }
+    .fr-panel { display: flex; flex-direction: column; gap: 12px; }
+
+    /* ---- Empty / loading state ---- */
+    .fr-empty {
+      background: var(--c-surface, #fff); border: 1px dashed var(--c-border, #d8d4cc);
+      border-radius: 14px; padding: 34px 20px; text-align: center; color: var(--c-muted, #6b6960);
+    }
+    .fr-empty h3 { margin: 0 0 6px; color: var(--c-text, #1a1915); font-size: 1.05rem; }
+
+    /* ---- Card shell ---- */
+    .fr-card {
+      background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
+      border-radius: 14px; padding: 14px 16px;
+    }
+    .fr-card h3 { margin: 0 0 2px; font-size: .78rem; text-transform: uppercase; letter-spacing: .6px; color: var(--c-muted, #6b6960); }
+
+    /* ---- Header card with score ---- */
+    .fr-head { display: flex; gap: 14px; align-items: center; }
+    .fr-head-main { flex: 1; min-width: 0; }
+    .fr-frame-name { font-size: 1.18rem; font-weight: 800; color: var(--c-text, #1a1915); line-height: 1.2; }
+    .fr-frame-area { font-size: .85rem; color: var(--c-muted, #6b6960); margin-top: 2px; }
+    .fr-why { font-size: .86rem; color: var(--c-text, #3a382f); margin-top: 8px; line-height: 1.45; }
+    .fr-score {
+      flex-shrink: 0; width: 76px; height: 76px; border-radius: 18px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.15);
+    }
+    .fr-score b { font-size: 1.7rem; line-height: 1; font-weight: 800; }
+    .fr-score span { font-size: .58rem; text-transform: uppercase; letter-spacing: .5px; opacity: .9; margin-top: 2px; }
+
+    /* ---- Layer readout ---- */
+    .fr-layer { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--c-border, #efece5); }
+    .fr-layer:first-of-type { border-top: 0; }
+    .fr-layer-ic { font-size: 1.25rem; line-height: 1.3; width: 26px; text-align: center; flex-shrink: 0; }
+    .fr-layer-b { flex: 1; min-width: 0; }
+    .fr-layer-t { font-weight: 700; font-size: .9rem; color: var(--c-text, #1a1915); }
+    .fr-layer-d { font-size: .82rem; color: var(--c-muted, #6b6960); margin-top: 1px; line-height: 1.4; }
+
+    /* ---- Magnet chips ---- */
+    .fr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .fr-chip {
+      display: inline-flex; align-items: center; gap: 5px; font-size: .74rem; font-weight: 700;
+      padding: 3px 9px; border-radius: 999px; color: #fff;
+    }
+    .fr-chip small { font-weight: 800; opacity: .85; }
+
+    /* ---- Gap panel verdict ---- */
+    .fr-gap-verdict { display: inline-block; font-weight: 800; font-size: .8rem; padding: 4px 11px; border-radius: 999px; margin-bottom: 8px; }
+    .fr-gap-open   { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .fr-gap-gap    { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .fr-gap-proven { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .fr-gap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+    .fr-stat { background: var(--c-surface-2, #f6f4ee); border-radius: 10px; padding: 9px 11px; }
+    .fr-stat b { display: block; font-size: 1.35rem; font-weight: 800; color: var(--c-text, #1a1915); line-height: 1; }
+    .fr-stat span { font-size: .74rem; color: var(--c-muted, #6b6960); }
+    .fr-frames-sub { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--c-muted, #8a8678); margin: 14px 0 2px; }
+    .fr-frames-none { font-size: .84rem; color: var(--c-muted, #6b6960); margin-top: 12px; line-height: 1.45; }
+    .fr-frame-row { display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--c-border, #efece5); background: none; text-align: left; cursor: pointer; font-family: inherit; color: inherit; }
+    .fr-frame-row:first-of-type { border-top: 0; }
+    .fr-frame-row:hover { background: var(--c-surface-2, #f6f4ee); border-radius: 8px; margin: 0 -8px; padding: 8px; }
+    .fr-frame-row:hover .fr-frame-name { color: var(--c-brand, #0a6f4d); }
+    .fr-frame-name { flex: 1; min-width: 0; font-weight: 700; font-size: .88rem; color: var(--c-text, #1a1915); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fr-frame-meta { font-size: .79rem; color: var(--c-muted, #6b6960); white-space: nowrap; flex-shrink: 0; }
+    .fr-frames-more { font-size: .8rem; color: var(--c-brand, #0a6f4d); font-weight: 600; text-align: center; margin-top: 8px; }
+
+    /* Pulsing ring dropped on a frame when its list row is tapped */
+    .fr-hl-ring { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #f0a92e; box-shadow: 0 0 14px rgba(240,169,46,.85); animation: frHlPulse 1s ease-out 3; }
+    @keyframes frHlPulse { 0% { transform: scale(.45); opacity: 1; } 100% { transform: scale(1.45); opacity: 0; } }
+
+    /* Desktop hover-sync: a row softly highlights when its map pin is hovered */
+    .fr-frame-row.sync { background: var(--c-surface-2, #f6f4ee); border-radius: 8px; margin: 0 -8px; padding: 8px; }
+    .fr-frame-row.sync .fr-frame-name { color: var(--c-brand, #0a6f4d); }
+
+    /* Reverse: flash a list row when its map pin is tapped */
+    .fr-frame-row.flash { border-radius: 8px; margin: 0 -8px; padding: 8px; animation: frRowFlash 1.6s ease-out; }
+    @keyframes frRowFlash {
+      0%, 30% { background: rgba(240,169,46,.32); box-shadow: 0 0 0 2px rgba(240,169,46,.55) inset; }
+      100% { background: transparent; box-shadow: none; }
+    }
+
+    /* ---- Action buttons ---- */
+    .fr-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .fr-actions a, .fr-actions button {
+      flex: 1; min-width: 130px; text-align: center; text-decoration: none; padding: 11px 12px;
+      border-radius: 10px; font-weight: 700; font-size: .86rem; cursor: pointer; font-family: inherit;
+      background: var(--c-brand, #0a6f4d); color: #fff; border: none;
+    }
+    .fr-actions .ghost { background: #fff; color: var(--c-brand, #0a6f4d); border: 1px solid var(--c-brand, #0a6f4d); }
+
+    /* ---- Daily life: pulse, rhythm timeline, activities ---- */
+    .fr-life { background: linear-gradient(180deg,#0d1f1a,#10312a); color: #eafff6; border: 1px solid #0a3d31; }
+    .fr-life h3 { color: #7fe9c4; }
+    .fr-pulse { font-size: .98rem; font-weight: 700; line-height: 1.45; margin: 2px 0 12px; color: #eafff6; }
+    .fr-pulse b { color: #ffd98a; }
+
+    .fr-rhythm { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 4px 0 6px; }
+    .fr-rp { text-align: center; }
+    .fr-rp-bar { height: 56px; display: flex; align-items: flex-end; justify-content: center; }
+    .fr-rp-bar i {
+      display: block; width: 70%; min-height: 3px; border-radius: 5px 5px 0 0;
+      background: linear-gradient(180deg,#2fd397,#0a8f63); transition: height .4s ease;
+    }
+    .fr-rp.peak .fr-rp-bar i { background: linear-gradient(180deg,#ffd98a,#f0a92e); box-shadow: 0 0 12px rgba(240,169,46,.5); }
+    .fr-rp-l { font-size: .68rem; font-weight: 700; margin-top: 5px; color: #cdeee2; }
+    .fr-rp.peak .fr-rp-l { color: #ffd98a; }
+    .fr-rp-h { font-size: .58rem; color: #7fb3a3; }
+
+    .fr-markers { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 4px; }
+    .fr-marker { font-size: .68rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(127,233,196,.14); color: #9ff0d2; border: 1px solid rgba(127,233,196,.28); }
+
+    .fr-acts { display: flex; flex-direction: column; gap: 1px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+    .fr-act { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); align-items: flex-start; }
+    .fr-act:last-child { border-bottom: 0; }
+    .fr-act-ic { font-size: 1.2rem; line-height: 1.2; width: 24px; text-align: center; flex-shrink: 0; }
+    .fr-act-b { flex: 1; min-width: 0; }
+    .fr-act-t { font-weight: 700; font-size: .88rem; color: #eafff6; }
+    .fr-act-t small { font-weight: 700; color: #ffd98a; font-size: .72rem; margin-left: 6px; }
+    .fr-act-d { font-size: .8rem; color: #a9d4c6; margin-top: 1px; line-height: 1.4; }
+    .fr-act-meter { height: 4px; border-radius: 3px; background: rgba(255,255,255,.1); margin-top: 6px; overflow: hidden; }
+    .fr-act-meter i { display: block; height: 100%; background: linear-gradient(90deg,#2fd397,#7fe9c4); border-radius: 3px; }
+    .fr-people { font-size: .82rem; color: #bfe9da; margin-top: 12px; line-height: 1.5; }
+    .fr-people b { color: #eafff6; }
+    .fr-potential { margin-top: 12px; padding: 11px 13px; border-radius: 11px; background: rgba(255,217,138,.1); border: 1px solid rgba(255,217,138,.28); font-size: .86rem; line-height: 1.5; color: #ffe9bf; }
+    .fr-potential b { color: #ffd98a; }
+
+    /* ---- Roads & nodes card ---- */
+    .fr-road-head { font-size: .9rem; line-height: 1.5; color: var(--c-text, #3a382f); margin: 2px 0 10px; }
+    .fr-road-head b { color: var(--c-brand, #0a6f4d); }
+    .fr-road-row { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px solid var(--c-border, #efece5); font-size: .86rem; }
+    .fr-road-row:first-of-type { border-top: 0; }
+    .fr-rc { font-size: .6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: #fff; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; }
+    .fr-road-name { flex: 1; min-width: 0; font-weight: 600; color: var(--c-text, #1a1915); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fr-road-dist { font-weight: 800; color: var(--c-text, #3a382f); flex-shrink: 0; }
+    .fr-node { margin-top: 11px; padding: 10px 12px; border-radius: 11px; background: #fff7ed; border: 1px solid #fed7aa; font-size: .85rem; color: #9a3412; line-height: 1.5; }
+    .fr-node b { color: #7c2d12; }
+    .fr-road-note { font-size: .82rem; color: var(--c-muted, #6b6960); margin-top: 9px; line-height: 1.45; }
+    .fr-road-sub { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--c-muted, #8a8678); margin: 12px 0 2px; }
+    .fr-road-row.other .fr-road-name { font-weight: 500; color: var(--c-muted, #6b6960); }
+    .fr-road-row.other .fr-rc { opacity: .82; }
+
+    /* ---- Best spot to list ---- */
+    .fr-best { border: 1px solid #f0c674; background: linear-gradient(180deg, #fffaf0, #fff); }
+    .fr-best h3 { color: #b45309; }
+    .fr-best-where { font-size: .95rem; font-weight: 700; color: var(--c-text, #1a1915); line-height: 1.5; margin: 2px 0 6px; }
+    .fr-best-where b { color: #b45309; }
+    .fr-best-why { font-size: .85rem; color: var(--c-muted, #6b6960); line-height: 1.5; margin-bottom: 11px; }
+    .fr-best-btn { background: #f0a92e; color: #4a2c00; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 800; font-size: .85rem; cursor: pointer; font-family: inherit; }
+    .fr-best-pin {
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: #f0a92e; text-shadow: 0 0 4px #fff, 0 0 8px #fff, 0 1px 3px rgba(0,0,0,.5);
+      animation: frBestPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes frBestPulse { 0%,100%{ transform: scale(1) } 50%{ transform: scale(1.22) } }
+
+    /* ---- Student catchment ---- */
+    .fr-uni { background: linear-gradient(180deg, #241b3a, #15102a); color: #ece8ff; border: 1px solid #3a2d63; }
+    .fr-uni h3 { color: #c4b5fd; }
+    .fr-uni-lead { font-size: .95rem; line-height: 1.55; margin: 2px 0 12px; color: #ece8ff; }
+    .fr-uni-lead b { color: #d6c8ff; }
+    .fr-uni-none { font-size: .86rem; color: #b8aee0; line-height: 1.55; }
+    .fr-uni-ladder { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 4px 0 12px; }
+    .fr-uni-band { text-align: center; }
+    .fr-uni-band i { display: block; height: 9px; border-radius: 5px; background: rgba(196,181,253,.22); transition: background .3s; }
+    .fr-uni-band.on i { background: linear-gradient(90deg, #a78bfa, #f0abfc); box-shadow: 0 0 12px rgba(167,139,250,.65); }
+    .fr-uni-band span { font-size: .6rem; color: #b8aee0; margin-top: 4px; display: block; }
+    .fr-uni-band.on span { color: #f0abfc; font-weight: 800; }
+    .fr-uni-sub { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #a99fd0; margin: 6px 0 2px; }
+    .fr-uni-row { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px solid rgba(255,255,255,.08); font-size: .86rem; }
+    .fr-uni-row:first-of-type { border-top: 0; }
+    .fr-uni-n { width: 19px; height: 19px; border-radius: 50%; background: #7c3aed; color: #fff; font-size: .7rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .fr-uni-name { flex: 1; min-width: 0; font-weight: 600; color: #ece8ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fr-uni-dist { font-weight: 800; color: #d6c8ff; flex-shrink: 0; }
+    .fr-uni-opp { margin-top: 12px; padding: 10px 12px; border-radius: 11px; background: rgba(167,139,250,.12); border: 1px solid rgba(167,139,250,.3); font-size: .84rem; line-height: 1.5; color: #e6dcff; }
+    .fr-uni-opp b { color: #d6c8ff; }
+    .fr-uni-pin { font-size: 20px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); }
+
+    /* ---- Most-visited destinations ---- */
+    .fr-dest { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--c-border, #efece5); align-items: flex-start; }
+    .fr-dest:first-of-type { border-top: 0; }
+    .fr-dest-ic { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #fff; flex-shrink: 0; }
+    .fr-dest-b { flex: 1; min-width: 0; }
+    .fr-dest-t { font-weight: 700; font-size: .9rem; color: var(--c-text, #1a1915); }
+    .fr-dest-t small { font-weight: 700; color: var(--c-accent, #bc5c00); font-size: .72rem; margin-left: 6px; }
+    .fr-dest-d { font-size: .82rem; color: var(--c-muted, #6b6960); margin-top: 1px; }
+    .fr-dest-d b { color: var(--c-text, #3a382f); }
+    .fr-dest-meter { height: 5px; border-radius: 3px; background: #ece9e1; margin-top: 6px; overflow: hidden; }
+    .fr-dest-meter i { display: block; height: 100%; background: linear-gradient(90deg, #f0a92e, #ffd98a); border-radius: 3px; }
+
+    /* Map: distance tag + junction node */
+    .fr-roadtag {
+      transform: translate(-50%, -50%); white-space: nowrap; font-size: .64rem; font-weight: 800;
+      background: #0a6f4d; color: #fff; padding: 2px 6px; border-radius: 999px; border: 1.5px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    }
+    .fr-jnode {
+      width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+      color: #b91c1c; font-size: 18px; text-shadow: 0 0 3px #fff, 0 0 6px #fff; font-weight: 900;
+    }
+
+    /* ---- Map pins ---- */
+    .fr-pin {
+      width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+      display: flex; align-items: center; justify-content: center; border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    }
+    .fr-pin span { transform: rotate(45deg); font-size: 12px; }
+    .fr-pin.own { border-radius: 50%; background: #0a6f4d; }
+    .fr-pin.own span { transform: none; }
+    /* Desktop hover-sync: a frame pin softly enlarges when its row is hovered */
+    .fr-pin.own.fr-pin-sync { transform: scale(1.55); box-shadow: 0 0 0 4px rgba(240,169,46,.6), 0 2px 6px rgba(0,0,0,.45); transition: transform .12s ease; z-index: 3; }
+
+    .fr-loading { display: inline-block; }
+    .fr-loading::after { content: "…"; animation: frDots 1.2s steps(4,end) infinite; }
+    @keyframes frDots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
+
+    /* Mobile list/map tabs */
+    .fr-mobile-tabs { display: none; gap: 8px; margin-bottom: 10px; }
+    .fr-mobile-tabs button {
+      flex: 1; padding: 10px; border: 1px solid var(--c-border, #e7e4dd);
+      background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915);
+    }
+    .fr-mobile-tabs button.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: transparent; }
+
+    @media (max-width: 880px) {
+      .fr-toolbar { grid-template-columns: 1fr; }
+      .fr-stage { grid-template-columns: 1fr; }
+      .fr-mobile-tabs { display: flex; }
+      .fr-stage[data-view="panel"] .fr-map-wrap { display: none; }
+      .fr-stage[data-view="map"] .fr-panel { display: none; }
+      .fr-map-wrap { position: static; }
+      .fr-map { height: 64vh; }
+    }
+  </style>
+</head>
+<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')" data-page="frame">
+  <div id="nav-slot"></div>
+
+  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')">
+    <div class="page-hero-inner">
+      <h1 class="page-title">The Frame</h1>
+      <p class="page-subtitle">Read any area as a <em>room for business</em> — the magnets that gather people, the road that carries them, who lives there, and how the place earns. Find demand before anyone posts a listing.</p>
+    </div>
+  </section>
+
+  <main class="container" style="padding-top:18px;">
+
+    <div class="fr-toolbar">
+      <div class="fr-search">
+        <input id="frSearch" type="search" autocomplete="off"
+               placeholder="Type a place — e.g. “Mwenge”, “Kariakoo”, “Mbezi Beach” — or use your location" />
+        <button id="frSearchBtn" class="fr-btn" type="button">Read frame</button>
+      </div>
+      <button id="frLocateBtn" class="fr-btn ghost" type="button" title="Use my GPS location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        <span>My location</span>
+      </button>
+      <select id="frRadius" title="Frame size">
+        <option value="800">Walkable · 800 m</option>
+        <option value="1500" selected>Neighbourhood · 1.5 km</option>
+        <option value="3000">Wide · 3 km</option>
+        <option value="5000">District · 5 km</option>
+      </select>
+    </div>
+
+    <div id="frHint" class="fr-hint" role="status">Search a place, tap <strong>My location</strong>, or click anywhere on the map to frame that spot.</div>
+
+    <!-- Mobile tab switcher -->
+    <div class="fr-mobile-tabs">
+      <button id="frTabPanel" class="active" type="button">Read-out</button>
+      <button id="frTabMap" type="button">Map</button>
+    </div>
+
+    <div class="fr-stage" id="frStage" data-view="panel">
+      <div id="frPanel" class="fr-panel">
+        <div class="fr-empty" id="frEmpty">
+          <h3>No frame yet</h3>
+          <p>Pick a spot and Pawa will read it: the magnets that gather people, the carrying road, an estimate of the population, the key operation that pays the area — and where your demand gaps are.</p>
+        </div>
+      </div>
+      <div class="fr-map-wrap">
+        <div id="frMap" class="fr-map"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/geolocate.js"></script>
+  <script src="js/frame.js"></script>
+  <script>
+    window.renderNav("frame.html");
+    window.renderFooter();
+    window.applyTranslations && window.applyTranslations();
+    window.initFramePage();
+  </script>
+
+  <script src="js/mobile-nav.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/premium.js" defer></script>
+</body>
+</html>

@@ -150,6 +150,7 @@
     .house-card-commute { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
     .hc-leg { font-size: .78rem; color: #4b5563; }
     .hc-leg.over { color: #b91c1c; font-weight: 600; }
+    .hc-leg.pending { color: #9ca3af; font-style: italic; }
 
     /* ---- My-places modal (reuses .alert-modal shell) ---- */
     .mp-row { border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; margin-bottom: 10px; background: #fafafa; }
@@ -401,6 +402,19 @@
       /* Big enough to comfortably pan/zoom and judge an area's boundary. */
       height: clamp(360px, 50vh, 560px);
     }
+    .am-map-offline {
+      position: absolute; inset: 0; z-index: 600;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; text-align: center; padding: 24px;
+      background: repeating-linear-gradient(45deg, #eef1ee, #eef1ee 12px, #e7ebe7 12px, #e7ebe7 24px);
+      color: var(--c-text-soft, #3f3d36);
+    }
+    /* The `display:flex` above otherwise beats the UA `[hidden]{display:none}`,
+       so the overlay stayed visible ("connect to internet") even after tiles
+       loaded. This makes the hidden attribute actually hide it. */
+    .am-map-offline[hidden] { display: none !important; }
+    .am-map-offline strong { font-size: .98rem; color: var(--c-text, #1a1915); }
+    .am-map-offline span { font-size: .82rem; max-width: 360px; line-height: 1.4; }
     .am-dots-badge {
       position: absolute; top: 8px; left: 8px; z-index: 500;
       background: rgba(10,111,77,.95); color: #fff;
@@ -427,12 +441,16 @@
       font-weight: 600;
     }
 
-    /* "Match to my life" modal — wider shell, a big map, and children that
-       keep their size so the body scrolls *inside* the modal (nothing spills
-       off the page). The map no longer collapses inside the flex column. */
+    /* Modal body children keep their intrinsic size so the body scrolls *inside*
+       the modal instead of squeezing them. CRITICAL for the map: in a flex
+       column the default flex-shrink:1 collapses the map to ~0px on short/mobile
+       viewports ("nothing shows"). Applies to BOTH the area-alert and the
+       "Match to my life" modals (they share the .alert-modal shell). */
+    .alert-modal .am-body > *  { flex: 0 0 auto; }
+    .alert-modal .am-map-wrap  { flex: 0 0 auto; }
+
+    /* "Match to my life" modal — wider shell + a slightly bigger map. */
     #placesModalBackdrop .alert-modal { max-width: 760px; }
-    #placesModalBackdrop .am-body > * { flex: 0 0 auto; }
-    #placesModalBackdrop .am-map-wrap { flex: 0 0 auto; }
     #placesModalBackdrop .am-map { height: clamp(340px, 52vh, 560px); }
     #mpList { display: flex; flex-direction: column; gap: 10px; }
 
@@ -958,6 +976,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span>Alert me about an area</span>
         </button>
+        <button id="houseRequestBtn" class="houses-alert-btn" title="Type where you want, the price and when — agents in that area will see it">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Tell us what you want</span>
+        </button>
         <button id="houseCommuteBtn" class="houses-alert-btn" title="Rank homes by distance & travel time to your workplace, school or favourite places">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
           <span>Match to my life</span>
@@ -1019,6 +1041,10 @@
 
           <div class="am-map-wrap">
             <div id="alertModalMap" class="am-map"></div>
+            <div class="am-map-offline" id="alertMapOffline" hidden>
+              <strong>Map can't load</strong>
+              <span>Connect to the internet to see the streets, then draw the area you want. (You can still search a place by name above.)</span>
+            </div>
             <div class="am-dots-badge" id="alertDotsBadge" hidden></div>
             <div class="am-coords" id="alertCoords">Pin not placed yet — search or tap the map</div>
           </div>
@@ -1083,9 +1109,20 @@
                 <option value="4">4+</option>
               </select>
             </label>
-            <label class="am-filter-wide">Needed by <small>(alerts stop after this date)</small>
+            <label>Start from <small>(watch from this date)</small>
+              <input id="alertFrom" type="date" />
+            </label>
+            <label>Needed by <small>(stop after this date)</small>
               <input id="alertUntil" type="date" />
             </label>
+          </div>
+
+          <!-- Optional: leave a phone so this becomes an AGENT-facing demand too —
+               an agent posting nearby (or whose tenant is about to move out) sees
+               you're waiting and your deadline, and can close before then. -->
+          <div class="am-name-row am-reach-row" id="alertReachRow">
+            <label for="alertPhone">Let agents reach you <small>(optional — so they can close before your “needed by” date)</small></label>
+            <input id="alertPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+255 7XX XXX XXX" />
           </div>
 
           <div class="am-name-row">
@@ -1134,6 +1171,10 @@
 
           <div class="am-map-wrap">
             <div id="mpModalMap" class="am-map"></div>
+            <div class="am-map-offline" id="mpMapOffline" hidden>
+              <strong>Map can't load</strong>
+              <span>Connect to the internet to see the streets, then pin your places. (You can still search a place by name above.)</span>
+            </div>
             <div class="am-coords" id="mpCoords">Pick a place above, then search or tap the map</div>
           </div>
         </div>
@@ -1247,6 +1288,7 @@
   <script src="js/ai-search.js"></script>
   <script src="js/geolocate.js"></script>
   <script src="js/find-mode.js"></script>
+  <script src="js/request-place.js"></script>
   <script src="js/houses.js"></script>
   <script>
     window.renderNav("houses.html");

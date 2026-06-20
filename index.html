@@ -18,6 +18,11 @@
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
 
+  <!-- Fraunces: an expressive variable serif for the brand manifesto quote -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&display=swap" />
+
   <style>
     /* ── Stats strip — 3 dark glass tiles matching the neon theme ──
        Overrides: styles.css 4-col grid (we only have 3 stats) and
@@ -256,6 +261,290 @@
       .hero h1 span, .hero p, .hero-cta { opacity: 1; transform: none; }
       .hero-orbs, .hero-ring, .hero-glint { display: none; }
     }
+
+    /* ───────────────────────────────────────────────────────────────
+       Brand manifesto — a bilingual message to our people.
+       A liquid-glass "pedestal" that carries the Swahili message and,
+       beneath a gold rule, its faithful English translation. Full-bleed
+       dark band lit by a slow-drifting gold + emerald aura. Both
+       languages are always visible (this is the message itself, not
+       UI chrome — so it is intentionally NOT i18n-toggled).
+       ─────────────────────────────────────────────────────────────── */
+    .manifesto {
+      position: relative;
+      margin: 8px 0 4px;
+      padding: clamp(24px, 4.5vw, 54px) 20px;
+      display: flex;
+      justify-content: center;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .manifesto-aura {
+      position: absolute; inset: -30% -12%;
+      z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 48% 55% at 20% 22%, rgba(252, 209, 22, .17), transparent 60%),
+        radial-gradient(ellipse 55% 60% at 84% 82%, rgba(16, 185, 129, .22), transparent 62%),
+        radial-gradient(ellipse 120% 90% at 50% 50%, transparent 38%, rgba(4, 12, 9, .55) 92%);
+      animation: manifesto-drift 19s ease-in-out infinite alternate;
+      will-change: transform, opacity;
+    }
+    @keyframes manifesto-drift {
+      0%   { transform: translate3d(-2%, -1.5%, 0) scale(1);    opacity: .82; }
+      100% { transform: translate3d(2.5%, 1.5%, 0) scale(1.09); opacity: 1; }
+    }
+    /* faint constellation of gold sparks drifting up behind the card */
+    .manifesto-sparks { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+    .manifesto-sparks span {
+      position: absolute; bottom: -6%; width: 4px; height: 4px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fff2c2, #f0c024 55%, rgba(140, 90, 12, 0) 75%);
+      box-shadow: 0 0 10px 2px rgba(252, 209, 22, .35);
+      opacity: 0; animation: spark-rise linear infinite;
+    }
+    @keyframes spark-rise {
+      0%   { transform: translateY(0) scale(.5); opacity: 0; }
+      12%  { opacity: var(--so, .7); }
+      88%  { opacity: var(--so, .7); }
+      100% { transform: translateY(-60vh) scale(1); opacity: 0; }
+    }
+    .manifesto-card {
+      position: relative;
+      max-width: 520px; margin: 0;
+      padding: clamp(18px, 3.2vw, 32px) clamp(18px, 3.6vw, 38px) clamp(16px, 2.6vw, 28px);
+      text-align: center;
+      border-radius: 22px;
+      background: linear-gradient(165deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .022));
+      border: 1px solid rgba(252, 209, 22, .22);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .10),
+        0 26px 64px rgba(0, 0, 0, .46),
+        0 0 0 1px rgba(16, 185, 129, .06);
+      backdrop-filter: blur(15px) saturate(1.12);
+      -webkit-backdrop-filter: blur(15px) saturate(1.12);
+      opacity: 0; transform: translateY(28px);
+      isolation: isolate;
+      transform-style: preserve-3d;
+      transition: transform .25s cubic-bezier(.2, .7, .2, 1);
+      will-change: transform;
+    }
+    .manifesto-card.in { animation: rise-in 1s cubic-bezier(.22, .7, .25, 1) forwards; }
+    /* keep all text above the cursor spotlight (which sits at z-index 0) */
+    .manifesto-card > *:not(.manifesto-spot):not(.manifesto-mark) { position: relative; z-index: 1; }
+    /* cursor-following spotlight — gold core fading into emerald */
+    .manifesto-spot {
+      position: absolute; inset: 0; z-index: 0; border-radius: inherit;
+      pointer-events: none; opacity: 0; transition: opacity .35s ease;
+      background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%),
+        rgba(252, 209, 22, .18), rgba(52, 211, 153, .10) 42%, transparent 72%);
+    }
+    /* hairline gold sheen riding the top edge of the glass */
+    .manifesto-card::before {
+      content: ""; position: absolute; left: 12%; right: 12%; top: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 224, 102, .8), transparent);
+    }
+    /* oversized decorative opening quotation mark */
+    .manifesto-mark {
+      position: absolute; top: clamp(-14px, -1.4vw, -7px); left: clamp(10px, 2.5vw, 26px);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(46px, 8vw, 84px); line-height: 1;
+      color: var(--n-gold, #fcd116); opacity: .26; z-index: 1;
+      pointer-events: none; user-select: none;
+    }
+    .manifesto-kicker {
+      margin: 0 0 clamp(9px, 1.5vw, 14px);
+      display: inline-flex; align-items: center; gap: 9px;
+      font-size: .64rem; font-weight: 700;
+      letter-spacing: .24em; text-transform: uppercase;
+      color: rgba(255, 224, 102, .9);
+    }
+    .manifesto-kicker span { color: rgba(252, 209, 22, .55); }
+    .manifesto blockquote { margin: 0; padding: 0; border: 0; quotes: none; }
+    .manifesto-sw {
+      position: relative;
+      perspective: 600px;                    /* gives the word roll-up real depth */
+      font-family: "Fraunces", Georgia, "Times New Roman", serif;
+      font-optical-sizing: auto;
+      font-weight: 500;
+      font-size: clamp(.96rem, 1.9vw, 1.3rem);
+      line-height: 1.45; letter-spacing: -.005em;
+      color: #fdfefb;
+      text-wrap: balance;
+    }
+    .manifesto-sw em {
+      font-style: italic;
+      background: linear-gradient(100deg, #e0a30c 0%, #fcd116 25%, #fff4c2 50%, #fcd116 75%, #e0a30c 100%);
+      background-size: 240% 100%;
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: manifesto-shimmer 5.5s linear infinite;
+    }
+    @keyframes manifesto-shimmer { from { background-position: 0% 0; } to { background-position: -240% 0; } }
+    .manifesto-sw .vow {
+      display: block; margin-top: .45em; font-weight: 600;
+      color: var(--n-green-bright, #34d399);
+    }
+    .manifesto-rule {
+      width: 50px; height: 2px; margin: clamp(14px, 2.2vw, 22px) auto;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent, rgba(252, 209, 22, .95), transparent);
+    }
+    .manifesto-en {
+      font-size: clamp(.78rem, 1.15vw, .88rem);
+      line-height: 1.6;
+      color: rgba(231, 241, 236, .85);
+      text-wrap: pretty;
+      max-width: 54ch; margin-inline: auto;
+    }
+    .manifesto-en em { font-style: italic; color: rgba(255, 224, 102, .94); }
+    .manifesto-en .vow { color: rgba(255, 255, 255, .96); font-weight: 600; }
+    .manifesto-sign {
+      margin-top: clamp(16px, 2.2vw, 24px);
+      font-size: .68rem; font-weight: 700;
+      letter-spacing: .22em; text-transform: uppercase;
+      color: rgba(252, 209, 22, .8);
+    }
+    .manifesto-sign::before { content: "— "; opacity: .65; }
+    /* word-by-word cinematic assembly of the Swahili line (JS wraps words in .w) */
+    .manifesto-sw .w {
+      display: inline-block;
+      opacity: 0; transform: translateY(22px) rotateX(-90deg);
+      transform-origin: 50% 100%;            /* pivot at the baseline → rolls up from below */
+      transition: opacity .5s ease, transform .6s cubic-bezier(.18, .8, .25, 1);
+      will-change: opacity, transform;
+    }
+    .manifesto-card.words-in .manifesto-sw .w { opacity: 1; transform: none; }
+    /* gold lightning strike — a bright diagonal beam that flickers across the
+       card once, the moment the word-assembly lands (JS adds .flashed) */
+    .manifesto-card::after {
+      content: ""; position: absolute; inset: 0; z-index: 3;
+      border-radius: inherit; pointer-events: none; opacity: 0;
+      mix-blend-mode: screen;
+      background: linear-gradient(105deg,
+        transparent 40%,
+        rgba(255, 240, 170, 0) 46%,
+        rgba(255, 236, 150, .55) 49.5%,
+        rgba(255, 255, 255, .92) 50.5%,
+        rgba(255, 236, 150, .55) 52%,
+        transparent 60%);
+      background-size: 260% 100%;
+      background-position: 135% 0;
+    }
+    .manifesto-card.flashed::after { animation: manifesto-strike .9s cubic-bezier(.2, .6, .2, 1) 1; }
+    @keyframes manifesto-strike {
+      0%   { opacity: 0;  background-position: 135% 0; }
+      7%   { opacity: .95; }
+      14%  { opacity: .35; }                 /* flicker */
+      22%  { opacity: 1; }                    /* main strike */
+      100% { opacity: 0;  background-position: -55% 0; }
+    }
+    /* Phones — keep the card breathing, text crisp and centred */
+    @media (max-width: 600px) {
+      .manifesto { padding: clamp(20px, 6vw, 36px) 14px; }
+      .manifesto-card { border-radius: 18px; max-width: 100%; }
+      .manifesto-sw { font-size: clamp(.95rem, 4.4vw, 1.18rem); line-height: 1.5; }
+      .manifesto-en { font-size: clamp(.8rem, 3.4vw, .9rem); line-height: 1.6; }
+      .manifesto-mark { font-size: clamp(40px, 16vw, 64px); top: -10px; left: 12px; }
+      .manifesto-kicker { letter-spacing: .2em; gap: 7px; }
+      .manifesto-sign { letter-spacing: .16em; }
+    }
+    /* Small phones — tighten further so nothing crowds the edges */
+    @media (max-width: 380px) {
+      .manifesto-card { padding: 18px 16px 16px; }
+      .manifesto-sw { font-size: 1.02rem; }
+      .manifesto-mark { display: none; }      /* avoid clipping on very narrow screens */
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .manifesto-aura { animation: none; }
+      .manifesto-sparks { display: none; }
+      .manifesto-card { opacity: 1; transform: none; animation: none; }
+      .manifesto-sw em { animation: none; }
+      .manifesto-spot { display: none; }
+      .manifesto-sw .w { opacity: 1; transform: none; transition: none; }
+      .manifesto-card::after { animation: none !important; opacity: 0; }
+    }
+
+    /* ── Feedback — compact pill that expands into an on-brand glass form ── */
+    /* Registered custom prop lets the conic gradient angle animate smoothly
+       (the "lightning" spin). Browsers without @property fall back to a
+       static-but-still-colourful gradient ring. */
+    @property --fb-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+
+    .feedback-details { max-width: 640px; margin: 0 auto; text-align: center; }
+    .feedback-toggle {
+      list-style: none; cursor: pointer; user-select: none;
+      position: relative; z-index: 0; isolation: isolate;
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 12px 22px; border-radius: 999px;
+      border: 1.5px solid transparent;            /* the animated ring shows through */
+      background: linear-gradient(165deg, rgba(13, 30, 22, .94), rgba(8, 18, 13, .94));
+      color: #eefaf4; font-weight: 700; font-size: .92rem;
+      transition: transform .18s ease, box-shadow .2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* spinning multi-colour ring (emerald → cyan → violet → gold) */
+    .feedback-toggle::before {
+      content: ""; position: absolute; inset: -1.5px; z-index: -1;
+      border-radius: inherit;
+      background: conic-gradient(from var(--fb-angle),
+        #34d399, #22d3ee, #6366f1, #a855f7, #fcd116, #34d399);
+      animation: fb-spin 4.5s linear infinite;
+    }
+    /* soft blurred copy of the same ring = the glowing "lightning" aura */
+    .feedback-toggle::after {
+      content: ""; position: absolute; inset: -6px; z-index: -2;
+      border-radius: inherit;
+      background: conic-gradient(from var(--fb-angle),
+        #34d399, #22d3ee, #6366f1, #a855f7, #fcd116, #34d399);
+      filter: blur(13px); opacity: .5;
+      animation: fb-spin 4.5s linear infinite, fb-glow 2.6s ease-in-out infinite;
+    }
+    @keyframes fb-spin { to { --fb-angle: 360deg; } }
+    @keyframes fb-glow { 0%, 100% { opacity: .38; } 50% { opacity: .78; } }
+    .feedback-toggle::-webkit-details-marker { display: none; }
+    .feedback-toggle::marker { content: ""; }
+    .feedback-toggle:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0, 0, 0, .3); }
+    .feedback-toggle:hover::after { opacity: .9; filter: blur(16px); }
+    .feedback-toggle:focus-visible { outline: 2px solid var(--n-green-bright, #34d399); outline-offset: 4px; }
+    .feedback-details[open] .feedback-toggle::after { opacity: .32; }   /* calm down once open */
+    .feedback-toggle > svg:first-of-type { color: var(--n-green-bright, #34d399); flex: none; }
+    .feedback-chevron { opacity: .65; transition: transform .22s ease; flex: none; }
+    .feedback-details[open] .feedback-chevron { transform: rotate(180deg); }
+    .feedback-details[open] .feedback-toggle { margin-bottom: 18px; }
+
+    .feedback-card {
+      text-align: left;
+      padding: clamp(22px, 4vw, 38px);
+      border-radius: 22px;
+      background: linear-gradient(165deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .02));
+      border: 1px solid var(--n-green-line, rgba(16, 185, 129, .25));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 18px 44px rgba(0, 0, 0, .4);
+      backdrop-filter: blur(12px) saturate(1.08);
+      -webkit-backdrop-filter: blur(12px) saturate(1.08);
+    }
+    .feedback-details[open] .feedback-card { animation: fb-reveal .28s ease both; }
+    @keyframes fb-reveal { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+    .feedback-sub { color: rgba(231, 241, 236, .78); margin: 0 0 20px; font-size: .95rem; }
+    .feedback-form { display: flex; flex-direction: column; gap: 14px; }
+    .feedback-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .feedback-form label {
+      display: block; margin-bottom: 6px;
+      font-size: .82rem; font-weight: 600; color: rgba(231, 241, 236, .85);
+    }
+    .feedback-form input, .feedback-form textarea { width: 100%; }
+    .feedback-form textarea { min-height: 124px; resize: vertical; }
+    .feedback-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .feedback-status { font-size: .9rem; min-height: 1.2em; font-weight: 600; }
+    .feedback-status.ok  { color: var(--n-green-bright, #34d399); }
+    .feedback-status.err { color: #ff9b9b; }
+    /* honeypot — visually & semantically removed, but bots still fill it */
+    .feedback-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+    @media (max-width: 520px) { .feedback-row { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) {
+      .feedback-details[open] .feedback-card { animation: none; }
+      .feedback-chevron { transition: none; }
+      .feedback-toggle::before, .feedback-toggle::after { animation: none; }
+      .feedback-toggle::after { opacity: .5; }
+    }
   </style>
 </head>
 <body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/javier-miranda-MrWOCGKFVDg-unsplash.jpg')" data-page="index">
@@ -295,6 +584,29 @@
       <span class="stat-label" data-i18n="home_stat_providers">Verified providers</span>
     </div>
   </div>
+
+  <!-- Brand manifesto — our message to the people of Tanzania, in both languages -->
+  <section class="manifesto" id="manifesto" aria-labelledby="manifesto-sw">
+    <div class="manifesto-aura" aria-hidden="true"></div>
+    <div class="manifesto-sparks" id="manifesto-sparks" aria-hidden="true"></div>
+    <figure class="manifesto-card">
+      <div class="manifesto-spot" aria-hidden="true"></div>
+      <span class="manifesto-mark" aria-hidden="true">&ldquo;</span>
+      <p class="manifesto-kicker">Ahadi Yetu <span aria-hidden="true">&middot;</span> Our Promise</p>
+      <blockquote class="manifesto-sw" id="manifesto-sw" lang="sw">
+        Kwa nini uchague kuwa wa kawaida wakati una chaguo la kuwa <em>bora zaidi</em>?
+        Uamuzi huo uko mikononi mwako. Kumbuka: nguvu kubwa huambatana na wajibu mkubwa.
+        <span class="vow">Chagua kwa hekima, ishi kwa ubora, na furahia safari yako.</span>
+      </blockquote>
+      <div class="manifesto-rule" aria-hidden="true"></div>
+      <blockquote class="manifesto-en" lang="en">
+        Why would you choose to be ordinary when you hold the choice to become something <em>far greater</em>? That decision lies in your hands. Remember &mdash; with great power comes great
+        responsibility.
+        <span class="vow">So choose with wisdom, live with excellence, and savour every step of your journey.</span>
+      </blockquote>
+      <figcaption class="manifesto-sign">Maisha na Lifeza</figcaption>
+    </figure>
+  </section>
 
   <main class="container">
 
@@ -421,6 +733,45 @@
       </div>
     </section>
 
+    <!-- Feedback — compact pill by default, expands to the form on demand.
+         Delivered straight to our inbox via FormSubmit (no backend). -->
+    <section class="section" id="feedback">
+      <details class="feedback-details">
+        <summary class="feedback-toggle">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span data-i18n="fb_title">Send us feedback</span>
+          <svg class="feedback-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div class="feedback-card">
+          <p class="feedback-sub" data-i18n="fb_sub">Found a problem or have an idea? Tell us — it comes straight to our team.</p>
+          <form class="feedback-form" id="feedbackForm" novalidate>
+          <div class="feedback-row">
+            <div>
+              <label for="fbName" data-i18n="fb_name">Your name (optional)</label>
+              <input type="text" id="fbName" name="name" autocomplete="name" />
+            </div>
+            <div>
+              <label for="fbEmail" data-i18n="fb_email">Your email (optional)</label>
+              <input type="email" id="fbEmail" name="email" autocomplete="email" inputmode="email" />
+            </div>
+          </div>
+          <div>
+            <label for="fbMsg" data-i18n="fb_msg">Your message</label>
+            <textarea id="fbMsg" name="message" required maxlength="2000"
+              data-i18n-placeholder="fb_msg_ph"
+              placeholder="What's working, what's broken, what you'd love to see…"></textarea>
+          </div>
+          <!-- honeypot: bots fill this in, humans never see it -->
+          <input type="text" name="_honey" class="feedback-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <div class="feedback-actions">
+            <button type="submit" class="btn btn-green" id="fbSubmit" data-i18n="fb_send">Send feedback</button>
+            <span class="feedback-status" id="fbStatus" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+        </div>
+      </details>
+    </section>
+
   </main>
 
   <div id="footer-slot"></div>
@@ -518,6 +869,154 @@
         });
       }, { threshold: 0.4 });
       els.forEach(el => io.observe(el));
+    })();
+
+    // Brand manifesto — a showpiece:
+    //   • the Swahili line assembles word-by-word on scroll-in
+    //   • the glass card tilts toward the pointer with a gold spotlight
+    //   • drifting gold sparks float behind it
+    // Everything heavy is skipped when reduced-motion is requested.
+    (function () {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const card = document.querySelector(".manifesto-card");
+
+      if (card) {
+        // Wrap each Swahili word in a .w span for the staggered assembly.
+        // The gradient-clipped <em> is kept whole (splitting it would break the
+        // gold text fill); every other word — including the green vow — splits.
+        const sw = card.querySelector(".manifesto-sw");
+        let assembleMs = 900;
+        if (sw && !reduce) {
+          let i = 0;
+          const STEP = 0.045;
+          const wrap = (node) => {
+            [...node.childNodes].forEach((n) => {
+              if (n.nodeType === 3) {
+                const parts = n.textContent.split(/(\s+)/);
+                const frag = document.createDocumentFragment();
+                parts.forEach((p) => {
+                  if (p === "" || /^\s+$/.test(p)) { frag.appendChild(document.createTextNode(p)); return; }
+                  const s = document.createElement("span");
+                  s.className = "w"; s.textContent = p;
+                  s.style.transitionDelay = (i++ * STEP).toFixed(3) + "s";
+                  frag.appendChild(s);
+                });
+                node.replaceChild(frag, n);
+              } else if (n.nodeType === 1) {
+                if (n.tagName === "EM") { n.classList.add("w"); n.style.transitionDelay = (i++ * STEP).toFixed(3) + "s"; }
+                else wrap(n);
+              }
+            });
+          };
+          wrap(sw);
+          // when the last word's transition lands → fire the lightning strike
+          assembleMs = (Math.max(0, i - 1) * STEP + 0.7) * 1000;
+        }
+
+        const reveal = () => {
+          card.classList.add("in", "words-in");
+          if (!reduce) setTimeout(() => card.classList.add("flashed"), assembleMs);
+        };
+        if (reduce) {
+          reveal();
+        } else {
+          const mo = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) { reveal(); mo.unobserve(e.target); } });
+          }, { threshold: 0.3 });
+          mo.observe(card);
+
+          // Pointer spotlight + parallax tilt (fine pointers only; the tilt waits
+          // until the entrance animation has finished so the two never fight).
+          if (window.matchMedia("(pointer: fine)").matches) {
+            const spot = card.querySelector(".manifesto-spot");
+            let ready = false;
+            card.addEventListener("animationend", () => { ready = true; }, { once: true });
+            card.addEventListener("pointermove", (e) => {
+              const r = card.getBoundingClientRect();
+              const x = (e.clientX - r.left) / r.width;
+              const y = (e.clientY - r.top) / r.height;
+              card.style.setProperty("--mx", (x * 100).toFixed(1) + "%");
+              card.style.setProperty("--my", (y * 100).toFixed(1) + "%");
+              if (spot) spot.style.opacity = "1";
+              if (ready) {
+                card.style.transform =
+                  "perspective(1100px) rotateX(" + ((0.5 - y) * 6).toFixed(2) + "deg)" +
+                  " rotateY(" + ((x - 0.5) * 7).toFixed(2) + "deg)";
+              }
+            });
+            card.addEventListener("pointerleave", () => {
+              if (spot) spot.style.opacity = "0";
+              if (ready) card.style.transform = "perspective(1100px) rotateX(0deg) rotateY(0deg)";
+            });
+          }
+        }
+      }
+
+      const sparks = document.getElementById("manifesto-sparks");
+      if (sparks && !reduce) {
+        const n = window.innerWidth < 640 ? 7 : 14;
+        for (let i = 0; i < n; i++) {
+          const s = document.createElement("span");
+          const size = 2 + Math.random() * 4;
+          s.style.width = s.style.height = size.toFixed(1) + "px";
+          s.style.left = (Math.random() * 100).toFixed(2) + "%";
+          s.style.setProperty("--so", (0.3 + Math.random() * 0.5).toFixed(2));
+          s.style.animationDuration = (10 + Math.random() * 12).toFixed(1) + "s";
+          s.style.animationDelay = (-Math.random() * 20).toFixed(1) + "s";
+          sparks.appendChild(s);
+        }
+      }
+    })();
+
+    // Feedback form → emailed to us via FormSubmit's AJAX endpoint (no backend).
+    // Inline success/error, button locked while sending, honeypot for spam.
+    (function () {
+      const form = document.getElementById("feedbackForm");
+      if (!form) return;
+      const btn = document.getElementById("fbSubmit");
+      const statusEl = document.getElementById("fbStatus");
+      const msg = document.getElementById("fbMsg");
+      const tr = (k, fallback) => (window.t ? window.t(k) : fallback);
+      const ENDPOINT = "https://formsubmit.co/ajax/pawa4761@gmail.com";
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        statusEl.className = "feedback-status";
+        statusEl.textContent = "";
+        if (!msg.value.trim()) {
+          statusEl.className = "feedback-status err";
+          statusEl.textContent = tr("fb_empty", "Please write a short message first.");
+          msg.focus();
+          return;
+        }
+        const fd = new FormData(form);
+        fd.append("_subject", "New Maisha na Lifeza feedback");
+        fd.append("_template", "table");
+        fd.append("_captcha", "false");
+        fd.append("page", location.href);
+
+        const label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = tr("fb_sending", "Sending…");
+        try {
+          const res = await fetch(ENDPOINT, {
+            method: "POST",
+            headers: { "Accept": "application/json" },
+            body: fd,
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          await res.json();
+          form.reset();
+          statusEl.className = "feedback-status ok";
+          statusEl.textContent = tr("fb_ok", "Asante! Your feedback has been sent.");
+        } catch (err) {
+          statusEl.className = "feedback-status err";
+          statusEl.textContent = tr("fb_err", "Couldn't send right now. Please try again.");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      });
     })();
   </script>
 

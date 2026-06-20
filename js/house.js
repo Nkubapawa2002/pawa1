@@ -138,6 +138,33 @@ function render(h) {
       }).join("")}
     </ul>` : "";
 
+  // Agent commission ("dalali" fee): paid once by the tenant to the agent for
+  // finding the home — SEPARATE from the rent that goes to the landlord. The TZ
+  // standard is one month's rent, so we default to that (or an explicit
+  // agent_fee_tzs the agent set). Sale listings use a different model, so this
+  // only applies to rentals.
+  const isRentListing = (h.listing || "rent") === "rent";
+  const monthsUpfront = Math.max(1, Number(h.min_months) || 1);
+  const agentFee = isRentListing
+    ? (Number(h.agent_fee_tzs) > 0 ? Number(h.agent_fee_tzs) : (Number(h.price_tzs) || 0))
+    : 0;
+  const moveInTotal = (Number(h.price_tzs) || 0) * monthsUpfront + agentFee;
+  const agentFeeHtml = agentFee > 0 ? `
+    <div class="hd-card hd-agent-fee">
+      <h3>Agent fee</h3>
+      <p class="muted" style="margin-top:-4px;">Paid once to the agent for finding the home — separate from the rent you pay the landlord.</p>
+      <ul class="hd-costs" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;">
+        <li style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #eef1f4;">
+          <span style="display:flex;align-items:center;gap:8px;">Agent commission <small style="color:#6b6960;">${Number(h.agent_fee_tzs) > 0 ? "" : "(one month's rent)"}</small></span>
+          <strong style="white-space:nowrap;">${fmtMoney(agentFee)}</strong>
+        </li>
+      </ul>
+      ${Number(h.price_tzs) > 0 ? `<div class="hd-movein-total" style="margin-top:10px;font-size:.92rem;">
+        Estimated to move in: <strong>${fmtMoney(moveInTotal)}</strong>
+        <small style="color:#6b6960;"> (${monthsUpfront} ${monthsUpfront === 1 ? "month" : "months"} rent + agent fee)</small>
+      </div>` : ""}
+    </div>` : "";
+
   // Amenities list
   const amenitiesHtml = (h.amenities || []).length
     ? `<div class="hd-chips">${h.amenities.map(a => `<span class="hd-chip">${amenityIcon(a)} ${labelAmenity(a)}</span>`).join("")}</div>`
@@ -257,6 +284,8 @@ function render(h) {
       <p class="muted" style="margin-top:-4px;">Bills the tenant pays on top of the price shown above.</p>
       ${costsHtml}
     </div>` : ""}
+
+    ${agentFeeHtml}
 
     <div class="hd-card">
       <h3>Where it is</h3>
@@ -572,10 +601,24 @@ function attachNearbyOverlay(map, lat, lng) {
   function hideStatus() { status.hidden = true; }
 }
 
-function renderCat(map, cat, elements, store, anchor) {
+// Popup HTML for a nearby place. Distance is REAL road km only (never crow-flies):
+// "measuring…" until the matrix answers, then "X km by road", or unavailable.
+function poiPopupHtml(name, catMeta, km, state) {
+  const dist = state === "road"
+    ? `${km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(km < 10 ? 2 : 1) + " km"} by road`
+    : state === "measuring" ? "measuring road distance…"
+    : "road distance unavailable";
+  return `<div class="hd-poi-popup">
+    <strong>${esc(name)}</strong>
+    <div class="pp-meta">${catMeta.icon} ${esc(catMeta.label)} · ${dist}</div>
+  </div>`;
+}
+
+async function renderCat(map, cat, elements, store, anchor) {
   const catMeta = POI_CATS.find(c => c.key === cat);
   store[cat].forEach(m => m.remove());
   store[cat] = [];
+  const entries = [];   // { popup, name, p } — to fill in real road km below
   for (const el of elements) {
     const p = el.center || { lat: el.lat, lon: el.lon };
     if (p.lat == null || p.lon == null) continue;
@@ -589,17 +632,31 @@ function renderCat(map, cat, elements, store, anchor) {
     node.innerHTML =
       `<span class="hd-poi-ico">${catMeta.icon}</span>` +
       `<span class="hd-poi-name">${esc(name)}</span>`;
-    const km = haversine(anchor.lat, anchor.lng, p.lat, p.lon);
     const popup = new maplibregl.Popup({ offset: 12, closeButton: true, maxWidth: "220px" })
-      .setHTML(`<div class="hd-poi-popup">
-        <strong>${esc(name)}</strong>
-        <div class="pp-meta">${catMeta.icon} ${esc(catMeta.label)} · ${km < 1 ? Math.round(km*1000) + " m" : km.toFixed(2) + " km"} away</div>
-      </div>`);
+      .setHTML(poiPopupHtml(name, catMeta, null, "measuring"));
     const mk = new maplibregl.Marker({ element: node, anchor: "center" })
       .setLngLat([p.lon, p.lat])
       .setPopup(popup)
       .addTo(map);
     store[cat].push(mk);
+    entries.push({ popup, name, p });
+  }
+
+  // Upgrade every popup to the REAL road distance home → place in one matrix
+  // call (OSRM ×2 + Valhalla, cached). No straight-line is ever shown.
+  if (window.pawaRoute && entries.length) {
+    try {
+      const kms = await window.pawaRoute.table(
+        { lat: anchor.lat, lng: anchor.lng },
+        entries.map((e) => ({ lat: e.p.lat, lng: e.p.lon })));
+      entries.forEach((e, i) => {
+        const km = kms && kms[i];
+        e.popup.setHTML(poiPopupHtml(e.name, catMeta,
+          Number.isFinite(km) ? km : null, Number.isFinite(km) ? "road" : "noroad"));
+      });
+    } catch (_) {
+      entries.forEach((e) => e.popup.setHTML(poiPopupHtml(e.name, catMeta, null, "noroad")));
+    }
   }
 }
 
@@ -637,13 +694,6 @@ async function fetchPois(cat, lat, lng) {
   throw lastErr || new Error("Overpass unreachable");
 }
 
-function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371, toRad = (d) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
 // Best human-readable name for a nearby POI: the real name first (a school's or
 // hospital's actual name), then operator/brand, then a humanised type — never a
 // bare generic category if we can do better.
@@ -659,10 +709,10 @@ function poiLabel(el, catMeta) {
 // ============================================================================
 // Commute tool — "how far is this home from my workplace / daily route?"
 // Geocodes the typed place via LocationIQ (pawaGeo.suggest), then measures the
-// REAL driving route via OSRM (pawaRoute) — the actual road km + minutes, with
-// the route drawn on the map. Straight-line haversine is only the fallback
-// when the road router is unreachable. No match → ask the user for a famous
-// area/landmark near their workplace and try again.
+// REAL driving route via pawaRoute (OSRM ×2 + Valhalla) — the actual road km +
+// minutes, with the route drawn on the map. NEVER straight-line: if no engine
+// can route it, we say so rather than show a crow-flies number. No match → ask
+// the user for a famous area/landmark near their workplace and try again.
 // ============================================================================
 function attachCommuteTool(map, lat, lng) {
   const wrap  = document.getElementById("hdCommute");
@@ -782,18 +832,17 @@ function attachCommuteTool(map, lat, lng) {
       if (rows) {
         const row = rows.find((x) => x.place === p);
         const kmEl = row && row.el.querySelector(".hd-cr-km");
-        if (kmEl) kmEl.textContent = fmtKm(r.km) + " ";
+        if (kmEl) kmEl.textContent = fmtKm(r.km) + " by road";
       }
     } else {
-      // Road router unreachable → straight-line fallback, clearly labelled.
-      const km = haversine(lat, lng, p.lat, p.lng);
-      setLine([[lng, lat], [p.lng, p.lat]], true);
+      // No routing engine (OSRM ×2 + Valhalla) could measure it — show the honest
+      // state instead of a misleading straight-line number, and draw no fake line.
+      setLine([], true);
       setAltLines([]);
-      fitCoords([[lng, lat], [p.lng, p.lat]]);
       showMsg(
-        `≈ <strong>${fmtKm(km)}</strong> straight-line from this home to <strong>${esc(p.name)}</strong>${ctx}. ` +
-        `<span class="hd-commute-note">Road distance unavailable right now — real road travel is a bit longer.</span>`,
-        "ok"
+        `Couldn’t measure the road distance to <strong>${esc(p.name)}</strong>${ctx} right now. ` +
+        `<span class="hd-commute-note">Please try again in a moment.</span>`,
+        "warn"
       );
     }
   }
@@ -802,14 +851,14 @@ function attachCommuteTool(map, lat, lng) {
     resEl.innerHTML = "";
     const rows = [];
     places.forEach((p) => {
-      const km = p.roadKm != null ? p.roadKm : haversine(lat, lng, p.lat, p.lng);
       const el = document.createElement("button");
       el.type = "button";
       el.className = "hd-commute-result";
+      // Road distance only — blank until measured (tapping the row routes it).
       el.innerHTML =
         `<span class="hd-cr-name">${esc(p.name)}</span>` +
         `<span class="hd-cr-meta">${esc(p.tag || "Place")}${p.context ? " · " + esc(p.context) : ""}</span>` +
-        `<span class="hd-cr-km">${fmtKm(km)}${p.roadKm != null ? " " : ""}</span>`;
+        `<span class="hd-cr-km">${p.roadKm != null ? fmtKm(p.roadKm) + " by road" : "tap to measure"}</span>`;
       resEl.appendChild(el);
       const row = { el, place: p };
       el.addEventListener("click", () => selectPlace(p, rows));
@@ -847,7 +896,7 @@ function attachCommuteTool(map, lat, lng) {
           if (!Number.isFinite(km) || !rows[i]) return;
           places[i].roadKm = km;
           const kmEl = rows[i].el.querySelector(".hd-cr-km");
-          if (kmEl) kmEl.textContent = fmtKm(km) + " ";
+          if (kmEl) kmEl.textContent = fmtKm(km) + " by road";
         }))
         .catch(() => {});
     }
