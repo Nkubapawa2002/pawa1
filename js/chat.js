@@ -203,29 +203,9 @@ MOVING TRUCKS (${(trucks || []).length} by region): ${trkLines || "(none yet)"}`
   const systemPrompt = buildSystemPrompt() + (tools ? "\n" + tools.definitions : "");
   window._pawaChatSystemPrompt = systemPrompt;
 
-  const SUGGESTIONS = lang === "sw"
-    ? [
-        "Nataka chumba cha kupanga bei nafuu",
-        "Kuna vibarua gani sasa hivi?",
-        "Natafuta fundi wa umeme",
-        "Nahitaji nyumba ya familia Mwanza",
-        "Ninawezaje kuona nyumba live na wakala?"
-      ]
-    : [
-        "Find me a cheap room to rent",
-        "Any day jobs open right now?",
-        "I need a plumber near me",
-        "How do I post a day job for 10 workers?",
-        "Show me a live house viewing with an agent"
-      ];
-
-  SUGGESTIONS.forEach(s => {
-    const chip = document.createElement("div");
-    chip.className = "suggestion-chip";
-    chip.textContent = s;
-    chip.addEventListener("click", () => { input.value = s; form.requestSubmit(); });
-    suggestions.appendChild(chip);
-  });
+  // Suggested-message chips removed (per request) — they crowded the chat and
+  // hurt visibility. Keep the container empty and hidden.
+  if (suggestions) { suggestions.innerHTML = ""; suggestions.style.display = "none"; }
 
   // Brain priority: (1) Gemini via secure proxy, (2) Supabase ai-chat,
   // (3) local regex demo. Each turn passes the full conversation.

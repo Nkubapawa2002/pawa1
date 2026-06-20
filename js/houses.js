@@ -1586,6 +1586,13 @@ window.initHousesPage = async () => {
   }
 
   function setLandmark(loc) {
+    // If this place is a known AREA in the gazetteer, carry its coverage radius
+    // so measuring "to <area>" represents the WHOLE area (inside = you're
+    // there), even when the coordinates were refined by the online geocoder.
+    if (loc && loc.kind == null && window.resolveTzPlace) {
+      const g = window.resolveTzPlace(landmarkShort(loc.name));
+      if (g && g.kind === "area" && distKm(g, loc) <= 40) loc = { ...loc, kind: "area", r: g.r };
+    }
     landmarkLoc = loc;
     ensureLandmarkStyles();
     if (map) {
@@ -1675,9 +1682,12 @@ window.initHousesPage = async () => {
       if (arr && Number.isFinite(arr[0])) km = arr[0];
     } catch (_) {}
     if (!landmarkLoc || landmarkShort(landmarkLoc.name) !== name) return;   // user moved on
-    render(km != null
-      ? `Your location is ${km.toFixed(1)} km by road from ${name} · listings below are sorted nearest-first`
-      : `Couldn’t measure the road distance to ${name} right now · listings below are sorted nearest-first`);
+    const kmShow = km != null ? coverAdjust(km, landmarkLoc) : null;
+    render(kmShow == null
+      ? `Couldn’t measure the road distance to ${name} right now · listings below are sorted nearest-first`
+      : kmShow <= 0
+        ? `You’re inside ${name} · listings below are sorted nearest-first`
+        : `Your location is ${kmShow.toFixed(1)} km by road from ${name} · listings below are sorted nearest-first`);
   }
 
   function ensureLandmarkStyles() {
@@ -2380,7 +2390,7 @@ window.initHousesPage = async () => {
     return `${(+a.lat).toFixed(4)},${(+a.lng).toFixed(4)}>${(+h.lat).toFixed(4)},${(+h.lng).toFixed(4)}`;
   }
   function roadOf(h) { const k = roadKeyH(h); const v = k ? roadKmCache.get(k) : undefined; return v != null ? v : null; }
-  function effDist(h) { const r = roadOf(h); if (r != null) return r; const a = houseAnchor(); return a ? distKm(a, h) : Infinity; }
+  function effDist(h) { const a = houseAnchor(); const r = roadOf(h); const raw = r != null ? r : (a ? distKm(a, h) : Infinity); return coverAdjust(raw, a); }
   async function enrichHousesRoad() {
     const a = houseAnchor();
     if (!a || enrichingHousesRoad || !window.pawaRoute) return;
@@ -2541,9 +2551,13 @@ window.initHousesPage = async () => {
       // REAL road distance only — never crow-flies. Raw cache tells us which:
       //   number = real road km · undefined = still being fetched · null = no road route
       const rkRaw = hasCoords ? roadKmCache.get(roadKeyH(h)) : undefined;
+      // For an AREA target, fold in coverage: a room inside the area reads "in
+      // <area>" (0 km), otherwise the distance is to the area's edge.
+      const lmName = landmarkLoc ? esc(landmarkShort(landmarkLoc.name)) : "";
+      const rkLm = (landmarkLoc && Number.isFinite(rkRaw)) ? coverAdjust(rkRaw, landmarkLoc) : rkRaw;
       const dist = (landmarkLoc && hasCoords)
-        ? (Number.isFinite(rkRaw)   ? ` · ${rkRaw.toFixed(1)} km by road to ${esc(landmarkShort(landmarkLoc.name))}`
-           : rkRaw === undefined    ? ` · measuring road distance to ${esc(landmarkShort(landmarkLoc.name))}…`
+        ? (Number.isFinite(rkLm)    ? (rkLm <= 0 ? ` · in ${lmName}` : ` · ${rkLm.toFixed(1)} km by road to ${lmName}`)
+           : rkRaw === undefined    ? ` · measuring road distance to ${lmName}…`
            : "")
         : (userLoc && hasCoords)
           ? (Number.isFinite(rkRaw) ? ` · ${rkRaw.toFixed(1)} km by road`
@@ -2791,9 +2805,25 @@ window.initHousesPage = async () => {
     );
   }
 
+  // ── Area coverage ──────────────────────────────────────────────────────
+  // An AREA (Kigamboni, Mwenge, Mikocheni…) is a whole neighbourhood, not a
+  // dot. When the measure target is an area, anywhere inside its coverage
+  // radius counts as "you're there" (0 km) and everywhere else is measured to
+  // the area's EDGE — so the WHOLE area is represented. Points (malls,
+  // airports, a precise GPS) carry no radius and keep exact-pin distances.
+  const AREA_COVER_DEFAULT_M = 3000;
+  function coverKm(t) {
+    if (!t) return 0;
+    const m = Number.isFinite(t.r) ? t.r : (t.kind === "area" ? AREA_COVER_DEFAULT_M : 0);
+    return m > 0 ? m / 1000 : 0;
+  }
+  function coverAdjust(km, t) {
+    return Number.isFinite(km) ? Math.max(0, km - coverKm(t)) : km;
+  }
+
   function distToLandmark(h) {
     if (!landmarkLoc || !Number.isFinite(h.lat) || !Number.isFinite(h.lng)) return Infinity;
-    return distKm(landmarkLoc, h);
+    return coverAdjust(distKm(landmarkLoc, h), landmarkLoc);
   }
 
   // ====================================================================

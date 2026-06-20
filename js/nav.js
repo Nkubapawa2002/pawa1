@@ -180,8 +180,10 @@ window.renderNav = (active) => {
     }
   })();
 
-  // Lazy-load the floating "Talk to Pawa" widget on every page that has a nav.
-  if (!document.querySelector('script[data-pawa-call]')) {
+  // Floating "Talk to Pawa" call widget — HIDDEN FOR NOW (per request).
+  // To bring it back, set APP_CONFIG.SHOW_PAWA_CALL_WIDGET = true in js/config.js.
+  if ((window.APP_CONFIG && window.APP_CONFIG.SHOW_PAWA_CALL_WIDGET) &&
+      !document.querySelector('script[data-pawa-call]')) {
     const s = document.createElement("script");
     s.src = "js/calling-agent.js";
     s.dataset.pawaCall = "1";

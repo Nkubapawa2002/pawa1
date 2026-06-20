@@ -25,7 +25,10 @@
       <path d="M21 12a8 8 0 0 1-12.7 6.5L3 20l1.5-5.3A8 8 0 1 1 21 12z"/>
     </svg>
   `;
-  document.body.appendChild(fab);
+  // Claude-powered "Talk to PAWA" chat bubble — HIDDEN FOR NOW (per request).
+  // To bring it back, set APP_CONFIG.SHOW_PAWA_CHAT_FAB = true in js/config.js.
+  // (The "Install Pawa" prompt below is separate and stays active.)
+  if (window.APP_CONFIG && window.APP_CONFIG.SHOW_PAWA_CHAT_FAB) document.body.appendChild(fab);
 
   // Sheet + backdrop (lazily attached the first time the FAB is opened)
   let sheet, backdrop, msgs, input, sendBtn, conversation = [], convId = null, attached = false;

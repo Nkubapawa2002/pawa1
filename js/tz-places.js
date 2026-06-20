@@ -96,7 +96,7 @@ window.TZ_LANDMARKS = [
   // ---- Dar es Salaam — common residential areas/wards people browse ----
   // These give the Houses area-filter an instant, correct circle (centroids are
   // approximate — fine for a neighbourhood circle the user can resize).
-  { name: "Kigamboni", kind: "area", city: "Dar es Salaam", lat: -6.8450, lng: 39.3050, aliases: ["kigamboni"] },
+  { name: "Kigamboni", kind: "area", city: "Dar es Salaam", lat: -6.8450, lng: 39.3050, r: 4500, aliases: ["kigamboni"] },
   { name: "Mikocheni", kind: "area", city: "Dar es Salaam", lat: -6.7600, lng: 39.2620, aliases: ["mikocheni"] },
   { name: "Masaki", kind: "area", city: "Dar es Salaam", lat: -6.7430, lng: 39.2810, aliases: ["masaki"] },
   { name: "Oyster Bay", kind: "area", city: "Dar es Salaam", lat: -6.7770, lng: 39.2850, aliases: ["oyster bay", "oysterbay"] },
@@ -194,7 +194,11 @@ window.resolveTzPlace = function (query) {
       // one-word query like "Mwenge" lands on the Dar es Salaam area rather than a
       // university 500 km away whose long name happens to contain the word.
       const score = Math.min(t.length, tok.length) + (exact ? 1000 : 0);
-      if (!best || score > best._score) best = { lat: p.lat, lng: p.lng, name: p.name, kind: p.kind, _score: score };
+      // `r` (optional, metres) is an AREA's coverage radius. It lets callers
+      // measure "to <area>" against the WHOLE neighbourhood — inside = you're
+      // there — instead of a single centroid point. Points (malls, airports)
+      // carry no `r`, so they keep their exact-pin behaviour.
+      if (!best || score > best._score) best = { lat: p.lat, lng: p.lng, name: p.name, kind: p.kind, r: p.r, _score: score };
     }
   }
   return best;
