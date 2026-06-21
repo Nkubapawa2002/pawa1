@@ -2752,6 +2752,10 @@ window.initHousesPage = async () => {
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     if (window.pawaGlBasemapToggle) map.addControl(window.pawaGlBasemapToggle(), "top-right");
+    // Plot important places (universities, hospitals, malls, areas) for
+    // orientation — the raster basemap doesn't label them.
+    map.on("load", renderReferenceMarkers);
+    map.on("moveend", renderReferenceMarkers);
   }
 
   function renderMarkers() {
@@ -2803,6 +2807,63 @@ window.initHousesPage = async () => {
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
       { padding: 60, maxZoom: 14, duration: 500 }
     );
+  }
+
+  // ── Reference landmarks ────────────────────────────────────────────────
+  // The satellite/label basemap doesn't name universities, hospitals, malls or
+  // neighbourhoods, so we plot the gazetteer's important places as light,
+  // non-interactive reference pins for orientation — only those in view, and
+  // only when zoomed in enough to stay clutter-free (capped so it never floods).
+  const refMarkers = new Map();   // place name -> maplibregl.Marker
+  function refColor(kind) {
+    if (kind === "university" || kind === "college" || kind === "institute") return "#1d4ed8";
+    if (kind === "hospital") return "#dc2626";
+    if (kind === "airport" || kind === "transport") return "#7c3aed";
+    if (kind === "mall" || kind === "market" || kind === "stadium") return "#b45309";
+    return "#0a6f4d";   // areas + everything else = brand green
+  }
+  function ensureRefStyles() {
+    if (document.getElementById("refMarkerStyles")) return;
+    const s = document.createElement("style");
+    s.id = "refMarkerStyles";
+    s.textContent =
+      ".ref-marker{display:flex;align-items:center;gap:5px;pointer-events:none;opacity:.92;transform:translateX(2px)}" +
+      ".ref-marker .rm-dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px #fff,0 1px 3px rgba(0,0,0,.4);flex:none}" +
+      ".ref-marker .rm-label{font:600 10px/1.15 system-ui,sans-serif;color:#15140f;background:rgba(255,255,255,.88);" +
+      "padding:1px 6px;border-radius:7px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.28);max-width:150px;" +
+      "overflow:hidden;text-overflow:ellipsis}";
+    document.head.appendChild(s);
+  }
+  function refPlaces() {
+    const all = [...(window.TZ_UNIVERSITIES || []), ...(window.TZ_LANDMARKS || [])]
+      .filter(p => p && p.name && Number.isFinite(p.lat) && Number.isFinite(p.lng));
+    // Universities/areas first so the most useful pins survive the on-screen cap.
+    const rank = k => (k === "university" || k === "college" || k === "institute") ? 0
+      : k === "area" ? 1 : k === "hospital" ? 2 : 3;
+    return all.sort((a, b) => rank(a.kind) - rank(b.kind));
+  }
+  function renderReferenceMarkers() {
+    if (!map) return;
+    ensureRefStyles();
+    const want = new Set();
+    if (map.getZoom() >= 11.5) {
+      const b = map.getBounds();
+      let shown = 0;
+      for (const p of refPlaces()) {
+        if (shown >= 22) break;
+        if (p.lng < b.getWest() || p.lng > b.getEast() || p.lat < b.getSouth() || p.lat > b.getNorth()) continue;
+        shown++; want.add(p.name);
+        if (refMarkers.has(p.name)) continue;
+        const el = document.createElement("div");
+        el.className = "ref-marker";
+        el.innerHTML = `<span class="rm-dot"></span><span class="rm-label"></span>`;
+        el.querySelector(".rm-dot").style.background = refColor(p.kind);
+        el.querySelector(".rm-label").textContent = landmarkShort(p.name);
+        refMarkers.set(p.name, new maplibregl.Marker({ element: el, anchor: "left" })
+          .setLngLat([p.lng, p.lat]).addTo(map));
+      }
+    }
+    for (const [name, mk] of refMarkers) if (!want.has(name)) { mk.remove(); refMarkers.delete(name); }
   }
 
   // ── Area coverage ──────────────────────────────────────────────────────
