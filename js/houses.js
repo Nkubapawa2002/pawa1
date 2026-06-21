@@ -2846,7 +2846,7 @@ window.initHousesPage = async () => {
     if (!map) return;
     ensureRefStyles();
     const want = new Set();
-    if (map.getZoom() >= 11.5) {
+    if (map.getZoom() >= 10.5) {
       const b = map.getBounds();
       let shown = 0;
       for (const p of refPlaces()) {

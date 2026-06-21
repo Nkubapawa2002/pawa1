@@ -16,7 +16,7 @@ window.TZ_UNIVERSITIES = [
   { name: "College of Business Education (CBE)",                  kind: "college",    city: "Dar es Salaam", lat: -6.8156, lng: 39.2809 },
   { name: "National Institute of Transport (NIT)",                kind: "institute",  city: "Dar es Salaam", lat: -6.8240, lng: 39.2440 },
   { name: "Tanzania Institute of Accountancy (TIA)",              kind: "institute",  city: "Dar es Salaam", lat: -6.8196, lng: 39.2800 },
-  { name: "Mwalimu Nyerere Memorial Academy (Kigamboni)",         kind: "university", city: "Dar es Salaam", lat: -6.8380, lng: 39.3120, aliases: ["mwalimu nyerere", "nyerere academy", "mnma", "kivukoni academy", "chuo cha mwalimu nyerere"] },
+  { name: "Mwalimu Nyerere Memorial Academy (Kigamboni)",         kind: "university", city: "Dar es Salaam", lat: -6.8265, lng: 39.3055, aliases: ["mwalimu nyerere", "nyerere academy", "mnma", "kivukoni academy", "chuo cha mwalimu nyerere", "kigamboni ferry academy"] },
 
   // Morogoro
   { name: "Sokoine University of Agriculture (SUA)",              kind: "university", city: "Morogoro",      lat: -6.8489, lng: 37.6533 },
