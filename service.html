@@ -54,8 +54,28 @@
     .sd-missing { text-align: center; padding: 60px 16px; color: var(--c-muted,#6b6960); }
     @media (max-width: 820px) { .sd-grid { grid-template-columns: 1fr; } }
   </style>
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) — service provider detail.
+       Pushed-detail view: no top nav / tab bar, just the back button + inline CTAs. */
+    body[data-page="service"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-accent: #F6C45A; --c-success: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="service"] .sd-wrap { max-width: 560px; padding-bottom: 48px; }
+    body[data-page="service"] .sd-back { color: #3FD9A0; }
+    body[data-page="service"] .sd-gallery-main, body[data-page="service"] .sd-thumb { background: #0f1714 center/cover no-repeat; }
+    body[data-page="service"] .sd-badge { color: rgba(233,243,238,.7); }
+    body[data-page="service"] .sd-cta-call, body[data-page="service"] .sd-cta-move, body[data-page="service"] .sd-badge.verified { color: #06170F; }
+    body[data-page="service"] #nav-slot, body[data-page="service"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/danist-soh-dqXiw7nCb9Q-unsplash.jpg')" data-page="service">
+<body data-houses-pro data-page="service">
   <div id="nav-slot"></div>
 
   <main class="sd-wrap">
@@ -79,14 +99,12 @@
   <script src="js/nav.js"></script>
   <script src="js/service.js"></script>
   <script>
-    window.renderNav("services.html");
-    window.renderFooter();
+    // Pure app-shell: native pushed-detail view — no top nav / footer / tab bar,
+    // just the back button + inline CTAs. js/service.js renders the body.
     window.applyTranslations();
     window.initServicePage();
   </script>
 
-  <script src="js/mobile-nav.js"></script>
-  <script src="js/fab.js"></script>
   <script src="js/sw-register.js"></script>
   <script src="js/premium.js" defer></script>
 </body>

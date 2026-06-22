@@ -577,8 +577,33 @@
     <link rel="stylesheet" href="css/premium.css" />
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) for Meet & Locate (Messages tab). */
+    body[data-page="meet"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-on: #06170F; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
+      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="meet"] .container { padding-bottom: 96px; }
+    body[data-page="meet"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    body[data-page="meet"] select, body[data-page="meet"] textarea {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="meet"] input::placeholder, body[data-page="meet"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    /* dark text on the bright green fills for AA contrast */
+    body[data-page="meet"] .meet-invite-banner, body[data-page="meet"] .share-card,
+    body[data-page="meet"] .side-pull, body[data-page="meet"] .meet-fab-maximize { color: #06170F; }
+    body[data-page="meet"] #nav-slot, body[data-page="meet"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/meet-hero.jpg')" data-page="meet">
+<body data-page="meet" data-app-shell="meet.html">
   <div id="nav-slot"></div>
 
   <!-- Always-visible Exit: cleans up any active room, then returns home -->
@@ -933,14 +958,12 @@
   <script src="js/tracking-id.js"></script>
   <script src="js/meet.js?v=57"></script>
   <script>
-    window.renderNav("meet.html");
-    window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) — "Messages" tab.
     window.applyTranslations();
     window.initMeetPage();
   </script>
 
-    <script src="js/mobile-nav.js"></script>
-    <script src="js/fab.js"></script>
+    <script src="js/app-shell.js"></script>
     <script src="js/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
   <script src="js/premium.js" defer></script>

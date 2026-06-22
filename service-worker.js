@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v262-2026-06-21-ref-marker-zoom-fix";
+const VERSION = "v273-2026-06-22-twilight-complete";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -33,6 +33,8 @@ const APP_SHELL = [
   "./js/agent-profile.js",
   "./js/agent-demand-board.js",
   "./js/nav.js",
+  "./js/home-app.js",
+  "./js/app-shell.js",
   "./js/mobile-nav.js",
   "./js/fab.js",
   "./js/tenant.js",

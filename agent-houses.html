@@ -473,8 +473,45 @@
     .ah-tenant-formacts { display: flex; gap: 8px; }
     .ah-tenant-msg.err { color: #b3261e; font-size: .82rem; }
   </style>
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) — agent dashboard (Profile area).
+       Token-driven incl. the auth-gate --auth-* vars; generic dark form controls;
+       the agent's own Sign-out stays. Pure app-shell otherwise. */
+    body[data-page="agent-houses"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-on: #06170F; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
+      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
+      --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03); --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
+      --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14); --auth-ring: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="agent-houses"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; min-height: auto !important; padding: 26px 16px 10px !important; }
+    body[data-page="agent-houses"] .page-title { color: #fff; }
+    body[data-page="agent-houses"] .page-subtitle { color: rgba(233,243,238,.7); }
+    body[data-page="agent-houses"] .container { padding-bottom: 96px; }
+    body[data-page="agent-houses"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    body[data-page="agent-houses"] select, body[data-page="agent-houses"] textarea {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="agent-houses"] input::placeholder, body[data-page="agent-houses"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    body[data-page="agent-houses"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
+    body[data-page="agent-houses"] .auth-input:focus { background: rgba(255,255,255,.07); }
+    /* dark text on the bright green fills for AA contrast */
+    body[data-page="agent-houses"] .ah-btn-brand,
+    body[data-page="agent-houses"] .ah-btn-primary,
+    body[data-page="agent-houses"] .ah-btn-complete,
+    body[data-page="agent-houses"] .ah-chip.active,
+    body[data-page="agent-houses"] .ah-pill-rent { color: #06170F; }
+    body[data-page="agent-houses"] #nav-slot, body[data-page="agent-houses"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/jonathan-borba-EwoyDPlT_H0-unsplash.jpg')" data-page="agent-houses">
+<body data-houses-pro data-page="agent-houses" data-app-shell="agent-houses.html">
   <a href="#ahMain" class="hp-skip-link">Skip to dashboard</a>
   <div id="nav-slot"></div>
 
@@ -906,14 +943,13 @@
   <script src="js/agent-profile.js"></script>
   <script src="js/agent-houses.js"></script>
   <script>
-    window.renderNav("agent-houses.html");
-    window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) — Profile area.
+    // The dashboard keeps its own Sign-out button.
     window.applyTranslations();
     window.initAgentHousesPage();
   </script>
 
-  <script src="js/mobile-nav.js"></script>
-  <script src="js/fab.js"></script>
+  <script src="js/app-shell.js"></script>
   <script src="js/sw-register.js"></script>
   <script src="js/premium.js" defer></script>
 </body>

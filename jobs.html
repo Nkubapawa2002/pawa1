@@ -149,8 +149,32 @@
     <link rel="stylesheet" href="css/premium.css" />
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) for the Day jobs board (Explore tab). */
+    body[data-page="jobs"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-on: #06170F; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
+      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="jobs"] .container { padding-bottom: 96px; }
+    body[data-page="jobs"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    body[data-page="jobs"] select, body[data-page="jobs"] textarea {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="jobs"] input::placeholder, body[data-page="jobs"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    /* dark text on the bright green fills for AA contrast */
+    body[data-page="jobs"] .jm-worker, body[data-page="jobs"] .job-mycode { color: #06170F; }
+    body[data-page="jobs"] #nav-slot, body[data-page="jobs"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="jobs">
+<body data-page="jobs" data-app-shell="jobs.html">
   <div id="nav-slot"></div>
 
   <main class="container">
@@ -288,14 +312,12 @@
   <script src="js/nav.js"></script>
   <script src="js/jobs.js"></script>
   <script>
-    window.renderNav && window.renderNav("jobs.html");
-    window.renderFooter && window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) — "Explore" tab.
     window.applyTranslations && window.applyTranslations();
     window.initJobsPage && window.initJobsPage();
   </script>
 
-    <script src="js/mobile-nav.js"></script>
-    <script src="js/fab.js"></script>
+    <script src="js/app-shell.js"></script>
     <script src="js/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
   <script src="js/premium.js" defer></script>

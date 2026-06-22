@@ -283,6 +283,59 @@
     if (!window.L || !mapEl) return;
     map = L.map(mapEl, { scrollWheelZoom: true }).setView([-6.4, 35.0], 6); // Tanzania
     window.addSatelliteHybrid(map);
+    ensureRefStyles();
+    map.on("moveend", renderReferenceMarkers);
+  }
+
+  // ── Reference landmarks ────────────────────────────────────────────────
+  // The basemap doesn't name universities, hospitals, malls or neighbourhoods
+  // (e.g. Mwalimu Nyerere Academy by the Kigamboni ferry), so plot the
+  // gazetteer's important places as light, non-interactive reference pins for
+  // orientation — only those in view, only when zoomed in, capped to stay tidy.
+  let refLayer = null;
+  function refColor(kind) {
+    if (kind === "university" || kind === "college" || kind === "institute") return "#1d4ed8";
+    if (kind === "hospital") return "#dc2626";
+    if (kind === "airport" || kind === "transport") return "#7c3aed";
+    if (kind === "mall" || kind === "market" || kind === "stadium") return "#b45309";
+    return "#0a6f4d";   // areas + everything else = brand green
+  }
+  function ensureRefStyles() {
+    if (document.getElementById("nmRefStyles")) return;
+    const s = document.createElement("style");
+    s.id = "nmRefStyles";
+    s.textContent =
+      ".nm-ref-inner{display:flex;align-items:center;gap:5px;transform:translate(-4px,-4px);white-space:nowrap}" +
+      ".nmr-dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px #fff,0 1px 3px rgba(0,0,0,.4);flex:none}" +
+      ".nmr-label{font:600 10px/1.15 system-ui,sans-serif;color:#15140f;background:rgba(255,255,255,.88);" +
+      "padding:1px 6px;border-radius:7px;box-shadow:0 1px 4px rgba(0,0,0,.28);max-width:160px;overflow:hidden;text-overflow:ellipsis}";
+    document.head.appendChild(s);
+  }
+  function renderReferenceMarkers() {
+    if (!map || !window.TZ_UNIVERSITIES) return;
+    if (refLayer) { map.removeLayer(refLayer); refLayer = null; }
+    if (map.getZoom() < 11.5) return;
+    const all = [...(window.TZ_UNIVERSITIES || []), ...(window.TZ_LANDMARKS || [])]
+      .filter(p => p && p.name && p.lat != null && p.lng != null);
+    const rank = k => (k === "university" || k === "college" || k === "institute") ? 0
+      : k === "area" ? 1 : k === "hospital" ? 2 : 3;
+    all.sort((a, b) => rank(a.kind) - rank(b.kind));
+    const b = map.getBounds();
+    refLayer = L.layerGroup();
+    let shown = 0;
+    for (const p of all) {
+      if (shown >= 22) break;
+      if (!b.contains([p.lat, p.lng])) continue;
+      shown++;
+      const name = String(p.name).split(",")[0];
+      const icon = L.divIcon({
+        className: "nm-ref",
+        html: `<div class="nm-ref-inner"><span class="nmr-dot" style="background:${refColor(p.kind)}"></span><span class="nmr-label">${esc(name)}</span></div>`,
+        iconSize: [0, 0], iconAnchor: [0, 0],
+      });
+      L.marker([p.lat, p.lng], { icon, interactive: false, keyboard: false }).addTo(refLayer);
+    }
+    refLayer.addTo(map);
   }
 
   // Draw the real driving route(s) (origin = user) on the map, so the distance

@@ -126,8 +126,34 @@
     #tenantsList tr:has(.ten-expired) td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
     #tenantsList tr:has(.ten-warn)    td:first-child { box-shadow: inset 3px 0 0 #9a6700; }
   </style>
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) — admin panel (pushed view; keeps its own Sign-out). */
+    body[data-page="admin"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-on: #06170F; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
+      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
+      --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03); --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
+      --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14); --auth-ring: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="admin"] .container { padding-bottom: 96px; }
+    body[data-page="admin"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    body[data-page="admin"] select, body[data-page="admin"] textarea {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="admin"] input::placeholder, body[data-page="admin"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    body[data-page="admin"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
+    body[data-page="admin"] .auth-input:focus { background: rgba(255,255,255,.07); }
+    body[data-page="admin"] #nav-slot, body[data-page="admin"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="admin">
+<body data-page="admin" data-app-shell="admin.html">
   <div id="nav-slot"></div>
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
@@ -369,14 +395,13 @@
   <script src="js/auth-ui.js"></script>
   <script src="js/admin.js"></script>
   <script>
-    window.renderNav("admin.html");
-    window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js). Admin keeps its
+    // own Sign-out button.
     window.applyTranslations();
     window.initAdminPage();
   </script>
 
-    <script src="js/mobile-nav.js"></script>
-    <script src="js/fab.js"></script>
+    <script src="js/app-shell.js"></script>
     <script src="js/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
   <script src="js/premium.js" defer></script>

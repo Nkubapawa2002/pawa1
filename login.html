@@ -18,8 +18,37 @@
     <link rel="stylesheet" href="css/premium.css" />
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* =====================================================================
+       Twilight dark re-skin (Claude design) for the auth screen.
+       auth.css is token-driven, so re-pointing the design tokens + the few
+       --auth-* glass vars flips the whole split to the dark emerald look.
+       ===================================================================== */
+    body[data-page="login"] {
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.82); --c-text-muted: rgba(233,243,238,.55); --c-text-faint: rgba(233,243,238,.4);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-on: #06170F; --c-danger: #ff8a7a;
+      --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03);
+      --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
+      --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14);
+      --auth-ring: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="login"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
+    body[data-page="login"] .auth-card::before { background: linear-gradient(135deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 42%); }
+    body[data-page="login"] .auth-input:focus, body[data-page="login"] .auth-input:focus-visible { background: rgba(255,255,255,.07); }
+    body[data-page="login"] .auth-route { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
+    body[data-page="login"] .auth-route:hover { background: rgba(63,217,160,.12); border-color: rgba(63,217,160,.4); }
+    body[data-page="login"] .auth-route small, body[data-page="login"] .auth-portal small, body[data-page="login"] .auth-empty { color: rgba(233,243,238,.5); }
+    body[data-page="login"] .login-brand__logo { background: rgba(255,255,255,.10); }
+    /* leave room above the bottom tab bar (Profile destination) */
+    body[data-page="login"] .login-split { padding-bottom: 96px; }
+  </style>
 </head>
-<body data-bg style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')" data-page="login">
+<body data-page="login" data-app-shell="login.html">
   <div id="nav-slot"></div>
 
   <div class="login-split">
@@ -165,14 +194,13 @@
   <script src="js/nav.js"></script>
   <script src="js/login.js"></script>
   <script>
-    window.renderNav && window.renderNav("login.html");
-    window.renderFooter && window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) replaces the
+    // desktop top nav + footer. Login is the Profile-tab destination.
     window.applyTranslations && window.applyTranslations();
     window.initLoginPage && window.initLoginPage();
   </script>
 
-    <script src="js/mobile-nav.js"></script>
-    <script src="js/fab.js"></script>
+    <script src="js/app-shell.js"></script>
     <script src="js/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
   <script src="js/premium.js" defer></script>

@@ -817,8 +817,54 @@
     .houses-list[data-vm="compact"] .house-card-title { font-size: .84rem; }
     .houses-list[data-vm="compact"] .house-card-price { font-size: .98rem; }
   </style>
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* =====================================================================
+       Twilight dark re-skin (Claude design) for the houses directory / map.
+       Mostly token-driven, so re-pointing the design tokens flips it dark;
+       the few hardcoded-white form controls are overridden explicitly.
+       This is the "Explore" tab destination (bottom tab bar via app-shell).
+       ===================================================================== */
+    body[data-page="houses"] {
+      --c-surface: #0e1a14; --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-text-faint: rgba(233,243,238,.4);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
+      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    /* form controls that hardcoded a white background */
+    body[data-page="houses"] .ss-row input,
+    body[data-page="houses"] .houses-toolbar input,
+    body[data-page="houses"] .am-search-row input,
+    body[data-page="houses"] .am-filter-grid select,
+    body[data-page="houses"] .am-filter-grid input,
+    body[data-page="houses"] .hp-sort select,
+    body[data-page="houses"] .hp-maptoggle,
+    body[data-page="houses"] .am-btn:not(.am-btn-brand),
+    body[data-page="houses"] .hp-biz-chip:not(.active) {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="houses"] .houses-toolbar input::placeholder,
+    body[data-page="houses"] .ss-row input::placeholder,
+    body[data-page="houses"] .am-search-row input::placeholder { color: rgba(233,243,238,.4); }
+    body[data-page="houses"] .am-search-results { background: #0e1a14; }
+    body[data-page="houses"] .house-card-photo { background: #0f1714 center/cover no-repeat; }
+    /* dark text on the bright green/gold fills for AA contrast */
+    body[data-page="houses"] .houses-near-me,
+    body[data-page="houses"] .houses-alert-btn,
+    body[data-page="houses"] .am-mode.active,
+    body[data-page="houses"] .hp-seg.active,
+    body[data-page="houses"] .hp-biz-chip.active,
+    body[data-page="houses"] .house-card-photo .verified { color: #06170F; }
+    /* hide the empty shared-nav / footer slots (app-shell provides the chrome) */
+    body[data-page="houses"] #nav-slot, body[data-page="houses"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/houses-hero.jpg')" data-page="houses">
+<body data-houses-pro data-page="houses" data-app-shell="houses.html">
   <a href="#housesMain" class="hp-skip-link">Skip to listings</a>
   <div id="nav-slot"></div>
 
@@ -1291,14 +1337,13 @@
   <script src="js/request-place.js"></script>
   <script src="js/houses.js"></script>
   <script>
-    window.renderNav("houses.html");
-    window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) replaces the
+    // desktop top nav + footer. This is the "Explore" tab destination.
     window.applyTranslations();
     window.initHousesPage();
   </script>
 
-  <script src="js/mobile-nav.js"></script>
-  <script src="js/fab.js"></script>
+  <script src="js/app-shell.js"></script>
   <script src="js/sw-register.js"></script>
   <script src="js/premium.js" defer></script>
 </body>

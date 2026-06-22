@@ -283,8 +283,34 @@
       .fr-map { height: 64vh; }
     }
   </style>
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) for The Frame (Explore tab). */
+    body[data-page="frame"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-accent: #F6C45A; --c-success: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="frame"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; min-height: auto !important; padding: 26px 16px 10px !important; }
+    body[data-page="frame"] .page-title { color: #fff; }
+    body[data-page="frame"] .page-subtitle { color: rgba(233,243,238,.7); }
+    body[data-page="frame"] .container { padding-bottom: 96px; }
+    body[data-page="frame"] input, body[data-page="frame"] select { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14); }
+    body[data-page="frame"] input::placeholder { color: rgba(233,243,238,.4); }
+    body[data-page="frame"] .fr-btn.ghost, body[data-page="frame"] .fr-actions .ghost { background: rgba(255,255,255,.05); color: #E9F3EE; }
+    /* dark text on the bright green/gold fills for AA contrast */
+    body[data-page="frame"] .fr-btn:not(.ghost),
+    body[data-page="frame"] .fr-actions a:not(.ghost),
+    body[data-page="frame"] .fr-actions button:not(.ghost) { color: #06170F; }
+    body[data-page="frame"] #nav-slot, body[data-page="frame"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')" data-page="frame">
+<body data-houses-pro data-page="frame" data-app-shell="frame.html">
   <div id="nav-slot"></div>
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')">
@@ -350,14 +376,12 @@
   <script src="js/geolocate.js"></script>
   <script src="js/frame.js"></script>
   <script>
-    window.renderNav("frame.html");
-    window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) — "Explore" tab.
     window.applyTranslations && window.applyTranslations();
     window.initFramePage();
   </script>
 
-  <script src="js/mobile-nav.js"></script>
-  <script src="js/fab.js"></script>
+  <script src="js/app-shell.js"></script>
   <script src="js/sw-register.js"></script>
   <script src="js/premium.js" defer></script>
 </body>

@@ -373,7 +373,7 @@ window.initHousesPage = async () => {
       const lbl = btn.querySelector("span");
       if (lbl) lbl.textContent = mapHidden ? "Show map" : "Hide map";
     }
-    if (!mapHidden && map) setTimeout(() => { try { map.resize(); } catch (_) {} }, 80);
+    if (!mapHidden && map) setTimeout(() => { try { map.resize(); renderReferenceMarkers(); } catch (_) {} }, 80);
   }
 
   // Explicit sort chosen in the results bar. "recommended" leaves the order

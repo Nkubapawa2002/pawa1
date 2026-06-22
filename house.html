@@ -477,8 +477,58 @@
       .hd-cta-row-mobile-hide { display: none; }
     }
   </style>
+
+  <!-- Outfit: the property-detail (Twilight design) typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* =====================================================================
+       Twilight dark re-skin (Claude design) for the property detail page.
+       Re-points the page's design tokens to the dark emerald palette so every
+       .hd-* surface flips to the native dark look WITHOUT touching js/house.js.
+       The page is a pushed-detail view: no top nav / bottom tab bar, just the
+       back button + sticky CTA, like a real app screen.
+       ===================================================================== */
+    body[data-page="house"] {
+      --c-surface: #0e1a14; --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
+      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    body[data-page="house"] .hd-wrap { max-width: 560px; padding-bottom: 120px; }
+    body[data-page="house"] .hd-title, body[data-page="house"] .hd-price,
+    body[data-page="house"] .hd-spec__val, body[data-page="house"] .hd-agent-avatar { font-family: 'Outfit', sans-serif; }
+    body[data-page="house"] .hd-card h3 { color: #3FD9A0; }
+    /* back pill → dark glass */
+    body[data-page="house"] .hd-back { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12); color: #E9F3EE; }
+    body[data-page="house"] .hd-back:hover { background: rgba(63,217,160,.12); border-color: rgba(63,217,160,.4); }
+    /* floating round buttons over the gallery → dark glass */
+    body[data-page="house"] .hd-icon-btn { background: rgba(6,14,10,.5); color: #fff; border: 1px solid rgba(255,255,255,.16); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: none; }
+    body[data-page="house"] .hd-icon-btn.fav-active { color: #3FD9A0; }
+    /* hero/gallery badges → dark glass */
+    body[data-page="house"] .hd-badge { background: rgba(8,16,12,.6); color: #E9F3EE; border: 1px solid rgba(255,255,255,.16); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+    body[data-page="house"] .hd-badge.verified { color: #3FD9A0; border-color: rgba(63,217,160,.45); }
+    /* inputs / result rows that hardcoded a white background */
+    body[data-page="house"] .hd-commute-row input { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.12); }
+    body[data-page="house"] .hd-commute-row input::placeholder { color: rgba(233,243,238,.4); }
+    body[data-page="house"] .hd-commute-result { background: rgba(255,255,255,.04); }
+    body[data-page="house"] .hd-commute-msg { background: rgba(255,255,255,.04); }
+    body[data-page="house"] .hd-commute-msg.ok { background: rgba(63,217,160,.10); border-color: rgba(63,217,160,.3); color: #bdf0d8; }
+    body[data-page="house"] .hd-commute-msg.warn { background: rgba(246,196,90,.10); border-color: rgba(246,196,90,.3); color: #f6d79a; }
+    /* CTAs: keep vivid, dark text for contrast on bright fills */
+    body[data-page="house"] .hd-cta-call { color: #06170F; }
+    body[data-page="house"] .hd-cta-wa { background: #25D366; color: #06170F; }
+    /* sticky bottom bar → dark glass (this is the only bottom chrome here) */
+    body[data-page="house"] .hd-sticky { background: rgba(10,18,13,.94); border-top: 1px solid rgba(255,255,255,.1); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
+    /* hide the empty shared-nav / footer slots (native pushed view) */
+    body[data-page="house"] #nav-slot, body[data-page="house"] #footer-slot,
+    body[data-page="house"] .navbar, body[data-page="house"] .footer, body[data-page="house"] .bottom-nav { display: none !important; }
+  </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg')" data-page="house">
+<body data-houses-pro data-page="house">
   <a href="#hdBody" class="hp-skip-link">Skip to property details</a>
   <div id="nav-slot"></div>
 
@@ -534,14 +584,12 @@
   <script src="js/geolocate.js"></script>
   <script src="js/house.js"></script>
   <script>
-    window.renderNav("houses.html");
-    window.renderFooter();
+    // Pure app-shell: native pushed-detail view — no top nav / footer / tab bar
+    // here, just the back button + sticky CTA. js/house.js renders the body.
     window.applyTranslations();
     window.initHousePage();
   </script>
 
-  <script src="js/mobile-nav.js"></script>
-  <script src="js/fab.js"></script>
   <script src="js/sw-register.js"></script>
   <script src="js/premium.js" defer></script>
 </body>

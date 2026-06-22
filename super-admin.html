@@ -54,8 +54,45 @@
     <link rel="stylesheet" href="css/premium.css" />
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) — super-admin. This page hardcodes
+       its own .sa-* light palette, so those surfaces are overridden directly;
+       the auth-gate uses auth.css tokens (set below). */
+    body[data-page="super-admin"] {
+      --c-text: #E9F3EE; --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-on: #06170F;
+      --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03); --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
+      --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14); --auth-ring: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="super-admin"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; min-height: auto !important; padding: 26px 16px 10px !important; }
+    body[data-page="super-admin"] .page-title { color: #fff; }
+    body[data-page="super-admin"] .page-subtitle { color: rgba(233,243,238,.7); }
+    body[data-page="super-admin"] .sa-wrap { padding-bottom: 96px; }
+    body[data-page="super-admin"] .sa-section,
+    body[data-page="super-admin"] .sa-count { background: rgba(255,255,255,.04); box-shadow: none; border: 1px solid rgba(255,255,255,.08); }
+    body[data-page="super-admin"] .sa-section h2 { color: #3FD9A0; }
+    body[data-page="super-admin"] .sa-table th { background: rgba(255,255,255,.04); color: rgba(233,243,238,.6); }
+    body[data-page="super-admin"] .sa-table th, body[data-page="super-admin"] .sa-table td { border-bottom-color: rgba(255,255,255,.08); }
+    body[data-page="super-admin"] .sa-count .n { color: #3FD9A0; }
+    body[data-page="super-admin"] .sa-count .l { color: rgba(233,243,238,.55); }
+    body[data-page="super-admin"] .sa-count .s, body[data-page="super-admin"] .sa-sub { color: rgba(233,243,238,.4); }
+    body[data-page="super-admin"] .sa-intro { color: rgba(233,243,238,.7); }
+    body[data-page="super-admin"] .sa-intro a { color: #3FD9A0; }
+    body[data-page="super-admin"] .sa-empty { color: rgba(233,243,238,.45); }
+    body[data-page="super-admin"] .sa-btn.approve { color: #06170F; }
+    body[data-page="super-admin"] input:not([type=checkbox]):not([type=radio]),
+    body[data-page="super-admin"] select, body[data-page="super-admin"] textarea {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="super-admin"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
+    body[data-page="super-admin"] #nav-slot, body[data-page="super-admin"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-page="super-admin">
+<body data-page="super-admin" data-app-shell="super-admin.html">
   <div id="nav-slot"></div>
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
@@ -191,13 +228,12 @@
   <script src="js/auth-ui.js"></script>
   <script src="js/super-admin.js"></script>
   <script>
-    window.renderNav && window.renderNav("super-admin.html");
-    window.renderFooter && window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js).
+    window.applyTranslations && window.applyTranslations();
     window.initSuperAdmin && window.initSuperAdmin();
   </script>
 
-    <script src="js/mobile-nav.js"></script>
-    <script src="js/fab.js"></script>
+    <script src="js/app-shell.js"></script>
     <script src="js/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
   <script src="js/premium.js" defer></script>

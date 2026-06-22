@@ -122,8 +122,43 @@
       .svc-list-cta { margin-left: 0; }
     }
   </style>
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) for the Services directory (Explore tab).
+       Token-driven; the few hardcoded-white controls + low-contrast bright fills
+       are fixed explicitly. */
+    body[data-page="services"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-accent: #F6C45A; --c-success: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="services"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; min-height: auto !important; padding: 26px 16px 10px !important; }
+    body[data-page="services"] .page-title { color: #fff; }
+    body[data-page="services"] .page-subtitle { color: rgba(233,243,238,.7); }
+    body[data-page="services"] .container { padding-bottom: 96px; }
+    body[data-page="services"] .svc-toolbar select,
+    body[data-page="services"] .svc-toolbar input { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14); }
+    body[data-page="services"] .svc-toolbar input::placeholder { color: rgba(233,243,238,.4); }
+    body[data-page="services"] .svc-mobile-tabs button:not(.active) { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14); }
+    body[data-page="services"] .svc-card-photo { background: #0f1714 center/cover no-repeat; }
+    /* dark text on the bright green/gold fills for AA contrast */
+    body[data-page="services"] .svc-near-me,
+    body[data-page="services"] .svc-list-cta,
+    body[data-page="services"] .svc-mobile-tabs button.active,
+    body[data-page="services"] .svc-chip.active,
+    body[data-page="services"] .sca-btn.call,
+    body[data-page="services"] .sc-badge.verified,
+    body[data-page="services"] .sc-badge.cat,
+    body[data-page="services"] .sc-badge.dist.road { color: #06170F; }
+    body[data-page="services"] #nav-slot, body[data-page="services"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/zach-rowlandson-qhK0hRwKU60-unsplash.jpg')" data-page="services">
+<body data-houses-pro data-page="services" data-app-shell="services.html">
   <div id="nav-slot"></div>
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/zach-rowlandson-qhK0hRwKU60-unsplash.jpg')">
@@ -230,14 +265,12 @@
   <script src="js/find-mode.js"></script>
   <script src="js/services.js"></script>
   <script>
-    window.renderNav("services.html");
-    window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) — "Explore" tab.
     window.applyTranslations();
     window.initServicesPage();
   </script>
 
-  <script src="js/mobile-nav.js"></script>
-  <script src="js/fab.js"></script>
+  <script src="js/app-shell.js"></script>
   <script src="js/sw-register.js"></script>
   <script src="js/premium.js" defer></script>
 </body>

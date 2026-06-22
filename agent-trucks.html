@@ -67,8 +67,38 @@
     .at-setup pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 10px; overflow: auto; font-size: .76rem; max-height: 320px; }
     .at-hint { font-size: .82rem; color: var(--c-muted,#6b6960); margin: 2px 0 10px; }
   </style>
+
+  <!-- Outfit: the Twilight-design typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <style>
+    /* Twilight dark re-skin (Claude design) — agent trucks dashboard. */
+    body[data-page="agent-trucks"] {
+      --c-surface: #0e1a14; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
+      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-on: #06170F; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
+      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
+      --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03); --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
+      --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14); --auth-ring: #3FD9A0;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="agent-trucks"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; min-height: auto !important; padding: 26px 16px 10px !important; }
+    body[data-page="agent-trucks"] .page-title { color: #fff; }
+    body[data-page="agent-trucks"] .page-subtitle { color: rgba(233,243,238,.7); }
+    body[data-page="agent-trucks"] .container { padding-bottom: 96px; }
+    body[data-page="agent-trucks"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    body[data-page="agent-trucks"] select, body[data-page="agent-trucks"] textarea {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="agent-trucks"] input::placeholder, body[data-page="agent-trucks"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    body[data-page="agent-trucks"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
+    body[data-page="agent-trucks"] .auth-input:focus { background: rgba(255,255,255,.07); }
+    body[data-page="agent-trucks"] .at-btn-brand { color: #06170F; }
+    body[data-page="agent-trucks"] #nav-slot, body[data-page="agent-trucks"] #footer-slot { display: none !important; }
+  </style>
 </head>
-<body data-bg data-houses-pro style="--page-bg:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')" data-page="agent-trucks">
+<body data-houses-pro data-page="agent-trucks" data-app-shell="agent-trucks.html">
   <div id="nav-slot"></div>
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
@@ -306,14 +336,12 @@
   <script src="js/agent-demand-board.js"></script>
   <script src="js/agent-trucks.js"></script>
   <script>
-    window.renderNav("agent-trucks.html");
-    window.renderFooter();
+    // Pure app-shell: in-app bottom tab bar (js/app-shell.js) — Profile area.
     window.applyTranslations();
     window.initAgentTrucksPage();
   </script>
 
-  <script src="js/mobile-nav.js"></script>
-  <script src="js/fab.js"></script>
+  <script src="js/app-shell.js"></script>
   <script src="js/sw-register.js"></script>
   <script src="js/premium.js" defer></script>
 </body>
