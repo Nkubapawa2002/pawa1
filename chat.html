@@ -17,9 +17,10 @@
     <link rel="stylesheet" href="css/premium.css" />
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
 
-  <!-- Outfit: the Twilight-design typeface -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
   <style>
     /* =====================================================================
        Twilight dark re-skin (Claude design) for the Messages (chat) tab.
@@ -27,24 +28,24 @@
        --c-* tokens), so the components are re-coloured directly.
        ===================================================================== */
     body[data-page="chat"] {
-      --c-text: #E9F3EE; --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0;
+      --c-text: #E9F3EE; --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6;
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif; min-height: 100vh;
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
     }
     body[data-page="chat"] .page-hero { display: none; }
     body[data-page="chat"] .container { padding-bottom: 96px; }
     body[data-page="chat"] .chat-container { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); max-width: 600px; }
     body[data-page="chat"] .chat-messages, body[data-page="chat"] .va-transcript { background: transparent; }
     body[data-page="chat"] .msg.assistant .msg-bubble { background: rgba(255,255,255,.06); color: #E9F3EE; border-color: rgba(255,255,255,.10); }
-    body[data-page="chat"] .msg.user .msg-bubble { background: #3FD9A0; color: #06170F; }
+    body[data-page="chat"] .msg.user .msg-bubble { background: #2EE6A6; color: #06170F; }
     body[data-page="chat"] .chat-input-bar { background: rgba(255,255,255,.03); border-top: 1px solid rgba(255,255,255,.08); }
     body[data-page="chat"] .chat-input-bar input, body[data-page="chat"] .va-text-bar input {
       background: rgba(255,255,255,.05); color: #E9F3EE; border: 1px solid rgba(255,255,255,.12);
     }
     body[data-page="chat"] .chat-input-bar input::placeholder, body[data-page="chat"] .va-text-bar input::placeholder { color: rgba(233,243,238,.4); }
-    body[data-page="chat"] .chat-input-bar button, body[data-page="chat"] .va-text-bar button { background: #3FD9A0; color: #06170F; }
+    body[data-page="chat"] .chat-input-bar button, body[data-page="chat"] .va-text-bar button { background: #2EE6A6; color: #06170F; }
     body[data-page="chat"] .suggestion-chip { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.12); }
-    body[data-page="chat"] .suggestion-chip:hover { background: #3FD9A0; color: #06170F; border-color: #3FD9A0; }
+    body[data-page="chat"] .suggestion-chip:hover { background: #2EE6A6; color: #06170F; border-color: #2EE6A6; }
     body[data-page="chat"] .chat-tab-bar { border-bottom-color: rgba(255,255,255,.1); }
     body[data-page="chat"] .chat-tab { color: rgba(233,243,238,.6); }
     body[data-page="chat"] .chat-mic-btn, body[data-page="chat"] .chat-voice-toggle { border-color: rgba(255,255,255,.14); color: rgba(233,243,238,.7); background: rgba(255,255,255,.04); }

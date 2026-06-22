@@ -1,0 +1,13 @@
+/* ============================================================
+   Maisha na Lifeza — Webfonts
+   All five families are real Google Fonts (no substitutions).
+   Loaded from the Google Fonts CDN exactly as the product ships.
+   ------------------------------------------------------------
+   Orbitron      → squared techno display (hero headlines, brand)
+   Inter         → workhorse UI + body text
+   JetBrains Mono→ numerals, prices, codes, ticket IDs (tabular)
+   Plus Jakarta Sans → the mobile "Twilight" app-home UI face
+   Fraunces      → expressive editorial serif (manifesto / quotes)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&display=swap');

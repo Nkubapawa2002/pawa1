@@ -1,0 +1,49 @@
+/* ============================================================
+   Maisha na Lifeza — Effects: shadows, glows, glass, motion
+   ============================================================ */
+
+:root {
+  /* ---------- ELEVATION (dark) ---------- */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+  --shadow-2: 0 2px 4px rgba(0,0,0,0.4), 0 8px 20px rgba(0,0,0,0.45);
+  --shadow-3: 0 4px 8px rgba(0,0,0,0.4), 0 16px 36px rgba(0,0,0,0.55);
+  /* app-home softer drops */
+  --shadow-card: 0 12px 30px rgba(0,0,0,0.28);
+  --shadow-feat: 0 18px 42px rgba(0,0,0,0.42);
+
+  /* ---------- NEON GLOWS (use sparingly, on hover) ---------- */
+  --glow-green: 0 0 8px rgba(16, 185, 129, 0.30);
+  --glow-gold:  0 0 8px rgba(252, 209, 22, 0.32);
+  --glow-emerald: 0 10px 24px rgba(46, 230, 166, 0.28);
+
+  /* ---------- GLASS ---------- */
+  --glass-bg:      rgba(15, 34, 26, 0.90);
+  --glass-bg-soft: linear-gradient(165deg, rgba(255,255,255,.075), rgba(255,255,255,.022));
+  --glass-border:  rgba(255, 255, 255, 0.12);
+  --glass-blur:    20px; /* @kind other */
+
+  /* ---------- MOTION ---------- */
+  --ease:       cubic-bezier(0.22, 1, 0.36, 1);   /* @kind other */
+  --ease-out:   cubic-bezier(.22, .7, .25, 1);     /* @kind other */
+  --dur-fast:   140ms; /* @kind other */
+  --dur:        220ms; /* @kind other */
+  --dur-slow:   400ms; /* @kind other */
+}
+
+/* Reusable keyframes shipped with the system */
+@keyframes ml-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ml-rise-in {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ml-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+@keyframes ml-pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(252, 209, 22, 0.6); }
+  50%      { box-shadow: 0 0 0 8px rgba(252, 209, 22, 0); }
+}

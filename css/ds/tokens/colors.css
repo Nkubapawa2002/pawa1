@@ -1,0 +1,91 @@
+/* ============================================================
+   Maisha na Lifeza — Color tokens
+   Dark-first Tanzanian identity: flag green + flag gold over
+   deep-green "night soil" surfaces, with bright neon accents.
+   Base palette (raw values) → semantic aliases (use these).
+   ============================================================ */
+
+:root {
+  /* ---------- BRAND · Green (Tanzania flag) ---------- */
+  --green:           #0a6f4d;   /* foundation brand green   */
+  --green-dark:      #064c34;
+  --green-deep:      #064e3b;   /* neon deep / gradient base */
+  --green-neon:      #10b981;   /* primary interactive green */
+  --green-bright:    #34d399;   /* hover / glow / accents    */
+  --green-emerald:   #2EE6A6;   /* mobile app-home accent    */
+  --green-soft:      rgba(16, 185, 129, 0.10);
+  --green-line:      rgba(16, 185, 129, 0.25);
+  --green-light:     #e8f5ee;   /* light-surface tint        */
+
+  /* ---------- BRAND · Gold (Tanzania flag) ---------- */
+  --gold:            #fcd116;   /* primary gold              */
+  --gold-bright:     #ffe066;
+  --gold-warm:       #FFC24B;   /* app-home gold stat        */
+  --gold-dark:       #e6bd00;
+  --gold-soft:       rgba(252, 209, 22, 0.10);
+  --gold-line:       rgba(252, 209, 22, 0.30);
+
+  /* ---------- SURFACES · Dark (default) ---------- */
+  --bg:              #07120d;   /* page background           */
+  --bg-2:            #0b1a13;   /* recessed / rails          */
+  --surface:         #0f221a;   /* card / panel              */
+  --surface-2:       #142b22;   /* hover / raised            */
+  --surface-3:       #1a3528;   /* highest                   */
+  --surface-app:     #141A18;   /* twilight app card         */
+  --bg-app:          #070C0A;   /* twilight app background   */
+
+  /* ---------- SURFACES · Light (foundation / data-bg) ---------- */
+  --white:           #ffffff;
+  --gray-light:      #f9fafb;
+  --gray-mid:        #e5e7eb;
+  --black:           #111827;
+
+  /* ---------- TEXT ---------- */
+  --text:            #f0f5f2;   /* primary on dark           */
+  --text-soft:       #c8d3cd;
+  --text-muted:      #8a9c92;
+  --text-faint:      #586a60;
+  --text-on-brand:   #051a10;   /* text on green/gold fills  */
+  --text-ink:        #111827;   /* primary on light          */
+  --gray:            #6b7280;   /* muted on light            */
+
+  /* ---------- SEMANTIC STATUS ---------- */
+  --danger:          #dc2626;
+  --success:         #16a34a;
+  --warn:            #f59e0b;
+  --info:            #3b82f6;
+  --whatsapp:        #25d366;
+
+  --surface-ok:      #052619;   --text-ok:   #86efac;
+  --surface-warn:    #2a1d05;   --text-warn: #fde68a;
+  --surface-err:     #2a0d0d;   --text-err:  #fecaca;
+  --surface-info:    rgba(59, 130, 246, 0.15);  --text-info: #93c5fd;
+
+  /* ---------- BORDERS ---------- */
+  --border:          rgba(255, 255, 255, 0.06);
+  --border-strong:   rgba(255, 255, 255, 0.12);
+  --border-light:    #e5e7eb;   /* on light surfaces         */
+
+  /* ---------- GRADIENTS ---------- */
+  --grad-brand:      linear-gradient(135deg, #064e3b 0%, #10b981 60%, #34d399 100%); /* @kind color */
+  --grad-gold:       linear-gradient(135deg, #b88800 0%, #fcd116 55%, #ffe066 100%); /* @kind color */
+  --grad-emerald:    linear-gradient(135deg, #2EE6A6 0%, #13a679 100%); /* @kind color */
+  --grad-earn:       linear-gradient(135deg, #1C8F6B 0%, #0E5C45 100%); /* @kind color */
+
+  /* ---------- PAGE ATMOSPHERE ---------- */
+  --page-mesh:
+    radial-gradient(48% 38% at 12% 0%,  rgba(16, 185, 129, 0.15) 0%, transparent 65%),
+    radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.08) 0%, transparent 70%),
+    radial-gradient(60% 50% at 50% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 75%),
+    linear-gradient(180deg, #07120d 0%, #050d09 100%); /* @kind color */
+
+  /* ---------- SEMANTIC ALIASES (prefer these) ---------- */
+  --brand-primary:   var(--green-neon);
+  --brand-accent:    var(--gold);
+  --text-body:       var(--text);
+  --text-heading:    var(--text);
+  --surface-card:    var(--surface);
+  --surface-page:    var(--bg);
+  --link:            var(--green-bright);
+  --focus-ring:      0 0 0 3px rgba(16, 185, 129, 0.40); /* @kind shadow */
+}

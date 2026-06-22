@@ -1,0 +1,62 @@
+/* ============================================================
+   Maisha na Lifeza — Base reset & document baseline
+   Applies the dark Tanzanian identity to the document by default.
+   ============================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+  background: var(--bg);
+}
+
+body {
+  font-family: var(--font-ui);
+  color: var(--text-body);
+  background: var(--page-mesh) fixed, var(--bg);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-display);
+  line-height: var(--lh-tight);
+  color: var(--text-heading);
+}
+h1 { font-weight: var(--fw-black); }
+
+p { line-height: var(--lh-normal); }
+
+a {
+  color: var(--link);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease);
+}
+a:hover { color: #6ee7b7; }
+
+img, svg, video { display: block; max-width: 100%; }
+
+/* Numerals, money, codes default to the tabular mono face */
+code, kbd, samp, pre {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+}
+
+::selection { background: rgba(16, 185, 129, 0.45); color: #fff; }
+
+:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Themed scrollbars */
+* { scrollbar-color: var(--green-line) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--green-line); border-radius: var(--radius-pill); }
+*::-webkit-scrollbar-thumb:hover { background: var(--green-neon); }
+*::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

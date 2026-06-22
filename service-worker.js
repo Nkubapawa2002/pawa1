@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v273-2026-06-22-twilight-complete";
+const VERSION = "v275-2026-06-22-ds-mono-prices";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -16,6 +16,12 @@ const APP_SHELL = [
   "./css/houses-pro.css",
   "./css/neon-pro.css",
   "./css/auth.css",
+  "./css/design-system.css",
+  "./css/ds/tokens/fonts.css",
+  "./css/ds/tokens/colors.css",
+  "./css/ds/tokens/typography.css",
+  "./css/ds/tokens/spacing.css",
+  "./css/ds/tokens/effects.css",
   "./js/config.js",
   "./js/analytics.js",
   "./js/auth-clerk.js",

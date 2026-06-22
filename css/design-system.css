@@ -1,0 +1,36 @@
+/* ============================================================
+   Maisha na Lifeza — Design System entry (from the Claude Design handoff)
+   Link THIS file for the canonical color / type / spacing / effect tokens
+   + the five brand webfonts (Orbitron, Inter, JetBrains Mono, Plus Jakarta
+   Sans, Fraunces).
+
+   NOTE: ds/tokens/base.css (the global reset + body mesh + Orbitron h1–h6)
+   is intentionally NOT imported here — it would fight the existing
+   styles.css / neon-pro.css layouts. We only pull in the :root token sets +
+   fonts, which are inert until referenced.
+   ============================================================ */
+@import url("ds/tokens/fonts.css");
+@import url("ds/tokens/colors.css");
+@import url("ds/tokens/typography.css");
+@import url("ds/tokens/spacing.css");
+@import url("ds/tokens/effects.css");
+
+/* Brand rule: prices, money & metrics render in the tabular mono face
+   (JetBrains Mono) with lining/zero figures — applied to the price classes
+   across every app surface so figures line up and read as "data". */
+.ha-price,
+.lc-price,
+.hd-price,
+.svc-card-price,
+.truck-card-price,
+.nm-card-price,
+.fav-card-price,
+.sd-price,
+.td-price {
+  /* Canonical brand rule — prices are ALWAYS the tabular mono face. !important
+     so it wins over page-level price rules that set a serif/sans display font
+     (e.g. .hd-price / .fav-card-price use --c-font-display = Source Serif). */
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace) !important;
+  font-feature-settings: "tnum", "zero";
+  letter-spacing: -0.01em;
+}

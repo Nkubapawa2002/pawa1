@@ -1,0 +1,42 @@
+/* ============================================================
+   Maisha na Lifeza — Spacing, radii & layout tokens
+   8px-based rhythm; generous mobile-first padding.
+   ============================================================ */
+
+:root {
+  /* ---------- SPACING SCALE ---------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---------- RADII ---------- */
+  --radius-xs:   6px;    /* chips, small controls           */
+  --radius-sm:   10px;   /* inputs, badges, buttons (legacy) */
+  --radius:      12px;   /* default button / control        */
+  --radius-md:   14px;
+  --radius-lg:   18px;   /* cards / panels                  */
+  --radius-xl:   24px;   /* feature cards, modals, app cards */
+  --radius-2xl:  26px;   /* app featured carousel           */
+  --radius-pill: 999px;
+
+  /* ---------- TOUCH / HIT TARGETS ---------- */
+  --hit-min:     44px;   /* @kind spacing */
+
+  /* ---------- CONTAINERS ---------- */
+  --container:      1200px;   /* @kind spacing */
+  --container-wide: 1240px;   /* @kind spacing */
+  --app-width:      560px;    /* @kind spacing */
+
+  /* ---------- Z-INDEX ---------- */
+  --z-nav:     50;  /* @kind other */
+  --z-dropdown:60;  /* @kind other */
+  --z-sheet:   90;  /* @kind other */
+  --z-modal:   100; /* @kind other */
+}

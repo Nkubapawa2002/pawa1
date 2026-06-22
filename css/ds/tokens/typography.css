@@ -1,0 +1,46 @@
+/* ============================================================
+   Maisha na Lifeza — Typography tokens
+   Orbitron display · Inter UI/body · JetBrains Mono numerals
+   Plus Jakarta Sans (app) · Fraunces (editorial serif)
+   ============================================================ */
+
+:root {
+  /* ---------- FAMILIES ---------- */
+  --font-display: "Orbitron", "Inter", system-ui, sans-serif;          /* hero/brand headlines */
+  --font-ui:      "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-body:    var(--font-ui);
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;  /* prices, codes, IDs */
+  --font-app:     "Plus Jakarta Sans", system-ui, sans-serif;          /* mobile Twilight app face */
+  --font-serif:   "Fraunces", Georgia, "Times New Roman", serif;       /* manifesto / quotes */
+
+  /* ---------- TYPE SCALE (rem) ---------- */
+  --text-xs:    0.72rem;
+  --text-sm:    0.85rem;
+  --text-base:  1rem;
+  --text-md:    1.15rem;
+  --text-lg:    1.4rem;
+  --text-xl:    1.8rem;
+  --text-2xl:   2rem;
+  --text-3xl:   2.6rem;
+  --text-display: clamp(2rem, 5vw, 3.2rem);
+
+  /* ---------- WEIGHTS ---------- */
+  --fw-normal:   400; /* @kind font */
+  --fw-medium:   500; /* @kind font */
+  --fw-semibold: 600; /* @kind font */
+  --fw-bold:     700; /* @kind font */
+  --fw-extra:    800; /* @kind font */
+  --fw-black:    900; /* @kind font */
+
+  /* ---------- LINE HEIGHTS ---------- */
+  --lh-tight:    1.1;  /* @kind font */
+  --lh-snug:     1.25; /* @kind font */
+  --lh-normal:   1.55; /* @kind font */
+  --lh-relaxed:  1.7;  /* @kind font */
+
+  /* ---------- LETTER SPACING ---------- */
+  --ls-display:  0.015em;   /* @kind font */
+  --ls-tight:   -0.02em;    /* @kind font */
+  --ls-wide:     0.08em;    /* @kind font */
+  --ls-caps:     0.22em;    /* @kind font */
+}

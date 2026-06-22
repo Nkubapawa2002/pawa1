@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/houses-pro.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
 
   <style>
     /* =====================================================================
@@ -478,8 +479,8 @@
     }
   </style>
 
-  <!-- Outfit: the property-detail (Twilight design) typeface -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <!-- Plus Jakarta Sans — the property-detail (Twilight design) typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
   <style>
     /* =====================================================================
        Twilight dark re-skin (Claude design) for the property detail page.
@@ -489,34 +490,34 @@
        back button + sticky CTA, like a real app screen.
        ===================================================================== */
     body[data-page="house"] {
-      --c-surface: #0e1a14; --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-surface: #141A18; --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
       --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55);
-      --c-brand: #3FD9A0; --c-brand-deep: #3FD9A0; --c-brand-faint: rgba(63,217,160,.10); --c-brand-soft: rgba(63,217,160,.30);
-      --c-accent: #F6C45A; --c-success: #3FD9A0; --c-danger: #ff8a7a;
+      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-brand-faint: rgba(46,230,166,.10); --c-brand-soft: rgba(46,230,166,.30);
+      --c-accent: #F6C45A; --c-success: #2EE6A6; --c-danger: #ff8a7a;
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Outfit', system-ui, sans-serif;
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
       min-height: 100vh;
     }
     body[data-page="house"] .hd-wrap { max-width: 560px; padding-bottom: 120px; }
     body[data-page="house"] .hd-title, body[data-page="house"] .hd-price,
-    body[data-page="house"] .hd-spec__val, body[data-page="house"] .hd-agent-avatar { font-family: 'Outfit', sans-serif; }
-    body[data-page="house"] .hd-card h3 { color: #3FD9A0; }
+    body[data-page="house"] .hd-spec__val, body[data-page="house"] .hd-agent-avatar { font-family: 'Plus Jakarta Sans', sans-serif; }
+    body[data-page="house"] .hd-card h3 { color: #2EE6A6; }
     /* back pill → dark glass */
     body[data-page="house"] .hd-back { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12); color: #E9F3EE; }
-    body[data-page="house"] .hd-back:hover { background: rgba(63,217,160,.12); border-color: rgba(63,217,160,.4); }
+    body[data-page="house"] .hd-back:hover { background: rgba(46,230,166,.12); border-color: rgba(46,230,166,.4); }
     /* floating round buttons over the gallery → dark glass */
     body[data-page="house"] .hd-icon-btn { background: rgba(6,14,10,.5); color: #fff; border: 1px solid rgba(255,255,255,.16); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: none; }
-    body[data-page="house"] .hd-icon-btn.fav-active { color: #3FD9A0; }
+    body[data-page="house"] .hd-icon-btn.fav-active { color: #2EE6A6; }
     /* hero/gallery badges → dark glass */
     body[data-page="house"] .hd-badge { background: rgba(8,16,12,.6); color: #E9F3EE; border: 1px solid rgba(255,255,255,.16); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
-    body[data-page="house"] .hd-badge.verified { color: #3FD9A0; border-color: rgba(63,217,160,.45); }
+    body[data-page="house"] .hd-badge.verified { color: #2EE6A6; border-color: rgba(46,230,166,.45); }
     /* inputs / result rows that hardcoded a white background */
     body[data-page="house"] .hd-commute-row input { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.12); }
     body[data-page="house"] .hd-commute-row input::placeholder { color: rgba(233,243,238,.4); }
     body[data-page="house"] .hd-commute-result { background: rgba(255,255,255,.04); }
     body[data-page="house"] .hd-commute-msg { background: rgba(255,255,255,.04); }
-    body[data-page="house"] .hd-commute-msg.ok { background: rgba(63,217,160,.10); border-color: rgba(63,217,160,.3); color: #bdf0d8; }
+    body[data-page="house"] .hd-commute-msg.ok { background: rgba(46,230,166,.10); border-color: rgba(46,230,166,.3); color: #bdf0d8; }
     body[data-page="house"] .hd-commute-msg.warn { background: rgba(246,196,90,.10); border-color: rgba(246,196,90,.3); color: #f6d79a; }
     /* CTAs: keep vivid, dark text for contrast on bright fills */
     body[data-page="house"] .hd-cta-call { color: #06170F; }
