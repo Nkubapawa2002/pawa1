@@ -44,6 +44,10 @@ window.initHousesPage = async () => {
   let visible   = [];
   let map       = null;
   let markers   = new Map();   // id -> marker
+  const refMarkers = new Map();   // place name -> reference marker (declared here,
+  // BEFORE initMap() runs at boot, because map "load"/"moveend" can fire
+  // renderReferenceMarkers() during the awaited data fetch below — declaring it
+  // lower in the file would leave it in the temporal dead zone and crash the map.
   let activeId  = null;
   let userLoc   = null;
   let smartCriteria = null;        // parsed natural-language query (or null)
@@ -2834,7 +2838,8 @@ window.initHousesPage = async () => {
   // neighbourhoods, so we plot the gazetteer's important places as light,
   // non-interactive reference pins for orientation — only those in view, and
   // only when zoomed in enough to stay clutter-free (capped so it never floods).
-  const refMarkers = new Map();   // place name -> maplibregl.Marker
+  // NOTE: `refMarkers` is declared up top with the other map state — see the
+  // boot sequence — so renderReferenceMarkers() can fire safely during init.
   function refColor(kind) {
     if (kind === "university" || kind === "college" || kind === "institute") return "#1d4ed8";
     if (kind === "hospital") return "#dc2626";
