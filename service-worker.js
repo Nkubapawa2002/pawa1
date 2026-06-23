@@ -4,16 +4,18 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v277-2026-06-22-light-dark-theme";
+const VERSION = "v285-2026-06-23-gallery-contain-uncrop";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./area.html",
   "./css/styles.css",
   "./css/mobile.css",
   "./css/houses-pro.css",
+  "./css/houses-mobile-pro.css",
   "./css/neon-pro.css",
   "./css/auth.css",
   "./css/design-system.css",
@@ -31,6 +33,9 @@ const APP_SHELL = [
   "./js/frame.js",
   "./js/request-place.js",
   "./js/geo.js",
+  "./js/geo-poly.js",
+  "./js/tz-places.js",
+  "./js/area.js",
   "./js/geolocate.js",
   "./js/map-expand.js",
   "./js/i18n.js",
@@ -38,6 +43,7 @@ const APP_SHELL = [
   "./js/auth.js",
   "./js/auth-ui.js",
   "./js/agent-profile.js",
+  "./js/houses-mobile.js",
   "./js/agent-demand-board.js",
   "./js/nav.js",
   "./js/home-app.js",

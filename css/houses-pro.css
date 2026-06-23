@@ -435,10 +435,12 @@ body[data-houses-pro][data-bg] {
    ===================================================================== */
 .hd-gallery {
   position: relative;
-  height: 360px;
+  height: 460px;
   border-radius: 18px;
   overflow: hidden;
-  background: #ece9e1;
+  /* Dark letterbox so portrait phone media shown un-cropped (object-fit:
+     contain) reads as deliberate framing, not a layout gap. */
+  background: #0d1110;
   box-shadow: 0 6px 20px rgba(0,0,0,.08);
   margin-bottom: 18px;
 }
@@ -461,12 +463,14 @@ body[data-houses-pro][data-bg] {
   scroll-snap-align: start;
   scroll-snap-stop: always;
   position: relative;
-  background: #ece9e1;
+  background: #0d1110;
 }
+/* contain (not cover): show the WHOLE photo/video so portrait phone media is
+   never zoom-cropped. The dark slide background fills any letterbox margin. */
 .hd-gallery-slide img,
 .hd-gallery-slide video {
   width: 100%; height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 
@@ -575,7 +579,9 @@ body[data-houses-pro][data-bg] {
 }
 
 @media (max-width: 600px) {
-  .hd-gallery { height: 280px; border-radius: 14px; }
+  /* Tall enough to show portrait clips/photos un-cropped without pushing the
+     price + details fully off-screen. */
+  .hd-gallery { height: 68vh; max-height: 560px; min-height: 320px; border-radius: 14px; }
   .hd-gallery-nav { width: 36px; height: 36px; }
   .hd-gallery-nav.prev { left: 8px; }
   .hd-gallery-nav.next { right: 8px; }
