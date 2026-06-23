@@ -1,0 +1,195 @@
+/* ============================================================================
+   Light theme  —  user-selectable companion to the dark "Twilight" default.
+   Load this LAST (after neon-pro.css + design-system.css). It is INERT until
+   <html data-theme="light"> is set by js/theme.js.
+
+   Strategy: the whole app is token-driven across three families —
+     --n-*   (neon-pro.css)      · dark page chrome + components
+     --c-*   (claude-design.css) · already light at :root; pages override dark
+     --bg/--surface/--text…      (ds/tokens/colors.css)
+   We simply re-assert every family to a warm-cream light palette. Declaring on
+   BOTH `:root[data-theme=light]` (html-level reads + inheritance) AND
+   `:root[data-theme=light] body` (specificity (0,1,2) > the per-page
+   `body[data-page="x"]` dark blocks (0,1,1)) flips token-driven surfaces site
+   wide. Hardcoded dark backgrounds get explicit overrides below.
+   ============================================================================ */
+
+:root[data-theme="light"] { color-scheme: light; }
+
+:root[data-theme="light"],
+:root[data-theme="light"] body {
+  /* ── neon-pro family (--n-*) ─────────────────────────────────────────── */
+  --n-bg:           #faf9f5;
+  --n-bg-2:         #f1f0ea;
+  --n-surface:      #ffffff;
+  --n-surface-2:    #f6f5f0;
+  --n-surface-3:    #ecebe3;
+  --n-surface-warn: #fdf4e3;
+  --n-surface-err:  #fce4e4;
+  --n-surface-ok:   #e1f3e8;
+  --n-text:         #1a1915;
+  --n-text-soft:    #44423a;
+  --n-text-muted:   #6b6960;
+  --n-text-faint:   #908d83;
+  --n-text-on-brand:#ffffff;
+  --n-text-warn:    #8a4a00;
+  --n-text-err:     #a11212;
+  --n-text-ok:      #0d7a47;
+  --n-border:       rgba(20, 18, 12, 0.10);
+  --n-border-strong:rgba(20, 18, 12, 0.18);
+  --n-glow-green:   none;
+  --n-glow-gold:    none;
+  --n-glow-text:    none;
+  --n-page-mesh:
+    radial-gradient(48% 38% at 12% 0%,  rgba(16, 185, 129, 0.07) 0%, transparent 65%),
+    radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.06) 0%, transparent 70%),
+    radial-gradient(60% 50% at 50% 100%, rgba(16, 185, 129, 0.05) 0%, transparent 75%),
+    linear-gradient(180deg, #faf9f5 0%, #f3f1ea 100%);
+
+  /* ── claude-design family (--c-*) — re-assert the light defaults so the
+        per-page dark scoped blocks are out-specified ─────────────────────── */
+  --c-bg:           #faf9f5;
+  --c-bg-elev:      #f1f0ea;
+  --c-surface:      #ffffff;
+  --c-surface-soft: #fbfaf6;
+  --c-overlay:      rgba(26, 25, 21, 0.55);
+  --c-text:         #1a1915;
+  --c-text-soft:    #3f3d36;
+  --c-text-muted:   #6b6960;
+  --c-text-faint:   #9e9b91;
+  --c-text-on-brand:#ffffff;
+  --c-border:       #e7e4dd;
+  --c-border-strong:#d6d2c8;
+  --c-border-focus: #0a6f4d;
+  --c-brand:        #0a6f4d;
+  --c-brand-deep:   #064a33;
+  --c-brand-soft:   #d9ecdf;
+  --c-brand-faint:  #f0f7f2;
+  --c-brand-on:     #ffffff;
+  --c-accent:       #bc5c00;
+  --c-accent-soft:  #fbe9d7;
+  --c-accent-deep:  #8a4200;
+  --c-success:      #0d8050;
+  --c-success-soft: #e1f3e8;
+  --c-warning:      #b45309;
+  --c-warning-soft: #fdf4e3;
+  --c-danger:       #b91c1c;
+  --c-danger-soft:  #fce4e4;
+  --c-info:         #1e40af;
+  --c-info-soft:    #e2eaff;
+
+  /* ── colors.css base family ──────────────────────────────────────────── */
+  --bg:             #faf9f5;
+  --bg-2:           #f1f0ea;
+  --surface:        #ffffff;
+  --surface-2:      #f6f5f0;
+  --surface-3:      #ecebe3;
+  --surface-app:    #ffffff;
+  --bg-app:         #f3f1ea;
+  --text:           #1a1915;
+  --text-soft:      #3f3d36;
+  --text-muted:     #6b6960;
+  --text-faint:     #908d83;
+  --border:         rgba(20, 18, 12, 0.10);
+  --border-strong:  rgba(20, 18, 12, 0.18);
+  --text-body:      #1a1915;
+  --text-heading:   #1a1915;
+  --surface-card:   #ffffff;
+  --surface-page:   #faf9f5;
+  --link:           #0a6f4d;
+  --page-mesh:
+    radial-gradient(48% 38% at 12% 0%,  rgba(16, 185, 129, 0.07) 0%, transparent 65%),
+    radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.06) 0%, transparent 70%),
+    radial-gradient(60% 50% at 50% 100%, rgba(16, 185, 129, 0.05) 0%, transparent 75%),
+    linear-gradient(180deg, #faf9f5 0%, #f3f1ea 100%);
+}
+
+/* ── Page baseline ────────────────────────────────────────────────────── */
+:root[data-theme="light"] { background: var(--n-bg); }
+
+/* Defeat hardcoded dark page backgrounds set in per-page scoped blocks
+   (e.g. `body[data-page="index"]{ background:#070C0A }`). (0,2,2) > (0,1,1). */
+:root[data-theme="light"] body,
+:root[data-theme="light"] body[data-page] {
+  background: var(--n-page-mesh) fixed, var(--n-bg) !important;
+  color: var(--n-text);
+}
+
+/* Heading glow text-shadow reads as a smudge on light — neutralise it. */
+:root[data-theme="light"] h1,
+:root[data-theme="light"] h2,
+:root[data-theme="light"] h3,
+:root[data-theme="light"] h4,
+:root[data-theme="light"] h5,
+:root[data-theme="light"] h6 { text-shadow: none; }
+
+/* ── App-shell tab bar (styles injected by js/app-shell.js, hardcoded dark) ─ */
+:root[data-theme="light"] .app-tabbar {
+  background: rgba(255, 255, 255, 0.82);
+  border-top-color: rgba(20, 18, 12, 0.08);
+}
+:root[data-theme="light"] .app-tabbar a { color: rgba(20, 18, 12, 0.45); }
+:root[data-theme="light"] .app-tabbar a.active { color: #0a7d57; }
+
+/* ── Misc dark-glass surfaces that hardcode a near-black fill ──────────── */
+:root[data-theme="light"] .ha-card-photo { background: #eceae2; }
+
+/* ============================================================================
+   index.html home feed — the .ha-* components hardcode #EAF1EE text and
+   #141A18 / rgba(255,255,255,.05) fills (built for the dark shell). Re-skin
+   them to warm-cream cards with dark ink in light mode.
+   ============================================================================ */
+:root[data-theme="light"] .ha-greet { color: var(--c-text-muted); }
+:root[data-theme="light"] .ha-greet #haGreetName,
+:root[data-theme="light"] .ha-loc { color: var(--c-text); }
+
+:root[data-theme="light"] .ha-lang {
+  background: #ffffff; border-color: var(--c-border); color: var(--c-text);
+}
+
+:root[data-theme="light"] .ha-search-box {
+  background: #ffffff; border-color: var(--c-border);
+}
+:root[data-theme="light"] .ha-search-box input { color: var(--c-text); }
+:root[data-theme="light"] .ha-search-box input::placeholder { color: var(--c-text-faint); }
+
+:root[data-theme="light"] .ha-chip {
+  background: #ffffff; border-color: var(--c-border); color: var(--c-text-muted);
+}
+:root[data-theme="light"] .ha-chip.active {
+  background: #2EE6A6; color: #06170F; border-color: transparent;
+}
+
+:root[data-theme="light"] .ha-sec-head h2 { color: var(--c-text); }
+:root[data-theme="light"] .ha-sec-head a { color: #0a7d57; }
+
+:root[data-theme="light"] .ha-card,
+:root[data-theme="light"] .ha-q {
+  background: #ffffff; border-color: var(--c-border);
+  box-shadow: 0 10px 26px rgba(20, 30, 25, 0.08);
+}
+:root[data-theme="light"] .ha-card-title,
+:root[data-theme="light"] .ha-q-label { color: var(--c-text); }
+:root[data-theme="light"] .ha-card .ha-muted,
+:root[data-theme="light"] .ha-specs,
+:root[data-theme="light"] .ha-card .ha-price small,
+:root[data-theme="light"] .ha-stat-lbl { color: var(--c-text-muted); }
+:root[data-theme="light"] .ha-empty { color: var(--c-text-muted); }
+:root[data-theme="light"] .ha-empty b { color: var(--c-text); }
+
+:root[data-theme="light"] .ha-stat-num { color: #0a7d57; }
+:root[data-theme="light"] .ha-stat-num.gold { color: #b07d0a; }
+
+/* The bilingual manifesto stays a deliberate dark feature band (its gold/white
+   text is designed for dark) — pin a solid dark background under it. */
+:root[data-theme="light"] .manifesto { background: #07120d; }
+
+/* Feedback card → light surface with dark ink (the glowing toggle pill is fine
+   on cream and is left as-is). */
+:root[data-theme="light"] .feedback-card {
+  background: #ffffff;
+  border: 1px solid var(--c-border);
+  box-shadow: 0 14px 40px rgba(20, 30, 25, 0.10);
+}
+:root[data-theme="light"] .feedback-sub { color: var(--c-text-muted); }
+:root[data-theme="light"] .feedback-form label { color: var(--c-text-soft); }

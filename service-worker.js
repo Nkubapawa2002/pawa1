@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v275-2026-06-22-ds-mono-prices";
+const VERSION = "v277-2026-06-22-light-dark-theme";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -17,6 +17,7 @@ const APP_SHELL = [
   "./css/neon-pro.css",
   "./css/auth.css",
   "./css/design-system.css",
+  "./css/theme-light.css",
   "./css/ds/tokens/fonts.css",
   "./css/ds/tokens/colors.css",
   "./css/ds/tokens/typography.css",
@@ -41,6 +42,7 @@ const APP_SHELL = [
   "./js/nav.js",
   "./js/home-app.js",
   "./js/app-shell.js",
+  "./js/theme.js",
   "./js/mobile-nav.js",
   "./js/fab.js",
   "./js/tenant.js",

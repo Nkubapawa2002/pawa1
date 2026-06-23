@@ -91,3 +91,32 @@ already static.
 ## Admin access
 
 Email must be in `APP_CONFIG.ADMIN_EMAILS` (config.js) and in the `admins` table in Supabase.
+
+## Coding rules (ECC)
+
+Imported from the ECC plugin's rule sets (copied to `~/.claude/rules/ecc/`).
+The ECC plugin itself stays disabled — these imports load only the rules below,
+not ECC's 33k-token always-on layer or its hooks. Trim any line to reduce load.
+
+General:
+@~/.claude/rules/ecc/common/coding-style.md
+@~/.claude/rules/ecc/common/patterns.md
+@~/.claude/rules/ecc/common/security.md
+@~/.claude/rules/ecc/common/testing.md
+@~/.claude/rules/ecc/common/code-review.md
+@~/.claude/rules/ecc/common/git-workflow.md
+@~/.claude/rules/ecc/common/development-workflow.md
+@~/.claude/rules/ecc/common/performance.md
+
+Python (`services/python`):
+@~/.claude/rules/ecc/python/coding-style.md
+@~/.claude/rules/ecc/python/patterns.md
+@~/.claude/rules/ecc/python/security.md
+@~/.claude/rules/ecc/python/testing.md
+@~/.claude/rules/ecc/python/fastapi.md
+
+TypeScript:
+@~/.claude/rules/ecc/typescript/coding-style.md
+@~/.claude/rules/ecc/typescript/patterns.md
+@~/.claude/rules/ecc/typescript/security.md
+@~/.claude/rules/ecc/typescript/testing.md
