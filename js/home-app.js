@@ -191,26 +191,15 @@
     wireHearts(el);
   }
 
-  // ---- category chips ----------------------------------------------------
-  function wireChips() {
-    const chips = document.querySelectorAll(".ha-chip[data-cat]");
-    chips.forEach((chip) => {
-      chip.addEventListener("click", () => {
-        const cat = chip.getAttribute("data-cat");
-        chips.forEach((c) => c.classList.toggle("active", c === chip));
-        renderFeed(cat);
-      });
-    });
-  }
-
   // ---- search ------------------------------------------------------------
+  // The category nav is now a row of links (houses / trucks / near / services
+  // / jobs) that jump straight to each page, so the home search always lands
+  // on the houses directory carrying the typed query.
   function wireSearch() {
     const input = document.getElementById("haSearch");
     const go = () => {
       const q = (input.value || "").trim();
-      const active = document.querySelector(".ha-chip.active")?.getAttribute("data-cat") || "houses";
-      const page = active === "services" ? "services.html" : active === "trucks" ? "trucks.html" : active === "near" ? "near-me.html" : "houses.html";
-      location.href = page + (q ? "?q=" + encodeURIComponent(q) : "");
+      location.href = "houses.html" + (q ? "?q=" + encodeURIComponent(q) : "");
     };
     input?.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
     document.getElementById("haSearchBtn")?.addEventListener("click", go);
@@ -264,7 +253,6 @@
   // ---- boot --------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", () => {
     if (!document.getElementById("haFeed")) return;
-    wireChips();
     wireSearch();
     wireLang();
     hydrateUser();

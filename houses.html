@@ -866,6 +866,9 @@
     body[data-page="houses"] #nav-slot, body[data-page="houses"] #footer-slot { display: none !important; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Professional mobile declutter — must load LAST so it wins over the
+       page's inline layout blocks above (equal specificity, later source). -->
+  <link rel="stylesheet" href="css/houses-mobile-pro.css" />
 </head>
 <body data-houses-pro data-page="houses" data-app-shell="houses.html">
   <a href="#housesMain" class="hp-skip-link">Skip to listings</a>
@@ -1339,6 +1342,7 @@
   <script src="js/find-mode.js"></script>
   <script src="js/request-place.js"></script>
   <script src="js/houses.js"></script>
+  <script src="js/houses-mobile.js"></script>
   <script>
     // Pure app-shell: in-app bottom tab bar (js/app-shell.js) replaces the
     // desktop top nav + footer. This is the "Explore" tab destination.

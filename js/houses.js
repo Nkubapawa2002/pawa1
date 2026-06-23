@@ -2756,6 +2756,26 @@ window.initHousesPage = async () => {
     // orientation — the raster basemap doesn't label them.
     map.on("load", renderReferenceMarkers);
     map.on("moveend", renderReferenceMarkers);
+
+    // Robustly keep the GL canvas sized to its container. On mobile the map
+    // lives inside the List ⇄ Map tab and is BORN in a display:none / zero-size
+    // box, so MapLibre creates its canvas at the 400×300 default and never
+    // recovers — a single timed resize() on tab-switch fires before layout
+    // settles. A ResizeObserver re-syncs the canvas every time the box actually
+    // gains/changes size (incl. 0 → visible), which is the canonical fix.
+    try {
+      const mapEl = document.getElementById("housesMap");
+      if (mapEl && "ResizeObserver" in window) {
+        let lastW = 0, lastH = 0;
+        new ResizeObserver(() => {
+          const w = mapEl.clientWidth, h = mapEl.clientHeight;
+          if (w && h && (w !== lastW || h !== lastH)) {
+            lastW = w; lastH = h;
+            try { map.resize(); } catch (_) {}
+          }
+        }).observe(mapEl);
+      }
+    } catch (_) {}
   }
 
   function renderMarkers() {

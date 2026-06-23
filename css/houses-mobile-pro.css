@@ -1,0 +1,146 @@
+/* =====================================================================
+   Pawa Houses — professional MOBILE refinement layer.
+   Loaded AFTER houses-pro.css. Goal: get a phone user to real listings
+   in ~1.5 screens instead of ~5, by removing redundancy and collapsing
+   secondary controls — without changing any markup the JS depends on.
+
+   Design rules applied (ui-ux-pro-max):
+     §2 Touch         · all triggers ≥44px, 16px inputs (no iOS zoom)
+     §4 Style         · token-driven (--n-* / --c-*), one icon language
+     §5 Layout        · content-priority, 8px rhythm, safe-area aware
+     §9 Navigation    · one primary category control; filters behind a sheet
+   Everything is scoped to body[data-page="houses"] and the phone width.
+   ===================================================================== */
+
+/* The mobile "Filters" trigger row is injected by js/houses-mobile.js and
+   stays hidden on tablet/desktop, where the full toolbar is shown inline. */
+body[data-page="houses"] .hp-filterbar { display: none; }
+
+/* ===================================================================== */
+@media (max-width: 760px) {
+
+  /* 1 ── Slim the hero + lay a dark scrim so the white title reads cleanly
+         over the photo (inset box-shadow paints over the image, under text). */
+  body[data-page="houses"] .page-hero {
+    min-height: 0;
+    padding: 30px 18px 24px;
+    box-shadow: inset 0 0 0 100vmax rgba(7, 18, 13, .52);
+  }
+  body[data-page="houses"] .page-hero h1 { font-size: 1.55rem; line-height: 1.15; }
+  body[data-page="houses"] .page-hero p  { font-size: .9rem; }
+
+  /* Drop two redundant always-on blocks on phones: the find-mode onboarding
+     prompt and the inline workplace ranker are both reachable from the
+     collapsed Filters (Near me + Match to my life), so they're pure clutter. */
+  body[data-page="houses"] .find-mode,
+  body[data-page="houses"] .houses-workplace { display: none !important; }
+
+  /* Tighten the vertical rhythm between control blocks. */
+  body[data-page="houses"] #housesMain { padding-top: 14px; }
+  body[data-page="houses"] .hp-segctl   { margin-bottom: 12px; }
+
+  /* 2 ── Bento: drop the tiles that merely repeat the segmented control
+         (For rent / For sale / Business already live there WITH counts).
+         Keep the live total, Saved, Verified and the agent CTA. */
+  body[data-page="houses"] .hp-bento__cell[data-quickfilter="rent"],
+  body[data-page="houses"] .hp-bento__cell[data-quickfilter="sale"],
+  body[data-page="houses"] .hp-bento__cell[data-quickfilter="business"] { display: none; }
+
+  body[data-page="houses"] .hp-bento {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 72px;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  /* Live-total → full-width hero stat (2 rows tall); agent CTA → full footer. */
+  body[data-page="houses"] .hp-bento__cell--brand {
+    grid-column: span 2; grid-row: span 2;
+    justify-content: center; gap: 4px;
+  }
+  body[data-page="houses"] .hp-bento__cell--brand .hp-bento__num { font-size: 2.2rem; }
+  body[data-page="houses"] .hp-bento__cell[href="agent-houses.html"] { grid-column: span 2; }
+  body[data-page="houses"] .hp-bento__cell { padding: 11px 13px; }
+
+  /* 3 ── Compact "Filters" trigger row (replaces the always-open 10-control
+         toolbar on phones). Two pills: open-filters + the marquee Near-me. */
+  body[data-page="houses"] .hp-filterbar {
+    display: flex; align-items: center; gap: 8px;
+    margin: 2px 0 14px;
+  }
+  .hp-fb-toggle, .hp-fb-near {
+    display: inline-flex; align-items: center; gap: 7px;
+    min-height: 48px; padding: 0 16px; border-radius: 14px;
+    font-family: inherit; font-size: .92rem; font-weight: 700; cursor: pointer;
+    color: var(--n-text, #f0f5f2);
+    background: var(--n-surface-2, #142b22);
+    border: 1px solid var(--n-border-strong, rgba(255,255,255,.12));
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .14s cubic-bezier(.2,.7,.2,1), border-color .18s ease, background .18s ease;
+  }
+  .hp-fb-toggle { flex: 1; justify-content: center; }
+  .hp-fb-toggle svg, .hp-fb-near svg { width: 18px; height: 18px; }
+  .hp-fb-toggle .hp-fb-chev { width: 16px; height: 16px; margin-left: -1px; opacity: .65;
+    transition: transform .24s cubic-bezier(.2,.7,.2,1); }
+  body.hp-filters-open .hp-fb-toggle .hp-fb-chev { transform: rotate(180deg); }
+  .hp-fb-toggle.has-active { border-color: var(--n-green, #10b981); }
+  .hp-fb-count {
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .74rem; font-weight: 800;
+    background: var(--n-green, #10b981); color: var(--n-text-on-brand, #051a10);
+  }
+  .hp-fb-count[hidden] { display: none; }
+  .hp-fb-near { color: var(--n-green-bright, #34d399); }
+  .hp-fb-toggle:active, .hp-fb-near:active { transform: scale(.97); }
+
+  /* 4 ── The full toolbar collapses; it expands inline when the pill is on. */
+  body[data-page="houses"] .houses-toolbar { display: none; }
+  body[data-page="houses"] .houses-toolbar.is-sticky { position: static; box-shadow: none; }
+  body[data-page="houses"].hp-filters-open .houses-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    padding: 14px;
+    margin-bottom: 14px;
+    border-radius: 18px;
+    background: var(--n-surface, #0f221a);
+    border: 1px solid var(--n-border-strong, rgba(255,255,255,.10));
+    animation: hpFiltersIn .26s cubic-bezier(.2,.7,.2,1);
+  }
+  body[data-page="houses"].hp-filters-open .houses-toolbar select,
+  body[data-page="houses"].hp-filters-open .houses-toolbar input {
+    width: 100%; min-height: 48px; font-size: 16px; /* 16px → no iOS auto-zoom */
+  }
+  body[data-page="houses"].hp-filters-open .houses-toolbar .ht-budget,
+  body[data-page="houses"].hp-filters-open .houses-toolbar #filterSearch { grid-column: 1 / -1; }
+  body[data-page="houses"].hp-filters-open .houses-toolbar .ht-actions {
+    grid-column: 1 / -1;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 0 0;
+  }
+  body[data-page="houses"].hp-filters-open .houses-toolbar .ht-actions > button {
+    width: 100%; justify-content: center; min-height: 46px;
+  }
+  @keyframes hpFiltersIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* 5 ── Results bar: keep Sort, drop the 3-way density toggle (power-user
+         clutter on a phone — cards already use the comfortable density). */
+  body[data-page="houses"] #hpViewToggle { display: none; }
+  body[data-page="houses"] .hp-resultsbar {
+    align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  body[data-page="houses"] .houses-result-count { font-size: .86rem; }
+}
+
+/* Very small phones (≤340px): tighten the pills a touch (keep both labels). */
+@media (max-width: 340px) {
+  .hp-fb-toggle, .hp-fb-near { padding: 0 11px; font-size: .85rem; gap: 5px; }
+}
+
+/* Respect reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="houses"].hp-filters-open .houses-toolbar { animation: none; }
+  .hp-fb-toggle .hp-fb-chev { transition: none; }
+}

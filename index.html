@@ -93,7 +93,16 @@
       transition: transform .25s cubic-bezier(.2, .7, .2, 1);
       will-change: transform;
     }
-    .manifesto-card.in { animation: rise-in 1s cubic-bezier(.22, .7, .25, 1) forwards; }
+    /* The reveal: rise + settle, ease-out. The resting state (opacity:1;
+       transform:none) is declared on the class itself so the card is ALWAYS
+       visible once .in lands — even if the animation is unsupported or skipped
+       — and can never get stuck at opacity:0 (the old blank-void bug). */
+    .manifesto-card.in { opacity: 1; transform: none; animation: rise-in 1.05s cubic-bezier(.22, .7, .25, 1) both; }
+    @keyframes rise-in {
+      0%   { opacity: 0; transform: translateY(30px) scale(.985); filter: blur(6px); }
+      55%  { opacity: 1; }
+      100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
     /* keep all text above the cursor spotlight (which sits at z-index 0) */
     .manifesto-card > *:not(.manifesto-spot):not(.manifesto-mark) { position: relative; z-index: 1; }
     /* cursor-following spotlight — gold core fading into emerald */
@@ -342,6 +351,50 @@
     .ha-chips::-webkit-scrollbar { display: none; }
     .ha-chip { padding: 10px 17px; border-radius: 999px; font-weight: 700; font-size: 13px; border: 1px solid rgba(255,255,255,.08); cursor: pointer; white-space: nowrap; flex: none; background: rgba(255,255,255,.05); color: rgba(231,241,236,.72); font-family: inherit; }
     .ha-chip.active { background: #2EE6A6; color: #06170F; border-color: transparent; }
+
+    /* ── Category nav tabs — link straight to each section's full page.
+         These are the primary "take me there" tabs (Houses / Trucks /
+         Near me / Services / Jobs), scrollable on narrow screens. ── */
+    .ha-tabs { display: flex; gap: 10px; overflow-x: auto; margin: 18px -16px 0; padding: 0 16px 4px; scrollbar-width: none; }
+    .ha-tabs::-webkit-scrollbar { display: none; }
+    .ha-tab { flex: none; display: flex; align-items: center; gap: 9px; padding: 9px 16px 9px 10px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); text-decoration: none; color: #EAF1EE; font-weight: 700; font-size: 13.5px; white-space: nowrap; transition: transform .14s ease, border-color .2s ease, background .2s ease; -webkit-tap-highlight-color: transparent; }
+    .ha-tab:hover { background: rgba(255,255,255,.08); }
+    .ha-tab:active { transform: scale(.96); }
+    .ha-tab-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+    .ha-tab-ic svg { display: block; }
+    .ha-tab[data-k="houses"]  .ha-tab-ic { background: rgba(46,230,166,.16); }
+    .ha-tab[data-k="houses"]:hover  { border-color: rgba(46,230,166,.4); }
+    .ha-tab[data-k="trucks"]  .ha-tab-ic { background: rgba(246,196,90,.18); }
+    .ha-tab[data-k="trucks"]:hover  { border-color: rgba(246,196,90,.4); }
+    .ha-tab[data-k="near"]    .ha-tab-ic { background: rgba(110,200,255,.18); }
+    .ha-tab[data-k="near"]:hover    { border-color: rgba(110,200,255,.4); }
+    .ha-tab[data-k="services"] .ha-tab-ic { background: rgba(168,85,247,.20); }
+    .ha-tab[data-k="services"]:hover { border-color: rgba(168,85,247,.45); }
+    .ha-tab[data-k="jobs"]    .ha-tab-ic { background: rgba(255,138,76,.20); }
+    .ha-tab[data-k="jobs"]:hover    { border-color: rgba(255,138,76,.45); }
+
+    /* ── "Near you" radar card — fills the band under the tabs with a live,
+         sweeping radar that pulls the eye toward near-me.html. ── */
+    .ha-near { position: relative; overflow: hidden; display: flex; align-items: center; gap: 15px; margin-top: 16px; padding: 16px 16px; border-radius: 24px; text-decoration: none; background: linear-gradient(135deg, #0E3A4E 0%, #0B2030 100%); border: 1px solid rgba(110,200,255,.22); box-shadow: 0 14px 34px rgba(0,0,0,.32); }
+    .ha-near::after { content: ""; position: absolute; right: -36px; bottom: -46px; width: 150px; height: 150px; border-radius: 50%; background: rgba(110,200,255,.12); pointer-events: none; }
+    .ha-near-radar { position: relative; width: 72px; height: 72px; flex: none; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 50%, rgba(110,200,255,.16), rgba(110,200,255,0) 70%); }
+    .ha-near-radar i { position: absolute; inset: 0; margin: auto; width: 100%; height: 100%; border-radius: 50%; border: 1px solid rgba(110,200,255,.45); opacity: 0; animation: ha-ping 2.8s ease-out infinite; }
+    .ha-near-radar i:nth-child(2) { animation-delay: .9s; }
+    .ha-near-radar i:nth-child(3) { animation-delay: 1.8s; }
+    @keyframes ha-ping { 0% { transform: scale(.22); opacity: .85; } 75% { opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
+    .ha-near-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(110,200,255,0) 0deg, rgba(110,200,255,.38) 55deg, rgba(110,200,255,0) 90deg); animation: ha-spin 3.4s linear infinite; }
+    @keyframes ha-spin { to { transform: rotate(360deg); } }
+    .ha-near-dot { position: relative; z-index: 1; width: 13px; height: 13px; border-radius: 50%; background: #7FD0FF; box-shadow: 0 0 14px 3px rgba(110,200,255,.7); }
+    .ha-near-text { flex: 1; min-width: 0; position: relative; }
+    .ha-near-k { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(174,221,255,.85); }
+    .ha-near-t { font-size: 16.5px; font-weight: 800; color: #fff; margin-top: 4px; line-height: 1.25; }
+    .ha-near-s { font-size: 12.5px; color: rgba(220,236,248,.78); margin-top: 4px; line-height: 1.4; }
+    .ha-near-go { flex: none; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.12); display: grid; place-items: center; }
+    @media (prefers-reduced-motion: reduce) {
+      .ha-near-radar i, .ha-near-sweep { animation: none; }
+      .ha-near-radar i { opacity: .3; }
+    }
+
     .ha-sec-head { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 13px; }
     .ha-sec-head h2 { font-size: 17px; font-weight: 800; color: #EAF1EE; margin: 0; }
     .ha-sec-head a { font-size: 13px; font-weight: 700; color: #2EE6A6; text-decoration: none; }
@@ -427,13 +480,62 @@
       </button>
     </div>
 
-    <!-- category chips -->
-    <div class="ha-chips">
-      <button class="ha-chip active" data-cat="houses" data-i18n="cat_houses">Houses</button>
-      <button class="ha-chip" data-cat="services" data-i18n="cat_services">Services</button>
-      <button class="ha-chip" data-cat="trucks" data-i18n="cat_trucks">Trucks</button>
-      <button class="ha-chip" data-cat="near" data-i18n="cat_near">Near me</button>
-    </div>
+    <!-- category nav tabs — each one takes you straight to that section -->
+    <nav class="ha-tabs" aria-label="Browse categories">
+      <a class="ha-tab" data-k="houses" href="houses.html">
+        <span class="ha-tab-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7" stroke="#2EE6A6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 10v10h14V10" stroke="#2EE6A6" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+        <span data-i18n="cat_houses">Houses</span>
+      </a>
+      <a class="ha-tab" data-k="trucks" href="trucks.html">
+        <span class="ha-tab-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7h11v9H3z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 10h3.5l3 3v3H14z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/><circle cx="17.5" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/></svg></span>
+        <span data-i18n="cat_trucks">Trucks</span>
+      </a>
+      <a class="ha-tab" data-k="near" href="near-me.html">
+        <span class="ha-tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z" stroke="#7FD0FF" stroke-width="1.8"/><circle cx="12" cy="10" r="2.4" fill="#7FD0FF"/></svg></span>
+        <span data-i18n="cat_near">Near me</span>
+      </a>
+      <a class="ha-tab" data-k="services" href="services.html">
+        <span class="ha-tab-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 015.4-5.4l-2.7 2.7-2-2 2.7-2.7z" stroke="#C594FF" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+        <span data-i18n="cat_services">Services</span>
+      </a>
+      <a class="ha-tab" data-k="jobs" href="jobs.html">
+        <span class="ha-tab-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 8h16v11H4z" stroke="#FF9B5C" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 8V6.5A1.5 1.5 0 0110.5 5h3A1.5 1.5 0 0115 6.5V8" stroke="#FF9B5C" stroke-width="1.7"/></svg></span>
+        <span data-i18n="cat_jobs">Jobs</span>
+      </a>
+    </nav>
+
+    <!-- live "near you" radar — taps straight into near-me.html -->
+    <a class="ha-near" href="near-me.html">
+      <span class="ha-near-radar" aria-hidden="true">
+        <span class="ha-near-sweep"></span>
+        <i></i><i></i><i></i>
+        <span class="ha-near-dot"></span>
+      </span>
+      <span class="ha-near-text">
+        <span class="ha-near-k" data-i18n="near_card_kicker">Around you</span>
+        <span class="ha-near-t" data-i18n="near_card_title">Rooms &amp; trucks near you</span>
+        <span class="ha-near-s" data-i18n="near_card_sub">Turn on location to see what's closest — sorted by distance.</span>
+      </span>
+      <span class="ha-near-go" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </a>
+
+    <!-- explore-by-name — the GPS-free companion to the radar: type any region,
+         district, ward or village and see its homes + services (area.html) -->
+    <a class="ha-near" href="area.html" style="margin-top:11px; background:linear-gradient(135deg,#123A2C 0%,#0B241B 100%); border-color:rgba(46,230,166,.22)">
+      <span class="ha-near-radar" aria-hidden="true" style="background:radial-gradient(circle at 50% 50%, rgba(46,230,166,.18), rgba(46,230,166,0) 70%)">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#2EE6A6" stroke-width="1.8"/><path d="M21 21l-3.5-3.5" stroke="#2EE6A6" stroke-width="1.8" stroke-linecap="round"/><circle cx="11" cy="11" r="2.3" fill="#2EE6A6"/></svg>
+      </span>
+      <span class="ha-near-text">
+        <span class="ha-near-k" data-i18n="area_card_kicker">Anywhere in Tanzania</span>
+        <span class="ha-near-t" data-i18n="area_card_title">Explore an area by name</span>
+        <span class="ha-near-s" data-i18n="area_card_sub">Type any region, district, ward or village — see homes &amp; services there.</span>
+      </span>
+      <span class="ha-near-go" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </a>
 
     <!-- featured carousel (best houses) -->
     <div class="ha-featured-wrap">
@@ -444,28 +546,28 @@
       <div class="ha-featured" id="haFeatured" aria-busy="true"></div>
     </div>
 
-    <!-- quick services -->
+    <!-- quick access — the four core areas of the app -->
     <div class="ha-sec-head">
-      <h2 data-i18n="home_quick_title">Popular services</h2>
-      <a href="services.html" data-i18n="home_see_all">See all</a>
+      <h2 data-i18n="home_browse_title">What do you need?</h2>
     </div>
     <div class="ha-quick">
-      <a class="ha-q" href="services.html?cat=cleaning"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" stroke="#2EE6A6" stroke-width="1.6" stroke-linejoin="round"/><path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" stroke="#2EE6A6" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span class="ha-q-label">Cleaning</span></a>
-      <a class="ha-q" href="services.html?cat=plumbing"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3s5 5.5 5 9a5 5 0 01-10 0c0-3.5 5-9 5-9z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span><span class="ha-q-label">Plumbing</span></a>
-      <a class="ha-q" href="services.html?cat=electrical"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M13 3L5 13h5l-1 8 8-11h-5l1-7z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span><span class="ha-q-label">Electrical</span></a>
-      <a class="ha-q" href="services.html?cat=cooking"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M5 11h14v3a4 4 0 01-4 4H9a4 4 0 01-4-4z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 11V8.5a4 4 0 018 0V11" stroke="#2EE6A6" stroke-width="1.7"/></svg></span><span class="ha-q-label">Cooking</span></a>
-      <a class="ha-q" href="services.html?cat=tutoring"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 5C9.5 3.5 6 3.5 4 5v13c2-1.5 5.5-1.5 8 0 2.5-1.5 6-1.5 8 0V5c-2-1.5-5.5-1.5-8 0z" stroke="#2EE6A6" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 5v13" stroke="#2EE6A6" stroke-width="1.6"/></svg></span><span class="ha-q-label">Tutoring</span></a>
-      <a class="ha-q" href="services.html?cat=beauty"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="7" r="2.4" stroke="#2EE6A6" stroke-width="1.6"/><circle cx="6" cy="17" r="2.4" stroke="#2EE6A6" stroke-width="1.6"/><path d="M8 8.5L20 16M8 15.5L20 8" stroke="#2EE6A6" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="ha-q-label">Beauty</span></a>
-      <a class="ha-q" href="services.html?cat=laundry"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M8 4l-4 3 2 2.2 1.4-1.1V20h9.2V8.1L18 9.2 20 7l-4-3a4 4 0 01-8 0z" stroke="#2EE6A6" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="ha-q-label">Laundry</span></a>
-      <a class="ha-q" href="trucks.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 7h11v9H3z" stroke="#2EE6A6" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 10h3.5l3 3v3H14z" stroke="#2EE6A6" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.7" stroke="#2EE6A6" stroke-width="1.6"/><circle cx="17.5" cy="18" r="1.7" stroke="#2EE6A6" stroke-width="1.6"/></svg></span><span class="ha-q-label">Moving</span></a>
+      <a class="ha-q" href="houses.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7" stroke="#2EE6A6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 10v10h14V10" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span><span class="ha-q-label" data-i18n="quick_homes">Homes</span></a>
+      <a class="ha-q" href="trucks.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 7h11v9H3z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 10h3.5l3 3v3H14z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/><circle cx="17.5" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/></svg></span><span class="ha-q-label" data-i18n="quick_trucks">Trucks</span></a>
+      <a class="ha-q" href="services.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 015.4-5.4l-2.7 2.7-2-2 2.7-2.7z" stroke="#C594FF" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="ha-q-label" data-i18n="quick_services">Services</span></a>
+      <a class="ha-q" href="jobs.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8h16v11H4z" stroke="#FF9B5C" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 8V6.5A1.5 1.5 0 0110.5 5h3A1.5 1.5 0 0115 6.5V8" stroke="#FF9B5C" stroke-width="1.7"/></svg></span><span class="ha-q-label" data-i18n="quick_jobs">Day jobs</span></a>
     </div>
 
-    <!-- listing feed (switches with the category chips) -->
-    <div class="ha-sec-head">
-      <h2 id="haFeedTitle" data-i18n="home_feed_houses">Homes near you</h2>
-      <a href="houses.html" data-i18n="home_see_all">See all</a>
+    <!-- earn band — surfaced high (above the long feed) so agents can list
+         their house/service without scrolling past every nearby listing -->
+    <div class="ha-earn">
+      <div class="ha-earn-k" data-i18n="home_earn_kicker">Earn with Maisha na Lifeza</div>
+      <div class="ha-earn-t" data-i18n="home_list_title">Earn with Maisha na Lifeza</div>
+      <div class="ha-earn-s" data-i18n="home_list_sub">List your house or offer your service — reach customers near you and get paid directly.</div>
+      <div class="ha-earn-btns">
+        <a href="agent-houses.html" data-i18n="home_list_house">List your house</a>
+        <a href="agent-services.html" class="ghost" data-i18n="home_list_service">Offer a service</a>
+      </div>
     </div>
-    <div class="ha-feed" id="haFeed" aria-busy="true"></div>
 
     <!-- trust strip -->
     <div class="ha-trust">
@@ -476,16 +578,13 @@
       <div><div class="ha-stat-num gold" data-to="100" data-suffix="+">0</div><div class="ha-stat-lbl" data-i18n="home_stat_providers">Verified providers</div></div>
     </div>
 
-    <!-- earn band -->
-    <div class="ha-earn">
-      <div class="ha-earn-k" data-i18n="home_earn_kicker">Earn with Maisha na Lifeza</div>
-      <div class="ha-earn-t" data-i18n="home_list_title">Earn with Maisha na Lifeza</div>
-      <div class="ha-earn-s" data-i18n="home_list_sub">List your house or offer your service — reach customers near you and get paid directly.</div>
-      <div class="ha-earn-btns">
-        <a href="agent-houses.html" data-i18n="home_list_house">List your house</a>
-        <a href="agent-services.html" class="ghost" data-i18n="home_list_service">Offer a service</a>
-      </div>
+    <!-- listing feed (switches with the category chips) — moved below the
+         earn CTA so the long list of nearby homes no longer buries it -->
+    <div class="ha-sec-head">
+      <h2 id="haFeedTitle" data-i18n="home_feed_houses">Homes near you</h2>
+      <a href="houses.html" data-i18n="home_see_all">See all</a>
     </div>
+    <div class="ha-feed" id="haFeed" aria-busy="true"></div>
 
   </main>
 
@@ -614,13 +713,19 @@
           card.classList.add("in", "words-in");
           if (!reduce) setTimeout(() => card.classList.add("flashed"), assembleMs);
         };
-        if (reduce) {
+        if (reduce || !("IntersectionObserver" in window)) {
+          // Reduced-motion users, or any browser without IntersectionObserver,
+          // get the card immediately — it must never be left invisible.
           reveal();
         } else {
           const mo = new IntersectionObserver((entries) => {
             entries.forEach(e => { if (e.isIntersecting) { reveal(); mo.unobserve(e.target); } });
           }, { threshold: 0.3 });
           mo.observe(card);
+          // Safety net: if the observer somehow never fires (edge layouts,
+          // very tall cards), reveal after a short delay so the brand promise
+          // can never end up as a blank gap again.
+          setTimeout(() => { if (!card.classList.contains("in")) reveal(); }, 2600);
 
           // Pointer spotlight + parallax tilt (fine pointers only; the tilt waits
           // until the entrance animation has finished so the two never fight).

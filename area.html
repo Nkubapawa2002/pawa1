@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script src="js/theme.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Explore an area — homes & services anywhere in Tanzania</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9/dist/leaflet.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
+
+  <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+  <style>
+    /* ───────────────────────────────────────────────────────────────
+       "Explore an area" — Twilight dark app surface (Claude design).
+       Self-contained: this page doesn't lean on the directory CSS, so
+       its look can never drift from a shared file. ─────────────────── */
+    body[data-page="area"] {
+      margin: 0; min-height: 100vh;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      color: #E9F3EE;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+    }
+    body[data-page="area"] #nav-slot, body[data-page="area"] #footer-slot { display: none !important; }
+    /* `hidden` must always win — several blocks below set an explicit display
+       (grid/flex) which would otherwise defeat the [hidden] attribute. */
+    body[data-page="area"] [hidden] { display: none !important; }
+    .ar-wrap { max-width: 600px; margin: 0 auto; padding: 18px 16px 120px; }
+
+    /* Header */
+    .ar-head { margin: 6px 2px 16px; }
+    .ar-kicker { font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #2EE6A6; }
+    .ar-title { font-size: clamp(23px, 6.4vw, 30px); font-weight: 800; color: #fff; margin: 6px 0 4px; line-height: 1.15; }
+    .ar-lead { font-size: 14px; color: rgba(233,243,238,.66); line-height: 1.5; max-width: 46ch; }
+
+    /* Search box + suggestions */
+    .ar-searchwrap { position: relative; z-index: 20; }
+    .ar-form { display: flex; gap: 9px; }
+    .ar-inputbox {
+      flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0;
+      background: rgba(255,255,255,.05); border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: 16px; padding: 0 14px; transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .ar-inputbox:focus-within { border-color: #2EE6A6; box-shadow: 0 0 0 4px rgba(46,230,166,.13); }
+    .ar-inputbox svg { width: 19px; height: 19px; flex: none; color: rgba(233,243,238,.5); }
+    .ar-inputbox input {
+      flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
+      color: #E9F3EE; font-size: 16px; font-family: inherit; padding: 15px 0; font-weight: 600;
+    }
+    .ar-inputbox input::placeholder { color: rgba(233,243,238,.42); font-weight: 500; }
+    .ar-go {
+      flex: none; border: 0; border-radius: 16px; padding: 0 18px; cursor: pointer;
+      background: #2EE6A6; color: #06170F; font-weight: 800; font-size: 14px; font-family: inherit;
+    }
+    .ar-go:active { transform: scale(.97); }
+
+    .ar-suggest {
+      position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30;
+      background: #11201A; border: 1px solid rgba(255,255,255,.1); border-radius: 18px;
+      box-shadow: 0 22px 50px rgba(0,0,0,.5); overflow: hidden; max-height: 60vh; overflow-y: auto;
+    }
+    .ar-sg-row {
+      width: 100%; display: flex; align-items: center; gap: 11px; text-align: left;
+      padding: 12px 14px; background: transparent; border: 0; cursor: pointer;
+      color: #E9F3EE; font-family: inherit; border-bottom: 1px solid rgba(255,255,255,.05);
+    }
+    .ar-sg-row:last-child { border-bottom: 0; }
+    .ar-sg-row.active, .ar-sg-row:hover { background: rgba(46,230,166,.1); }
+    .ar-sg-pin { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+      background: rgba(46,230,166,.14); color: #2EE6A6; }
+    .ar-sg-pin svg { width: 17px; height: 17px; }
+    .ar-sg-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .ar-sg-name { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ar-sg-ctx { font-size: 12px; color: rgba(233,243,238,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ar-sg-tag { flex: none; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+      color: rgba(233,243,238,.6); background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px 9px; }
+    .ar-sg-count { flex: none; font-size: 12px; font-weight: 700; color: #2EE6A6; }
+
+    /* Popular chips */
+    .ar-popular { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 2px 0; }
+    .ar-pop-lbl { font-size: 12px; font-weight: 700; color: rgba(233,243,238,.5); }
+    .ar-pop-chip {
+      border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: #E9F3EE;
+      border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: background .12s ease, border-color .12s ease, transform .12s ease;
+    }
+    .ar-pop-chip:hover { background: rgba(46,230,166,.12); border-color: rgba(46,230,166,.4); transform: translateY(-1px); }
+
+    /* Intro (before a place is chosen) */
+    .ar-intro { margin-top: 22px; display: grid; gap: 12px; }
+    .ar-intro-card {
+      display: flex; gap: 13px; align-items: flex-start; padding: 16px;
+      background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); border-radius: 18px;
+    }
+    .ar-intro-ic { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+      background: rgba(46,230,166,.13); font-size: 20px; }
+    .ar-intro-card h3 { margin: 0 0 3px; font-size: 15px; font-weight: 800; color: #fff; }
+    .ar-intro-card p { margin: 0; font-size: 13px; color: rgba(233,243,238,.62); line-height: 1.5; }
+
+    /* Chosen-area banner */
+    .ar-banner {
+      display: flex; align-items: center; gap: 12px; justify-content: space-between;
+      margin-top: 20px; padding: 15px 16px; border-radius: 18px;
+      background: linear-gradient(135deg, #103a2c 0%, #0c2620 100%);
+      border: 1px solid rgba(46,230,166,.25);
+    }
+    .ar-banner-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .ar-banner-pin { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
+      background: rgba(46,230,166,.16); color: #2EE6A6; }
+    .ar-banner-pin svg { width: 22px; height: 22px; }
+    .ar-banner-name { font-size: 17px; font-weight: 800; color: #fff; line-height: 1.2; }
+    .ar-banner-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+      color: #06170F; background: #2EE6A6; border-radius: 999px; padding: 2px 8px; margin-left: 4px; vertical-align: middle; }
+    .ar-banner-sub { font-size: 12.5px; color: rgba(233,243,238,.7); margin-top: 3px; }
+    .ar-banner-change { flex: none; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06);
+      color: #E9F3EE; border-radius: 12px; padding: 9px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .ar-banner-change:hover { background: rgba(255,255,255,.12); }
+
+    /* Segmented toggle */
+    .ar-seg { display: flex; gap: 7px; margin-top: 14px; background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 5px; }
+    .ar-seg-btn { flex: 1; border: 0; background: transparent; color: rgba(233,243,238,.7);
+      border-radius: 10px; padding: 9px 6px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .ar-seg-btn b { font-weight: 800; opacity: .8; margin-left: 2px; }
+    .ar-seg-btn.active { background: #2EE6A6; color: #06170F; }
+
+    /* Map */
+    .ar-map { height: 230px; border-radius: 18px; overflow: hidden; margin-top: 14px;
+      border: 1px solid rgba(255,255,255,.09); background: #0f1714; }
+    .leaflet-container { background: #0f1714; }
+
+    /* Result sections + cards */
+    .ar-sec { margin-top: 22px; }
+    .ar-sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+    .ar-sec-head h2 { font-size: 16px; font-weight: 800; color: #EAF1EE; margin: 0; }
+    .ar-sec-head a { font-size: 12.5px; font-weight: 700; color: #2EE6A6; text-decoration: none; }
+    .ar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 12px; }
+    .ar-card { display: flex; flex-direction: column; text-decoration: none; color: inherit;
+      background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 18px; overflow: hidden;
+      transition: transform .12s ease, box-shadow .12s ease; }
+    .ar-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,.4); }
+    .ar-card-photo { position: relative; aspect-ratio: 4/3; background: #0f1714 center/cover no-repeat; display: block; }
+    .ar-card-photo.svc { background-color: #16130c; }
+    .ar-card-ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2rem; opacity: .5; }
+    .ar-badge { position: absolute; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 999px;
+      background: rgba(6,12,9,.7); color: #fff; -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+    .ar-badge.verified { top: 8px; left: 8px; color: #2EE6A6; }
+    .ar-badge.cat { top: 8px; left: 8px; background: rgba(246,196,90,.92); color: #2a1e00; }
+    .ar-badge.dist { bottom: 8px; right: 8px; background: rgba(46,230,166,.92); color: #06170F; }
+    .ar-card-body { padding: 11px 12px 13px; display: flex; flex-direction: column; gap: 4px; }
+    .ar-card-price { font-size: 15px; font-weight: 800; color: #2EE6A6; }
+    .ar-card-price small { font-size: 10.5px; font-weight: 600; color: rgba(233,243,238,.5); }
+    .ar-card-title { font-size: 13.5px; font-weight: 700; color: #EAF1EE; line-height: 1.25;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ar-card-meta { font-size: 11.5px; color: rgba(233,243,238,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ar-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .ar-card-tags span { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+      background: rgba(255,255,255,.06); color: rgba(233,243,238,.6); }
+
+    /* Empty state */
+    .ar-empty { text-align: center; padding: 44px 20px; color: rgba(233,243,238,.6); display: flex; flex-direction: column; gap: 6px; }
+    .ar-empty-ic { font-size: 32px; }
+    .ar-empty b { color: #EAF1EE; font-size: 15.5px; }
+    .ar-empty a { color: #2EE6A6; font-weight: 700; text-decoration: none; }
+
+    @media (max-width: 380px) {
+      .ar-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+  <link rel="stylesheet" href="css/theme-light.css" />
+</head>
+<body data-page="area" data-app-shell="area.html">
+  <div id="nav-slot"></div>
+
+  <main class="ar-wrap">
+    <header class="ar-head">
+      <div class="ar-kicker">Browse anywhere</div>
+      <h1 class="ar-title">Explore an area</h1>
+      <p class="ar-lead">Type any region, district, ward or village — no location needed — and see every home and service available there.</p>
+    </header>
+
+    <div class="ar-searchwrap">
+      <form class="ar-form" id="arForm" autocomplete="off">
+        <label class="ar-inputbox">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.9"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+          <input id="arInput" type="search" enterkeyhint="search"
+                 placeholder="e.g. Sinza, Kinondoni, Mwanza, Paje…"
+                 aria-label="Type a region, district, ward or village" role="combobox" aria-expanded="false" aria-controls="arSuggest" />
+        </label>
+        <button class="ar-go" type="submit">Find</button>
+      </form>
+      <div class="ar-suggest" id="arSuggest" role="listbox" hidden></div>
+    </div>
+
+    <div class="ar-popular" id="arPopular" hidden></div>
+
+    <!-- Before a place is chosen: explain the three things you can do here. -->
+    <div class="ar-intro" id="arIntro">
+      <div class="ar-intro-card">
+        <div class="ar-intro-ic">🗺️</div>
+        <div><h3>Search by name, not GPS</h3><p>Looking somewhere you're not? Just type the place — a region like <b>Mwanza</b>, a district like <b>Kinondoni</b>, or a ward/village like <b>Sinza</b>.</p></div>
+      </div>
+      <div class="ar-intro-card">
+        <div class="ar-intro-ic">🏠</div>
+        <div><h3>Homes &amp; services together</h3><p>See every house for rent or sale <em>and</em> every local service provider listed in that area — side by side.</p></div>
+      </div>
+      <div class="ar-intro-card">
+        <div class="ar-intro-ic">🎯</div>
+        <div><h3>Accurate to the ward</h3><p>We match against the real administrative boundary of the place you pick, so results are genuinely <b>there</b> — not just nearby.</p></div>
+      </div>
+    </div>
+
+    <div class="ar-banner" id="arBanner" hidden></div>
+    <div class="ar-map" id="arMap" hidden></div>
+    <div class="ar-seg" id="arSeg" hidden></div>
+    <div id="arResults"></div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/geo-poly.js"></script>
+  <script src="js/tz-places.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/area.js"></script>
+  <script>
+    // The shared satellite/hybrid basemap helper used by every map on the site.
+    window.addSatelliteHybrid = window.addSatelliteHybrid || function (map) {
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19 }).addTo(map);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png", { maxZoom: 19, pane: "overlayPane" }).addTo(map);
+    };
+    window.applyTranslations && window.applyTranslations();
+    // The map stays hidden until a place is chosen (area.js reveals it), so a
+    // failed Leaflet CDN never shows an empty grey box.
+    window.initAreaPage();
+  </script>
+
+  <script src="js/app-shell.js"></script>
+  <script src="js/sw-register.js"></script>
+</body>
+</html>

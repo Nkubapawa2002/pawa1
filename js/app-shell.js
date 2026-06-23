@@ -26,6 +26,7 @@
     "houses.html": "explore", "house.html": "explore", "trucks.html": "explore",
     "truck.html": "explore", "services.html": "explore", "service.html": "explore",
     "near-me.html": "explore", "frame.html": "explore", "jobs.html": "explore",
+    "area.html": "explore",
     "favorites.html": "saved",
     "chat.html": "messages", "meet.html": "messages",
     "login.html": "profile", "agent-houses.html": "profile",
