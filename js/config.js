@@ -452,6 +452,72 @@ window.renderAgentSubBanner = (sub, opts) => {
 };
 
 // =====================================================
+// Shared demand-spec chips — what the seeker actually wants, at a glance
+// =====================================================
+// A request reaches the agent with a full spec. Rendered as one grey sentence
+// it's easy to skim past and call the wrong person. This turns a demand row
+// into SCANNABLE chips so the agent reads the call-or-skip criteria instantly:
+//   • HARD constraints (the agent must be able to meet these or the call is
+//     wasted) — listing kind, property type, budget ceiling, bedrooms — shown
+//     as emphasised coloured chips;
+//   • SOFT preferences (confirm on the call) — furnished, self-contained,
+//     bathrooms, payment plan — as muted chips;
+//   • MUST-HAVE amenities (✔) and what to AVOID (⛔) — as their own lines.
+// The hard chips come from real columns; the rest is parsed out of the `note`
+// this app writes (request-place.js buildSpecNote), so no schema change.
+//   const html = window.pawaDemandSpec(row);   // → chip HTML string
+window.pawaDemandSpec = (r) => {
+  const esc = window.escHtml || ((s) => String(s == null ? "" : s)
+    .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
+  const fmtTzs = (p) => {
+    p = Number(p) || 0;
+    if (p >= 1e9) return (p / 1e9).toFixed(p % 1e9 ? 1 : 0) + "B";
+    if (p >= 1e6) return (p / 1e6).toFixed(p % 1e6 ? 1 : 0) + "M";
+    if (p >= 1e3) return Math.round(p / 1e3) + "k";
+    return p ? String(p) : "";
+  };
+  if (!document.getElementById("pdsStyles")) {
+    const s = document.createElement("style");
+    s.id = "pdsStyles";
+    s.textContent = `
+      .pds{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:5px}
+      .pds-c{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef2f0;color:#41504a;white-space:nowrap}
+      .pds-c.k{background:#e6efff;color:#1d4ed8}
+      .pds-c.t{background:#ede9fe;color:#6d28d9}
+      .pds-c.b{background:#dff3e8;color:#0a6f4d}
+      .pds-c.s{background:#f1f5f3;color:#52605a;font-weight:600}
+      .pds-line{flex-basis:100%;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:8px;line-height:1.35}
+      .pds-must{background:#e7f5ee;color:#0a6f4d}
+      .pds-avoid{background:#fdecea;color:#b3261e}`;
+    document.head.appendChild(s);
+  }
+
+  // Parse the note this app wrote: "A · B · must have: X, Y · avoid/notes: Z".
+  let must = "", avoid = "";
+  const soft = [];
+  String(r.note || "").split(" · ").map((s) => s.trim()).filter(Boolean).forEach((seg) => {
+    const lc = seg.toLowerCase();
+    if (lc.startsWith("must have:")) must = seg.slice(seg.indexOf(":") + 1).trim();
+    else if (lc.startsWith("avoid/notes:") || lc.startsWith("avoid:") || lc.startsWith("notes:")) avoid = seg.slice(seg.indexOf(":") + 1).trim();
+    else if (seg !== "Typed request") soft.push(seg);
+  });
+
+  const chips = [];
+  chips.push(`<span class="pds-c k">${r.listing === "sale" ? "To buy" : "For rent"}</span>`);
+  if (r.type) chips.push(`<span class="pds-c t">${esc(r.type)}</span>`);
+  if (Number(r.max_budget_tzs) > 0) chips.push(`<span class="pds-c b">≤ ${esc(fmtTzs(r.max_budget_tzs))} TZS</span>`);
+  if (Number(r.min_bedrooms) > 0) chips.push(`<span class="pds-c">${esc(String(r.min_bedrooms))}+ bed</span>`);
+  if (r.needed_from) chips.push(`<span class="pds-c s">from ${esc(String(r.needed_from).slice(0, 10))}</span>`);
+  if (r.distance_m != null) chips.push(`<span class="pds-c s">${r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km"} away</span>`);
+  const typeLc = String(r.type || "").toLowerCase();
+  soft.filter((s) => s.toLowerCase() !== typeLc)
+    .forEach((s) => chips.push(`<span class="pds-c s">${esc(s)}</span>`));
+  if (must) chips.push(`<span class="pds-line pds-must">✔ Must have: ${esc(must)}</span>`);
+  if (avoid) chips.push(`<span class="pds-line pds-avoid">⛔ Avoid: ${esc(avoid)}</span>`);
+  return `<div class="pds">${chips.join("")}</div>`;
+};
+
+// =====================================================
 // Agent awareness — "your client list is your business"
 // =====================================================
 // Shown once (then snoozed) on every agent dashboard. Teaches agents that the

@@ -126,16 +126,13 @@
       const phone = String(r.phone || "").trim();
       const digits = phone.replace(/\D/g, "");
       const intl = digits.startsWith("0") ? "255" + digits.slice(1) : digits;
-      const bits = [r.listing === "sale" ? "buying" : "renting"];
-      if (r.type) bits.push(esc(r.type));
-      if (r.area) bits.push(esc(r.area));
-      if (r.max_budget_tzs) bits.push("≤ " + fmtTzs(r.max_budget_tzs) + " TZS");
       const inDistrict = r.match_level === "district";
+      const spec = window.pawaDemandSpec ? window.pawaDemandSpec(r) : "";
       return `<div class="adb-row">
         <div class="adb-who">
           <strong>${esc(r.name || "Waiting client")}</strong>${inDistrict ? `<span class="adb-badge">your district</span>` : ""}
-          <small>${bits.join(" · ")}</small>
-          ${(r.note && r.note !== "Typed request") ? `<small class="adb-spec">${esc(r.note)}</small>` : ""}
+          ${r.area ? `<small>${esc(r.area)}</small>` : ""}
+          ${spec}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="adb-cta">

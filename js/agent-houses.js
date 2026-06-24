@@ -2110,17 +2110,11 @@ create policy "house-photos upload" on storage.objects for insert
       const phone  = String(r.phone || "").trim();
       const digits = phone.replace(/\D/g, "");
       const intl   = digits.startsWith("0") ? "255" + digits.slice(1) : digits;
-      const bits = [];
-      if (r.max_budget_tzs) bits.push(`≤ ${fmtTzs(r.max_budget_tzs)} TZS`);
-      if (r.min_bedrooms)   bits.push(`${r.min_bedrooms}+ bed`);
-      if (r.needed_from)    bits.push(`from ${String(r.needed_from).slice(0, 10)}`);
-      if (r.distance_m != null)
-        bits.push(`${r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km"} away`);
+      const spec = window.pawaDemandSpec ? window.pawaDemandSpec({ ...r, listing: r.listing || listing.listing, type: r.type || listing.type }) : "";
       return `<div class="ah-wait-row">
         <div class="ah-wait-who">
           <strong>${esc(r.name || "Waiting renter")}</strong>
-          <small>${esc(bits.join(" · "))}</small>
-          ${(r.note && r.note !== "Typed request") ? `<small class="ah-wait-spec">${esc(r.note)}</small>` : ""}
+          ${spec}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="ah-wait-cta">
@@ -2158,6 +2152,9 @@ create policy "house-photos upload" on storage.objects for insert
       .ah-wait-who strong{display:block;font-size:.92rem}
       .ah-wait-who small{color:#6b7a73;font-size:.78rem}
       .ah-wait-spec{display:block;color:#41504a;font-size:.78rem;margin-top:3px;line-height:1.4}
+      .ah-misfit{opacity:.6}
+      .ah-misfit-chip{display:inline-block;font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;
+        background:#fdecea;color:#b3261e;margin-left:4px;white-space:nowrap}
       .ah-wait-cta{display:flex;gap:6px;flex-shrink:0}
       .ah-wait-btn{font-size:.82rem;font-weight:600;text-decoration:none;padding:7px 12px;border-radius:8px;white-space:nowrap}
       .ah-wait-btn.call{background:#0a6f4d;color:#fff}
@@ -2221,7 +2218,8 @@ create policy "house-photos upload" on storage.objects for insert
       if (da != null && db != null && da !== db) return da - db;
       return (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9);
     });
-    renderDemandBoard(rows, center || { label: region });
+    const offer = await getAgentOffer();
+    renderDemandBoard(rows, center || { label: region }, offer);
   }
 
   // The matching algorithm, run in Postgres: every active, non-expired request
@@ -2275,7 +2273,47 @@ create policy "house-photos upload" on storage.objects for insert
     return null;
   }
 
-  function renderDemandBoard(rows, center) {
+  // The agent's "offer envelope" — derived from their own live listings, so we
+  // can tell which waiting seekers they can actually serve. Memoised per page
+  // load; resolves to false when the agent has no listings yet (→ no fit
+  // judgement, every lead shown plainly).
+  let agentOffer;
+  async function getAgentOffer() {
+    if (agentOffer !== undefined) return agentOffer;
+    agentOffer = false;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) return agentOffer;
+      const { data } = await sb.from("houses").select("price_tzs,listing,available").eq("owner_user_id", uid);
+      const live = (data || []).filter((h) => h.available !== false);
+      if (!live.length) return agentOffer;
+      const prices = live.map((h) => Number(h.price_tzs) || 0).filter((p) => p > 0);
+      agentOffer = {
+        floor: prices.length ? Math.min(...prices) : 0,
+        kinds: new Set(live.map((h) => h.listing || "rent")),
+        count: live.length,
+      };
+    } catch (_) { agentOffer = false; }
+    return agentOffer;
+  }
+
+  // Does this waiting seeker fit what the agent actually offers? Returns null
+  // when it fits (or we can't tell — no listings yet), else a short reason. This
+  // is what stops "wrong" calls: the two unambiguous mismatches are a seeker
+  // whose ceiling is below the agent's cheapest unit, and a seeker after the
+  // opposite kind (buy vs rent) to anything the agent lists. Advisory only — the
+  // lead is dimmed and sorted last, never hidden (the agent may get new stock).
+  function assessFit(r, offer) {
+    if (!offer) return null;
+    if (offer.kinds.size && r.listing && !offer.kinds.has(r.listing))
+      return r.listing === "sale" ? "wants to buy · you list rentals" : "wants to rent · you list sales";
+    if (offer.floor > 0 && Number(r.max_budget_tzs) > 0 && offer.floor > Number(r.max_budget_tzs))
+      return `under your range · your cheapest ${fmtTzs(offer.floor)}`;
+    return null;
+  }
+
+  function renderDemandBoard(rows, center, offer) {
     let panel = document.getElementById("ahDemandBoard");
     if (!rows.length) { if (panel) panel.remove(); return; }
     ensureWaitStyles();
@@ -2285,25 +2323,22 @@ create policy "house-photos upload" on storage.objects for insert
       if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(panel, listEl);
       else dashboard.appendChild(panel);
     }
-    const top = rows.slice(0, 12);
-    const items = top.map((r) => {
+    // Callable-fit leads first, "may not fit" last (stable — keeps urgency order
+    // within each group), so the agent's effort goes where a call can land.
+    const annotated = rows.map((r) => ({ r, reason: assessFit(r, offer) }));
+    annotated.sort((a, b) => (a.reason ? 1 : 0) - (b.reason ? 1 : 0));
+    const top = annotated.slice(0, 12);
+    const items = top.map(({ r, reason }) => {
       const phone = String(r.phone || "").trim();
       const digits = phone.replace(/\D/g, "");
       const intl = digits.startsWith("0") ? "255" + digits.slice(1) : digits;
-      const bits = [r.listing === "sale" ? "buying" : "renting"];
-      if (r.type) bits.push(esc(r.type));               // the exact kind they typed
-      if (r.area) bits.push(esc(r.area));
-      if (r.max_budget_tzs) bits.push("≤ " + fmtTzs(r.max_budget_tzs) + " TZS");
-      if (r.min_bedrooms) bits.push(r.min_bedrooms + "+ bed");
-      if (r.needed_from) bits.push("from " + String(r.needed_from).slice(0, 10));
-      if (r.distance_m != null) bits.push(r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km");
-      // Requests in the agent's OWN district are the precise matches — flag them.
       const inDistrict = r.match_level === "district";
-      return `<div class="ah-wait-row">
+      const spec = window.pawaDemandSpec ? window.pawaDemandSpec(r) : "";
+      return `<div class="ah-wait-row${reason ? " ah-misfit" : ""}">
         <div class="ah-wait-who">
-          <strong>${esc(r.name || "Waiting renter")}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> your district</span>` : ""}
-          <small>${bits.join(" · ")}</small>
-          ${(r.note && r.note !== "Typed request") ? `<small class="ah-wait-spec">${esc(r.note)}</small>` : ""}
+          <strong>${esc(r.name || "Waiting renter")}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> your district</span>` : ""}${reason ? ` <span class="ah-misfit-chip" title="May not be worth a call">⚠ ${esc(reason)}</span>` : ""}
+          ${r.area ? `<small>${esc(r.area)}</small>` : ""}
+          ${spec}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="ah-wait-cta">
@@ -2312,11 +2347,13 @@ create policy "house-photos upload" on storage.objects for insert
         </div>
       </div>`;
     }).join("");
-    const urgent = top.filter((r) => { const n = daysUntil(r.needed_by); return n != null && n <= 7; }).length;
+    const urgent = top.filter(({ r }) => { const n = daysUntil(r.needed_by); return n != null && n <= 7; }).length;
+    const fits = annotated.filter((a) => !a.reason).length;
+    const fitNote = offer ? ` <strong>${fits} fit what you list.</strong>` : "";
     panel.innerHTML = `<div class="ah-wait-card ah-board">
       <button type="button" class="ah-board-x" id="ahBoardClose" aria-label="Hide">×</button>
       <div class="ah-wait-head"> ${rows.length} ${rows.length === 1 ? "person is" : "people are"} waiting near ${esc(center.label || "your area")}</div>
-      <div class="ah-wait-sub">${urgent ? `<strong>${urgent} need a place within a week.</strong> ` : ""}Reach out and close before their move-in date — even from a unit about to free up.</div>
+      <div class="ah-wait-sub">${urgent ? `<strong>${urgent} need a place within a week.</strong> ` : ""}${fitNote ? fitNote + " " : ""}Check the chips before you call — reach out and close before their move-in date.</div>
       ${items}
       ${rows.length > top.length ? `<div class="ah-board-more">+ ${rows.length - top.length} more waiting</div>` : ""}
     </div>`;
