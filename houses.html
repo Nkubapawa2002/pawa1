@@ -920,19 +920,19 @@
     <form id="smartSearch" class="smart-search" autocomplete="off">
       <div class="ss-head">
         <span class="ss-spark" aria-hidden="true"></span>
-        <label for="smartSearchInput" class="ss-label">Tell us what you're looking for</label>
+        <label for="smartSearchInput" class="ss-label" data-i18n="hp_ss_label">Tell us what you're looking for</label>
       </div>
       <div class="ss-row">
-        <input id="smartSearchInput" type="search" spellcheck="false"
+        <input id="smartSearchInput" type="search" spellcheck="false" data-i18n-placeholder="hp_ss_ph"
                placeholder="e.g. 3 bedroom apartment in Masaki for rent under 1.5M with parking &amp; water" />
-        <button type="submit" id="smartSearchBtn">Find matches</button>
+        <button type="submit" id="smartSearchBtn" data-i18n="hp_ss_btn">Find matches</button>
       </div>
       <div id="smartSearchChips" class="ss-chips" hidden></div>
       <div class="ss-examples" id="smartSearchExamples">
-        <span class="ss-ex-lbl">Try</span>
-        <button type="button" class="ss-ex" data-q="2 bedroom house for rent in Mbezi under 800k with parking">2 bed in Mbezi under 800k</button>
-        <button type="button" class="ss-ex" data-q="plot for sale in Mwanza below 50M">plot for sale in Mwanza ≤50M</button>
-        <button type="button" class="ss-ex" data-q="furnished apartment Masaki sea view 3 beds with pool and gym">furnished 3-bed, pool + gym</button>
+        <span class="ss-ex-lbl" data-i18n="hp_ss_try">Try</span>
+        <button type="button" class="ss-ex" data-i18n="hp_ex_1" data-q="2 bedroom house for rent in Mbezi under 800k with parking">2 bed in Mbezi under 800k</button>
+        <button type="button" class="ss-ex" data-i18n="hp_ex_2" data-q="plot for sale in Mwanza below 50M">plot for sale in Mwanza ≤50M</button>
+        <button type="button" class="ss-ex" data-i18n="hp_ex_3" data-q="furnished apartment Masaki sea view 3 beds with pool and gym">furnished 3-bed, pool + gym</button>
       </div>
     </form>
 
@@ -943,63 +943,63 @@
     <div id="hpSeg" class="hp-segctl" role="tablist" aria-label="Property category">
       <button type="button" class="hp-seg active" data-seg="all" role="tab" aria-selected="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        <span>All</span><span class="hp-seg-count" id="hpSegCountAll">—</span>
+        <span data-i18n="hp_seg_all">All</span><span class="hp-seg-count" id="hpSegCountAll">—</span>
       </button>
       <button type="button" class="hp-seg" data-seg="rent" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5L20 3"/><path d="M16 7l3 3"/><path d="M18 5l3 3"/></svg>
-        <span>For rent</span><span class="hp-seg-count" id="hpSegCountRent">—</span>
+        <span data-i18n="ah_for_rent">For rent</span><span class="hp-seg-count" id="hpSegCountRent">—</span>
       </button>
       <button type="button" class="hp-seg" data-seg="sale" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7.2-7.2a2 2 0 0 1-.6-1.4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 1.4.6l6.4 6.4a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>
-        <span>For sale</span><span class="hp-seg-count" id="hpSegCountSale">—</span>
+        <span data-i18n="ah_for_sale">For sale</span><span class="hp-seg-count" id="hpSegCountSale">—</span>
       </button>
       <button type="button" class="hp-seg hp-seg--biz" data-seg="business" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M15 9h2a2 2 0 0 1 2 2v10"/><path d="M9 7h2M9 11h2M9 15h2"/></svg>
-        <span>Business</span><span class="hp-seg-count" id="hpSegCountBiz">—</span>
+        <span data-i18n="hp_seg_business">Business</span><span class="hp-seg-count" id="hpSegCountBiz">—</span>
       </button>
     </div>
     <div id="hpBizRefine" class="hp-biz-refine" hidden>
-      <span class="lbl">Business premises for:</span>
-      <button type="button" class="hp-biz-chip active" data-listing="">Any</button>
-      <button type="button" class="hp-biz-chip" data-listing="rent">Rent</button>
-      <button type="button" class="hp-biz-chip" data-listing="sale">Sale</button>
+      <span class="lbl" data-i18n="hp_biz_for">Business premises for:</span>
+      <button type="button" class="hp-biz-chip active" data-listing="" data-i18n="hp_biz_any">Any</button>
+      <button type="button" class="hp-biz-chip" data-listing="rent" data-i18n="hp_biz_rent">Rent</button>
+      <button type="button" class="hp-biz-chip" data-listing="sale" data-i18n="hp_biz_sale">Sale</button>
     </div>
 
     <!-- Bento overview tiles (quick filters / counts) -->
     <nav class="hp-bento" aria-label="Quick property filters">
       <a class="hp-bento__cell hp-bento__cell--brand" href="#" data-quickfilter="all">
-        <span class="hp-bento__eyebrow">Live now</span>
+        <span class="hp-bento__eyebrow" data-i18n="hp_bento_live">Live now</span>
         <div>
           <div id="hpBentoTotal" class="hp-bento__num" aria-live="polite">—</div>
-          <div class="hp-bento__lbl">Properties listed across Tanzania</div>
+          <div class="hp-bento__lbl" data-i18n="hp_bento_total_lbl">Properties listed across Tanzania</div>
         </div>
       </a>
       <a class="hp-bento__cell" href="#" data-quickfilter="rent">
-        <span class="hp-bento__eyebrow">For rent</span>
+        <span class="hp-bento__eyebrow" data-i18n="ah_for_rent">For rent</span>
         <div class="hp-bento__num" id="hpBentoRent">—</div>
       </a>
       <a class="hp-bento__cell" href="#" data-quickfilter="sale">
-        <span class="hp-bento__eyebrow">For sale</span>
+        <span class="hp-bento__eyebrow" data-i18n="ah_for_sale">For sale</span>
         <div class="hp-bento__num" id="hpBentoSale">—</div>
       </a>
       <a class="hp-bento__cell" href="#" data-quickfilter="business">
-        <span class="hp-bento__eyebrow">Business</span>
+        <span class="hp-bento__eyebrow" data-i18n="hp_seg_business">Business</span>
         <div class="hp-bento__num" id="hpBentoBusiness">—</div>
       </a>
       <a class="hp-bento__cell hp-bento__cell--accent" href="favorites.html">
-        <span class="hp-bento__eyebrow">Saved</span>
+        <span class="hp-bento__eyebrow" data-i18n="hp_bento_saved">Saved</span>
         <div>
           <div class="hp-bento__num" id="hpBentoFavs">—</div>
-          <div class="hp-bento__lbl">Open your favorites</div>
+          <div class="hp-bento__lbl" data-i18n="hp_bento_saved_lbl">Open your favorites</div>
         </div>
       </a>
       <a class="hp-bento__cell" href="#" data-quickfilter="verified">
-        <span class="hp-bento__eyebrow">Verified</span>
+        <span class="hp-bento__eyebrow" data-i18n="home_verified">Verified</span>
         <div class="hp-bento__num" id="hpBentoVerified">—</div>
       </a>
       <a class="hp-bento__cell" href="agent-houses.html">
-        <span class="hp-bento__eyebrow">For agents</span>
-        <div class="hp-bento__num" style="font-size:1.1rem">List a property</div>
+        <span class="hp-bento__eyebrow" data-i18n="hp_bento_agents">For agents</span>
+        <div class="hp-bento__num" style="font-size:1.1rem" data-i18n="hp_bento_list">List a property</div>
       </a>
     </nav>
 
@@ -1016,53 +1016,53 @@
     <!-- Filter bar -->
     <div class="houses-toolbar">
       <select id="filterListing">
-        <option value="">Listing: any</option>
-        <option value="rent">For rent</option>
-        <option value="sale">For sale</option>
+        <option value="" data-i18n="hp_tb_listing_any">Listing: any</option>
+        <option value="rent" data-i18n="ah_for_rent">For rent</option>
+        <option value="sale" data-i18n="ah_for_sale">For sale</option>
       </select>
       <select id="filterType">
-        <option value="">Type: any</option>
-        <option value="apartment">Apartment</option>
-        <option value="house">House</option>
-        <option value="plot">Plot</option>
-        <option value="office">Office</option>
-        <option value="shop">Shop / business</option>
+        <option value="" data-i18n="hp_tb_type_any">Type: any</option>
+        <option value="apartment" data-i18n="ah_type_apartment">Apartment</option>
+        <option value="house" data-i18n="ah_type_house">House</option>
+        <option value="plot" data-i18n="ah_type_plot">Plot</option>
+        <option value="office" data-i18n="ah_type_office">Office</option>
+        <option value="shop" data-i18n="hp_tb_shop">Shop / business</option>
       </select>
-      <input type="text" id="filterArea" list="filterAreaList" autocomplete="off"
+      <input type="text" id="filterArea" list="filterAreaList" autocomplete="off" data-i18n-placeholder="hp_tb_area_ph"
              placeholder="Area — type e.g. Masaki, Mbezi…" title="Type any area, ward or neighbourhood" />
       <datalist id="filterAreaList"></datalist>
       <select id="filterBeds">
-        <option value="">Bedrooms: any</option>
-        <option value="1">1+ bed</option>
-        <option value="2">2+ beds</option>
-        <option value="3">3+ beds</option>
-        <option value="4">4+ beds</option>
+        <option value="" data-i18n="hp_tb_beds_any">Bedrooms: any</option>
+        <option value="1" data-i18n="hp_tb_beds_1">1+ bed</option>
+        <option value="2" data-i18n="hp_tb_beds_2">2+ beds</option>
+        <option value="3" data-i18n="hp_tb_beds_3">3+ beds</option>
+        <option value="4" data-i18n="hp_tb_beds_4">4+ beds</option>
       </select>
       <select id="filterRoom" title="Single room, master room, or a whole unit">
-        <option value="">Room: any</option>
-        <option value="single">Single room</option>
-        <option value="master">Master room</option>
-        <option value="whole">Whole unit</option>
+        <option value="" data-i18n="hp_tb_room_any">Room: any</option>
+        <option value="single" data-i18n="ah_room_single">Single room</option>
+        <option value="master" data-i18n="hp_tb_room_master">Master room</option>
+        <option value="whole" data-i18n="hp_tb_room_whole">Whole unit</option>
       </select>
-      <input type="text" id="filterPrice" class="ht-budget" inputmode="text"
+      <input type="text" id="filterPrice" class="ht-budget" inputmode="text" data-i18n-placeholder="hp_tb_price_ph"
              placeholder="Budget — e.g. 900k, 1.5m, under 2m" title="Type your budget in your own words" />
-      <input type="text" id="filterSearch" placeholder="Search title or area…" />
+      <input type="text" id="filterSearch" data-i18n-placeholder="hp_tb_search_ph" placeholder="Search title or area…" />
       <div class="ht-actions">
         <button id="houseNearMeBtn" class="houses-near-me" title="Use my GPS location">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-          Near me
+          <span data-i18n="hp_near">Near me</span>
         </button>
         <button id="houseAlertBtn" class="houses-alert-btn" title="Set up a geographic area alert">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          <span>Alert me about an area</span>
+          <span data-i18n="hp_act_alert">Alert me about an area</span>
         </button>
         <button id="houseRequestBtn" class="houses-alert-btn" title="Type where you want, the price and when — agents in that area will see it">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          <span>Tell us what you want</span>
+          <span data-i18n="hp_act_request">Tell us what you want</span>
         </button>
         <button id="houseCommuteBtn" class="houses-alert-btn" title="Rank homes by distance & travel time to your workplace, school or favourite places">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
-          <span>Match to my life</span>
+          <span data-i18n="hp_act_commute">Match to my life</span>
         </button>
       </div>
     </div>
