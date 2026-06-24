@@ -2120,6 +2120,7 @@ create policy "house-photos upload" on storage.objects for insert
         <div class="ah-wait-who">
           <strong>${esc(r.name || "Waiting renter")}</strong>
           <small>${esc(bits.join(" · "))}</small>
+          ${(r.note && r.note !== "Typed request") ? `<small class="ah-wait-spec">${esc(r.note)}</small>` : ""}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="ah-wait-cta">
@@ -2156,6 +2157,7 @@ create policy "house-photos upload" on storage.objects for insert
         padding:10px 0;border-top:1px solid #d6e8de}
       .ah-wait-who strong{display:block;font-size:.92rem}
       .ah-wait-who small{color:#6b7a73;font-size:.78rem}
+      .ah-wait-spec{display:block;color:#41504a;font-size:.78rem;margin-top:3px;line-height:1.4}
       .ah-wait-cta{display:flex;gap:6px;flex-shrink:0}
       .ah-wait-btn{font-size:.82rem;font-weight:600;text-decoration:none;padding:7px 12px;border-radius:8px;white-space:nowrap}
       .ah-wait-btn.call{background:#0a6f4d;color:#fff}
@@ -2301,6 +2303,7 @@ create policy "house-photos upload" on storage.objects for insert
         <div class="ah-wait-who">
           <strong>${esc(r.name || "Waiting renter")}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> your district</span>` : ""}
           <small>${bits.join(" · ")}</small>
+          ${(r.note && r.note !== "Typed request") ? `<small class="ah-wait-spec">${esc(r.note)}</small>` : ""}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="ah-wait-cta">

@@ -87,6 +87,27 @@
       (r.name.toLowerCase() === lc || (r.aliases || []).includes(lc))) || null;
   }
 
+  // Build the human-readable spec line that travels to the agent in `note`
+  // (every demand RPC already returns `note`, so no schema change is needed).
+  // It carries the specs that DON'T have their own column — self-contained,
+  // furnished, bathrooms, payment plan, must-have amenities, and the seeker's
+  // free-text "what to avoid" — so the agent sees the full requirement and can
+  // skip places that don't fit.
+  function buildSpecNote(spec) {
+    const parts = [];
+    if (spec.selfContained) parts.push("Self-contained");
+    if (spec.furnished) parts.push(spec.furnished);
+    if (spec.baths) parts.push(spec.baths + "+ bath");
+    if (spec.pay === "Monthly") parts.push("pays monthly");
+    else if (spec.pay === "Flexible") parts.push("flexible payment");
+    else if (spec.pay) parts.push("can pay " + spec.pay + " upfront");
+    if (spec.amenities && spec.amenities.length) parts.push("must have: " + spec.amenities.join(", "));
+    let note = parts.join(" · ");
+    const extra = String(spec.elseText || "").replace(/\s+/g, " ").trim();
+    if (extra) note += (note ? " · " : "") + "avoid/notes: " + extra;
+    return note || null;
+  }
+
   // ---- styles -------------------------------------------------------------
 
   function ensureStyles() {
@@ -146,7 +167,19 @@
       .rp-mine .rp-rm{flex-shrink:0;padding:7px 12px;border:1px solid #f0c9c4;border-radius:9px;background:#fff5f4;
         color:#b3261e;font-weight:700;font-size:.82rem;cursor:pointer}
       .rp-mine .rp-rm:disabled{opacity:.55;cursor:default}
-      .rp-empty{color:#52605a;font-size:.9rem;text-align:center;padding:14px 4px}`;
+      .rp-empty{color:#52605a;font-size:.9rem;text-align:center;padding:14px 4px}
+      .rp-row textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cdd9d3;
+        border-radius:10px;font:inherit;font-size:.95rem;resize:vertical;color:#16201b}
+      .rp-row textarea:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
+      .rp-check{display:flex;align-items:center}
+      .rp-chk{display:flex;align-items:center;gap:8px;font-weight:600;color:#34403a;cursor:pointer;margin:0}
+      .rp-chk input{width:auto;flex-shrink:0;margin:0}
+      .rp-chk small{font-weight:400;color:#7a877f;display:block}
+      .rp-amen{display:flex;flex-wrap:wrap;gap:6px}
+      .rp-amen label{display:inline-flex;align-items:center;gap:5px;font-size:.82rem;padding:6px 10px;
+        border:1px solid #cdd9d3;border-radius:999px;background:#fff;cursor:pointer;color:#34403a}
+      .rp-amen input{width:auto;margin:0}
+      .rp-amen label:has(input:checked){border-color:#0a6f4d;background:#eafaf3;color:#0a6f4d;font-weight:600}`;
     document.head.appendChild(s);
   }
 
@@ -239,13 +272,20 @@
   }
 
   // ---- region <select> population -----------------------------------------
-  async function fillRegions(selectEl, preselect) {
-    let regs = [];
-    try { regs = (window.DataStore && await window.DataStore.getRegions()) || []; } catch (_) {}
-    if (!regs.length) regs = (window.TZ_REGION_CENTERS || []).filter((r) => r.kind === "region").map((r) => r.name).sort();
-    const want = preselect ? String(preselect).toLowerCase() : "";
-    selectEl.innerHTML = `<option value="">Choose your region…</option>` +
-      regs.map((r) => `<option value="${esc(r)}"${r.toLowerCase() === want ? " selected" : ""}>${esc(r)}</option>`).join("");
+  // Render the bundled gazetteer IMMEDIATELY so the picker is always usable
+  // (even offline / on a slow link — never blocks sending), then upgrade to the
+  // canonical regions list in the background. Preserves the current selection.
+  function fillRegions(selectEl, preselect) {
+    const render = (regs) => {
+      const want = (selectEl.value || preselect || "").toLowerCase();
+      selectEl.innerHTML = `<option value="">Choose your region…</option>` +
+        regs.map((r) => `<option value="${esc(r)}"${r.toLowerCase() === want ? " selected" : ""}>${esc(r)}</option>`).join("");
+    };
+    const local = (window.TZ_REGION_CENTERS || []).filter((r) => r.kind === "region").map((r) => r.name).sort();
+    if (local.length) render(local);
+    Promise.resolve(window.DataStore && window.DataStore.getRegions ? window.DataStore.getRegions() : [])
+      .then((regs) => { if (Array.isArray(regs) && regs.length) render(regs); })
+      .catch(() => {});
   }
 
   // =====================================================================
@@ -306,29 +346,87 @@
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpPrice">Max price <small>(TZS)</small></label>
+            <label for="rpPrice">Max price <small>(TZS / month)</small></label>
             <input id="rpPrice" type="number" inputmode="numeric" min="0" placeholder="e.g. 250000" />
           </div>
           <div class="rp-row">
-            <label for="rpBeds">Bedrooms <small>(min)</small></label>
-            <input id="rpBeds" type="number" inputmode="numeric" min="0" placeholder="any" />
+            <label for="rpPay">Payment plan <small>(upfront)</small></label>
+            <select id="rpPay">
+              <option value="">No preference</option>
+              <option value="Monthly">Monthly</option>
+              <option value="3 months">3 months</option>
+              <option value="6 months">6 months</option>
+              <option value="12 months">12 months</option>
+              <option value="Flexible">Flexible</option>
+            </select>
           </div>
         </div>
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpWhen">When do you need it by?</label>
-            <input id="rpWhen" type="date" />
+            <label for="rpBeds">Bedrooms <small>(min)</small></label>
+            <input id="rpBeds" type="number" inputmode="numeric" min="0" placeholder="any" />
           </div>
           <div class="rp-row">
-            <label for="rpPhone">Your phone <small>(so an agent can call)</small></label>
-            <input id="rpPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" />
+            <label for="rpBaths">Bathrooms <small>(min)</small></label>
+            <input id="rpBaths" type="number" inputmode="numeric" min="0" placeholder="any" />
+          </div>
+        </div>
+
+        <div class="rp-2">
+          <div class="rp-row">
+            <label for="rpFurnished">Furnished?</label>
+            <select id="rpFurnished">
+              <option value="">Either</option>
+              <option value="Furnished">Furnished</option>
+              <option value="Unfurnished">Unfurnished</option>
+            </select>
+          </div>
+          <div class="rp-row rp-check">
+            <label class="rp-chk"><input id="rpSelfC" type="checkbox" /> <span>Self-contained <small>toilet inside</small></span></label>
           </div>
         </div>
 
         <div class="rp-row">
-          <label for="rpName">Your name <small>(optional — so the agent knows who)</small></label>
-          <input id="rpName" type="text" maxlength="60" autocomplete="name" placeholder="e.g. Asha" />
+          <label>Must have <small>(tick what you can't do without — agents skip places missing these)</small></label>
+          <div class="rp-amen" id="rpAmen">
+            <label><input type="checkbox" value="Water" /> Water</label>
+            <label><input type="checkbox" value="Electricity (LUKU)" /> Electricity</label>
+            <label><input type="checkbox" value="Own meter" /> Own meter</label>
+            <label><input type="checkbox" value="Parking" /> Parking</label>
+            <label><input type="checkbox" value="Fence / security" /> Fence / security</label>
+            <label><input type="checkbox" value="Tiled floor" /> Tiled</label>
+            <label><input type="checkbox" value="Master ensuite" /> Master ensuite</label>
+            <label><input type="checkbox" value="Fitted kitchen" /> Kitchen</label>
+            <label><input type="checkbox" value="Ceiling" /> Ceiling</label>
+          </div>
+        </div>
+
+        <div class="rp-2">
+          <div class="rp-row">
+            <label for="rpFrom">Move in from <small>(optional)</small></label>
+            <input id="rpFrom" type="date" />
+          </div>
+          <div class="rp-row">
+            <label for="rpWhen">Need it by <small>(deadline)</small></label>
+            <input id="rpWhen" type="date" />
+          </div>
+        </div>
+
+        <div class="rp-row">
+          <label for="rpElse">Anything else / what to avoid <small>(optional)</small></label>
+          <textarea id="rpElse" rows="2" maxlength="300" placeholder="e.g. not on a main road, ground floor only, near a school…"></textarea>
+        </div>
+
+        <div class="rp-2">
+          <div class="rp-row">
+            <label for="rpPhone">Your phone <small>(so an agent can call)</small></label>
+            <input id="rpPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" />
+          </div>
+          <div class="rp-row">
+            <label for="rpName">Your name <small>(optional)</small></label>
+            <input id="rpName" type="text" maxlength="60" autocomplete="name" placeholder="e.g. Asha" />
+          </div>
         </div>
 
         <div id="rpMsg" class="rp-msg" role="status"></div>
@@ -429,6 +527,15 @@
 
         const typeVal = ($("#rpType").value || "").trim().toLowerCase().slice(0, 40);
         const nameVal = ($("#rpName").value || "").trim().slice(0, 60);
+        const amenities = Array.from(back.querySelectorAll("#rpAmen input:checked")).map((c) => c.value);
+        const note = buildSpecNote({
+          selfContained: $("#rpSelfC").checked,
+          furnished: $("#rpFurnished").value || "",
+          baths: Number($("#rpBaths").value) || 0,
+          pay: $("#rpPay").value || "",
+          amenities,
+          elseText: $("#rpElse").value || "",
+        });
         const pin = {
           id: "dp-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           lat: place.lat, lng: place.lng,
@@ -442,9 +549,9 @@
           max_budget_tzs: Number($("#rpPrice").value) || 0,
           phone: phone,
           name: nameVal || null,
-          needed_from: null,
+          needed_from: $("#rpFrom").value || null,
           needed_by: $("#rpWhen").value || null,
-          note: "Typed request",
+          note: note,
         };
         await saveDemand(pin);
 

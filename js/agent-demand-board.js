@@ -62,6 +62,7 @@
       .adb-row:first-of-type{border-top:0}
       .adb-who strong{font-size:.92rem;color:#1a1915}
       .adb-who small{display:block;font-size:.78rem;color:#6b6960;margin-top:1px}
+      .adb-spec{display:block;font-size:.78rem;color:#5a4a2f;margin-top:3px;line-height:1.4}
       .adb-badge{display:inline-block;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:6px;background:#fde68a;color:#92400e}
       .adb-by{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:3px}
       .adb-by.urgent{background:#fde6e2;color:#b3261e}.adb-by.soon{background:#fff3d6;color:#946200}.adb-by.later{background:#e7f0ea;color:#41504a}
@@ -134,6 +135,7 @@
         <div class="adb-who">
           <strong>${esc(r.name || "Waiting client")}</strong>${inDistrict ? `<span class="adb-badge">your district</span>` : ""}
           <small>${bits.join(" · ")}</small>
+          ${(r.note && r.note !== "Typed request") ? `<small class="adb-spec">${esc(r.note)}</small>` : ""}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="adb-cta">
