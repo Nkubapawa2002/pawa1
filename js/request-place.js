@@ -1,25 +1,40 @@
 // =====================================================================
-// Request a place — TYPE it, no map
+// Request a place — TYPE it (or tap your location), no map needed
 // =====================================================================
-// The simplest way for a seeker to raise demand: just type WHERE they want, the
-// PRICE they can pay, and WHEN they need it. We geocode the place (to a point +
-// its region), save it as a house_demand_pin tagged with that region, and every
-// agent operating in that region sees it on their dashboard and can call them.
+// The simplest way for a seeker to raise demand: pick their REGION (the hard
+// routing key), optionally name the area, say the PRICE and WHEN. We save it as
+// a house_demand_pin tagged with that region, and every agent operating there
+// sees it on their dashboard and can call them.
+//
+// Why a region PICKER (not just a typed place): in Tanzania many street/area
+// names are informal and don't geocode. If we required a findable place, those
+// requests would dead-end and never reach an agent. So:
+//   • the REGION is chosen from the canonical list (or set from GPS) and is
+//     ALWAYS present → every request is routed to the right agents;
+//   • the typed area is an OPTIONAL label we try to geocode for precision, and
+//     if it can't be found we fall back to the GPS point, then the region
+//     centroid — sending never fails.
 //
 // It reuses the same house_demand_pins table + privacy model as the map-based
 // area alerts (the phone is only ever returned to agents via SECURITY DEFINER
 // RPCs), so this is purely a friendlier ON-RAMP, not a new data path.
 //
-//   window.pawaRequestPlace.open();           // open the modal
-//   window.pawaRequestPlace.open({ region }); // prefill nothing special yet
+//   window.pawaRequestPlace.open();              // open the request modal
+//   window.pawaRequestPlace.open({ region });    // prefill a region
+//   window.pawaRequestPlace.openMine();          // "my requests" + remove
 (function () {
   "use strict";
 
   const esc = (s) => window.escHtml ? window.escHtml(s) : String(s == null ? "" : s)
     .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  const MINE_KEY = "pawa_my_demand_pins";
   let picked = null;      // { lat, lng, name, region } chosen from suggestions
+  let gpsPoint = null;    // { lat, lng } from "use my location"
+  let gpsDistrict = null; // district reverse-geocoded from the GPS point
   let sugTimer = null;
+
+  // ---- text helpers -------------------------------------------------------
 
   // Normalise a raw region string (e.g. "Dar es Salaam Region") to the canonical
   // name agents pick from (data/regions.json), so region matching actually lines
@@ -37,6 +52,42 @@
     } catch (_) {}
     return raw;
   }
+
+  // Strip a "District"/"Wilaya" suffix so a reverse-geocoded district lines up
+  // with the agent's declared district (agent_profiles.district).
+  function canonDistrict(raw) {
+    return String(raw || "").replace(/\s+(district|wilaya)$/i, "").trim() || null;
+  }
+
+  // Simplify a messy area label into one clean, specific area string:
+  //   • a "double dash"/" - "/"—" between words becomes a comma boundary
+  //     (intra-word hyphens like "self-contained" are left alone);
+  //   • runs of whitespace collapse;
+  //   • duplicate comma-segments (case-insensitive) are dropped, keeping the
+  //     first — so "Mikocheni - Mikocheni B, Kinondoni" → "Mikocheni, Mikocheni B, Kinondoni".
+  function simplifyArea(s) {
+    let t = String(s || "").replace(/\s+/g, " ").trim();
+    if (!t) return "";
+    t = t.replace(/(\s+[-–—]+\s+|[-–—]{2,})/g, ", ");   // spaced/doubled dashes → comma
+    const seen = new Set();
+    const parts = t.split(",")
+      .map((p) => p.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .filter((p) => { const k = p.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    return parts.join(", ");
+  }
+
+  // Region centroid from the bundled gazetteer (js/tz-places.js) — the last-
+  // resort point so a request with no findable street still has coordinates.
+  function regionCentroid(name) {
+    const lc = String(name || "").toLowerCase().replace(/\s+region$/, "").trim();
+    if (!lc) return null;
+    const list = window.TZ_REGION_CENTERS || [];
+    return list.find((r) => r.kind === "region" &&
+      (r.name.toLowerCase() === lc || (r.aliases || []).includes(lc))) || null;
+  }
+
+  // ---- styles -------------------------------------------------------------
 
   function ensureStyles() {
     if (document.getElementById("rpStyles")) return;
@@ -59,6 +110,10 @@
         border-radius:10px;font-size:1rem;background:#fff;color:#16201b}
       .rp-row input:focus,.rp-row select:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
       .rp-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      .rp-loc{margin-top:7px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+        padding:9px 12px;border:1px dashed #0a6f4d;border-radius:10px;background:#f2faf6;color:#0a6f4d;
+        font-weight:700;font-size:.86rem;cursor:pointer}
+      .rp-loc:disabled{opacity:.6;cursor:default}
       .rp-sug{position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #d8e6df;
         border-radius:0 0 10px 10px;max-height:210px;overflow:auto;box-shadow:0 12px 30px rgba(0,0,0,.14)}
       .rp-sug[hidden]{display:none}
@@ -71,73 +126,59 @@
       .rp-go{width:100%;padding:13px;border:0;border-radius:11px;background:#0a6f4d;color:#fff;font-weight:800;
         font-size:1rem;cursor:pointer;margin-top:4px}
       .rp-go:disabled{opacity:.6;cursor:default}
-      .rp-cancel{width:100%;padding:10px;border:0;border-radius:11px;background:none;color:#64748b;
-        font-size:.92rem;cursor:pointer;margin-top:6px}
+      .rp-foot{display:flex;gap:8px;margin-top:8px}
+      .rp-link{flex:1;padding:10px;border:0;border-radius:11px;background:none;color:#64748b;
+        font-size:.92rem;cursor:pointer}
+      .rp-link.rp-strong{color:#0a6f4d;font-weight:700}
       .rp-msg{min-height:18px;font-size:.84rem;color:#b91c1c;margin:2px 0 6px}
       .rp-msg.ok{color:#0a6f4d}
       .rp-done{text-align:center;padding:10px 4px}
       .rp-done .rp-tick{width:54px;height:54px;border-radius:50%;background:#e7f5ee;color:#0a6f4d;display:flex;
         align-items:center;justify-content:center;font-size:28px;margin:6px auto 12px}
       .rp-done h3{margin:0 0 6px;font-size:1.1rem;color:#0a6f4d}
-      .rp-done p{margin:0 0 14px;color:#41504a;font-size:.92rem;line-height:1.5}`;
+      .rp-done p{margin:0 0 14px;color:#41504a;font-size:.92rem;line-height:1.5}
+      .rp-mine{margin:8px 0 0;padding:0;list-style:none}
+      .rp-mine li{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;
+        padding:11px 0;border-top:1px solid #eef2f0}
+      .rp-mine li:first-child{border-top:0}
+      .rp-mine .rp-mine-where{font-weight:700;font-size:.92rem;color:#16201b}
+      .rp-mine .rp-mine-sub{font-size:.78rem;color:#6b7a73;margin-top:2px}
+      .rp-mine .rp-rm{flex-shrink:0;padding:7px 12px;border:1px solid #f0c9c4;border-radius:9px;background:#fff5f4;
+        color:#b3261e;font-weight:700;font-size:.82rem;cursor:pointer}
+      .rp-mine .rp-rm:disabled{opacity:.55;cursor:default}
+      .rp-empty{color:#52605a;font-size:.9rem;text-align:center;padding:14px 4px}`;
     document.head.appendChild(s);
   }
 
   function close(back) { try { back.remove(); } catch (_) {} }
 
-  // Resolve the typed place → { lat, lng, name, region }. Uses the chosen
-  // suggestion when there is one, else geocodes the typed text; then reverse-
-  // geocodes for the region so agents can be matched by region.
-  // Strip a "District"/"Wilaya" suffix so a reverse-geocoded district lines up
-  // with the agent's declared district (agent_profiles.district).
-  function canonDistrict(raw) {
-    return String(raw || "").replace(/\s+(district|wilaya)$/i, "").trim() || null;
-  }
+  // ---- persistence --------------------------------------------------------
 
-  async function resolvePlace(text) {
-    let hit = picked;
-    if (!hit) {
-      const hits = await (window.pawaGeo ? window.pawaGeo.suggest(text, { limit: 5 }) : Promise.resolve([])).catch(() => []);
-      hit = (hits || []).find((h) => Number.isFinite(h.lat) && Number.isFinite(h.lng)) || null;
-    }
-    if (!hit) return null;
-    // One reverse-geocode gives BOTH the region (the hard match key) and the
-    // district (the precise routing key — agents declare a region + district).
-    let region = hit.region || "", district = "";
-    if (window.pawaGeo) {
-      try {
-        const j = await window.pawaGeo.reverse(`format=json&zoom=12&addressdetails=1&lat=${hit.lat}&lon=${hit.lng}`);
-        const a = (j && j.address) || {};
-        if (!region) region = a.state || a.region || a.county || a.state_district || "";
-        district = a.county || a.state_district || a.city_district || a.district || a.municipality || "";
-      } catch (_) {}
-    }
-    if (!region && hit.context) region = String(hit.context).split(",").map((s) => s.trim()).filter(Boolean).pop() || "";
-    return { lat: +hit.lat, lng: +hit.lng, name: hit.name || text,
-      region: (await canonRegion(region)) || null, district: canonDistrict(district) };
+  function readMine() {
+    try { return JSON.parse(localStorage.getItem(MINE_KEY) || "[]"); } catch (_) { return []; }
+  }
+  function writeMine(arr) {
+    try { localStorage.setItem(MINE_KEY, JSON.stringify(arr)); } catch (_) {}
   }
 
   // Insert the demand pin, stripping any column the live schema lacks (region /
-  // needed_by on older DBs) so it always saves; falls back to localStorage with
-  // no backend.
+  // district / needed_by on older DBs) so it always saves; falls back to
+  // localStorage with no backend.
   async function saveDemand(pin) {
     const sb = window.DataStore && window.DataStore.sb;
-    if (!sb) {
-      const local = JSON.parse(localStorage.getItem("pawa_demand_pins") || "[]");
-      local.push(pin); localStorage.setItem("pawa_demand_pins", JSON.stringify(local));
-      return;
-    }
+    if (!sb) return;   // local-only echo handled by the caller
     try {
       const { data: { session } } = await sb.auth.getSession();
       pin.user_id = session && session.user ? session.user.id : null;
     } catch (_) { pin.user_id = null; }
     let payload = { ...pin }, error;
-    for (let i = 0; i < 5; i++) {
+    const keep = new Set(["phone", "lat", "lng", "id"]);
+    for (let i = 0; i < 6; i++) {
       ({ error } = await sb.from("house_demand_pins").insert(payload));
       if (!error) break;
       const m = /column "?([a-z_]+)"?\s+.*does not exist|Could not find the '([a-z_]+)' column/i.exec(error.message || "");
       const col = m && (m[1] || m[2]);
-      if (col && col in payload && col !== "phone" && col !== "lat" && col !== "lng" && col !== "id") { delete payload[col]; continue; }
+      if (col && col in payload && !keep.has(col)) { delete payload[col]; continue; }
       break;
     }
     if (error) {
@@ -147,10 +188,73 @@
     }
   }
 
+  // Remove one of MY requests. Signed-in → RLS owner delete; anonymous → the
+  // id+phone SECURITY DEFINER RPC. Always drops the local echo too.
+  async function removeDemand(id, phone) {
+    const sb = window.DataStore && window.DataStore.sb;
+    if (sb) {
+      let session = null;
+      try { ({ data: { session } } = await sb.auth.getSession()); } catch (_) {}
+      if (session && session.user) {
+        const { error } = await sb.from("house_demand_pins").delete().eq("id", id);
+        if (error) throw error;
+      } else {
+        // Anonymous: proven by id + phone. If the RPC isn't installed we still
+        // clear it locally so the seeker's own list is correct.
+        try { await sb.rpc("house_demand_remove", { p_id: id, p_phone: phone || "" }); }
+        catch (_) {}
+      }
+    }
+    writeMine(readMine().filter((r) => r.id !== id));
+  }
+
+  // ---- resolve the target point + region ---------------------------------
+  // Region is the guaranteed routing key (already chosen). We then find the best
+  // POINT for the request, in falling order of precision:
+  //   picked suggestion → geocoded typed text → GPS fix → region centroid.
+  // District is reverse-geocoded from whatever point we land on (for precise
+  // agent routing) unless GPS already gave us one.
+  async function resolveTarget({ region, text, gps, district }) {
+    let lat = null, lng = null, area = text, dist = district || null, regOut = region;
+
+    if (picked && Number.isFinite(picked.lat) && Number.isFinite(picked.lng)) {
+      lat = +picked.lat; lng = +picked.lng; area = area || picked.name;
+    } else if (text) {
+      const hits = await (window.pawaGeo ? window.pawaGeo.suggest(text, { limit: 5 }) : Promise.resolve([])).catch(() => []);
+      const h = (hits || []).find((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+      if (h) { lat = +h.lat; lng = +h.lng; area = area || h.name; }
+    }
+    if (lat == null && gps) { lat = gps.lat; lng = gps.lng; }
+    if (lat == null) { const c = regionCentroid(region); if (c) { lat = c.lat; lng = c.lng; } }
+
+    if (lat != null && lng != null && window.pawaGeo) {
+      try {
+        const j = await window.pawaGeo.reverse(`format=json&zoom=12&addressdetails=1&lat=${lat}&lon=${lng}`);
+        const a = (j && j.address) || {};
+        if (!dist) dist = canonDistrict(a.county || a.state_district || a.city_district || a.district || a.municipality || "");
+        if (!regOut) regOut = await canonRegion(a.state || a.region || a.county || "");
+      } catch (_) {}
+    }
+    return { lat, lng, area: simplifyArea(area) || region, region: regOut, district: dist };
+  }
+
+  // ---- region <select> population -----------------------------------------
+  async function fillRegions(selectEl, preselect) {
+    let regs = [];
+    try { regs = (window.DataStore && await window.DataStore.getRegions()) || []; } catch (_) {}
+    if (!regs.length) regs = (window.TZ_REGION_CENTERS || []).filter((r) => r.kind === "region").map((r) => r.name).sort();
+    const want = preselect ? String(preselect).toLowerCase() : "";
+    selectEl.innerHTML = `<option value="">Choose your region…</option>` +
+      regs.map((r) => `<option value="${esc(r)}"${r.toLowerCase() === want ? " selected" : ""}>${esc(r)}</option>`).join("");
+  }
+
+  // =====================================================================
+  // The request modal
+  // =====================================================================
   function open(opts) {
     opts = opts || {};
     ensureStyles();
-    picked = null;
+    picked = null; gpsPoint = null; gpsDistrict = null;
 
     const back = document.createElement("div");
     back.className = "rp-back";
@@ -159,11 +263,17 @@
     back.innerHTML = `
       <div class="rp-card">
         <h2>Tell us what you want</h2>
-        <p class="rp-lead">No map — just type it. Agents working in that area will see your request and call you when something matches.</p>
+        <p class="rp-lead">No map needed. Pick your region, say what you want and when — agents working there will see your request and call you when something matches.</p>
 
         <div class="rp-row">
-          <label for="rpWhere">Where do you want it? <small>town, ward or area</small></label>
-          <input id="rpWhere" type="text" autocomplete="off" placeholder="e.g. Mikocheni, Kinondoni" />
+          <label for="rpRegion">Your region <small>(which region to search in)</small></label>
+          <select id="rpRegion"><option value="">Choose your region…</option></select>
+          <button id="rpLoc" class="rp-loc" type="button">📍 Use my location to set this</button>
+        </div>
+
+        <div class="rp-row">
+          <label for="rpWhere">Area or street <small>(optional — even an informal name)</small></label>
+          <input id="rpWhere" type="text" autocomplete="off" placeholder="e.g. Mikocheni, near the market" />
           <div id="rpSug" class="rp-sug" hidden></div>
           <div id="rpPicked" class="rp-picked" hidden></div>
         </div>
@@ -177,8 +287,8 @@
             </select>
           </div>
           <div class="rp-row">
-            <label for="rpType">Type <small>(optional — type anything)</small></label>
-            <input id="rpType" type="text" list="rpTypeList" autocomplete="off" maxlength="40" placeholder="e.g. self-contained, frame, godown, hostel…" />
+            <label for="rpType">Type <small>(optional)</small></label>
+            <input id="rpType" type="text" list="rpTypeList" autocomplete="off" maxlength="40" placeholder="e.g. self-contained, godown…" />
             <datalist id="rpTypeList">
               <option value="Single room"></option>
               <option value="Self-contained room"></option>
@@ -216,20 +326,59 @@
           </div>
         </div>
 
+        <div class="rp-row">
+          <label for="rpName">Your name <small>(optional — so the agent knows who)</small></label>
+          <input id="rpName" type="text" maxlength="60" autocomplete="name" placeholder="e.g. Asha" />
+        </div>
+
         <div id="rpMsg" class="rp-msg" role="status"></div>
         <button id="rpGo" class="rp-go" type="button">Send my request</button>
-        <button id="rpCancel" class="rp-cancel" type="button">Cancel</button>
+        <div class="rp-foot">
+          <button id="rpMine" class="rp-link rp-strong" type="button">My requests</button>
+          <button id="rpCancel" class="rp-link" type="button">Cancel</button>
+        </div>
       </div>`;
     document.body.appendChild(back);
 
     const $ = (id) => back.querySelector(id);
+    const regionEl = $("#rpRegion"), locEl = $("#rpLoc");
     const whereEl = $("#rpWhere"), sugEl = $("#rpSug"), pickedEl = $("#rpPicked");
     const msgEl = $("#rpMsg"), goEl = $("#rpGo");
     const setMsg = (t, ok) => { msgEl.textContent = t || ""; msgEl.classList.toggle("ok", !!ok); };
 
+    fillRegions(regionEl, opts.region);
+
     back.addEventListener("click", (e) => { if (e.target === back) close(back); });
     $("#rpCancel").addEventListener("click", () => close(back));
+    $("#rpMine").addEventListener("click", () => { close(back); openMine(); });
     if (opts.where) whereEl.value = opts.where;
+
+    // ---- use my location → set region + district + point ----
+    locEl.addEventListener("click", async () => {
+      if (!window.pawaLocate || !window.pawaLocate.supported()) { setMsg("Location isn't available on this device — pick your region instead."); return; }
+      locEl.disabled = true; locEl.textContent = "Locating…"; setMsg("Getting your location…", true);
+      try {
+        const fix = await window.pawaLocate.best({ maxWaitMs: 9000 });
+        gpsPoint = { lat: fix.lat, lng: fix.lng };
+        let reg = "", label = "";
+        if (window.pawaGeo) {
+          try {
+            const j = await window.pawaGeo.reverse(`format=json&zoom=14&addressdetails=1&lat=${fix.lat}&lon=${fix.lng}`);
+            const a = (j && j.address) || {};
+            reg = await canonRegion(a.state || a.region || a.county || "");
+            gpsDistrict = canonDistrict(a.county || a.state_district || a.city_district || a.municipality || a.district || "");
+            label = simplifyArea([a.suburb || a.neighbourhood || a.village || a.hamlet, a.city || a.town || a.city_district].filter(Boolean).join(", "));
+          } catch (_) {}
+        }
+        if (reg) { await fillRegions(regionEl, reg); }
+        if (label && !whereEl.value.trim()) whereEl.value = label;
+        setMsg(reg ? `Location found — region set to ${reg}.` : "Location found — please confirm your region.", true);
+      } catch (e) {
+        setMsg((window.pawaLocate && window.pawaLocate.message) ? window.pawaLocate.message(e) : "Couldn't get your location — pick your region instead.");
+      } finally {
+        locEl.disabled = false; locEl.textContent = "📍 Use my location to set this";
+      }
+    });
 
     // ---- live place suggestions ----
     function showSug(list) {
@@ -237,13 +386,18 @@
       sugEl.innerHTML = list.slice(0, 6).map((h, i) =>
         `<button type="button" data-i="${i}"><b>${esc(h.name)}</b><span>${esc(h.context || "")}</span></button>`).join("");
       sugEl.hidden = false;
-      sugEl.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      sugEl.querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
         const h = list[+b.dataset.i];
         picked = { lat: +h.lat, lng: +h.lng, name: h.name, region: (h.context ? String(h.context).split(",").map((s) => s.trim()).pop() : "") };
-        whereEl.value = h.name + (h.context ? ", " + h.context : "");
-        pickedEl.textContent = " " + (h.name || "") + (h.context ? " · " + h.context : "");
+        whereEl.value = simplifyArea(h.name + (h.context ? ", " + h.context : ""));
+        pickedEl.textContent = "📍 " + (h.name || "") + (h.context ? " · " + h.context : "");
         pickedEl.hidden = false;
         sugEl.hidden = true;
+        // Best-effort: set region from the suggestion if the user hasn't chosen one.
+        if (!regionEl.value && picked.region) {
+          const r = await canonRegion(picked.region);
+          if (r) await fillRegions(regionEl, r);
+        }
       }));
     }
     whereEl.addEventListener("input", () => {
@@ -259,25 +413,27 @@
 
     // ---- submit ----
     goEl.addEventListener("click", async () => {
-      const text = whereEl.value.trim();
+      const region = regionEl.value.trim();
+      const text = simplifyArea(whereEl.value);
       const phone = $("#rpPhone").value.trim();
       const digits = phone.replace(/\D/g, "");
-      if (!text) { setMsg("Type where you want the place."); whereEl.focus(); return; }
+      if (!region) { setMsg("Choose your region (or tap “Use my location”)."); regionEl.focus(); return; }
       if (digits.length < 9) { setMsg("Enter a phone number so an agent can reach you."); $("#rpPhone").focus(); return; }
 
       goEl.disabled = true; goEl.textContent = "Sending…"; setMsg("");
       try {
-        const place = await resolvePlace(text);
-        if (!place) { setMsg("Couldn't find that place — try a town, ward or area name."); goEl.disabled = false; goEl.textContent = "Send my request"; return; }
+        const place = await resolveTarget({ region, text, gps: gpsPoint, district: gpsDistrict });
+        if (place.lat == null || place.lng == null) {
+          setMsg("Couldn't place that — tap “Use my location”, or type a nearby town."); goEl.disabled = false; goEl.textContent = "Send my request"; return;
+        }
 
-        // Free-text type — the seeker may want ANY kind of place, not only the
-        // listed ones (self-contained, frame, godown, hostel, …).
         const typeVal = ($("#rpType").value || "").trim().toLowerCase().slice(0, 40);
+        const nameVal = ($("#rpName").value || "").trim().slice(0, 60);
         const pin = {
           id: "dp-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           lat: place.lat, lng: place.lng,
-          area: place.name || text,
-          region: place.region || null,
+          area: place.area || text || region,
+          region: place.region || region,
           district: place.district || null,
           radius_m: 3000,
           listing: $("#rpListing").value === "sale" ? "sale" : "rent",
@@ -285,38 +441,127 @@
           min_bedrooms: Number($("#rpBeds").value) || 0,
           max_budget_tzs: Number($("#rpPrice").value) || 0,
           phone: phone,
-          name: null,
+          name: nameVal || null,
           needed_from: null,
           needed_by: $("#rpWhen").value || null,
           note: "Typed request",
         };
         await saveDemand(pin);
 
-        // Remember locally (so the seeker can see it was sent).
-        try {
-          const mine = JSON.parse(localStorage.getItem("pawa_my_demand_pins") || "[]");
-          mine.push({ id: pin.id, area: pin.area, region: pin.region, lat: pin.lat, lng: pin.lng, at: Date.now() });
-          localStorage.setItem("pawa_my_demand_pins", JSON.stringify(mine));
-        } catch (_) {}
+        // Remember locally (incl. phone, so an anonymous seeker can REMOVE it
+        // later — the phone is the ownership proof the delete RPC checks).
+        const mine = readMine();
+        mine.push({ id: pin.id, area: pin.area, region: pin.region, listing: pin.listing,
+          type: pin.type, max_budget_tzs: pin.max_budget_tzs, needed_by: pin.needed_by,
+          phone: pin.phone, lat: pin.lat, lng: pin.lng, at: Date.now() });
+        writeMine(mine);
 
-        const regionStr = place.region ? esc(place.region) : esc(place.name || text);
+        const regionStr = esc(pin.region);
         $(".rp-card").innerHTML = `<div class="rp-done">
           <div class="rp-tick">✓</div>
           <h3>Request sent</h3>
           <p>Agents working in <strong>${regionStr}</strong> can now see that you want a place ${pin.listing === "sale" ? "to buy" : "to rent"} in <strong>${esc(pin.area)}</strong>${pin.needed_by ? ` by <strong>${esc(pin.needed_by)}</strong>` : ""}. They'll call you on the number you gave when something matches.</p>
           <button class="rp-go" type="button" id="rpDone">Done</button>
+          <div class="rp-foot"><button class="rp-link rp-strong" type="button" id="rpToMine">My requests</button></div>
         </div>`;
         $("#rpDone").addEventListener("click", () => close(back));
+        $("#rpToMine").addEventListener("click", () => { close(back); openMine(); });
       } catch (err) {
         setMsg((err && err.message) || "Couldn't send your request — please try again.");
         goEl.disabled = false; goEl.textContent = "Send my request";
       }
     });
 
-    setTimeout(() => { try { whereEl.focus(); } catch (_) {} }, 40);
+    setTimeout(() => { try { regionEl.focus(); } catch (_) {} }, 40);
   }
 
-  window.pawaRequestPlace = { open };
+  // =====================================================================
+  // "My requests" — see and remove your own requests
+  // =====================================================================
+  function fmtTzs(p) {
+    p = Number(p) || 0;
+    if (p >= 1e6) return (p / 1e6).toFixed(p % 1e6 ? 1 : 0) + "M";
+    if (p >= 1e3) return Math.round(p / 1e3) + "k";
+    return p ? String(p) : "";
+  }
+
+  // Merge the local echo with the DB rows the seeker owns (signed-in only — RLS
+  // owner read). DB rows are authoritative for "is it still active".
+  async function fetchMine() {
+    const local = readMine();
+    const byId = new Map();
+    const sb = window.DataStore && window.DataStore.sb;
+    if (sb) {
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session && session.user) {
+          const { data } = await sb.from("house_demand_pins")
+            .select("id,area,region,listing,type,max_budget_tzs,needed_by,active,created_at,phone")
+            .eq("user_id", session.user.id).order("created_at", { ascending: false });
+          (data || []).forEach((r) => byId.set(r.id, { ...r, at: new Date(r.created_at).getTime() }));
+        }
+      } catch (_) {}
+    }
+    local.forEach((r) => { if (!byId.has(r.id)) byId.set(r.id, r); });
+    return [...byId.values()].sort((a, b) => (b.at || 0) - (a.at || 0));
+  }
+
+  function mineRowHtml(r) {
+    const bits = [r.listing === "sale" ? "buying" : "renting"];
+    if (r.type) bits.push(esc(r.type));
+    if (r.max_budget_tzs) bits.push("≤ " + fmtTzs(r.max_budget_tzs) + " TZS");
+    if (r.needed_by) bits.push("by " + esc(String(r.needed_by).slice(0, 10)));
+    if (r.active === false) bits.push("closed");
+    return `<li data-id="${esc(r.id)}">
+      <div>
+        <div class="rp-mine-where">${esc(r.area || r.region || "Your request")}</div>
+        <div class="rp-mine-sub">${esc(r.region || "")}${r.region ? " · " : ""}${bits.join(" · ")}</div>
+      </div>
+      <button class="rp-rm" type="button" data-id="${esc(r.id)}" data-phone="${esc(r.phone || "")}">Remove</button>
+    </li>`;
+  }
+
+  async function openMine() {
+    ensureStyles();
+    const back = document.createElement("div");
+    back.className = "rp-back";
+    back.setAttribute("role", "dialog");
+    back.setAttribute("aria-modal", "true");
+    back.innerHTML = `
+      <div class="rp-card">
+        <h2>My requests</h2>
+        <p class="rp-lead">Requests you've sent. Remove one once you've found a place — agents will stop seeing it.</p>
+        <div id="rpMineBody"><p class="rp-empty">Loading…</p></div>
+        <button class="rp-go" type="button" id="rpNew">+ New request</button>
+        <div class="rp-foot"><button class="rp-link" type="button" id="rpMineClose">Close</button></div>
+      </div>`;
+    document.body.appendChild(back);
+
+    const body = back.querySelector("#rpMineBody");
+    back.addEventListener("click", (e) => { if (e.target === back) close(back); });
+    back.querySelector("#rpMineClose").addEventListener("click", () => close(back));
+    back.querySelector("#rpNew").addEventListener("click", () => { close(back); open(); });
+
+    async function render() {
+      const rows = await fetchMine();
+      if (!rows.length) { body.innerHTML = `<p class="rp-empty">You haven't sent any requests yet.</p>`; return; }
+      body.innerHTML = `<ul class="rp-mine">${rows.map(mineRowHtml).join("")}</ul>`;
+      body.querySelectorAll(".rp-rm").forEach((btn) => btn.addEventListener("click", async () => {
+        btn.disabled = true; btn.textContent = "Removing…";
+        try {
+          await removeDemand(btn.dataset.id, btn.dataset.phone);
+          const li = btn.closest("li"); if (li) li.remove();
+          if (!body.querySelector(".rp-mine li")) body.innerHTML = `<p class="rp-empty">You haven't sent any requests yet.</p>`;
+        } catch (_) {
+          btn.disabled = false; btn.textContent = "Remove";
+        }
+      }));
+    }
+    render();
+  }
+
+  window.pawaRequestPlace = { open, openMine };
   window.pawaCanonRegion = canonRegion;
   window.pawaCanonDistrict = canonDistrict;
+  window.pawaSimplifyArea = simplifyArea;
 })();
