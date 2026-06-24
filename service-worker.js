@@ -4,7 +4,7 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v293-2026-06-24-demand-board-i18n-sw";
+const VERSION = "v294-2026-06-24-houses-demand-panels-i18n-sw";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 

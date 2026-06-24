@@ -2092,9 +2092,9 @@ create policy "house-photos upload" on storage.objects for insert
     const n = daysUntil(needed_by);
     if (n == null) return "";
     const date = String(needed_by).slice(0, 10);
-    const left = n <= 0 ? "today" : n === 1 ? "1 day left" : `${n} days left`;
+    const left = n <= 0 ? tr("adb_today") : n === 1 ? tr("ahw_day_left") : tr("ahw_days_left").replace("{n}", n);
     const cls = n <= 3 ? "urgent" : n <= 14 ? "soon" : "later";
-    return `<span class="ah-by-chip ${cls}" title="Wants to move in by ${esc(date)}"> by ${esc(date)} · ${left}</span>`;
+    return `<span class="ah-by-chip ${cls}" title="${tr("ahw_move_by_title").replace("{date}", esc(date))}"> ${tr("adb_by")} ${esc(date)} · ${left}</span>`;
   }
 
   function renderWaitingPanel(rows, listing) {
@@ -2113,22 +2113,24 @@ create policy "house-photos upload" on storage.objects for insert
       const spec = window.pawaDemandSpec ? window.pawaDemandSpec({ ...r, listing: r.listing || listing.listing, type: r.type || listing.type }) : "";
       return `<div class="ah-wait-row">
         <div class="ah-wait-who">
-          <strong>${esc(r.name || "Waiting renter")}</strong>
+          <strong>${esc(r.name || tr("ahw_waiting_renter"))}</strong>
           ${spec}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="ah-wait-cta">
-          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> Call</a>
-          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> ${tr("action_call")}</a>
+          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">${tr("action_whatsapp")}</a>` : ""}
         </div>
       </div>`;
     }).join("");
+    const wHead = (rows.length === 1 ? tr("ahw_near_head_one") : tr("ahw_near_head_many"))
+      .replace("{n}", rows.length).replace("{where}", esc(area));
     panel.innerHTML = `
       <div class="ah-wait-card">
-        <div class="ah-wait-head"> ${rows.length} ${rows.length === 1 ? "person is" : "people are"} waiting near ${esc(area)}</div>
-        <div class="ah-wait-sub">They pinned this area for a ${listing.listing === "sale" ? "property to buy" : "place to rent"} matching your new listing. Reach out before someone else does.</div>
+        <div class="ah-wait-head"> ${wHead}</div>
+        <div class="ah-wait-sub">${tr("ahw_pin_sub").replace("{what}", listing.listing === "sale" ? tr("ahw_what_buy") : tr("ahw_what_rent"))}</div>
         ${items}
-        <button type="button" id="ahWaitDone" class="ah-wait-done">Done — back to my listings</button>
+        <button type="button" id="ahWaitDone" class="ah-wait-done">${tr("ahw_done")}</button>
       </div>`;
     panel.scrollIntoView({ behavior: "smooth", block: "center" });
     document.getElementById("ahWaitDone")?.addEventListener("click", () => {
@@ -2307,9 +2309,9 @@ create policy "house-photos upload" on storage.objects for insert
   function assessFit(r, offer) {
     if (!offer) return null;
     if (offer.kinds.size && r.listing && !offer.kinds.has(r.listing))
-      return r.listing === "sale" ? "wants to buy · you list rentals" : "wants to rent · you list sales";
+      return r.listing === "sale" ? tr("ahw_fit_buy_rent") : tr("ahw_fit_rent_sale");
     if (offer.floor > 0 && Number(r.max_budget_tzs) > 0 && offer.floor > Number(r.max_budget_tzs))
-      return `under your range · your cheapest ${fmtTzs(offer.floor)}`;
+      return tr("ahw_fit_under").replace("{p}", fmtTzs(offer.floor));
     return null;
   }
 
@@ -2336,26 +2338,28 @@ create policy "house-photos upload" on storage.objects for insert
       const spec = window.pawaDemandSpec ? window.pawaDemandSpec(r) : "";
       return `<div class="ah-wait-row${reason ? " ah-misfit" : ""}">
         <div class="ah-wait-who">
-          <strong>${esc(r.name || "Waiting renter")}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> your district</span>` : ""}${reason ? ` <span class="ah-misfit-chip" title="May not be worth a call">⚠ ${esc(reason)}</span>` : ""}
+          <strong>${esc(r.name || tr("ahw_waiting_renter"))}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> ${tr("adb_your_district")}</span>` : ""}${reason ? ` <span class="ah-misfit-chip" title="${tr("ahw_misfit_title")}">⚠ ${esc(reason)}</span>` : ""}
           ${r.area ? `<small>${esc(r.area)}</small>` : ""}
           ${spec}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="ah-wait-cta">
-          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> Call</a>
-          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> ${tr("action_call")}</a>
+          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">${tr("action_whatsapp")}</a>` : ""}
         </div>
       </div>`;
     }).join("");
     const urgent = top.filter(({ r }) => { const n = daysUntil(r.needed_by); return n != null && n <= 7; }).length;
     const fits = annotated.filter((a) => !a.reason).length;
-    const fitNote = offer ? ` <strong>${fits} fit what you list.</strong>` : "";
+    const fitNote = offer ? ` <strong>${tr("ahw_fit_note").replace("{n}", fits)}</strong>` : "";
+    const bHead = (rows.length === 1 ? tr("ahw_near_head_one") : tr("ahw_near_head_many"))
+      .replace("{n}", rows.length).replace("{where}", esc(center.label || tr("ahw_your_area")));
     panel.innerHTML = `<div class="ah-wait-card ah-board">
       <button type="button" class="ah-board-x" id="ahBoardClose" aria-label="Hide">×</button>
-      <div class="ah-wait-head"> ${rows.length} ${rows.length === 1 ? "person is" : "people are"} waiting near ${esc(center.label || "your area")}</div>
-      <div class="ah-wait-sub">${urgent ? `<strong>${urgent} need a place within a week.</strong> ` : ""}${fitNote ? fitNote + " " : ""}Check the chips before you call — reach out and close before their move-in date.</div>
+      <div class="ah-wait-head"> ${bHead}</div>
+      <div class="ah-wait-sub">${urgent ? `<strong>${tr("ahw_urgent_week").replace("{n}", urgent)}</strong> ` : ""}${fitNote ? fitNote + " " : ""}${tr("ahw_check_chips")}</div>
       ${items}
-      ${rows.length > top.length ? `<div class="ah-board-more">+ ${rows.length - top.length} more waiting</div>` : ""}
+      ${rows.length > top.length ? `<div class="ah-board-more">${tr("ahw_more_waiting").replace("{n}", rows.length - top.length)}</div>` : ""}
     </div>`;
     document.getElementById("ahBoardClose")?.addEventListener("click", () => panel.remove());
   }

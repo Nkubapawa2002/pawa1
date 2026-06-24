@@ -1247,7 +1247,28 @@ window.I18N = {
     adb_overdue: "overdue",
     adb_today: "today",
     adb_in_days: "in {n}d",
-    adb_by: "by"
+    adb_by: "by",
+
+    // Agent houses dashboard — waiting/demand panels (js/agent-houses.js)
+    ahw_waiting_renter: "Waiting renter",
+    ahw_near_head_one: "{n} person is waiting near {where}",
+    ahw_near_head_many: "{n} people are waiting near {where}",
+    ahw_pin_sub: "They pinned this area for a {what} matching your new listing. Reach out before someone else does.",
+    ahw_what_buy: "property to buy",
+    ahw_what_rent: "place to rent",
+    ahw_done: "Done — back to my listings",
+    ahw_urgent_week: "{n} need a place within a week.",
+    ahw_fit_note: "{n} fit what you list.",
+    ahw_check_chips: "Check the chips before you call — reach out and close before their move-in date.",
+    ahw_more_waiting: "+ {n} more waiting",
+    ahw_fit_buy_rent: "wants to buy · you list rentals",
+    ahw_fit_rent_sale: "wants to rent · you list sales",
+    ahw_fit_under: "under your range · your cheapest {p}",
+    ahw_day_left: "1 day left",
+    ahw_days_left: "{n} days left",
+    ahw_move_by_title: "Wants to move in by {date}",
+    ahw_misfit_title: "May not be worth a call",
+    ahw_your_area: "your area"
   },
 
   sw: {
@@ -2496,7 +2517,28 @@ window.I18N = {
     adb_overdue: "imepita",
     adb_today: "leo",
     adb_in_days: "ndani ya siku {n}",
-    adb_by: "ifikapo"
+    adb_by: "ifikapo",
+
+    // Agent houses dashboard — waiting/demand panels (js/agent-houses.js)
+    ahw_waiting_renter: "Mpangaji anayesubiri",
+    ahw_near_head_one: "Mtu {n} anasubiri karibu na {where}",
+    ahw_near_head_many: "Watu {n} wanasubiri karibu na {where}",
+    ahw_pin_sub: "Wameweka alama eneo hili kwa {what} inayolingana na tangazo lako jipya. Wasiliana kabla ya mtu mwingine.",
+    ahw_what_buy: "mali ya kununua",
+    ahw_what_rent: "mahali pa kupanga",
+    ahw_done: "Imekamilika — rudi kwenye matangazo yangu",
+    ahw_urgent_week: "{n} wanahitaji mahali ndani ya wiki moja.",
+    ahw_fit_note: "{n} wanalingana na unachoorodhesha.",
+    ahw_check_chips: "Angalia vibandiko kabla ya kupiga simu — wasiliana na ufunge kabla ya tarehe yao ya kuhamia.",
+    ahw_more_waiting: "+ {n} zaidi wanasubiri",
+    ahw_fit_buy_rent: "anataka kununua · wewe unapangisha",
+    ahw_fit_rent_sale: "anataka kupanga · wewe unauza",
+    ahw_fit_under: "chini ya bei yako · ya chini kabisa {p}",
+    ahw_day_left: "siku 1 imebaki",
+    ahw_days_left: "siku {n} zimebaki",
+    ahw_move_by_title: "Anataka kuhamia ifikapo {date}",
+    ahw_misfit_title: "Huenda haifai kupiga simu",
+    ahw_your_area: "eneo lako"
   }
 };
 
