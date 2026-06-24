@@ -18,12 +18,7 @@
 
   const esc = (s) => window.escHtml ? window.escHtml(s) : String(s == null ? "" : s)
     .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  const COPY = {
-    houses:   { head: "people are waiting for a place in", sub: "Reach out and close before their move-in date." },
-    services: { head: "people are looking in", sub: "Everyone moving into the area needs daily services — these are your leads." },
-    trucks:   { head: "people are moving into", sub: "Everyone relocating needs a truck — call them before they book elsewhere." },
-  };
+  const T = (k) => (window.t ? window.t(k) : k);
 
   function fmtTzs(p) {
     p = Number(p) || 0;
@@ -43,8 +38,9 @@
     const n = daysUntil(by);
     if (n == null) return "";
     const cls = n <= 7 ? "urgent" : n <= 30 ? "soon" : "later";
-    const txt = n < 0 ? "overdue" : n === 0 ? "today" : n <= 60 ? `in ${n}d` : `by ${String(by).slice(0, 10)}`;
-    return `<span class="adb-by ${cls}">needs ${txt}</span>`;
+    const txt = n < 0 ? T("adb_overdue") : n === 0 ? T("adb_today")
+      : n <= 60 ? T("adb_in_days").replace("{n}", n) : `${T("adb_by")} ${String(by).slice(0, 10)}`;
+    return `<span class="adb-by ${cls}">${T("adb_needs")} ${txt}</span>`;
   }
 
   function ensureStyles() {
@@ -119,7 +115,6 @@
       panel.id = "agentDemandBoard";
       mount.insertBefore(panel, mount.firstChild);
     }
-    const copy = COPY[kind] || COPY.houses;
     const top = rows.slice(0, 12);
     const where = district ? `${esc(district)} & ${esc(region)}` : esc(region);
     const items = top.map((r) => {
@@ -130,24 +125,25 @@
       const spec = window.pawaDemandSpec ? window.pawaDemandSpec(r) : "";
       return `<div class="adb-row">
         <div class="adb-who">
-          <strong>${esc(r.name || "Waiting client")}</strong>${inDistrict ? `<span class="adb-badge">your district</span>` : ""}
+          <strong>${esc(r.name || T("adb_waiting_client"))}</strong>${inDistrict ? `<span class="adb-badge">${T("adb_your_district")}</span>` : ""}
           ${r.area ? `<small>${esc(r.area)}</small>` : ""}
           ${spec}
           ${neededByChip(r.needed_by)}
         </div>
         <div class="adb-cta">
-          ${phone ? `<a class="adb-btn call" href="tel:${esc(phone)}">Call</a>` : ""}
-          ${intl ? `<a class="adb-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+          ${phone ? `<a class="adb-btn call" href="tel:${esc(phone)}">${T("action_call")}</a>` : ""}
+          ${intl ? `<a class="adb-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">${T("action_whatsapp")}</a>` : ""}
         </div>
       </div>`;
     }).join("");
     const urgent = top.filter((r) => { const n = daysUntil(r.needed_by); return n != null && n <= 7; }).length;
+    const head = T("adb_" + kind + "_head").replace("{n}", rows.length).replace("{where}", where);
     panel.innerHTML = `<div class="adb-card">
       <button type="button" class="adb-x" aria-label="Hide">×</button>
-      <div class="adb-head"> ${rows.length} ${copy.head} ${where}</div>
-      <div class="adb-sub">${urgent ? `<strong>${urgent} need it within a week.</strong> ` : ""}${copy.sub}</div>
+      <div class="adb-head">${head}</div>
+      <div class="adb-sub">${urgent ? `<strong>${T("adb_urgent").replace("{n}", urgent)}</strong> ` : ""}${T("adb_" + kind + "_sub")}</div>
       ${items}
-      ${rows.length > top.length ? `<div class="adb-more">+ ${rows.length - top.length} more in your area</div>` : ""}
+      ${rows.length > top.length ? `<div class="adb-more">${T("adb_more").replace("{n}", rows.length - top.length)}</div>` : ""}
     </div>`;
     panel.querySelector(".adb-x")?.addEventListener("click", () => panel.remove());
   }

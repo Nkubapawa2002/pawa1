@@ -469,6 +469,7 @@ window.renderAgentSubBanner = (sub, opts) => {
 window.pawaDemandSpec = (r) => {
   const esc = window.escHtml || ((s) => String(s == null ? "" : s)
     .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
+  const T = (k) => (window.t ? window.t(k) : k);
   const fmtTzs = (p) => {
     p = Number(p) || 0;
     if (p >= 1e9) return (p / 1e9).toFixed(p % 1e9 ? 1 : 0) + "B";
@@ -503,17 +504,17 @@ window.pawaDemandSpec = (r) => {
   });
 
   const chips = [];
-  chips.push(`<span class="pds-c k">${r.listing === "sale" ? "To buy" : "For rent"}</span>`);
+  chips.push(`<span class="pds-c k">${r.listing === "sale" ? T("rp_listing_buy") : T("rp_listing_rent")}</span>`);
   if (r.type) chips.push(`<span class="pds-c t">${esc(r.type)}</span>`);
   if (Number(r.max_budget_tzs) > 0) chips.push(`<span class="pds-c b">≤ ${esc(fmtTzs(r.max_budget_tzs))} TZS</span>`);
-  if (Number(r.min_bedrooms) > 0) chips.push(`<span class="pds-c">${esc(String(r.min_bedrooms))}+ bed</span>`);
-  if (r.needed_from) chips.push(`<span class="pds-c s">from ${esc(String(r.needed_from).slice(0, 10))}</span>`);
-  if (r.distance_m != null) chips.push(`<span class="pds-c s">${r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km"} away</span>`);
+  if (Number(r.min_bedrooms) > 0) chips.push(`<span class="pds-c">${esc(String(r.min_bedrooms))}+ ${T("ds_bed")}</span>`);
+  if (r.needed_from) chips.push(`<span class="pds-c s">${T("ds_from")} ${esc(String(r.needed_from).slice(0, 10))}</span>`);
+  if (r.distance_m != null) chips.push(`<span class="pds-c s">${r.distance_m < 1000 ? r.distance_m + " m" : (r.distance_m / 1000).toFixed(1) + " km"} ${T("ds_away")}</span>`);
   const typeLc = String(r.type || "").toLowerCase();
   soft.filter((s) => s.toLowerCase() !== typeLc)
     .forEach((s) => chips.push(`<span class="pds-c s">${esc(s)}</span>`));
-  if (must) chips.push(`<span class="pds-line pds-must">✔ Must have: ${esc(must)}</span>`);
-  if (avoid) chips.push(`<span class="pds-line pds-avoid">⛔ Avoid: ${esc(avoid)}</span>`);
+  if (must) chips.push(`<span class="pds-line pds-must">✔ ${T("rp_must_label")}: ${esc(must)}</span>`);
+  if (avoid) chips.push(`<span class="pds-line pds-avoid">⛔ ${T("ds_avoid")}: ${esc(avoid)}</span>`);
   return `<div class="pds">${chips.join("")}</div>`;
 };
 

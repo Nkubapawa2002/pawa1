@@ -1226,7 +1226,28 @@ window.I18N = {
     rp_bit_buying: "buying",
     rp_bit_renting: "renting",
     rp_bit_closed: "closed",
-    rp_your_request: "Your request"
+    rp_your_request: "Your request",
+
+    // Agent demand board + spec chips (config.js pawaDemandSpec, agent-demand-board.js)
+    ds_bed: "bed",
+    ds_from: "from",
+    ds_away: "away",
+    ds_avoid: "Avoid",
+    adb_houses_head: "{n} people are waiting for a place in {where}",
+    adb_services_head: "{n} people are looking in {where}",
+    adb_trucks_head: "{n} people are moving into {where}",
+    adb_houses_sub: "Reach out and close before their move-in date.",
+    adb_services_sub: "Everyone moving into the area needs daily services — these are your leads.",
+    adb_trucks_sub: "Everyone relocating needs a truck — call them before they book elsewhere.",
+    adb_urgent: "{n} need it within a week.",
+    adb_more: "+ {n} more in your area",
+    adb_waiting_client: "Waiting client",
+    adb_your_district: "your district",
+    adb_needs: "needs",
+    adb_overdue: "overdue",
+    adb_today: "today",
+    adb_in_days: "in {n}d",
+    adb_by: "by"
   },
 
   sw: {
@@ -2454,7 +2475,28 @@ window.I18N = {
     rp_bit_buying: "kununua",
     rp_bit_renting: "kupanga",
     rp_bit_closed: "imefungwa",
-    rp_your_request: "Ombi lako"
+    rp_your_request: "Ombi lako",
+
+    // Agent demand board + spec chips (config.js pawaDemandSpec, agent-demand-board.js)
+    ds_bed: "chumba",
+    ds_from: "kuanzia",
+    ds_away: "mbali",
+    ds_avoid: "Epuka",
+    adb_houses_head: "Watu {n} wanasubiri mahali {where}",
+    adb_services_head: "Watu {n} wanatafuta {where}",
+    adb_trucks_head: "Watu {n} wanahamia {where}",
+    adb_houses_sub: "Wasiliana nao na ufunge kabla ya tarehe yao ya kuhamia.",
+    adb_services_sub: "Kila anayehamia eneo anahitaji huduma za kila siku — hawa ni wateja wako.",
+    adb_trucks_sub: "Kila anayehama anahitaji lori — wapigie kabla hawajaagiza kwingine.",
+    adb_urgent: "{n} wanahitaji ndani ya wiki moja.",
+    adb_more: "+ {n} zaidi katika eneo lako",
+    adb_waiting_client: "Mteja anayesubiri",
+    adb_your_district: "wilaya yako",
+    adb_needs: "anahitaji",
+    adb_overdue: "imepita",
+    adb_today: "leo",
+    adb_in_days: "ndani ya siku {n}",
+    adb_by: "ifikapo"
   }
 };
 
