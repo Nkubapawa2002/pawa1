@@ -75,15 +75,43 @@
     }
     .ss-chip .ss-chip-x:hover { background: rgba(255,255,255,.4); }
     .ss-chip.ss-chip-clear { background: rgba(0,0,0,.18); cursor: pointer; }
-    .ss-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
-    .ss-examples[hidden] { display: none; }
-    .ss-ex-lbl { color: rgba(255,255,255,.8); font-size: .8rem; font-weight: 600; }
-    .ss-ex {
-      border: 1px solid rgba(255,255,255,.35); background: transparent;
-      color: #fff; font-size: .78rem; font-weight: 500;
-      padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    /* Suggested searches: ONE quiet, horizontally-scrollable row so the examples
+       read as gentle hints — never a wall of bordered buttons wrapping into a
+       3-line stack on a phone. */
+    .ss-examples {
+      display: flex; flex-wrap: nowrap; align-items: center; gap: 7px;
+      margin-top: 12px; overflow-x: auto; scrollbar-width: none;
+      -webkit-overflow-scrolling: touch; padding-bottom: 1px;
+      -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent);
+              mask-image: linear-gradient(90deg, #000 92%, transparent);
     }
-    .ss-ex:hover { background: rgba(255,255,255,.16); }
+    .ss-examples::-webkit-scrollbar { display: none; }
+    .ss-examples[hidden] { display: none; }
+    .ss-ex-lbl {
+      flex-shrink: 0; color: rgba(255,255,255,.55); font-size: .68rem;
+      font-weight: 700; text-transform: uppercase; letter-spacing: .7px;
+    }
+    .ss-ex {
+      flex-shrink: 0; white-space: nowrap; border: none;
+      background: rgba(255,255,255,.13); color: rgba(255,255,255,.92);
+      font-size: .78rem; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+      cursor: pointer; transition: background .14s ease, transform .12s ease;
+    }
+    .ss-ex:hover { background: rgba(255,255,255,.22); }
+    .ss-ex:active { transform: scale(.96); }
+
+    /* The "how do you want to find a place?" prompt duplicates the toolbar's
+       Near-me + Area controls and stacks a SECOND green card under the search.
+       Drop it here for a clean, single-intent header (kept on other pages). */
+    body[data-page="houses"] .find-mode { display: none !important; }
+
+    /* The Saved/favorites tile used the global AMBER accent, which clashed with
+       this page's green palette. Retone it to a cohesive teal so the header
+       reads as one considered colour family (distinct from the brand-green
+       hero tile, but in the same family). */
+    body[data-page="houses"] .hp-bento__cell--accent {
+      background: linear-gradient(135deg, #0d9488, #0f766e);
+    }
 
     /* Match-score badge — overlays the photo bottom-left (never disrupts card body layout) */
     .house-card-match {
@@ -901,7 +929,7 @@
       </div>
       <div id="smartSearchChips" class="ss-chips" hidden></div>
       <div class="ss-examples" id="smartSearchExamples">
-        <span class="ss-ex-lbl">Try:</span>
+        <span class="ss-ex-lbl">Try</span>
         <button type="button" class="ss-ex" data-q="2 bedroom house for rent in Mbezi under 800k with parking">2 bed in Mbezi under 800k</button>
         <button type="button" class="ss-ex" data-q="plot for sale in Mwanza below 50M">plot for sale in Mwanza ≤50M</button>
         <button type="button" class="ss-ex" data-q="furnished apartment Masaki sea view 3 beds with pool and gym">furnished 3-bed, pool + gym</button>
