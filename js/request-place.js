@@ -28,6 +28,10 @@
   const esc = (s) => window.escHtml ? window.escHtml(s) : String(s == null ? "" : s)
     .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  // Translate via the central i18n dictionary (rp_* keys). Falls back to the key
+  // (then English inside window.t) so the modal never shows a blank.
+  const T = (k) => (window.t ? window.t(k) : k);
+
   const MINE_KEY = "pawa_my_demand_pins";
   let picked = null;      // { lat, lng, name, region } chosen from suggestions
   let gpsPoint = null;    // { lat, lng } from "use my location"
@@ -278,7 +282,7 @@
   function fillRegions(selectEl, preselect) {
     const render = (regs) => {
       const want = (selectEl.value || preselect || "").toLowerCase();
-      selectEl.innerHTML = `<option value="">Choose your region…</option>` +
+      selectEl.innerHTML = `<option value="">${T("rp_region_choose")}</option>` +
         regs.map((r) => `<option value="${esc(r)}"${r.toLowerCase() === want ? " selected" : ""}>${esc(r)}</option>`).join("");
     };
     const local = (window.TZ_REGION_CENTERS || []).filter((r) => r.kind === "region").map((r) => r.name).sort();
@@ -302,33 +306,33 @@
     back.setAttribute("aria-modal", "true");
     back.innerHTML = `
       <div class="rp-card">
-        <h2>Tell us what you want</h2>
-        <p class="rp-lead">No map needed. Pick your region, say what you want and when — agents working there will see your request and call you when something matches.</p>
+        <h2>${T("rp_title")}</h2>
+        <p class="rp-lead">${T("rp_lead")}</p>
 
         <div class="rp-row">
-          <label for="rpRegion">Your region <small>(which region to search in)</small></label>
-          <select id="rpRegion"><option value="">Choose your region…</option></select>
-          <button id="rpLoc" class="rp-loc" type="button">📍 Use my location to set this</button>
+          <label for="rpRegion">${T("rp_region_label")} <small>${T("rp_region_small")}</small></label>
+          <select id="rpRegion"><option value="">${T("rp_region_choose")}</option></select>
+          <button id="rpLoc" class="rp-loc" type="button">📍 ${T("rp_use_loc")}</button>
         </div>
 
         <div class="rp-row">
-          <label for="rpWhere">Area or street <small>(optional — even an informal name)</small></label>
-          <input id="rpWhere" type="text" autocomplete="off" placeholder="e.g. Mikocheni, near the market" />
+          <label for="rpWhere">${T("rp_where_label")} <small>${T("rp_where_small")}</small></label>
+          <input id="rpWhere" type="text" autocomplete="off" placeholder="${T("rp_where_ph")}" />
           <div id="rpSug" class="rp-sug" hidden></div>
           <div id="rpPicked" class="rp-picked" hidden></div>
         </div>
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpListing">Rent or buy?</label>
+            <label for="rpListing">${T("rp_listing_label")}</label>
             <select id="rpListing">
-              <option value="rent">For rent</option>
-              <option value="sale">To buy</option>
+              <option value="rent">${T("rp_listing_rent")}</option>
+              <option value="sale">${T("rp_listing_buy")}</option>
             </select>
           </div>
           <div class="rp-row">
-            <label for="rpType">Type <small>(optional)</small></label>
-            <input id="rpType" type="text" list="rpTypeList" autocomplete="off" maxlength="40" placeholder="e.g. self-contained, godown…" />
+            <label for="rpType">${T("rp_type_label")} <small>${T("rp_optional")}</small></label>
+            <input id="rpType" type="text" list="rpTypeList" autocomplete="off" maxlength="40" placeholder="${T("rp_type_ph")}" />
             <datalist id="rpTypeList">
               <option value="Single room"></option>
               <option value="Self-contained room"></option>
@@ -346,94 +350,94 @@
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpPrice">Max price <small>(TZS / month)</small></label>
-            <input id="rpPrice" type="number" inputmode="numeric" min="0" placeholder="e.g. 250000" />
+            <label for="rpPrice">${T("rp_price_label")} <small>${T("rp_price_small")}</small></label>
+            <input id="rpPrice" type="number" inputmode="numeric" min="0" placeholder="${T("rp_price_ph")}" />
           </div>
           <div class="rp-row">
-            <label for="rpPay">Payment plan <small>(upfront)</small></label>
+            <label for="rpPay">${T("rp_pay_label")} <small>${T("rp_pay_small")}</small></label>
             <select id="rpPay">
-              <option value="">No preference</option>
-              <option value="Monthly">Monthly</option>
-              <option value="3 months">3 months</option>
-              <option value="6 months">6 months</option>
-              <option value="12 months">12 months</option>
-              <option value="Flexible">Flexible</option>
+              <option value="">${T("rp_pay_none")}</option>
+              <option value="Monthly">${T("rp_pay_monthly")}</option>
+              <option value="3 months">${T("rp_pay_3")}</option>
+              <option value="6 months">${T("rp_pay_6")}</option>
+              <option value="12 months">${T("rp_pay_12")}</option>
+              <option value="Flexible">${T("rp_pay_flex")}</option>
             </select>
           </div>
         </div>
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpBeds">Bedrooms <small>(min)</small></label>
-            <input id="rpBeds" type="number" inputmode="numeric" min="0" placeholder="any" />
+            <label for="rpBeds">${T("rp_beds_label")} <small>${T("rp_min")}</small></label>
+            <input id="rpBeds" type="number" inputmode="numeric" min="0" placeholder="${T("rp_any")}" />
           </div>
           <div class="rp-row">
-            <label for="rpBaths">Bathrooms <small>(min)</small></label>
-            <input id="rpBaths" type="number" inputmode="numeric" min="0" placeholder="any" />
+            <label for="rpBaths">${T("rp_baths_label")} <small>${T("rp_min")}</small></label>
+            <input id="rpBaths" type="number" inputmode="numeric" min="0" placeholder="${T("rp_any")}" />
           </div>
         </div>
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpFurnished">Furnished?</label>
+            <label for="rpFurnished">${T("rp_furnished_label")}</label>
             <select id="rpFurnished">
-              <option value="">Either</option>
-              <option value="Furnished">Furnished</option>
-              <option value="Unfurnished">Unfurnished</option>
+              <option value="">${T("rp_furn_either")}</option>
+              <option value="Furnished">${T("rp_furn_yes")}</option>
+              <option value="Unfurnished">${T("rp_furn_no")}</option>
             </select>
           </div>
           <div class="rp-row rp-check">
-            <label class="rp-chk"><input id="rpSelfC" type="checkbox" /> <span>Self-contained <small>toilet inside</small></span></label>
+            <label class="rp-chk"><input id="rpSelfC" type="checkbox" /> <span>${T("rp_selfc")} <small>${T("rp_selfc_small")}</small></span></label>
           </div>
         </div>
 
         <div class="rp-row">
-          <label>Must have <small>(tick what you can't do without — agents skip places missing these)</small></label>
+          <label>${T("rp_must_label")} <small>${T("rp_must_small")}</small></label>
           <div class="rp-amen" id="rpAmen">
-            <label><input type="checkbox" value="Water" /> Water</label>
-            <label><input type="checkbox" value="Electricity (LUKU)" /> Electricity</label>
-            <label><input type="checkbox" value="Own meter" /> Own meter</label>
-            <label><input type="checkbox" value="Parking" /> Parking</label>
-            <label><input type="checkbox" value="Fence / security" /> Fence / security</label>
-            <label><input type="checkbox" value="Tiled floor" /> Tiled</label>
-            <label><input type="checkbox" value="Master ensuite" /> Master ensuite</label>
-            <label><input type="checkbox" value="Fitted kitchen" /> Kitchen</label>
-            <label><input type="checkbox" value="Ceiling" /> Ceiling</label>
+            <label><input type="checkbox" value="Water" /> ${T("rp_am_water")}</label>
+            <label><input type="checkbox" value="Electricity (LUKU)" /> ${T("rp_am_elec")}</label>
+            <label><input type="checkbox" value="Own meter" /> ${T("rp_am_meter")}</label>
+            <label><input type="checkbox" value="Parking" /> ${T("rp_am_parking")}</label>
+            <label><input type="checkbox" value="Fence / security" /> ${T("rp_am_fence")}</label>
+            <label><input type="checkbox" value="Tiled floor" /> ${T("rp_am_tiled")}</label>
+            <label><input type="checkbox" value="Master ensuite" /> ${T("rp_am_ensuite")}</label>
+            <label><input type="checkbox" value="Fitted kitchen" /> ${T("rp_am_kitchen")}</label>
+            <label><input type="checkbox" value="Ceiling" /> ${T("rp_am_ceiling")}</label>
           </div>
         </div>
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpFrom">Move in from <small>(optional)</small></label>
+            <label for="rpFrom">${T("rp_from_label")} <small>${T("rp_optional")}</small></label>
             <input id="rpFrom" type="date" />
           </div>
           <div class="rp-row">
-            <label for="rpWhen">Need it by <small>(deadline)</small></label>
+            <label for="rpWhen">${T("rp_by_label")} <small>${T("rp_deadline")}</small></label>
             <input id="rpWhen" type="date" />
           </div>
         </div>
 
         <div class="rp-row">
-          <label for="rpElse">Anything else / what to avoid <small>(optional)</small></label>
-          <textarea id="rpElse" rows="2" maxlength="300" placeholder="e.g. not on a main road, ground floor only, near a school…"></textarea>
+          <label for="rpElse">${T("rp_else_label")} <small>${T("rp_optional")}</small></label>
+          <textarea id="rpElse" rows="2" maxlength="300" placeholder="${T("rp_else_ph")}"></textarea>
         </div>
 
         <div class="rp-2">
           <div class="rp-row">
-            <label for="rpPhone">Your phone <small>(so an agent can call)</small></label>
+            <label for="rpPhone">${T("rp_phone_label")} <small>${T("rp_phone_small")}</small></label>
             <input id="rpPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07XX XXX XXX" />
           </div>
           <div class="rp-row">
-            <label for="rpName">Your name <small>(optional)</small></label>
+            <label for="rpName">${T("rp_name_label")} <small>${T("rp_optional")}</small></label>
             <input id="rpName" type="text" maxlength="60" autocomplete="name" placeholder="e.g. Asha" />
           </div>
         </div>
 
         <div id="rpMsg" class="rp-msg" role="status"></div>
-        <button id="rpGo" class="rp-go" type="button">Send my request</button>
+        <button id="rpGo" class="rp-go" type="button">${T("rp_send")}</button>
         <div class="rp-foot">
-          <button id="rpMine" class="rp-link rp-strong" type="button">My requests</button>
-          <button id="rpCancel" class="rp-link" type="button">Cancel</button>
+          <button id="rpMine" class="rp-link rp-strong" type="button">${T("rp_my")}</button>
+          <button id="rpCancel" class="rp-link" type="button">${T("rp_cancel")}</button>
         </div>
       </div>`;
     document.body.appendChild(back);
@@ -453,8 +457,8 @@
 
     // ---- use my location → set region + district + point ----
     locEl.addEventListener("click", async () => {
-      if (!window.pawaLocate || !window.pawaLocate.supported()) { setMsg("Location isn't available on this device — pick your region instead."); return; }
-      locEl.disabled = true; locEl.textContent = "Locating…"; setMsg("Getting your location…", true);
+      if (!window.pawaLocate || !window.pawaLocate.supported()) { setMsg(T("rp_loc_unavail")); return; }
+      locEl.disabled = true; locEl.textContent = T("rp_locating"); setMsg(T("rp_loc_getting"), true);
       try {
         const fix = await window.pawaLocate.best({ maxWaitMs: 9000 });
         gpsPoint = { lat: fix.lat, lng: fix.lng };
@@ -470,11 +474,11 @@
         }
         if (reg) { await fillRegions(regionEl, reg); }
         if (label && !whereEl.value.trim()) whereEl.value = label;
-        setMsg(reg ? `Location found — region set to ${reg}.` : "Location found — please confirm your region.", true);
+        setMsg(reg ? `${T("rp_loc_found_set")} ${reg}.` : T("rp_loc_found_confirm"), true);
       } catch (e) {
-        setMsg((window.pawaLocate && window.pawaLocate.message) ? window.pawaLocate.message(e) : "Couldn't get your location — pick your region instead.");
+        setMsg((window.pawaLocate && window.pawaLocate.message) ? window.pawaLocate.message(e) : T("rp_loc_fail"));
       } finally {
-        locEl.disabled = false; locEl.textContent = "📍 Use my location to set this";
+        locEl.disabled = false; locEl.textContent = "📍 " + T("rp_use_loc");
       }
     });
 
@@ -515,14 +519,14 @@
       const text = simplifyArea(whereEl.value);
       const phone = $("#rpPhone").value.trim();
       const digits = phone.replace(/\D/g, "");
-      if (!region) { setMsg("Choose your region (or tap “Use my location”)."); regionEl.focus(); return; }
-      if (digits.length < 9) { setMsg("Enter a phone number so an agent can reach you."); $("#rpPhone").focus(); return; }
+      if (!region) { setMsg(T("rp_need_region")); regionEl.focus(); return; }
+      if (digits.length < 9) { setMsg(T("rp_need_phone")); $("#rpPhone").focus(); return; }
 
-      goEl.disabled = true; goEl.textContent = "Sending…"; setMsg("");
+      goEl.disabled = true; goEl.textContent = T("rp_sending"); setMsg("");
       try {
         const place = await resolveTarget({ region, text, gps: gpsPoint, district: gpsDistrict });
         if (place.lat == null || place.lng == null) {
-          setMsg("Couldn't place that — tap “Use my location”, or type a nearby town."); goEl.disabled = false; goEl.textContent = "Send my request"; return;
+          setMsg(T("rp_no_place")); goEl.disabled = false; goEl.textContent = T("rp_send"); return;
         }
 
         const typeVal = ($("#rpType").value || "").trim().toLowerCase().slice(0, 40);
@@ -563,19 +567,25 @@
           phone: pin.phone, lat: pin.lat, lng: pin.lng, at: Date.now() });
         writeMine(mine);
 
-        const regionStr = esc(pin.region);
+        const whatTxt = pin.listing === "sale" ? T("rp_what_buy") : T("rp_what_rent");
+        const byTxt = pin.needed_by ? " " + T("rp_by_word") + ` <strong>${esc(pin.needed_by)}</strong>` : "";
+        const body = T("rp_sent_body")
+          .replace("{region}", `<strong>${esc(pin.region)}</strong>`)
+          .replace("{what}", whatTxt)
+          .replace("{area}", `<strong>${esc(pin.area)}</strong>`)
+          .replace("{by}", byTxt);
         $(".rp-card").innerHTML = `<div class="rp-done">
           <div class="rp-tick">✓</div>
-          <h3>Request sent</h3>
-          <p>Agents working in <strong>${regionStr}</strong> can now see that you want a place ${pin.listing === "sale" ? "to buy" : "to rent"} in <strong>${esc(pin.area)}</strong>${pin.needed_by ? ` by <strong>${esc(pin.needed_by)}</strong>` : ""}. They'll call you on the number you gave when something matches.</p>
-          <button class="rp-go" type="button" id="rpDone">Done</button>
-          <div class="rp-foot"><button class="rp-link rp-strong" type="button" id="rpToMine">My requests</button></div>
+          <h3>${T("rp_sent_title")}</h3>
+          <p>${body}</p>
+          <button class="rp-go" type="button" id="rpDone">${T("rp_done")}</button>
+          <div class="rp-foot"><button class="rp-link rp-strong" type="button" id="rpToMine">${T("rp_my")}</button></div>
         </div>`;
         $("#rpDone").addEventListener("click", () => close(back));
         $("#rpToMine").addEventListener("click", () => { close(back); openMine(); });
       } catch (err) {
-        setMsg((err && err.message) || "Couldn't send your request — please try again.");
-        goEl.disabled = false; goEl.textContent = "Send my request";
+        setMsg((err && err.message) || T("rp_send_fail"));
+        goEl.disabled = false; goEl.textContent = T("rp_send");
       }
     });
 
@@ -614,17 +624,17 @@
   }
 
   function mineRowHtml(r) {
-    const bits = [r.listing === "sale" ? "buying" : "renting"];
+    const bits = [r.listing === "sale" ? T("rp_bit_buying") : T("rp_bit_renting")];
     if (r.type) bits.push(esc(r.type));
     if (r.max_budget_tzs) bits.push("≤ " + fmtTzs(r.max_budget_tzs) + " TZS");
-    if (r.needed_by) bits.push("by " + esc(String(r.needed_by).slice(0, 10)));
-    if (r.active === false) bits.push("closed");
+    if (r.needed_by) bits.push(T("rp_by_word") + " " + esc(String(r.needed_by).slice(0, 10)));
+    if (r.active === false) bits.push(T("rp_bit_closed"));
     return `<li data-id="${esc(r.id)}">
       <div>
-        <div class="rp-mine-where">${esc(r.area || r.region || "Your request")}</div>
+        <div class="rp-mine-where">${esc(r.area || r.region || T("rp_your_request"))}</div>
         <div class="rp-mine-sub">${esc(r.region || "")}${r.region ? " · " : ""}${bits.join(" · ")}</div>
       </div>
-      <button class="rp-rm" type="button" data-id="${esc(r.id)}" data-phone="${esc(r.phone || "")}">Remove</button>
+      <button class="rp-rm" type="button" data-id="${esc(r.id)}" data-phone="${esc(r.phone || "")}">${T("rp_remove")}</button>
     </li>`;
   }
 
@@ -636,11 +646,11 @@
     back.setAttribute("aria-modal", "true");
     back.innerHTML = `
       <div class="rp-card">
-        <h2>My requests</h2>
-        <p class="rp-lead">Requests you've sent. Remove one once you've found a place — agents will stop seeing it.</p>
-        <div id="rpMineBody"><p class="rp-empty">Loading…</p></div>
-        <button class="rp-go" type="button" id="rpNew">+ New request</button>
-        <div class="rp-foot"><button class="rp-link" type="button" id="rpMineClose">Close</button></div>
+        <h2>${T("rp_my")}</h2>
+        <p class="rp-lead">${T("rp_my_lead")}</p>
+        <div id="rpMineBody"><p class="rp-empty">${T("rp_loading")}</p></div>
+        <button class="rp-go" type="button" id="rpNew">${T("rp_new")}</button>
+        <div class="rp-foot"><button class="rp-link" type="button" id="rpMineClose">${T("rp_close")}</button></div>
       </div>`;
     document.body.appendChild(back);
 
@@ -651,16 +661,16 @@
 
     async function render() {
       const rows = await fetchMine();
-      if (!rows.length) { body.innerHTML = `<p class="rp-empty">You haven't sent any requests yet.</p>`; return; }
+      if (!rows.length) { body.innerHTML = `<p class="rp-empty">${T("rp_none")}</p>`; return; }
       body.innerHTML = `<ul class="rp-mine">${rows.map(mineRowHtml).join("")}</ul>`;
       body.querySelectorAll(".rp-rm").forEach((btn) => btn.addEventListener("click", async () => {
-        btn.disabled = true; btn.textContent = "Removing…";
+        btn.disabled = true; btn.textContent = T("rp_removing");
         try {
           await removeDemand(btn.dataset.id, btn.dataset.phone);
           const li = btn.closest("li"); if (li) li.remove();
-          if (!body.querySelector(".rp-mine li")) body.innerHTML = `<p class="rp-empty">You haven't sent any requests yet.</p>`;
+          if (!body.querySelector(".rp-mine li")) body.innerHTML = `<p class="rp-empty">${T("rp_none")}</p>`;
         } catch (_) {
-          btn.disabled = false; btn.textContent = "Remove";
+          btn.disabled = false; btn.textContent = T("rp_remove");
         }
       }));
     }
