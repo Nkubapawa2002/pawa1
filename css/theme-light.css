@@ -164,12 +164,16 @@
 :root[data-theme="light"] .ha-sec-head a { color: #0a7d57; }
 
 :root[data-theme="light"] .ha-card,
-:root[data-theme="light"] .ha-q {
+:root[data-theme="light"] .ha-q,
+:root[data-theme="light"] .ha-find-card {
   background: #ffffff; border-color: var(--c-border);
   box-shadow: 0 10px 26px rgba(20, 30, 25, 0.08);
 }
 :root[data-theme="light"] .ha-card-title,
-:root[data-theme="light"] .ha-q-label { color: var(--c-text); }
+:root[data-theme="light"] .ha-q-label,
+:root[data-theme="light"] .ha-find-t { color: var(--c-text); }
+:root[data-theme="light"] .ha-find-sub,
+:root[data-theme="light"] .ha-find-d { color: var(--c-text-muted); }
 :root[data-theme="light"] .ha-card .ha-muted,
 :root[data-theme="light"] .ha-specs,
 :root[data-theme="light"] .ha-card .ha-price small,

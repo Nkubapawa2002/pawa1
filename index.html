@@ -415,6 +415,20 @@
     .ha-q { background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 20px; padding: 13px 7px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; }
     .ha-q-ic { width: 46px; height: 46px; border-radius: 14px; background: rgba(46,230,166,.12); display: grid; place-items: center; }
     .ha-q-label { font-size: 11.5px; font-weight: 700; color: #EAF1EE; text-align: center; }
+    /* "Can't find it?" helper cards (request demand / area alert / scan nearby) */
+    .ha-find-head { margin-top: 22px; }
+    .ha-find-sub { font-size: 13px; color: #93a39d; margin: -4px 0 12px; line-height: 1.5; }
+    .ha-find { display: grid; gap: 11px; }
+    .ha-find-card { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 18px; padding: 14px; text-decoration: none; cursor: pointer; font: inherit; transition: transform .12s ease, border-color .12s ease; }
+    .ha-find-card:hover { border-color: rgba(46,230,166,.32); }
+    .ha-find-card:active { transform: scale(.99); }
+    .ha-find-ic { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; }
+    .ha-find-ic.ic-emerald { background: rgba(46,230,166,.12); }
+    .ha-find-ic.ic-violet { background: rgba(197,148,255,.14); }
+    .ha-find-ic.ic-gold { background: rgba(246,196,90,.14); }
+    .ha-find-tx { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .ha-find-t { font-size: 14.5px; font-weight: 800; color: #EAF1EE; }
+    .ha-find-d { font-size: 12px; color: #93a39d; line-height: 1.45; }
     .ha-feed { display: flex; flex-direction: column; gap: 14px; }
     .ha-card { background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 24px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,.28); text-decoration: none; display: block; }
     .ha-card-photo { position: relative; display: block; height: 178px; background: #0f1714; }
@@ -557,6 +571,39 @@
       <a class="ha-q" href="jobs.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8h16v11H4z" stroke="#FF9B5C" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 8V6.5A1.5 1.5 0 0110.5 5h3A1.5 1.5 0 0115 6.5V8" stroke="#FF9B5C" stroke-width="1.7"/></svg></span><span class="ha-q-label" data-i18n="quick_jobs">Day jobs</span></a>
     </div>
 
+    <!-- "Can't find it?" helpers — surfaced right under the quick grid so a
+         seeker who doesn't see what they want can pull it to them: raise a typed
+         demand request, watch an area for new rooms, or scan everything nearby
+         by name. The first opens the shared request modal in place; the other
+         two deep-link into the pages that already own those engines. -->
+    <div class="ha-sec-head ha-find-head">
+      <h2 data-i18n="home_find_title">Can't find it yet?</h2>
+    </div>
+    <p class="ha-find-sub" data-i18n="home_find_sub">Pull it to you - tell agents what you want, watch an area for new rooms, or scan everything near you by name.</p>
+    <div class="ha-find">
+      <button type="button" class="ha-find-card" id="haRequestBtn">
+        <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+        <span class="ha-find-tx">
+          <span class="ha-find-t" data-i18n="home_find_request">Tell us what you want</span>
+          <span class="ha-find-d" data-i18n="home_find_request_d">Say where, your budget and when - every agent there sees it and calls you.</span>
+        </span>
+      </button>
+      <a class="ha-find-card" href="houses.html?alert=1">
+        <span class="ha-find-ic ic-violet" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#C594FF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#C594FF" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+        <span class="ha-find-tx">
+          <span class="ha-find-t" data-i18n="home_find_alert">Alert me about an area</span>
+          <span class="ha-find-d" data-i18n="home_find_alert_d">Draw or pick an area and get a ping the moment a room is listed there.</span>
+        </span>
+      </a>
+      <a class="ha-find-card" href="area.html">
+        <span class="ha-find-ic ic-gold" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#F6C45A" stroke-width="1.7"/><path d="M21 21l-4.3-4.3" stroke="#F6C45A" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+        <span class="ha-find-tx">
+          <span class="ha-find-t" data-i18n="home_find_scan">Scan areas and services near you</span>
+          <span class="ha-find-d" data-i18n="home_find_scan_d">Browse every important area, home and service nearby, listed by name.</span>
+        </span>
+      </a>
+    </div>
+
     <!-- earn band — surfaced high (above the long feed) so agents can list
          their house/service without scrolling past every nearby listing -->
     <div class="ha-earn">
@@ -662,6 +709,16 @@
   <script src="js/data.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/nav.js"></script>
+  <script src="js/request-place.js"></script>
+  <script>
+    // "Tell us what you want" opens the shared request modal right here (no map,
+    // no page change). The other two helper cards are plain links. Scripts run at
+    // end of <body>, so the button already exists in the DOM.
+    document.getElementById("haRequestBtn")?.addEventListener("click", () => {
+      if (window.pawaRequestPlace) window.pawaRequestPlace.open();
+      else location.href = "houses.html?request=1";
+    });
+  </script>
   <script>
     // Pure app-shell: the in-app header + bottom tab bar (js/app-shell.js)
     // replace the desktop top nav + footer here.

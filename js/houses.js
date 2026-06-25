@@ -439,6 +439,16 @@ window.initHousesPage = async () => {
 
     // Live realtime — fires instantly while page is open.
     setupRealtimeAlerts();
+
+    // Deep links from the home page helper cards: open the feature on arrival.
+    //   houses.html?alert=1   -> area-alert modal
+    //   houses.html?request=1 -> typed "tell us what you want" modal
+    // Deferred to the next tick: setupGeoAlerts() runs during init, before the
+    // module-level `let`s the modal reads (alertPicked etc.) are initialized, so
+    // opening synchronously here would hit a temporal-dead-zone error.
+    const dl = new URLSearchParams(location.search);
+    if (dl.get("alert") === "1") setTimeout(() => openAlertModal(), 0);
+    else if (dl.get("request") === "1" && window.pawaRequestPlace) setTimeout(() => window.pawaRequestPlace.open(), 0);
   }
 
   // Human summary of an alert's criteria, e.g. "rent · apartment · 2+ beds · ≤300k".
