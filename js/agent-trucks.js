@@ -155,6 +155,7 @@ create policy "truck-photos upload" on storage.objects for insert
       await loadMyTrucks();
       checkSubscription();
       window.renderAgentClientTip?.({ mount: dashboard, id: "atClientTip", kind: "trucks" });
+      window.renderFrameScout?.({ mount: dashboard, id: "atFrameScout", kind: "trucks" });
       window.renderAgentMessages?.({ sb, mount: dashboard });
       window.AgentDemandBoard?.load({ sb, agentProfile, mount: dashboard, kind: "trucks" });
     } else {

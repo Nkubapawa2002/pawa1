@@ -141,6 +141,7 @@ create policy "service-photos upload" on storage.objects for insert
       await loadMyServices();
       checkSubscription();
       window.renderAgentClientTip?.({ mount: dashboard, id: "asClientTip", kind: "services" });
+      window.renderFrameScout?.({ mount: dashboard, id: "asFrameScout", kind: "services" });
       window.renderAgentMessages?.({ sb, mount: dashboard });
       window.AgentDemandBoard?.load({ sb, agentProfile, mount: dashboard, kind: "services" });
     } else {

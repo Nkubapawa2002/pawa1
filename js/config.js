@@ -584,6 +584,56 @@ window.renderAgentClientTip = (opts) => {
 };
 
 // =====================================================
+// Agent awareness — "scout the Frame before you list"
+// =====================================================
+// One agent owns one Frame. Before listing, an agent should read the area as a
+// room for business: the magnets that gather people, the roads/nodes that carry
+// them, the daily rhythm, and where demand beats supply. This card surfaces the
+// Frame tool at the listing moment. Dismissible; re-appears after RESHOW_DAYS.
+//   opts: { mount, id?, kind?: "houses"|"services"|"trucks" }
+window.renderFrameScout = (opts) => {
+  opts = opts || {};
+  const mount = opts.mount;
+  if (!mount) return;
+  const id = opts.id || "agentFrameScout";
+  const kind = opts.kind || "houses";
+  const RESHOW_DAYS = 21;
+  const KEY = "pawa.frameScout.dismissedAt." + kind;
+
+  try {
+    const at = +localStorage.getItem(KEY) || 0;
+    if (at && (Date.now() - at) < RESHOW_DAYS * 86400000) { document.getElementById(id)?.remove(); return; }
+  } catch (_) {}
+  if (document.getElementById(id)) return;
+
+  const lead = kind === "trucks" ? "moving routes" : kind === "services" ? "service" : "rooms";
+  const el = document.createElement("div");
+  el.id = id;
+  el.style.cssText = "margin:0 0 16px;border:1px solid #c9bdf0;border-radius:14px;overflow:hidden;" +
+    "background:linear-gradient(135deg,#f4f1ff,#ffffff);box-shadow:0 1px 3px rgba(0,0,0,.05);";
+  el.innerHTML =
+    '<div style="display:flex;gap:12px;padding:14px 16px;align-items:flex-start;font-family:inherit;">' +
+      '<div aria-hidden="true" style="flex-shrink:0;width:34px;height:34px;border-radius:10px;background:rgba(99,60,214,.12);display:grid;place-items:center;">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5326c0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>' +
+      '</div>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-weight:800;color:#3f2aa0;font-size:1rem;margin:0 0 3px;">Scout the area first - read its Frame</div>' +
+        '<p style="margin:0 0 8px;font-size:.88rem;line-height:1.5;color:#4a4368;">A Frame reads any area as a <strong>room for business</strong>: who gathers there, the roads and nodes that carry them, the daily rhythm, and where demand beats supply. Pick the right Frame for your ' + lead + ', then own it.</p>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<a href="frame.html" style="background:#5326c0;color:#fff;border:0;border-radius:9px;padding:8px 16px;font-weight:700;font-size:.85rem;text-decoration:none;">Open the Frame</a>' +
+          '<button type="button" id="' + id + 'Dismiss" style="background:transparent;color:#5326c0;border:1px solid #c9bdf0;border-radius:9px;padding:8px 14px;font-weight:600;font-size:.85rem;cursor:pointer;">Maybe later</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  mount.insertBefore(el, mount.firstChild);
+  document.getElementById(id + "Dismiss")?.addEventListener("click", () => {
+    try { localStorage.setItem(KEY, String(Date.now())); } catch (_) {}
+    el.remove();
+  });
+};
+
+// =====================================================
 // SMS fallback — reach phone-only / offline agents
 // =====================================================
 // Best-effort: POSTs to the send-sms Edge Function (which holds the Africa's

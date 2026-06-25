@@ -455,6 +455,18 @@
     .ha-earn-btns { position: relative; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
     .ha-earn-btns a { background: #fff; color: #0E5C45; border: 0; padding: 11px 19px; border-radius: 13px; font-weight: 800; font-size: 13.5px; text-decoration: none; }
     .ha-earn-btns a.ghost { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); }
+    /* Frame band — the strategic "read an area as a room for business" lens */
+    .ha-frame { position: relative; overflow: hidden; border-radius: 24px; padding: 22px; margin-top: 22px; background: linear-gradient(135deg, #2A1E5C 0%, #4326A6 55%, #6D3BD6 100%); }
+    .ha-frame::after { content: ""; position: absolute; right: -40px; top: -40px; width: 170px; height: 170px; border-radius: 50%; background: rgba(246,196,90,.16); }
+    .ha-frame-k { position: relative; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.74); }
+    .ha-frame-t { position: relative; font-size: 20px; font-weight: 800; color: #fff; margin-top: 7px; max-width: 300px; line-height: 1.28; }
+    .ha-frame-s { position: relative; font-size: 13px; color: rgba(255,255,255,.84); margin-top: 7px; max-width: 330px; line-height: 1.5; }
+    .ha-frame-pts { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 14px 0 4px; }
+    .ha-frame-pt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: #EAE7FB; }
+    .ha-frame-pt .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+    .ha-frame-btns { position: relative; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .ha-frame-btns a { background: #fff; color: #3320A0; border: 0; padding: 11px 20px; border-radius: 13px; font-weight: 800; font-size: 13.5px; text-decoration: none; }
+    .ha-frame-btns a.ghost { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
@@ -602,6 +614,24 @@
           <span class="ha-find-d" data-i18n="home_find_scan_d">Browse every important area, home and service nearby, listed by name.</span>
         </span>
       </a>
+    </div>
+
+    <!-- Frame band — the strategic lens: read any area as a "room for business"
+         BEFORE listing. Placed just above the earn/list band so the funnel reads
+         "understand the area -> then list in it". -->
+    <div class="ha-frame">
+      <div class="ha-frame-k" data-i18n="home_frame_kicker">The Frame</div>
+      <div class="ha-frame-t" data-i18n="home_frame_title">Read any area as a room for business</div>
+      <div class="ha-frame-s" data-i18n="home_frame_sub">Before you rent, list or open a service, see what makes a place work - who gathers there, the roads that carry them, and where demand beats supply.</div>
+      <div class="ha-frame-pts">
+        <div class="ha-frame-pt"><span class="dot" style="background:#2EE6A6"></span><span data-i18n="home_frame_p1">Magnets that gather people</span></div>
+        <div class="ha-frame-pt"><span class="dot" style="background:#F6C45A"></span><span data-i18n="home_frame_p2">Roads and nodes that carry them</span></div>
+        <div class="ha-frame-pt"><span class="dot" style="background:#C594FF"></span><span data-i18n="home_frame_p3">The daily life of the place</span></div>
+        <div class="ha-frame-pt"><span class="dot" style="background:#FF9B5C"></span><span data-i18n="home_frame_p4">Where demand beats supply</span></div>
+      </div>
+      <div class="ha-frame-btns">
+        <a href="frame.html" data-i18n="home_frame_cta">Open the Frame</a>
+      </div>
     </div>
 
     <!-- earn band — surfaced high (above the long feed) so agents can list

@@ -372,6 +372,7 @@ create policy "house-photos upload" on storage.objects for insert
       checkSubscription();
       loadWaitingNearMe();   // proactive demand board (renters waiting near them)
       window.renderAgentClientTip?.({ mount: dashboard, id: "ahClientTip", kind: "houses" });
+      window.renderFrameScout?.({ mount: dashboard, id: "ahFrameScout", kind: "houses" });
       window.renderAgentMessages?.({ sb, mount: dashboard });   // admin → agent inbox
     } else {
       authCard.hidden = false;
