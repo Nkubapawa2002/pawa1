@@ -2438,13 +2438,20 @@ create policy "house-photos upload" on storage.objects for insert
         if (!r.ok) continue;
         const blob = await r.blob();
         if (!blob || !blob.size) continue;
-        // "applied" → server remuxed it; result is MP4, so rename to match
-        // (e.g. an iPhone .mov becomes .mp4). "passthrough" → already faststart.
-        if (r.headers.get("X-Faststart") === "applied") {
-          const name = (file.name || "video").replace(/\.[^.]+$/, "") + ".mp4";
-          return new File([blob], name, { type: "video/mp4" });
-        }
-        return file; // already faststart — nothing to do
+        // Trust the returned BYTES, not the X-Faststart header. That custom
+        // header is hidden by CORS on the cross-origin response (github.io →
+        // onrender) unless the server adds Access-Control-Expose-Headers, so it
+        // read back as null and we used to discard the remuxed clip and upload
+        // the stuttering original. Content-Type IS CORS-safelisted, so blob.type
+        // is always readable: the server stamps "video/mp4" when it remuxed and
+        // echoes the original type on passthrough. Rename .mov/.webm → .mp4 only
+        // when the bytes actually became MP4.
+        const becameMp4 = (blob.type || "").includes("mp4") &&
+                          !(file.type || "").includes("mp4");
+        const name = becameMp4
+          ? (file.name || "video").replace(/\.[^.]+$/, "") + ".mp4"
+          : (file.name || "video.mp4");
+        return new File([blob], name, { type: blob.type || file.type || "video/mp4" });
       } catch (_) { /* timeout / network — retry once */ }
     }
     _videoOptimizeFailures++;
