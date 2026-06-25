@@ -312,6 +312,15 @@ function render(h) {
       </div>
     </div>
 
+    <!-- What's nearby: an at-a-glance readout of the services around THIS room
+         (schools, hospitals, markets, transport...) so a seeker understands the
+         neighbourhood, not just the four walls. Auto-loaded; hidden until ready. -->
+    <div class="hd-card hd-nearby-card" id="hdNearbyCard" hidden>
+      <h3>What's nearby</h3>
+      <p class="hd-nearby-sub">Important places around this home - schools, hospitals, markets and transport.</p>
+      <div id="hdNearbyList" class="hd-nearby-list"></div>
+    </div>
+
     <div class="hd-card">
       <h3>Listing agent</h3>
       <div class="hd-agent">
@@ -483,6 +492,10 @@ function render(h) {
 
     // Nearby amenities overlay (schools, hospitals, markets, transport)
     attachNearbyOverlay(map, h.lat, h.lng);
+
+    // Readable "What's nearby" summary — auto-loads so the buyer instantly sees
+    // the surrounding services without having to tap the map chips.
+    renderNearbySummary(h.lat, h.lng);
 
     // Commute tool: measure the distance from this home to the user's workplace.
     attachCommuteTool(map, h.lat, h.lng);
@@ -705,6 +718,124 @@ function poiLabel(el, catMeta) {
   if (kind) { const s = String(kind).replace(/_/g, " "); return s.charAt(0).toUpperCase() + s.slice(1); }
   return catMeta.label;
 }
+
+// ============================================================================
+// "What's nearby" summary — an at-a-glance, auto-loaded readout of the services
+// around THIS room (schools, hospitals, markets, transport...), so a seeker
+// understands the neighbourhood, not just the listing. ONE combined Overpass
+// query (not one per category), cached 24h. Distances are straight-line and
+// clearly marked "~"; the map markers give the exact road distance on tap.
+// ============================================================================
+const SUMMARY_RADIUS_M = 1500;
+const NEARBY_SUMMARY_GROUPS = [
+  { key: "school",    label: "Schools",             color: "#1e40af", match: t => /^(school|kindergarten|college|university)$/.test(t.amenity || "") },
+  { key: "hospital",  label: "Hospitals & clinics", color: "#b91c1c", match: t => /^(hospital|clinic|doctors|pharmacy)$/.test(t.amenity || "") },
+  { key: "market",    label: "Markets & shops",     color: "#bc5c00", match: t => t.amenity === "marketplace" || /^(supermarket|convenience|mall)$/.test(t.shop || "") },
+  { key: "transport", label: "Transport",           color: "#6b3aa3", match: t => t.highway === "bus_stop" || /^(bus_station|taxi)$/.test(t.amenity || "") || t.railway === "station" || !!t.public_transport },
+  { key: "bank",      label: "Banks & ATMs",        color: "#0d8050", match: t => /^(bank|atm|bureau_de_change)$/.test(t.amenity || "") },
+  { key: "worship",   label: "Mosques & churches",  color: "#7c3aed", match: t => t.amenity === "place_of_worship" },
+];
+
+async function renderNearbySummary(lat, lng) {
+  const card = document.getElementById("hdNearbyCard");
+  const list = document.getElementById("hdNearbyList");
+  if (!card || !list || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  card.hidden = false;
+  list.innerHTML = `<p class="hd-nearby-msg">Scanning the area around this home…</p>`;
+
+  let els;
+  try { els = await fetchNearbySummary(lat, lng); }
+  catch (_) { list.innerHTML = `<p class="hd-nearby-msg">Couldn't load nearby places right now — the map below still shows where it is.</p>`; return; }
+
+  const groups = NEARBY_SUMMARY_GROUPS.map(g => {
+    const seen = new Set();
+    const items = [];
+    for (const el of els) {
+      if (!g.match(el.tags || {})) continue;
+      const p = el.center || { lat: el.lat, lon: el.lon };
+      if (p.lat == null || p.lon == null) continue;
+      const name = poiLabel(el, g);
+      const k = name.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      items.push({ name, dist: haversineMetersHd(lat, lng, p.lat, p.lon) });
+    }
+    items.sort((a, b) => a.dist - b.dist);
+    return { label: g.label, color: g.color, count: items.length, top: items.slice(0, 3) };
+  }).filter(g => g.count > 0);
+
+  if (!groups.length) {
+    list.innerHTML = `<p class="hd-nearby-msg">No tagged services found within ${SUMMARY_RADIUS_M / 1000} km on OpenStreetMap. The map below still shows where it is.</p>`;
+    return;
+  }
+  list.innerHTML = groups.map(g => `
+    <div class="hd-nearby-cat">
+      <div class="hd-nearby-cat-head">
+        <span class="hd-nearby-dot" style="background:${g.color}"></span>
+        <strong>${esc(g.label)}</strong>
+        <span class="hd-nearby-count">${g.count}</span>
+      </div>
+      <ul class="hd-nearby-items">
+        ${g.top.map(it => `<li>
+          <span class="hd-nearby-name">${esc(it.name)}</span>
+          <span class="hd-nearby-dist">~${fmtMetersHd(it.dist)}</span>
+        </li>`).join("")}
+      </ul>
+    </div>`).join("");
+}
+
+async function fetchNearbySummary(lat, lng) {
+  const R = SUMMARY_RADIUS_M;
+  const cacheKey = `pawa_nearby_sum_${lat.toFixed(3)}_${lng.toFixed(3)}_${R}`;
+  try {
+    const c = JSON.parse(localStorage.getItem(cacheKey) || "null");
+    if (c && (Date.now() - c.at) < POI_CACHE_TTL_MS) return c.data;
+  } catch (_) {}
+
+  const q = `[out:json][timeout:25];(` +
+    `node["amenity"~"^(school|kindergarten|college|university|hospital|clinic|doctors|pharmacy|marketplace|bank|atm|bureau_de_change|place_of_worship|bus_station|taxi)$"](around:${R},${lat},${lng});` +
+    `node["shop"~"^(supermarket|convenience|mall)$"](around:${R},${lat},${lng});` +
+    `node["highway"="bus_stop"](around:${R},${lat},${lng});` +
+    `node["railway"="station"](around:${R},${lat},${lng});` +
+    `node["public_transport"](around:${R},${lat},${lng});` +
+    `);out body 150;`;
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+  ];
+  let lastErr;
+  for (const url of endpoints) {
+    // fetch() has no native timeout — abort after 18s so a busy/hung Overpass
+    // mirror can't leave the card stuck on "Scanning…"; we fall through to the
+    // next mirror, then to the graceful failure message.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 18000);
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "data=" + encodeURIComponent(q),
+        signal: ac.signal,
+      });
+      if (!r.ok) throw new Error("Overpass HTTP " + r.status);
+      const j = await r.json();
+      const els = (j.elements || []).filter(e => e.tags);
+      try { localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data: els })); } catch (_) {}
+      return els;
+    } catch (e) { lastErr = e; }
+    finally { clearTimeout(timer); }
+  }
+  throw lastErr || new Error("Overpass unreachable");
+}
+
+function haversineMetersHd(lat1, lng1, lat2, lng2) {
+  const R = 6371000, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(a)));
+}
+function fmtMetersHd(m) { return m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`; }
 
 // ============================================================================
 // Commute tool — "how far is this home from my workplace / daily route?"

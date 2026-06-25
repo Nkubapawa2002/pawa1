@@ -237,6 +237,20 @@
     /* Map */
     .hd-map { position: relative; height: 320px; border-radius: 12px; overflow: hidden; border: 1px solid var(--c-border, #e7e4dd); }
 
+    /* "What's nearby" summary card (auto-loaded services around the room) */
+    .hd-nearby-sub { color: var(--c-text-muted, #6b6960); font-size: .9rem; margin: -2px 0 4px; }
+    .hd-nearby-list { display: grid; gap: 10px; margin-top: 10px; }
+    .hd-nearby-msg { color: var(--c-text-muted, #6b6960); font-size: .9rem; margin: 8px 0 2px; }
+    .hd-nearby-cat { border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; padding: 10px 12px; background: var(--c-surface, #fff); }
+    .hd-nearby-cat-head { display: flex; align-items: center; gap: 8px; }
+    .hd-nearby-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+    .hd-nearby-count { margin-left: auto; font-size: .78rem; font-weight: 700; color: var(--c-text-muted, #6b6960); background: var(--c-surface-2, #f3f1ec); border-radius: 999px; padding: 1px 9px; }
+    .hd-nearby-items { list-style: none; margin: 7px 0 0; padding: 0; }
+    .hd-nearby-items li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: .88rem; border-top: 1px solid var(--c-border, #eee); }
+    .hd-nearby-items li:first-child { border-top: 0; }
+    .hd-nearby-name { color: var(--c-text, #1a1a1a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hd-nearby-dist { color: var(--c-text-muted, #6b6960); white-space: nowrap; }
+
     /* Nearby-amenity toggle chips (overlaid on map). 10+ categories so we
        scroll horizontally instead of wrapping over half the map. */
     .hd-poi-toolbar {
