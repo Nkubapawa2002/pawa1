@@ -47,7 +47,7 @@ async function checkFaststart(path) {
   if (moovHead !== -1 && (mdatHead === -1 || moovHead < mdatHead)) {
     return { state: "faststart", size: head.total };
   }
-  // moov not seen before mdat in the head → almost certainly moov-at-end.
+  // moov not seen before mdat in the head -> almost certainly moov-at-end.
   return { state: "needs-remux", size: head.total };
 }
 
@@ -88,4 +88,4 @@ for (const it of items) {
   else { err++; console.log(`  [err ${r.status}]        ${it.path}`); }
 }
 console.log(`\nSummary: faststart=${ok}  needs-remux=${bad}  unreachable=${err}`);
-if (bad > 0) console.log(`\n→ ${bad} clip(s) will stutter. Run the backfill to fix them.`);
+if (bad > 0) console.log(`\n-> ${bad} clip(s) will stutter. Run the backfill to fix them.`);
