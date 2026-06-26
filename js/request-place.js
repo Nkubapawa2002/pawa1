@@ -198,12 +198,48 @@
     try { localStorage.setItem(MINE_KEY, JSON.stringify(arr)); } catch (_) {}
   }
 
-  // Insert the demand pin, stripping any column the live schema lacks (region /
-  // district / needed_by on older DBs) so it always saves; falls back to
-  // localStorage with no backend.
+  // Persist the demand pin. Preferred path is the SECURITY DEFINER RPC
+  // house_demand_create() — it stamps ownership from app_uid() (signed-in user
+  // owns it; anonymous => user_id NULL, still removable by id+phone) and lets a
+  // signed-out seeker create a demand even under the new `sb_publishable_` API
+  // key, which the `hdp insert` RLS policy rejects for a direct anon insert
+  // (42501). See supabase/house_demand_create.sql. Falls back to the legacy
+  // column-stripping insert only when that RPC isn't deployed yet.
   async function saveDemand(pin) {
     const sb = window.DataStore && window.DataStore.sb;
     if (!sb) return;   // local-only echo handled by the caller
+
+    // Signature of "RPC not installed on this server" — distinct from a real
+    // validation/permission error raised inside the function (those re-throw).
+    const rpcMissing = (msg) => /PGRST202|Could not find the function|schema cache/i.test(msg || "");
+
+    try {
+      const { error } = await sb.rpc("house_demand_create", {
+        p_id:             pin.id,
+        p_lat:            pin.lat,
+        p_lng:            pin.lng,
+        p_phone:          pin.phone,
+        p_region:         pin.region || null,
+        p_area:           pin.area || null,
+        p_district:       pin.district || null,
+        p_radius_m:       pin.radius_m || 3000,
+        p_listing:        pin.listing || "rent",
+        p_type:           pin.type || null,
+        p_min_bedrooms:   pin.min_bedrooms || 0,
+        p_max_budget_tzs: pin.max_budget_tzs || 0,
+        p_name:           pin.name || null,
+        p_note:           pin.note || null,
+        p_needed_from:    pin.needed_from || null,
+        p_needed_by:      pin.needed_by || null
+      });
+      if (!error) return;
+      if (!rpcMissing(error.message)) throw error;   // real error → surface it
+    } catch (e) {
+      if (!rpcMissing(e.message)) throw e;
+    }
+
+    // ---- Fallback: RPC not installed. Direct insert, stripping any column the
+    // live schema lacks. Works for signed-in users under the existing RLS policy.
     try {
       const { data: { session } } = await sb.auth.getSession();
       pin.user_id = session && session.user ? session.user.id : null;
