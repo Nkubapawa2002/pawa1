@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maisha · Houses — Compact (iOS & Android)</title>
+
+<!--
+  ════════════════════════════════════════════════════════════════════════
+  MAISHA NA LIFEZA — COMPACT HOUSES SCREEN  (single self-contained file)
+  Vanilla JS + CSS. No build step, no dependencies (only Google Fonts CDN).
+  Drop into your PWA and wire to Supabase. All integration points are tagged
+  with  // WIRE:  below. Search the file for "WIRE" to find them all.
+
+  THREE THINGS TO WIRE (everything else just works):
+    1. loadHouses()  — replace the SAMPLE_HOUSES return with your sb.from('houses') query
+    2. normalize(row)— map your DB columns -> the card's fields (one place)
+    3. ACTIONS{}     — open(), save(), createAlert(), submitRequest(): call your real funcs
+
+  The screen reuses your existing element IDs where it can (smartSearchInput,
+  filterBeds, filterType, filterArea, filterPrice, hpSort, housesList,
+  hpSegCount*, hpBento*, houseNearMeBtn, houseAlertBtn …) so handlers map 1:1.
+  ════════════════════════════════════════════════════════════════════════
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+
+<style>
+  /* ── Brand tokens (Tanzania flag green + gold · Twilight dark app) ───────── */
+  :root{
+    --green:#0a6f4d; --green-i:#10b981; --green-bright:#34d399; --emerald:#2EE6A6;
+    --gold:#fcd116; --gold-bright:#ffe066; --gold-warm:#FFC24B;
+    --page:#07120d; --surface:#141A18; --surface-2:#1b2420; --surface-3:#222e29;
+    --text:#f0f5f2; --text-soft:#cdd8d2; --text-muted:#8a9c92; --text-faint:#65766c;
+    --hair:rgba(255,255,255,.07); --hair-2:rgba(255,255,255,.12);
+    --biz:#5b8bff; --biz-2:#3651d6;
+    --font:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--font); background:var(--page);
+    display:block; min-height:100%;
+    -webkit-font-smoothing:antialiased; padding:0;
+  }
+
+  /* ── App shell (real full-bleed page — phone-frame preview chrome removed) ─ */
+  .phone{
+    position:relative; width:100%; max-width:540px; height:100dvh; margin:0 auto;
+    overflow:hidden;
+    background:radial-gradient(120% 78% at 50% -8%, #13241D 0%, #0a120e 54%, #050806 100%);
+    color:var(--text);
+  }
+  @media(min-width:560px){ .phone{border-left:1px solid var(--hair);border-right:1px solid var(--hair)} }
+  .scr{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
+
+  /* status bar */
+  .statusbar{flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 26px;height:50px;font-weight:700;font-size:14px;position:relative;z-index:6}
+  body[data-os="android"] .statusbar{height:34px;font-size:13px;padding:0 18px;font-weight:600}
+  .statusbar .sb-r{display:flex;align-items:center;gap:6px}
+  .notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#000;border-radius:22px;z-index:7}
+  body[data-os="android"] .notch{width:13px;height:13px;border-radius:50%;top:11px;background:#000}
+  body[data-os="android"] .ios-only{display:none}
+  body[data-os="ios"] .android-only{display:none}
+
+  /* home indicator / gesture pill */
+  .homebar{position:absolute;left:0;right:0;bottom:0;height:30px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;pointer-events:none;z-index:8}
+  .homebar i{display:block;width:135px;height:5px;border-radius:99px;background:rgba(255,255,255,.6)}
+  body[data-os="android"] .homebar i{width:108px;height:4px;background:rgba(255,255,255,.5)}
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  .hdr{flex:none;padding:6px 13px 9px;background:linear-gradient(180deg,rgba(7,18,13,.94),rgba(7,18,13,.55));border-bottom:1px solid var(--hair);backdrop-filter:blur(12px)}
+  .loc{display:flex;align-items:center;gap:5px;background:none;border:0;padding:0;cursor:pointer;color:var(--text);font-family:inherit}
+  .loc .eyebrow{font-size:9px;color:var(--text-muted);font-weight:600}
+  .loc .city{font-size:13.5px;font-weight:800;letter-spacing:-.01em}
+  .top-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .pill-btn{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.05);border:1px solid var(--hair-2);border-radius:99px;padding:5px 9px;cursor:pointer;color:var(--text);font-weight:800;font-size:11px;font-family:inherit}
+  .avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--emerald),#13a679);display:grid;place-items:center;font-weight:800;color:#06170F;font-size:13px}
+
+  .search{display:flex;gap:8px;align-items:center}
+  .search .box{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid rgba(46,230,166,.22);border-radius:13px;padding:9px 11px;box-shadow:0 4px 16px rgba(0,0,0,.28)}
+  .search input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--text);font-size:13px;font-family:inherit;font-weight:500}
+  .search input::placeholder{color:var(--text-faint)}
+  .ai-tag{display:flex;align-items:center;gap:3px;flex:none;font-size:8.5px;font-weight:800;letter-spacing:.06em;color:var(--emerald);background:rgba(46,230,166,.12);padding:2px 6px;border-radius:6px}
+  .search .go{width:42px;height:42px;flex:none;border-radius:13px;background:var(--emerald);border:0;display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(46,230,166,.3)}
+
+  .xrow{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none}
+  .xrow::-webkit-scrollbar{display:none}
+  .crit-chip{flex:none;display:inline-flex;align-items:center;gap:4px;background:rgba(46,230,166,.13);color:var(--emerald);border:1px solid rgba(46,230,166,.28);font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:99px;white-space:nowrap}
+  .clear-chip{flex:none;background:rgba(255,255,255,.06);color:var(--text-muted);border:0;font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:99px;cursor:pointer;white-space:nowrap;font-family:inherit}
+  .ex-chip{flex:none;background:rgba(255,255,255,.055);color:var(--text-soft);border:1px solid var(--hair);font-size:10.5px;font-weight:600;padding:5px 10px;border-radius:99px;cursor:pointer;white-space:nowrap;font-family:inherit}
+  .try-lbl{flex:none;font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)}
+
+  /* segments */
+  .segctl{display:flex;gap:5px;margin-top:9px;background:rgba(255,255,255,.04);border:1px solid var(--hair);border-radius:13px;padding:4px}
+  .seg{flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px 4px;border:0;border-radius:10px;cursor:pointer;font-family:inherit;font-weight:800;font-size:11.5px;color:var(--text-muted);background:transparent;transition:.18s;white-space:nowrap}
+  .seg .c{font-size:9px;font-weight:800;background:rgba(255,255,255,.07);color:var(--text-muted);padding:1px 6px;border-radius:99px}
+  .seg.on{color:#06170F;background:linear-gradient(135deg,var(--emerald),#13a679);box-shadow:0 4px 12px rgba(46,230,166,.28)}
+  .seg.on .c{background:rgba(6,23,15,.28);color:inherit}
+  .seg.on.biz{color:#fff;background:linear-gradient(135deg,var(--biz),var(--biz-2));box-shadow:0 4px 12px rgba(91,139,255,.3)}
+  .seg.on.biz .c{background:rgba(255,255,255,.24);color:#fff}
+  .biz-refine{display:flex;align-items:center;gap:6px;margin-top:7px}
+  .biz-lbl{flex:none;font-size:10px;font-weight:700;color:var(--text-muted)}
+  .biz-chip{flex:none;border-radius:99px;padding:5px 12px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid var(--hair-2);color:var(--text-soft)}
+  .biz-chip.on{background:var(--biz-2);border-color:var(--biz-2);color:#fff}
+
+  /* ── Body ───────────────────────────────────────────────────────────────── */
+  .body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:11px 13px 18px;scrollbar-width:none}
+  .body::-webkit-scrollbar{display:none}
+
+  .tools{display:flex;gap:7px;overflow-x:auto;margin:0 -13px 12px;padding:0 13px;scrollbar-width:none}
+  .tools::-webkit-scrollbar{display:none}
+  .tool{flex:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;padding:9px 13px;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:700;font-size:11.5px;border:1px solid rgba(255,255,255,.09);background:var(--surface);color:var(--text-soft)}
+  .tool.on{font-weight:800;border-color:var(--emerald);background:rgba(46,230,166,.14);color:var(--emerald)}
+
+  .bento{display:grid;grid-template-columns:1.55fr 1fr 1fr;gap:8px;margin-bottom:12px}
+  .bento button{text-align:left;cursor:pointer;font-family:inherit;border-radius:16px;padding:11px 12px;display:flex;flex-direction:column;justify-content:space-between}
+  .bento .big{border:0;background:linear-gradient(135deg,var(--green) 0%,#064a33 100%);box-shadow:0 6px 18px rgba(10,111,77,.3)}
+  .bento .sm{border:1px solid var(--hair);background:var(--surface)}
+  .bento .lbl{font-size:8.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+  .bento .lbl2{font-size:9px;font-weight:700;color:var(--text-muted)}
+  .bento .num{font-family:var(--mono);font-weight:800;line-height:1;margin-top:8px}
+
+  .chips{display:flex;gap:6px;overflow-x:auto;margin:0 -13px 11px;padding:0 13px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid var(--hair-2);color:var(--text-soft)}
+  .chip.on{background:rgba(46,230,166,.13);border-color:rgba(46,230,166,.4);color:var(--emerald)}
+  .chip.primary{background:var(--emerald);color:#06170F;border:0;font-weight:800}
+  .chip.primary .badge{background:#06170F;color:var(--emerald);font-size:9px;border-radius:99px;padding:1px 5px;font-weight:800}
+
+  .resultbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+  .count{font-size:11.5px;font-weight:700;color:var(--text-soft)}
+  .rb-right{display:flex;align-items:center;gap:7px}
+  .sortbtn{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.05);border:1px solid var(--hair-2);border-radius:9px;padding:6px 9px;font-size:10.5px;font-weight:700;color:var(--text-soft);cursor:pointer;font-family:inherit}
+  .density{display:inline-flex;gap:2px;background:rgba(255,255,255,.05);border-radius:9px;padding:2px}
+  .density button{width:30px;height:26px;display:grid;place-items:center;border:0;border-radius:7px;cursor:pointer;background:transparent;color:var(--text-muted)}
+  .density button.on{background:var(--surface-3);color:var(--emerald)}
+
+  /* listing cards */
+  .list{display:flex;flex-direction:column;gap:8px}
+  .list.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:15px;overflow:hidden;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  .card.row{display:grid;grid-template-columns:104px 1fr}
+  .card .photo{position:relative;background:#0f1714 50%/cover no-repeat}
+  .card.row .photo{min-height:118px}
+  .card.tile .photo{height:116px}
+  .photo .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.06) 30%,rgba(4,10,8,.62))}
+  .badge{position:absolute;font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 6px;border-radius:99px;backdrop-filter:blur(6px);color:#fff}
+  .badge.listing{top:6px;left:6px;background:rgba(8,16,12,.66)}
+  .badge.listing.sale{background:rgba(176,127,12,.82)}
+  .badge.photos{bottom:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:8.5px;font-weight:700;background:rgba(8,14,12,.6)}
+  .badge.match{bottom:6px;left:6px;background:var(--emerald);color:#06170F}
+  .badge.new{bottom:6px;left:6px;background:var(--gold-warm);color:#3a2a00}
+  .heart{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:50%;background:rgba(8,14,12,.5);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.16);display:grid;place-items:center;cursor:pointer;padding:0}
+  .cbody{padding:8px 11px 9px;display:flex;flex-direction:column;gap:3px;min-width:0}
+  .price{font-family:var(--mono);font-size:14.5px;font-weight:700;color:var(--emerald);letter-spacing:-.3px;white-space:nowrap}
+  .punit{font-size:9.5px;color:var(--text-faint);font-weight:600}
+  .neg{font-size:8px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--gold-warm);background:rgba(255,194,75,.12);border:1px solid rgba(255,194,75,.3);padding:1px 5px;border-radius:5px}
+  .rating{display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:700;color:var(--gold-warm);white-space:nowrap}
+  .ctitle{font-size:12.5px;font-weight:700;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .specs{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:10.5px;font-weight:700;color:var(--text-soft)}
+  .specs .ic{display:inline-flex;align-items:center;gap:3px}
+  .roomtag{font-size:9px;font-weight:800;color:var(--emerald);background:rgba(46,230,166,.12);padding:2px 7px;border-radius:6px}
+  .loc-line{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--text-muted);min-width:0;font-weight:600}
+  .loc-line span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .commute{font-size:10px;color:var(--gold-warm);font-weight:700}
+  .amen{display:flex;align-items:center;gap:5px;overflow:hidden;margin-top:1px}
+  .amen .a{flex:none;font-size:9px;font-weight:700;color:var(--text-muted);background:rgba(255,255,255,.05);border:1px solid var(--hair);padding:2px 7px;border-radius:6px;white-space:nowrap}
+  .amen .posted{margin-left:auto;flex:none;font-size:9px;font-weight:600;color:var(--text-faint);white-space:nowrap}
+
+  /* floating map button */
+  .mapfab{position:absolute;left:50%;transform:translateX(-50%);bottom:78px;z-index:30;display:inline-flex;align-items:center;gap:6px;background:rgba(13,24,18,.86);backdrop-filter:blur(12px);border:1px solid rgba(46,230,166,.3);color:var(--emerald);border-radius:99px;padding:9px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+
+  /* tab bar */
+  .tabbar{flex:none;display:flex;align-items:center;justify-content:space-around;padding:7px 6px 22px;background:rgba(7,12,10,.94);backdrop-filter:blur(16px);border-top:1px solid var(--hair)}
+  body[data-os="android"] .tabbar{padding-bottom:18px}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text-faint);background:none;border:0;cursor:pointer;font-family:inherit}
+  .tab.on{color:var(--emerald)}
+  .tab span{font-size:9px;font-weight:600}
+  .tab.on span{font-weight:800}
+
+  /* ── Sheet ──────────────────────────────────────────────────────────────── */
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+  .overlay{position:absolute;inset:0;z-index:100;background:rgba(2,6,4,.64);backdrop-filter:blur(3px);display:flex;flex-direction:column;justify-content:flex-end;animation:fadeIn .2s ease}
+  .sheet{background:var(--surface);border-top:1px solid var(--hair-2);border-radius:22px 22px 0 0;max-height:90%;display:flex;flex-direction:column;animation:sheetUp .32s cubic-bezier(.22,1,.36,1);box-shadow:0 -12px 44px rgba(0,0,0,.55)}
+  .grab{display:flex;justify-content:center;padding:9px 0 4px}
+  .grab i{width:38px;height:4px;border-radius:99px;background:rgba(255,255,255,.18)}
+  .sheet-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 16px 12px;border-bottom:1px solid var(--hair)}
+  .sheet-hd h3{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em}
+  .sheet-hd .rt{display:flex;align-items:center;gap:9px}
+  .linkbtn{background:none;border:0;color:var(--emerald);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .xbtn{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.06);border:0;display:grid;place-items:center;cursor:pointer}
+  .sheet-bd{overflow-y:auto;padding:15px 16px 16px;scrollbar-width:none}
+  .sheet-bd::-webkit-scrollbar{display:none}
+  .sec{margin-bottom:16px}
+  .sec:last-child{margin-bottom:0}
+  .sec-lbl{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);margin-bottom:9px}
+  .sec-lbl.row{display:flex;align-items:center;justify-content:space-between}
+  .sec-lbl .val{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--emerald);text-transform:none}
+  .opts{display:flex;flex-wrap:wrap;gap:7px}
+  .opt{border-radius:99px;padding:8px 13px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid var(--hair-2);color:var(--text-soft)}
+  .opt.on{background:rgba(46,230,166,.15);border-color:var(--emerald);color:var(--emerald)}
+  .fld{width:100%;padding:10px 11px;border:1px solid var(--hair-2);border-radius:11px;background:rgba(255,255,255,.05);color:var(--text);font-size:12.5px;font-family:inherit;outline:none}
+  textarea.fld{resize:none;min-height:64px}
+  input[type=range]{width:100%;accent-color:var(--emerald)}
+  .sheet-intro{margin:0;font-size:12px;line-height:1.5;color:var(--text-muted)}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,255,255,.04);border:1px solid var(--hair);border-radius:13px;padding:12px 13px}
+  .toggle-row .t1{font-size:12.5px;font-weight:700;color:var(--text)}
+  .toggle-row .t2{font-size:10px;color:var(--text-muted)}
+  .switch{position:relative;width:42px;height:25px;border-radius:99px;border:0;cursor:pointer;flex:none;background:rgba(255,255,255,.16);transition:background .18s}
+  .switch.on{background:var(--emerald)}
+  .switch i{position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:left .18s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .switch.on i{left:20px}
+  .sortrow{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:13px 14px;border:0;border-radius:12px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;background:rgba(255,255,255,.04);color:var(--text-soft)}
+  .sortrow.on{background:rgba(46,230,166,.12);color:var(--emerald)}
+  .cta-wrap{padding:11px 16px 16px;border-top:1px solid var(--hair)}
+  .cta{width:100%;padding:14px;border:0;border-radius:14px;background:var(--emerald);color:#06170F;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 6px 18px rgba(46,230,166,.28)}
+
+  /* map */
+  .mapview{position:absolute;inset:0;z-index:95;display:flex;flex-direction:column;animation:fadeIn .22s ease;overflow:hidden}
+  .mapbg{position:absolute;inset:0;background:linear-gradient(135deg,#0e1f18,#0a1812)}
+  .mapgrid{position:absolute;inset:0;opacity:.5;background-image:linear-gradient(rgba(46,230,166,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(46,230,166,.07) 1px,transparent 1px);background-size:46px 46px}
+  .road{position:absolute;background:rgba(255,255,255,.045)}
+  .me{position:absolute;left:46%;top:40%;width:14px;height:14px;border-radius:50%;background:rgba(91,139,255,.9);box-shadow:0 0 0 6px rgba(91,139,255,.25),0 0 0 13px rgba(91,139,255,.12)}
+  .pin{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;font-family:var(--mono);font-size:10px;font-weight:700;padding:4px 8px;border-radius:99px;border:2px solid #fff;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.4);background:var(--emerald);color:#06170F}
+  .pin.on{background:var(--gold-warm);color:#3a2a00;z-index:6}
+  .map-top{position:relative;z-index:3;display:flex;align-items:center;gap:10px;padding:12px 13px;background:linear-gradient(180deg,rgba(7,18,13,.92),rgba(7,18,13,0))}
+  .map-list-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(13,24,18,.88);backdrop-filter:blur(10px);border:1px solid var(--hair-2);color:var(--text);border-radius:11px;padding:9px 13px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+  .map-count{font-size:11.5px;font-weight:700;color:var(--text-soft);background:rgba(13,24,18,.7);backdrop-filter:blur(8px);border-radius:9px;padding:7px 11px}
+  .map-card{position:relative;z-index:3;margin:auto 11px 18px;display:grid;grid-template-columns:96px 1fr;background:var(--surface);border:1px solid rgba(46,230,166,.25);border-radius:16px;overflow:hidden;cursor:pointer;box-shadow:0 14px 38px rgba(0,0,0,.55);animation:toastIn .26s ease}
+  .map-card .mp{background:#0f1714 50%/cover no-repeat;min-height:92px}
+  .map-card .mb{padding:10px 12px;display:flex;flex-direction:column;gap:3px;min-width:0}
+
+  /* toast */
+  .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:128px;z-index:120;max-width:90%;display:flex;align-items:center;gap:8px;background:rgba(15,28,21,.97);backdrop-filter:blur(12px);border:1px solid rgba(46,230,166,.32);color:var(--text);border-radius:12px;padding:10px 14px;font-size:11.5px;font-weight:600;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:toastIn .26s ease}
+  svg{display:block}
+</style>
+</head>
+<body data-os="ios" data-page="houses">
+
+  <div class="phone">
+    <div class="scr">
+
+      <!-- HEADER -->
+      <div class="hdr">
+        <div class="top-row">
+          <button class="loc" data-act="loc">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+            <span class="eyebrow">Eneo · Area</span>
+            <span class="city">Dar es Salaam</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(233,243,238,.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="pill-btn" data-act="lang"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"/></svg><span id="langTxt">EN</span></button>
+            <span class="avatar">A</span>
+          </div>
+        </div>
+
+        <form class="search" id="smartSearch" autocomplete="off">
+          <div class="box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            <input id="smartSearchInput" type="search" spellcheck="false" placeholder="Bedrooms, area, budget…">
+            <span class="ai-tag"><svg width="9" height="9" viewBox="0 0 24 24" fill="var(--emerald)"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/></svg>AI</span>
+          </div>
+          <button type="submit" class="go" aria-label="Search"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#06170F" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg></button>
+        </form>
+
+        <div class="xrow" id="smartSearchChips" style="margin-top:8px"></div>
+
+        <div class="segctl" id="hpSeg">
+          <button class="seg on" data-act="seg" data-seg="all"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/></svg><span>All</span><span class="c" id="hpSegCountAll">—</span></button>
+          <button class="seg" data-act="seg" data-seg="rent"><span>Rent</span><span class="c" id="hpSegCountRent">—</span></button>
+          <button class="seg" data-act="seg" data-seg="sale"><span>Sale</span><span class="c" id="hpSegCountSale">—</span></button>
+          <button class="seg biz" data-act="seg" data-seg="business"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M15 9h2a2 2 0 0 1 2 2v10"/></svg><span>Biz</span><span class="c" id="hpSegCountBiz">—</span></button>
+        </div>
+        <div class="biz-refine" id="hpBizRefine" hidden>
+          <span class="biz-lbl">Premises for</span>
+          <button class="biz-chip on" data-act="biz" data-biz="">Any</button>
+          <button class="biz-chip" data-act="biz" data-biz="rent">Rent</button>
+          <button class="biz-chip" data-act="biz" data-biz="sale">Sale</button>
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div class="body" id="housesBody">
+        <div class="tools">
+          <button class="tool" id="houseNearMeBtn" data-act="near"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>Near me</span></button>
+          <button class="tool" id="houseCommuteBtn" data-act="match"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg><span>Match my life</span></button>
+          <button class="tool" id="houseAlertBtn" data-act="alerts"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span>Area alert</span></button>
+          <button class="tool" id="houseRequestBtn" data-act="request"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Tell us</span></button>
+        </div>
+
+        <div class="bento">
+          <button class="big" data-act="bento" data-seg="all"><span class="lbl">● Live now</span><span style="display:flex;align-items:baseline;gap:5px;margin-top:8px"><span class="num" id="hpBentoTotal" style="font-size:24px;color:#fff">—</span><span style="font-size:9.5px;color:rgba(255,255,255,.8);font-weight:600">properties</span></span></button>
+          <button class="sm" data-act="bento" data-seg="rent"><span class="lbl2">For rent</span><span class="num" id="hpBentoRent" style="font-size:21px;color:var(--emerald)">—</span></button>
+          <button class="sm" data-act="bento" data-seg="sale"><span class="lbl2">For sale</span><span class="num" id="hpBentoSale" style="font-size:21px;color:var(--gold-warm)">—</span></button>
+        </div>
+
+        <div class="chips">
+          <button class="chip primary" data-act="filters"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#06170F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2" fill="#06170F"/><circle cx="15" cy="12" r="2" fill="#06170F"/><circle cx="8" cy="18" r="2" fill="#06170F"/></svg>Filters<span class="badge-host" id="filterCountHost"></span></button>
+          <button class="chip" id="chipBeds" data-act="filters">Beds</button>
+          <button class="chip" id="chipPrice" data-act="filters">Price</button>
+          <button class="chip" id="chipType" data-act="filters">Type</button>
+          <button class="chip" id="chipRoom" data-act="filters">Room</button>
+        </div>
+
+        <div class="resultbar">
+          <span class="count" id="housesCount">—</span>
+          <div class="rb-right">
+            <button class="sortbtn" data-act="sort"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12M3 12h9M3 18h6"/><path d="M18 9l3-3 3 3M21 6v12"/></svg><span id="sortLabel">Recommended</span></button>
+            <div class="density" id="hpViewToggle">
+              <button data-act="density" data-d="compact" class="on" aria-label="Compact"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
+              <button data-act="density" data-d="rich" aria-label="Gallery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="list" id="housesList"></div>
+      </div>
+
+      <button class="mapfab" data-act="map-open"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/></svg>Map</button>
+
+      <!-- TAB BAR — wired to the app's real routes -->
+      <div class="tabbar">
+        <a class="tab" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9h14v-9"/></svg><span>Home</span></a>
+        <a class="tab on" href="houses-compact.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Explore</span></a>
+        <a class="tab" href="favorites.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5C19 15.5 12 20 12 20z"/></svg><span>Saved</span></a>
+        <a class="tab" href="chat.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span></a>
+        <a class="tab" href="login.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Profile</span></a>
+      </div>
+
+      <div id="sheetHost"></div>
+      <div id="mapHost"></div>
+      <div id="toastHost"></div>
+    </div>
+  </div>
+
+<!-- Shared app runtime: Supabase client + config, the DataStore (js/data.js),
+     and the TZ gazetteer used to geocode alert/match/request areas. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/data.js"></script>
+<script src="js/tz-places.js"></script>
+
+<script>
+(function(){
+  "use strict";
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 1) DATA  —  // WIRE: replace SAMPLE_HOUSES + loadHouses() with Supabase
+  // ════════════════════════════════════════════════════════════════════════
+  const SAMPLE_HOUSES = [
+    {id:'h1', title:'2-bedroom apartment', type:'apartment', listing:'rent', bedrooms:2, bathrooms:1, sqm:80, room_kind:'whole', area:'Mwenge', region:'Dar es Salaam', road:'Sam Nujoma Rd · 300 m', price:450000, verified:true, featured:true, match:94, dist_km:1.2, age_days:1, commute:'Work · 16 min by bus', amenities:['Tiled','Water','LUKU','Parking'], posted:'2h', photos:9, rating:4.8, reviews:62, negotiable:true, image:'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=600&q=70'},
+    {id:'h2', title:'Self-contained single room', type:'apartment', listing:'rent', bedrooms:1, bathrooms:1, sqm:0, room_kind:'single', area:'Ubungo', region:'near UDSM', road:'Morogoro Rd · 650 m', price:120000, verified:true, featured:false, match:81, dist_km:3.4, age_days:2, commute:'Campus · 9 min walk', amenities:['LUKU','Shared water'], posted:'5h', photos:6, rating:4.6, reviews:23, negotiable:false, image:'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&q=70'},
+    {id:'h3', title:'Furnished studio near UDSM', type:'apartment', listing:'rent', bedrooms:1, bathrooms:1, sqm:34, room_kind:'master', area:'Ubungo', region:'Dar es Salaam', road:'Morogoro Rd · 900 m', price:280000, verified:true, featured:false, match:76, dist_km:3.6, age_days:3, commute:'Work · 22 min by bus', amenities:['Furnished','WiFi','Water','LUKU'], posted:'1d', photos:12, rating:4.9, reviews:41, negotiable:true, image:'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&q=70'},
+    {id:'h4', title:'3-bedroom house + parking', type:'house', listing:'rent', bedrooms:3, bathrooms:2, sqm:160, room_kind:'whole', area:'Kinondoni', region:'Dar es Salaam', road:'Ali Hassan Mwinyi · 400 m', price:900000, verified:true, featured:true, match:88, dist_km:2.1, age_days:1, commute:'Work · 19 min by car', amenities:['Parking','Security','Water','Garden'], posted:'3h', photos:14, rating:4.7, reviews:88, negotiable:true, image:'https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=600&q=70'},
+    {id:'h5', title:'Beachside cottage', type:'house', listing:'rent', bedrooms:2, bathrooms:1, sqm:110, room_kind:'whole', area:'Kigamboni', region:'Dar es Salaam', road:'Kibada Rd · 1.2 km', price:650000, verified:false, featured:false, match:69, dist_km:8.7, age_days:5, commute:'Work · 41 min by ferry', amenities:['Sea view','Water','Parking'], posted:'2d', photos:8, rating:4.4, reviews:12, negotiable:true, image:'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=600&q=70'},
+    {id:'h6', title:'Master room, self-contained', type:'apartment', listing:'rent', bedrooms:1, bathrooms:1, sqm:0, room_kind:'master', area:'Sinza', region:'Dar es Salaam', road:'Shekilango Rd · 350 m', price:220000, verified:true, featured:false, match:79, dist_km:4.0, age_days:2, commute:'Work · 24 min by bus', amenities:['Self-contained','LUKU','Water'], posted:'8h', photos:7, rating:4.5, reviews:30, negotiable:false, image:'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&q=70'},
+    {id:'h7', title:'4-bedroom villa', type:'house', listing:'sale', bedrooms:4, bathrooms:3, sqm:320, room_kind:'whole', area:'Masaki', region:'Dar es Salaam', road:'Chole Rd · 200 m', price:480000000, verified:true, featured:true, match:0, dist_km:5.5, age_days:4, commute:'', amenities:['Title deed','Pool','Security','Parking'], posted:'4d', photos:20, rating:4.9, reviews:9, negotiable:true, image:'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600&q=70'},
+    {id:'h8', title:'Building plot · 800 m²', type:'plot', listing:'sale', bedrooms:0, bathrooms:0, sqm:800, room_kind:'', area:'Tegeta', region:'Dar es Salaam', road:'Bagamoyo Rd · 1.1 km', price:38000000, verified:true, featured:false, match:0, dist_km:14.0, age_days:6, commute:'', amenities:['Title deed','Surveyed','Road access'], posted:'6d', photos:5, rating:0, reviews:0, negotiable:true, image:'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&q=70'},
+    {id:'h9', title:'Surveyed plot · 1,200 m²', type:'plot', listing:'sale', bedrooms:0, bathrooms:0, sqm:1200, room_kind:'', area:'Bunju', region:'Dar es Salaam', road:'Bagamoyo Rd · 600 m', price:22000000, verified:false, featured:false, match:0, dist_km:21.0, age_days:9, commute:'', amenities:['Surveyed','Road access'], posted:'1w', photos:4, rating:0, reviews:0, negotiable:true, image:'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=600&q=70'},
+    {id:'h10', title:'Office space · 120 m²', type:'office', listing:'rent', bedrooms:0, bathrooms:1, sqm:120, room_kind:'', area:'Kariakoo', region:'Dar es Salaam', road:'Msimbazi St · 150 m', price:1200000, verified:true, featured:true, match:0, dist_km:3.0, age_days:2, commute:'', amenities:['Lift','Backup power','Parking','AC'], posted:'1d', photos:11, rating:4.6, reviews:18, negotiable:true, image:'https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&q=70'},
+    {id:'h11', title:'Retail shop unit', type:'shop', listing:'rent', bedrooms:0, bathrooms:1, sqm:45, room_kind:'', area:'Kariakoo', region:'Dar es Salaam', road:'Uhuru St · 80 m', price:800000, verified:true, featured:false, match:0, dist_km:3.2, age_days:3, commute:'', amenities:['High footfall','Frontage','Water'], posted:'3d', photos:6, rating:4.3, reviews:7, negotiable:false, image:'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&q=70'},
+    {id:'h12', title:'Warehouse · 500 m²', type:'warehouse', listing:'sale', bedrooms:0, bathrooms:1, sqm:500, room_kind:'', area:'Mbezi', region:'Dar es Salaam', road:'Morogoro Rd · 500 m', price:320000000, verified:true, featured:false, match:0, dist_km:12.0, age_days:7, commute:'', amenities:['Loading bay','Security','3-phase power'], posted:'5d', photos:9, rating:4.5, reviews:5, negotiable:true, image:'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&q=70'},
+  ];
+
+  // ── WIRED: real Supabase listings via the shared DataStore (js/data.js).
+  // DataStore.getHouses() returns rows from public.houses (Supabase first,
+  // data/houses.json fallback). We hide rows whose deal is closed
+  // (available === false) and map each through normalize().
+  async function loadHouses(){
+    const DS = window.DataStore;
+    if(!(DS && typeof DS.getHouses==='function')){
+      return SAMPLE_HOUSES.map(normalize);          // no runtime — offline preview
+    }
+    const rows = await DS.getHouses();
+    const live = (Array.isArray(rows)?rows:[])
+      .filter(r => r && r.available !== false)
+      .map(normalize);
+    // A live but empty directory is a REAL state online (every owner may be
+    // deactivated) — keep it empty. Only when Supabase isn't configured at all
+    // (local preview) do we seed the sample design so the screen isn't blank.
+    if(live.length===0 && DS.isOnline===false) return SAMPLE_HOUSES.map(normalize);
+    return live;
+  }
+
+  // ── WIRED: map ONE public.houses row -> the fields the card reads.
+  // Column names are the real schema (supabase/schema_master.sql):
+  //   price_tzs, size_sqm, room_kind, ward/district/area, lat/lng, photo,
+  //   verified, available, created_at, amenities[].
+  function normalize(row){
+    const km = Number(row.dist_km || 0);   // 0 until Near-me GPS fills it in
+    return {
+      id:        row.id,
+      title:     row.title || 'Property',
+      type:      (row.type || 'house').toLowerCase(),
+      listing:   row.listing || 'rent',                     // 'rent' | 'sale'
+      bedrooms:  Number(row.bedrooms || 0),
+      bathrooms: Number(row.bathrooms || 0),
+      sqm:       Number(row.size_sqm || row.sqm || 0),
+      roomKind:  row.room_kind || '',                       // ''|single|master
+      area:      row.area || row.ward || row.district || '',
+      region:    row.region || 'Dar es Salaam',
+      road:      row.ward && row.district && row.ward!==row.area ? (row.ward+', '+row.district) : (row.district || ''),
+      price:     Number(row.price_tzs || row.price || 0),
+      lat:       (row.lat!=null ? Number(row.lat) : null),
+      lng:       (row.lng!=null ? Number(row.lng) : null),
+      verified:  !!row.verified,
+      featured:  !!row.verified,                            // verified listings lead "Recommended"
+      match:     0,                                         // set by Match-my-life
+      distKm:    km,
+      ageDays:   row.age_days!=null ? Number(row.age_days) : ageDaysFrom(row.created_at),
+      commute:   '',
+      amenities: Array.isArray(row.amenities) ? row.amenities.map(amenityLabel) : [],
+      posted:    row.posted || postedFrom(row.created_at), // "2h", "3d", "1w"
+      photos:    Array.isArray(row.photos) ? row.photos.length : (Number(row.photos||0) || (row.photo ? 1 : 0)),
+      rating:    Number(row.rating || 0),
+      reviews:   Number(row.reviews || 0),
+      negotiable:!!row.negotiable,
+      image:     houseImage(row)
+    };
+  }
+
+  // Resolve the listing's hero image through DataStore (storage path -> public
+  // URL, or pass an external URL straight through).
+  function houseImage(row){
+    const raw = row.photo || (Array.isArray(row.photos) && row.photos[0]) || row.image || '';
+    if(!raw) return '';
+    if(window.DataStore && typeof window.DataStore.housePhotoUrl==='function'){
+      try { return window.DataStore.housePhotoUrl(raw); } catch(_){}
+    }
+    return raw;
+  }
+
+  // Pretty amenity labels (snake_case columns -> human text). Falls back to the
+  // raw value so custom amenities still show.
+  function amenityLabel(a){
+    const map = { luku:'LUKU', wifi:'WiFi', ac:'AC', parking:'Parking', water:'Water',
+      security:'Security', furnished:'Furnished', tiled:'Tiled', garden:'Garden',
+      pool:'Pool', generator:'Backup power', title_deed:'Title deed', surveyed:'Surveyed' };
+    const k = String(a||'').toLowerCase().trim();
+    return map[k] || (a ? cap(String(a)) : a);
+  }
+
+  function ageDaysFrom(iso){
+    if(!iso) return 0;
+    const ms = Date.now() - new Date(iso).getTime();
+    return ms>0 ? ms/86400000 : 0;
+  }
+  function postedFrom(iso){
+    if(!iso) return '';
+    const mins = Math.max(1, Math.round((Date.now()-new Date(iso).getTime())/60000));
+    if(mins<60)   return mins+'m';
+    const hrs = Math.round(mins/60);   if(hrs<24)  return hrs+'h';
+    const days = Math.round(hrs/24);   if(days<7)  return days+'d';
+    const wks = Math.round(days/7);    if(wks<5)   return wks+'w';
+    return Math.round(days/30)+'mo';
+  }
+
+  // Great-circle distance (km) — used by Near-me + Match-my-life.
+  function haversineKm(aLat,aLng,bLat,bLng){
+    const R=6371, toRad=d=>d*Math.PI/180;
+    const dLat=toRad(bLat-aLat), dLng=toRad(bLng-aLng);
+    const s=Math.sin(dLat/2)**2 + Math.cos(toRad(aLat))*Math.cos(toRad(bLat))*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+  }
+
+  // ── WIRED: real flows.
+  //   open  -> house.html?id=…  (the existing detail page)
+  //   save  -> localStorage["pawa_house_favs"]  (read by favorites.html / house.html)
+  //   createAlert -> localStorage["pawa_house_geo_alerts"] (the realtime engine
+  //                  in js/houses.js fires these when a matching listing appears)
+  //   submitRequest -> public.house_demand_pins  (agents in the region get it)
+  const FAVS_KEY='pawa_house_favs', FAV_ORDER_KEY='pawa_house_fav_order';
+  const ALERTS_KEY='pawa_house_geo_alerts', SEEN_KEY='pawa_house_seen_ids';
+
+  function readFavs(){ try{ return JSON.parse(localStorage.getItem(FAVS_KEY)||'[]'); }catch{ return []; } }
+  function writeFav(id, on){
+    const set = new Set(readFavs());
+    let order; try{ order = JSON.parse(localStorage.getItem(FAV_ORDER_KEY)||'[]'); }catch{ order=[]; }
+    if(on){ set.add(id); order = order.filter(x=>x!==id).concat(id); }
+    else  { set.delete(id); order = order.filter(x=>x!==id); }
+    localStorage.setItem(FAVS_KEY, JSON.stringify([...set]));
+    localStorage.setItem(FAV_ORDER_KEY, JSON.stringify(order));
+  }
+
+  const ACTIONS = {
+    open: h => { if(h&&h.id) location.href = 'house.html?id='+encodeURIComponent(h.id); },
+    save: h => { if(!h) return; const on=!!state.saved[h.id]; writeFav(h.id,on);
+                 toast(on ? 'Saved to favourites' : 'Removed from favourites'); },
+    createAlert:    createAlert,
+    applyMatch:     applyMatch,
+    submitRequest:  submitRequest,
+    changeLocation: changeLocation,
+  };
+
+  // Build a circle area-alert compatible with js/houses.js's realtime matcher.
+  function createAlert(){
+    const place = (window.resolveTzPlace && window.resolveTzPlace(state.alertArea)) || null;
+    if(!place){ toast("Couldn't place “"+(state.alertArea||'')+"” — try a known area or landmark"); return false; }
+    const alert = {
+      id: 'ga-'+Date.now().toString(36),
+      name: (state.alertArea||place.name||'Watched area').slice(0,60),
+      lat: place.lat, lng: place.lng,
+      areas: [{ kind:'circle', lat:place.lat, lng:place.lng, radius_m:state.alertRadius, name:state.alertArea }],
+      listing: state.seg==='rent'?'rent':state.seg==='sale'?'sale':'',
+      type:    state.f.type || '',
+      beds:    +state.f.beds || 0,
+      price_max: state.f.priceMax ? +state.f.priceMax : 0,
+      from:'', until:'', freq: state.alertFreq,
+      createdAt: new Date().toISOString()
+    };
+    let arr; try{ arr = JSON.parse(localStorage.getItem(ALERTS_KEY)||'[]'); }catch{ arr=[]; }
+    arr.push(alert);
+    localStorage.setItem(ALERTS_KEY, JSON.stringify(arr));
+    // Seed "seen" with everything live now so the alert only fires on NEW listings.
+    let seen; try{ seen = new Set(JSON.parse(localStorage.getItem(SEEN_KEY)||'[]')); }catch{ seen=new Set(); }
+    HOUSES.forEach(h=>seen.add(h.id));
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-500)));
+    toast('Alert saved · we’ll ping you about '+alert.name);
+    return true;
+  }
+
+  // Rank listings by real commute to where the user spends their day.
+  function applyMatch(){
+    const place = (window.resolveTzPlace && window.resolveTzPlace(state.matchWork)) || null;
+    if(!place){ toast('Where do you go most? e.g. Posta, UDSM, Mlimani City'); return; }
+    const kmh = state.matchMode==='walk' ? 4.8 : state.matchMode==='bus' ? 18 : 32;
+    const modeWord = state.matchMode==='walk' ? 'walk' : state.matchMode==='bus' ? 'daladala' : 'car';
+    HOUSES.forEach(h=>{
+      if(h.lat!=null && h.lng!=null){
+        const km = haversineKm(place.lat, place.lng, h.lat, h.lng);
+        const min = Math.max(1, Math.round(km/kmh*60));
+        h._commuteMin = min;
+        h.commute = landmarkShort(state.matchWork)+' · '+min+' min by '+modeWord;
+        h.match = Math.max(1, Math.min(100, Math.round(100 - min*1.6)));
+      } else { h._commuteMin = Infinity; h.match = 0; h.commute = ''; }
+    });
+    state.matchActive = true;
+    render();
+    toast('Ranked by fit — commute, budget & area');
+  }
+  function landmarkShort(s){ return String(s||'').split(/[,·]/)[0].trim() || 'Your place'; }
+
+  // Raise demand so agents operating in the region see a waiting seeker.
+  // Writes a REAL public.house_demand_pins row using the same payload shape and
+  // column-strip-on-error insert as js/request-place.js (the proven prod flow).
+  // A phone is required for the agent-visible insert (it's how agents reach the
+  // seeker, and the column is NOT NULL); without one we keep a local-only copy.
+  const DEMAND_MINE_KEY = 'pawa_my_demand_pins';
+
+  async function submitRequest(){
+    const region  = state.cityRegion || 'Dar es Salaam';
+    const listing = state.reqMode==='sale' ? 'sale' : 'rent';
+    const beds    = state.reqBeds==='Any' ? 0 : (parseInt(state.reqBeds,10) || 0);
+    const budget  = parseTzs(state.reqBudget);
+    const note    = (state.reqNotes||'').trim().slice(0,400);
+    const phone   = (state.reqPhone||'').trim();
+    const digits  = phone.replace(/\D/g,'');
+
+    // Geocode the area to real coordinates (lat/lng are NOT NULL). Fall back to
+    // the region centre so a vague request still lands in the right region feed.
+    const place = (window.resolveTzPlace && (window.resolveTzPlace(state.reqArea) || window.resolveTzPlace(region))) || null;
+
+    // Local echo first — the request is never silently lost.
+    let mine; try{ mine = JSON.parse(localStorage.getItem(DEMAND_MINE_KEY)||'[]'); }catch{ mine=[]; }
+    const id = 'dp-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    mine.push({ id, area:state.reqArea||region, region, listing, type:'', max_budget_tzs:budget,
+                phone, lat:place?place.lat:null, lng:place?place.lng:null, at:Date.now() });
+    localStorage.setItem(DEMAND_MINE_KEY, JSON.stringify(mine));
+
+    const sb = window.DataStore && window.DataStore.sb;
+    if(!(sb && place && digits.length>=9)){
+      toast(digits.length<9
+        ? 'Saved. Add a phone so agents can reach you and bring options'
+        : 'Saved · we’ll surface this to agents in '+region);
+      return;
+    }
+
+    // Create the demand via the SECURITY DEFINER RPC (house_demand_create): it
+    // stamps ownership from app_uid() so a signed-in user owns their pin and an
+    // anonymous seeker still gets a removable (id + phone) row — the direct
+    // anon insert is rejected by RLS under the new publishable API key.
+    // See supabase/house_demand_create.sql.
+    const args = {
+      p_id:id, p_lat:place.lat, p_lng:place.lng, p_phone:phone,
+      p_region:region, p_area:(state.reqArea||place.name||region), p_district:null,
+      p_radius_m:3000, p_listing:listing, p_type:null,
+      p_min_bedrooms:beds, p_max_budget_tzs:budget, p_name:null, p_note:(note||null)
+    };
+    let err = null;
+    try{ ({ error: err } = await sb.rpc('house_demand_create', args)); }
+    catch(e){ err = e; }
+    // Fallback if the RPC isn't deployed on this environment yet: a direct
+    // insert still works for signed-in users under the existing RLS policy.
+    if(err && /PGRST202|schema cache|does not exist/i.test(err.message||'')){
+      try{ ({ error: err } = await sb.from('house_demand_pins').insert({
+        id, lat:place.lat, lng:place.lng, area:(state.reqArea||place.name||region),
+        region, radius_m:3000, listing, min_bedrooms:beds, max_budget_tzs:budget,
+        phone, note:(note||null) })); }
+      catch(e){ err = e; }
+    }
+    if(err){ toast('Saved locally · couldn’t reach the server right now'); return; }
+    toast('Request sent · agents in '+region+' will reach out');
+  }
+
+  // "400,000" / "1.2m" / "800k" -> integer TZS.
+  function parseTzs(s){
+    const t = String(s||'').toLowerCase().replace(/[, ]/g,'').trim();
+    const m = t.match(/^([\d.]+)\s*(k|m)?$/);
+    if(!m) return 0;
+    return Math.round(parseFloat(m[1]) * (m[2]==='m'?1e6 : m[2]==='k'?1e3 : 1)) || 0;
+  }
+
+  // Lightweight region switch (no map needed) — re-filters the directory.
+  function changeLocation(){
+    const next = (window.prompt && window.prompt('Show homes in which region?', state.cityRegion||'Dar es Salaam')) || '';
+    const r = next.trim();
+    if(!r) return;
+    state.cityRegion = r;
+    const cityEl = document.querySelector('.loc .city'); if(cityEl) cityEl.textContent = r;
+    render();
+  }
+
+  // Near-me: real device GPS -> per-listing road-ish distance, then sort nearest.
+  function toggleNearMe(){
+    state.nearMe = !state.nearMe;
+    if(!state.nearMe){ render(); return; }
+    if(!navigator.geolocation){ toast('GPS not available on this device'); state.nearMe=false; render(); return; }
+    toast('Finding places near you…');
+    navigator.geolocation.getCurrentPosition(
+      p => {
+        const me = { lat:p.coords.latitude, lng:p.coords.longitude };
+        HOUSES.forEach(h=>{ h.distKm = (h.lat!=null && h.lng!=null)
+          ? +haversineKm(me.lat, me.lng, h.lat, h.lng).toFixed(1) : 0; });
+        render();
+      },
+      () => { toast('Location off — enable GPS to sort by distance'); state.nearMe=false; render(); },
+      { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 2) STATE
+  // ════════════════════════════════════════════════════════════════════════
+  const BIZ = ['office','shop','warehouse'];
+  let HOUSES = [];
+  const state = {
+    seg:'all', bizFor:'', density:'compact', sort:'recommended',
+    nearMe:false, matchActive:false, lang:'EN',
+    saved: readFavs().reduce((o,id)=>(o[id]=true,o),{}),
+    cityRegion:'',
+    sheet:null, mapOpen:false, activePin:null,
+    search:'', crit:[],
+    f:{ beds:'', priceMax:'', type:'', room:'', area:'', verifiedOnly:false },
+    alertArea:'Mwenge', alertRadius:1500, alertFreq:'daily',
+    matchWork:'Posta, City Centre', matchMode:'bus', matchMax:30,
+    reqMode:'rent', reqBeds:'2', reqArea:'', reqBudget:'', reqNotes:'', reqPhone:''
+  };
+
+  // ════════════════════════════════════════════════════════════════════════
+  // helpers
+  // ════════════════════════════════════════════════════════════════════════
+  const $  = (s,r)=> (r||document).querySelector(s);
+  const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const shortTzs = v => v>=1e6 ? (v%1e6 ? (v/1e6).toFixed(1) : v/1e6)+'M' : Math.round(v/1e3)+'k';
+  const priceMain = h => h.listing==='sale'
+        ? 'TZS '+(h.price>=1e6 ? (h.price%1e6?(h.price/1e6).toFixed(0):h.price/1e6)+'M' : h.price.toLocaleString())
+        : 'TZS '+h.price.toLocaleString();
+  const priceUnit = h => h.listing==='sale' ? 'sale' : '/mo';
+
+  function counts(){
+    const c={all:HOUSES.length,rent:0,sale:0,business:0};
+    HOUSES.forEach(h=>{ if(h.listing==='rent')c.rent++; if(h.listing==='sale')c.sale++; if(BIZ.includes(h.type))c.business++; });
+    return c;
+  }
+  function filtered(){
+    const {seg,bizFor,f}=state; let r=HOUSES.slice();
+    if(seg==='rent')      r=r.filter(h=>h.listing==='rent' && !BIZ.includes(h.type));
+    else if(seg==='sale') r=r.filter(h=>h.listing==='sale' && !BIZ.includes(h.type));
+    else if(seg==='business'){ r=r.filter(h=>BIZ.includes(h.type)); if(bizFor) r=r.filter(h=>h.listing===bizFor); }
+    if(f.beds)        r=r.filter(h=>(h.bedrooms||0)>=+f.beds);
+    if(f.type)        r=r.filter(h=>h.type===f.type);
+    if(f.room)        r=r.filter(h=>h.roomKind===f.room);
+    if(f.priceMax)    r=r.filter(h=>h.price<=+f.priceMax);
+    if(f.verifiedOnly)r=r.filter(h=>h.verified);
+    if(f.area)        r=r.filter(h=>(h.area||'').toLowerCase().includes(f.area.toLowerCase()));
+    if(state.cityRegion) r=r.filter(h=>!h.region || h.region.toLowerCase().includes(state.cityRegion.toLowerCase()));
+    // Match-my-life: keep listings within the commute budget; unknown-coord
+    // listings are kept (we can't disprove them) rather than silently dropped.
+    if(state.matchActive) r=r.filter(h=> h._commuteMin==null || !isFinite(h._commuteMin) || h._commuteMin<=state.matchMax);
+    return sortRows(r);
+  }
+  function sortRows(r){
+    const by={
+      newest:(a,b)=>a.ageDays-b.ageDays,
+      price_asc:(a,b)=>a.price-b.price, price_desc:(a,b)=>b.price-a.price,
+      beds:(a,b)=>(b.bedrooms||0)-(a.bedrooms||0),
+      nearest:(a,b)=>(a.distKm||1e9)-(b.distKm||1e9),   // unknown distance sinks to the bottom
+      recommended:(a,b)=>(b.featured-a.featured)||((b.match||0)-(a.match||0))||(a.ageDays-b.ageDays),
+    };
+    if(state.nearMe) return r.sort(by.nearest);
+    if(state.matchActive) return r.sort((a,b)=>(b.match||0)-(a.match||0));
+    return r.sort(by[state.sort]||by.recommended);
+  }
+
+  // WIRE (optional): this mirrors your parseSmartSearch in houses.js. Swap if you
+  // already have one — just have it return the {beds,priceMax,type,room,area} shape.
+  function parseSearch(text){
+    const t=(text||'').toLowerCase(); const f={beds:'',priceMax:'',type:'',room:'',area:'',verifiedOnly:false}; const crit=[]; let seg=state.seg,m;
+    if((m=t.match(/(\d+)\s*(?:bed|bedroom|chumba)/))){ f.beds=m[1]; crit.push(m[1]+'+ beds'); }
+    if(/self[-\s]?contained|master|en[-\s]?suite/.test(t)){ f.room='master'; crit.push('Self-contained'); }
+    else if(/single\s*room/.test(t)){ f.room='single'; crit.push('Single room'); }
+    ['apartment','house','plot','office','shop','warehouse'].forEach(k=>{ if(t.includes(k)){ f.type=k; crit.push(cap(k)); } });
+    if(/for sale|\bsale\b|kuuza/.test(t)){ seg='sale'; crit.push('For sale'); }
+    else if(/for rent|\brent\b|kupanga/.test(t)){ seg='rent'; crit.push('For rent'); }
+    if((m=t.match(/(?:under|below|chini|max|<=?)?\s*([\d.]+)\s*(k|m)\b/))){ const v=parseFloat(m[1])*(m[2]==='m'?1e6:1e3); f.priceMax=String(v); crit.push('≤ '+shortTzs(v)); }
+    ['mwenge','masaki','mbezi','kinondoni','mikocheni','kigamboni','ubungo','sinza','tegeta','kariakoo','bunju'].forEach(a=>{ if(t.includes(a)){ f.area=cap(a); crit.push(cap(a)); } });
+    return {f,crit,seg};
+  }
+
+  function toast(msg){
+    const host=$('#toastHost');
+    host.innerHTML='<div class="toast"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg><span>'+esc(msg)+'</span></div>';
+    clearTimeout(toast._t); toast._t=setTimeout(()=>host.innerHTML='',2400);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 3) RENDER
+  // ════════════════════════════════════════════════════════════════════════
+  const ICON={
+    bed:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5"/><path d="M3 18v2M21 18v2M3 13V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M7 11V9h4v2M13 11V9h4v2"/></svg>',
+    bath:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M6 12V6a2 2 0 0 1 2-2 2 2 0 0 1 2 2"/><path d="M9 5h2"/></svg>',
+    area:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/></svg>',
+    pin:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="1.8"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>',
+    shield:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+    star:'<svg width="10" height="10" viewBox="0 0 24 24" fill="var(--gold-warm)"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>',
+    cam:'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.4"/><path d="M8 6l1.5-2h5L16 6"/></svg>',
+    heart:(on)=>'<svg width="13" height="13" viewBox="0 0 24 24" fill="'+(on?'var(--emerald)':'none')+'" stroke="'+(on?'var(--emerald)':'rgba(255,255,255,.9)')+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5C19 15.5 12 20 12 20z"/></svg>'
+  };
+
+  function specsHtml(h){
+    if(h.type==='plot') return '<span class="ic">'+ICON.area+(h.sqm)+' m² · surveyed</span>';
+    let parts=[];
+    const room = h.roomKind==='single'?'Single room':h.roomKind==='master'?'Self-contained':'';
+    if(room) parts.push('<span class="roomtag">'+room+'</span>');
+    if(h.bedrooms>0) parts.push('<span class="ic">'+ICON.bed+h.bedrooms+'</span>');
+    if(h.bathrooms>0) parts.push('<span class="ic">'+ICON.bath+h.bathrooms+'</span>');
+    if(h.sqm>0) parts.push('<span class="ic">'+ICON.area+h.sqm+' m²</span>');
+    return parts.join('');
+  }
+
+  function cardHtml(h){
+    const saved=!!state.saved[h.id];
+    const tile = state.density==='rich';
+    let loc = (h.area||'Dar es Salaam') + (h.region && h.region!=='Dar es Salaam' ? ', '+h.region : '');
+    loc += (state.nearMe && h.distKm>0) ? ' · '+(h.distKm)+' km by road' : (h.road?' · '+h.road:'');
+    const areaTxt = (h.area||h.region||'Dar es Salaam') + (h.distKm>0 ? ' · '+(h.distKm)+' km' : '');
+    const showMatch = state.matchActive && h.match>0;
+    const isNew = h.ageDays<=1 && !showMatch;
+    const amen = (h.amenities||[]).slice(0,3);
+    const more = (h.amenities||[]).length-amen.length;
+
+    const photoBlock =
+      '<div class="photo" style="background-image:url(\''+esc(h.image)+'\')">'+
+        '<div class="scrim"></div>'+
+        '<span class="badge listing'+(h.listing==='sale'?' sale':'')+'">'+(h.listing==='sale'?'For sale':'For rent')+'</span>'+
+        '<button class="heart" data-act="save" data-id="'+h.id+'">'+ICON.heart(saved)+'</button>'+
+        (h.photos>0?'<span class="badge photos">'+ICON.cam+h.photos+'</span>':'')+
+        (showMatch?'<span class="badge match">'+h.match+'% fit</span>':isNew?'<span class="badge new">New</span>':'')+
+      '</div>';
+
+    if(tile){
+      return '<div class="card tile" data-act="open" data-id="'+h.id+'">'+photoBlock+
+        '<div class="cbody">'+
+          '<div style="display:flex;align-items:center;gap:5px"><span class="price" style="font-size:14px">'+priceMain(h)+'</span><span class="punit">'+priceUnit(h)+'</span>'+
+            (h.rating>0?'<span class="rating" style="margin-left:auto">'+ICON.star+h.rating.toFixed(1)+'</span>':'')+'</div>'+
+          '<div style="display:flex;align-items:center;gap:4px;min-width:0"><span class="ctitle" style="font-size:12px">'+esc(h.title)+'</span>'+(h.verified?ICON.shield:'')+'</div>'+
+          '<div class="specs" style="font-size:10px">'+specsHtml(h)+'</div>'+
+          '<div class="loc-line" style="font-size:10px">'+ICON.pin+'<span>'+esc(areaTxt)+'</span></div>'+
+        '</div></div>';
+    }
+    return '<div class="card row" data-act="open" data-id="'+h.id+'">'+photoBlock+
+      '<div class="cbody">'+
+        '<div style="display:flex;align-items:center;gap:6px;min-width:0"><span class="price">'+priceMain(h)+'</span><span class="punit">'+priceUnit(h)+'</span>'+
+          (h.negotiable&&h.listing==='rent'?'<span class="neg">Neg.</span>':'')+
+          (h.rating>0?'<span class="rating" style="margin-left:auto">'+ICON.star+h.rating.toFixed(1)+'</span>':'')+'</div>'+
+        '<div style="display:flex;align-items:center;gap:5px;min-width:0"><span class="ctitle">'+esc(h.title)+'</span>'+(h.verified?ICON.shield:'')+'</div>'+
+        '<div class="specs">'+specsHtml(h)+'</div>'+
+        '<div class="loc-line">'+ICON.pin+'<span>'+esc(loc)+'</span></div>'+
+        (showMatch&&h.commute?'<div class="commute">→ '+esc(h.commute)+'</div>':'')+
+        '<div class="amen">'+amen.map(a=>'<span class="a">'+esc(a)+'</span>').join('')+
+          (more>0?'<span class="a" style="background:none;border:0;color:var(--text-faint)">+'+more+'</span>':'')+
+          (h.posted?'<span class="posted">'+esc(h.posted)+' ago</span>':'')+'</div>'+
+      '</div></div>';
+  }
+
+  function render(){
+    const c=counts(), vis=filtered(), f=state.f;
+    // segment counts + active
+    $('#hpSegCountAll').textContent=c.all; $('#hpSegCountRent').textContent=c.rent;
+    $('#hpSegCountSale').textContent=c.sale; $('#hpSegCountBiz').textContent=c.business;
+    document.querySelectorAll('#hpSeg .seg').forEach(b=>b.classList.toggle('on',b.dataset.seg===state.seg));
+    $('#hpBizRefine').hidden = state.seg!=='business';
+    document.querySelectorAll('#hpBizRefine .biz-chip').forEach(b=>b.classList.toggle('on',b.dataset.biz===state.bizFor));
+    // bento
+    $('#hpBentoTotal').textContent=c.all; $('#hpBentoRent').textContent=c.rent; $('#hpBentoSale').textContent=c.sale;
+    // power tools active
+    $('#houseNearMeBtn').classList.toggle('on',state.nearMe);
+    $('#houseCommuteBtn').classList.toggle('on',state.matchActive);
+    // filter chips
+    const filterCount=['beds','priceMax','type','room','verifiedOnly','area'].filter(k=>f[k]).length;
+    $('#filterCountHost').innerHTML = filterCount?'<span class="badge-num" style="background:#06170F;color:var(--emerald);font-size:9px;border-radius:99px;padding:1px 5px;font-weight:800;margin-left:4px">'+filterCount+'</span>':'';
+    setChip('#chipBeds', !!f.beds, f.beds?f.beds+'+ beds':'Beds');
+    setChip('#chipPrice', !!f.priceMax, f.priceMax?'≤ '+shortTzs(+f.priceMax):'Price');
+    setChip('#chipType', !!f.type, f.type?cap(f.type):'Type');
+    setChip('#chipRoom', !!f.room, f.room?(f.room==='single'?'Single':f.room==='master'?'Self-cont.':'Whole'):'Room');
+    // result bar
+    $('#housesCount').textContent = vis.length+(vis.length===1?' property':' properties');
+    const SL={recommended:'Recommended',newest:'Newest',price_asc:'Price ↑',price_desc:'Price ↓',beds:'Most beds',nearest:'Nearest'};
+    $('#sortLabel').textContent=SL[state.sort];
+    document.querySelectorAll('#hpViewToggle button').forEach(b=>b.classList.toggle('on',b.dataset.d===state.density));
+    // list
+    const list=$('#housesList'); list.className='list'+(state.density==='rich'?' grid':'');
+    list.innerHTML = vis.length ? vis.map(cardHtml).join('')
+      : '<div style="padding:34px 14px;text-align:center;color:var(--text-muted);font-size:12.5px">No properties match. <button class="linkbtn" data-act="reset" style="font-size:12.5px">Clear filters</button></div>';
+    renderSearchChips();
+  }
+  function setChip(sel,on,txt){ const el=$(sel); el.classList.toggle('on',on); el.textContent=txt; }
+
+  function renderSearchChips(){
+    const host=$('#smartSearchChips');
+    if(state.crit.length){
+      host.innerHTML = state.crit.map(x=>'<span class="crit-chip">'+esc(x)+'</span>').join('')+
+        '<button class="clear-chip" data-act="clearsearch">Clear ✕</button>';
+    }else{
+      host.innerHTML = '<span class="try-lbl">Try</span>'+
+        EXAMPLES.map((e,i)=>'<button class="ex-chip" data-act="example" data-i="'+i+'">'+esc(e.label)+'</button>').join('');
+    }
+  }
+  const EXAMPLES=[
+    {label:'2-bed in Mbezi · under 800k', text:'2 bed apartment Mbezi under 800k'},
+    {label:'Plot in Tegeta · ≤ 50M',      text:'plot for sale Tegeta under 50m'},
+    {label:'Self-contained near UDSM',    text:'self contained room for rent ubungo'},
+  ];
+
+  // ── search submit ──────────────────────────────────────────────────────
+  function runSearch(){
+    const t=$('#smartSearchInput').value;
+    if(!t.trim()){ toast('Type what you want — e.g. “2 bed Mbezi under 800k”'); return; }
+    const {f,crit,seg}=parseSearch(t);
+    state.f=f; state.crit=crit; state.seg=seg;
+    render(); toast(filtered().length+' matches found');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 4) SHEETS
+  // ════════════════════════════════════════════════════════════════════════
+  const SHEET_TITLE={filters:'Filters',sort:'Sort by',alerts:'Alert me about an area',match:'Match homes to your life',request:'Tell us what you want'};
+  const optBtn=(on,act,attrs,label)=>'<button class="opt'+(on?' on':'')+'" data-act="'+act+'" '+attrs+'>'+label+'</button>';
+
+  function openSheet(name){ state.sheet=name; renderSheet(); }
+  function closeSheet(){ state.sheet=null; $('#sheetHost').innerHTML=''; }
+
+  function renderSheet(){
+    const name=state.sheet; if(!name){ $('#sheetHost').innerHTML=''; return; }
+    const f=state.f, body=sheetBody(name);
+    const showReset = name==='filters';
+    const cta = sheetCta(name);
+    $('#sheetHost').innerHTML =
+      '<div class="overlay" data-act="sheet-close">'+
+        '<div class="sheet" data-stop="1">'+
+          '<div class="grab"><i></i></div>'+
+          '<div class="sheet-hd"><h3>'+SHEET_TITLE[name]+'</h3><div class="rt">'+
+            (showReset?'<button class="linkbtn" data-act="reset">Reset</button>':'')+
+            '<button class="xbtn" data-act="sheet-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-soft)" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'+
+          '</div></div>'+
+          '<div class="sheet-bd">'+body+'</div>'+
+          (cta?'<div class="cta-wrap"><button class="cta" data-act="cta">'+cta+'</button></div>':'')+
+        '</div>'+
+      '</div>';
+  }
+  function sheetCta(name){
+    const n=filtered().length;
+    if(name==='filters') return 'Show '+n+(n===1?' home':' homes');
+    if(name==='alerts')  return 'Create alert';
+    if(name==='match')   return 'Rank by my life';
+    if(name==='request') return 'Send to agents';
+    return '';
+  }
+  function sec(lbl,inner,valId){ return '<div class="sec"><div class="sec-lbl'+(valId?' row':'')+'">'+lbl+'</div>'+inner+'</div>'; }
+  function pills(arr,cur,act,key){ return '<div class="opts">'+arr.map(o=>optBtn(String(cur)===String(o[0]),act,'data-key="'+key+'" data-val="'+o[0]+'"',o[1])).join('')+'</div>'; }
+
+  function sheetBody(name){
+    const f=state.f;
+    if(name==='filters'){
+      return sec('Bedrooms', pills([['','Any'],['1','1+'],['2','2+'],['3','3+'],['4','4+']],f.beds,'fopt','beds'))+
+        sec('Max price', pills([['','Any'],['200000','≤ 200k'],['500000','≤ 500k'],['800000','≤ 800k'],['1500000','≤ 1.5M'],['50000000','≤ 50M']],f.priceMax,'fopt','priceMax'))+
+        sec('Property type', pills([['','Any'],['apartment','Apartment'],['house','House'],['plot','Plot'],['office','Office'],['shop','Shop'],['warehouse','Warehouse']],f.type,'fopt','type'))+
+        sec('Room arrangement', pills([['','Any'],['single','Single room'],['master','Self-contained'],['whole','Whole unit']],f.room,'fopt','room'))+
+        sec('Area / neighbourhood', '<input class="fld" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" data-bind="f.area" value="'+esc(f.area)+'" placeholder="e.g. Mwenge, Mbezi, Masaki…">')+
+        '<div class="sec"><div class="toggle-row"><div><div class="t1">Verified only</div><div class="t2">GPS-verified location & agent</div></div>'+
+          '<button class="switch'+(f.verifiedOnly?' on':'')+'" data-act="verified"><i></i></button></div></div>';
+    }
+    if(name==='sort'){
+      const defs=[['recommended','Recommended'],['newest','Newest first'],['price_asc','Price: low to high'],['price_desc','Price: high to low'],['beds','Most bedrooms'],['nearest','Nearest first']];
+      return '<div style="display:flex;flex-direction:column;gap:6px">'+defs.map(o=>
+        '<button class="sortrow'+(state.sort===o[0]?' on':'')+'" data-act="sortpick" data-val="'+o[0]+'"><span>'+o[1]+'</span>'+
+        (state.sort===o[0]?'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg>':'')+'</button>').join('')+'</div>';
+    }
+    if(name==='alerts'){
+      const rt=state.alertRadius>=1000?(state.alertRadius/1000)+' km':state.alertRadius+' m';
+      return '<p class="sheet-intro" style="margin-bottom:16px">Get notified the moment a matching home is listed in your chosen area — before it spreads.</p>'+
+        sec('Area','<input class="fld" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" data-bind="alertArea" value="'+esc(state.alertArea)+'" placeholder="e.g. Mwenge">')+
+        sec('Radius <span class="val" id="radiusVal">'+rt+'</span>','<input type="range" min="500" max="5000" step="250" value="'+state.alertRadius+'" data-bind="alertRadius" data-fmt="radius">','1')+
+        sec('Frequency', pills([['instant','Instant'],['daily','Daily digest'],['weekly','Weekly']],state.alertFreq,'alertfreq','alertFreq'));
+    }
+    if(name==='match'){
+      return '<p class="sheet-intro" style="margin-bottom:16px">We rank homes by what actually shapes your day — commute, budget fit and the area you know.</p>'+
+        sec('Where you go most (work / chuo)','<input class="fld" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" data-bind="matchWork" value="'+esc(state.matchWork)+'" placeholder="e.g. Posta, City Centre">')+
+        sec('How you travel', pills([['walk','Walk'],['bus','Daladala'],['car','Drive']],state.matchMode,'matchmode','matchMode'))+
+        sec('Max commute <span class="val" id="maxVal">'+state.matchMax+' min</span>','<input type="range" min="5" max="90" step="5" value="'+state.matchMax+'" data-bind="matchMax" data-fmt="max">','1');
+    }
+    if(name==='request'){
+      return '<p class="sheet-intro" style="margin-bottom:16px">Can’t find it? Describe what you need and agents who own your Frame will bring options to you.</p>'+
+        sec('I’m looking…', pills([['rent','To rent'],['sale','To buy'],['business','Business']],state.reqMode,'reqmode','reqMode'))+
+        sec('Bedrooms', pills([['Any','Any'],['1','1'],['2','2'],['3','3'],['4+','4+']],state.reqBeds,'reqbeds','reqBeds'))+
+        sec('Area','<input class="fld" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" data-bind="reqArea" value="'+esc(state.reqArea)+'" placeholder="e.g. Sinza or Kinondoni">')+
+        sec('Budget (TZS / month)','<input class="fld" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" data-bind="reqBudget" value="'+esc(state.reqBudget)+'" placeholder="e.g. 400,000">')+
+        sec('Your phone <span class="val" style="color:var(--text-muted);text-transform:none">so agents can reach you</span>','<input class="fld" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" inputmode="tel" data-bind="reqPhone" value="'+esc(state.reqPhone)+'" placeholder="e.g. 0712 345 678">')+
+        sec('Anything else','<textarea class="fld" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" data-bind="reqNotes" placeholder="Self-contained, near daladala, water…">'+esc(state.reqNotes)+'</textarea>');
+    }
+    return '';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 5) MAP
+  // ════════════════════════════════════════════════════════════════════════
+  function openMap(){ state.mapOpen=true; renderMap(); }
+  function closeMap(){ state.mapOpen=false; state.activePin=null; $('#mapHost').innerHTML=''; }
+  function renderMap(){
+    if(!state.mapOpen){ $('#mapHost').innerHTML=''; return; }
+    const vis=filtered();
+    const active=vis.find(h=>h.id===state.activePin);
+    const pins=vis.map((h,i)=>{
+      const left=13+((i*41)%74), top=20+((i*57)%56), on=state.activePin===h.id;
+      return '<button class="pin'+(on?' on':'')+'" style="left:'+left+'%;top:'+top+'%" data-act="pin" data-id="'+h.id+'">TZS '+shortTzs(h.price)+'</button>';
+    }).join('');
+    $('#mapHost').innerHTML =
+      '<div class="mapview">'+
+        '<div class="mapbg" data-act="map-backdrop"><div class="mapgrid"></div>'+
+          '<div class="road" style="left:-10%;top:26%;width:120%;height:30px;transform:rotate(-8deg)"></div>'+
+          '<div class="road" style="left:-10%;top:64%;width:120%;height:38px;transform:rotate(6deg)"></div>'+
+          '<div class="road" style="left:32%;top:-10%;width:26px;height:120%;transform:rotate(5deg)"></div>'+
+          '<div class="me"></div>'+pins+'</div>'+
+        '<div class="map-top"><button class="map-list-btn" data-act="map-close"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>List</button>'+
+          '<span class="map-count">'+vis.length+' on map</span></div>'+
+        (active?
+          '<div class="map-card" data-act="open" data-id="'+active.id+'"><div class="mp" style="background-image:url(\''+esc(active.image)+'\')"></div>'+
+            '<div class="mb"><div style="display:flex;align-items:baseline;gap:5px"><span class="price" style="font-size:15px">'+priceMain(active)+'</span><span class="punit">'+priceUnit(active)+'</span></div>'+
+            '<div class="ctitle">'+esc(active.title)+'</div>'+
+            '<div class="loc-line">'+ICON.pin+'<span>'+esc(active.area+' · '+active.distKm+' km')+'</span></div></div></div>'
+          :'<div style="flex:1"></div>')+
+      '</div>';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 6) EVENTS  (one delegated click handler + targeted input handlers)
+  // ════════════════════════════════════════════════════════════════════════
+  document.addEventListener('click',e=>{
+    // platform toggle
+    const os=e.target.closest('#osToggle button'); if(os){ document.body.dataset.os=os.dataset.os; document.querySelectorAll('#osToggle button').forEach(b=>b.classList.toggle('on',b===os)); return; }
+    const el=e.target.closest('[data-act]'); if(!el) return;
+    const act=el.dataset.act, id=el.dataset.id;
+    const byId=i=>HOUSES.find(h=>h.id===i);
+    switch(act){
+      case 'seg':      state.seg=el.dataset.seg; state.bizFor=''; render(); break;
+      case 'biz':      state.bizFor=el.dataset.biz; render(); break;
+      case 'bento':    state.seg=el.dataset.seg; render(); break;
+      case 'near':     toggleNearMe(); break;
+      case 'match':    openSheet('match'); break;
+      case 'alerts':   openSheet('alerts'); break;
+      case 'request':  openSheet('request'); break;
+      case 'filters':  openSheet('filters'); break;
+      case 'sort':     openSheet('sort'); break;
+      case 'density':  state.density=el.dataset.d; render(); break;
+      case 'open':     ACTIONS.open(byId(id)); break;
+      case 'save':     e.stopPropagation(); state.saved[id]=!state.saved[id]; ACTIONS.save(byId(id)); render(); if(state.mapOpen)renderMap(); break;
+      case 'loc':      ACTIONS.changeLocation(); break;
+      case 'lang':     state.lang=state.lang==='EN'?'SW':'EN'; $('#langTxt').textContent=state.lang; break;
+      case 'clearsearch': state.search=''; state.crit=[]; state.f={beds:'',priceMax:'',type:'',room:'',area:'',verifiedOnly:false}; $('#smartSearchInput').value=''; render(); break;
+      case 'example':  { const ex=EXAMPLES[+el.dataset.i]; $('#smartSearchInput').value=ex.text; runSearch(); } break;
+      // map
+      case 'map-open':  openMap(); break;
+      case 'map-close': closeMap(); break;
+      case 'map-backdrop': state.activePin=null; renderMap(); break;
+      case 'pin':       state.activePin=id; renderMap(); break;
+      // sheet
+      case 'sheet-close': closeSheet(); break;
+      case 'reset':    state.f={beds:'',priceMax:'',type:'',room:'',area:'',verifiedOnly:false}; state.crit=[]; state.search=''; $('#smartSearchInput').value=''; render(); if(state.sheet)renderSheet(); break;
+      case 'fopt':     state.f[el.dataset.key]=el.dataset.val; render(); renderSheet(); break;
+      case 'verified': state.f.verifiedOnly=!state.f.verifiedOnly; render(); renderSheet(); break;
+      case 'sortpick': state.sort=el.dataset.val; closeSheet(); render(); break;
+      case 'alertfreq':state.alertFreq=el.dataset.val; renderSheet(); break;
+      case 'matchmode':state.matchMode=el.dataset.val; renderSheet(); break;
+      case 'reqmode':  state.reqMode=el.dataset.val; renderSheet(); break;
+      case 'reqbeds':  state.reqBeds=el.dataset.val; renderSheet(); break;
+      case 'cta':      onCta(); break;
+    }
+  });
+  // stop clicks inside the sheet card from closing it
+  document.addEventListener('click',e=>{ if(e.target.closest('[data-stop]')) e.stopPropagation(); },true);
+
+  function onCta(){
+    const n=state.sheet;
+    if(n==='filters'){ closeSheet(); }
+    else if(n==='alerts'){ ACTIONS.createAlert(); closeSheet(); }
+    else if(n==='match'){ state.matchActive=true; closeSheet(); render(); ACTIONS.applyMatch(); }
+    else if(n==='request'){ ACTIONS.submitRequest(); closeSheet(); }
+  }
+
+  // text + slider inputs inside sheets (don't re-render → keep focus)
+  document.addEventListener('input',e=>{
+    const el=e.target.closest('[data-bind]'); if(!el) return;
+    const path=el.dataset.bind, v=el.value;
+    if(path.indexOf('f.')===0) state.f[path.slice(2)]=v; else state[path]=el.type==='range'?+v:v;
+    if(el.dataset.fmt==='radius'){ const lbl=$('#radiusVal'); if(lbl) lbl.textContent = v>=1000?(v/1000)+' km':v+' m'; }
+    if(el.dataset.fmt==='max'){ const lbl=$('#maxVal'); if(lbl) lbl.textContent = v+' min'; }
+    if(path==='f.area') render();   // area filter is live
+  });
+  $('#smartSearch').addEventListener('submit',e=>{ e.preventDefault(); runSearch(); });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 7) BOOT
+  // ════════════════════════════════════════════════════════════════════════
+  (async function init(){
+    try{ HOUSES = await loadHouses(); }
+    catch(err){ HOUSES = SAMPLE_HOUSES.map(normalize); toast('Couldn’t load — showing samples'); }
+    render();
+  })();
+})();
+</script>
+<script src="js/sw-register.js"></script>
+</body>
+</html>
