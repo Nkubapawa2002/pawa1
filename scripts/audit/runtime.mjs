@@ -129,7 +129,14 @@ const requested = process.argv.slice(2);
 const pages = requested.length ? requested : listPages();
 
 const server = await startServer();
-const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+// protocolTimeout is raised because loading 22 map-heavy pages back to back can
+// stall the default 30s CDP budget on a busy machine, which fails the run for
+// reasons that have nothing to do with the app.
+const browser = await puppeteer.launch({
+  headless: true,
+  args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  protocolTimeout: 180000,
+});
 
 const byPage = {};
 let total = 0;

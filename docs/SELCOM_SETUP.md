@@ -63,7 +63,7 @@ For the sandbox phase, set `SELCOM_BASE_URL=https://apigwtest.selcommobile.com`
 After setting secrets, **re-deploy** both functions so they pick up new env:
 
 ```bash
-SUPABASE_PAT=sbp_... node scripts/deploy-create-payment.js --all
+SUPABASE_PAT=sbp_... node scripts/deploy/deploy-create-payment.js --all
 ```
 
 (Setting secrets alone is enough — Supabase reads them on each cold start —
@@ -169,4 +169,4 @@ You can also override per-method, e.g. `PROVIDER_MPESA=clickpesa`,
 | `bus web/supabase/functions/_shared/selcom.ts` | Selcom-specific `initiate()` + `verifyCallback()` |
 | `bus web/supabase/functions/payment-callback/index.ts` | Receives Selcom's POST → verifies signature → updates `payments` → DB trigger flips `bookings.status='confirmed'` |
 | `bus web/supabase/functions/_shared/registry.ts` | Picks the provider for a given method based on `PRIMARY_PROVIDER` + `PROVIDER_<METHOD>` env vars |
-| `scripts/deploy-create-payment.js` | Re-deploys either or both functions via the Supabase Management API |
+| `scripts/deploy/deploy-create-payment.js` | Re-deploys either or both functions via the Supabase Management API |

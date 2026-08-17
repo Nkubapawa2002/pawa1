@@ -9,7 +9,7 @@
 window.initAgentTrucksPage = async () => {
   const sb = window.DataStore?.sb;
 
-  // The exact SQL from supabase/trucks.sql — shown in the setup card so the
+  // The exact SQL from supabase/features/truck/trucks.sql — shown in the setup card so the
   // owner can create the table + bucket without leaving the page.
   const SETUP_SQL = `-- Pawa Moving Trucks — public.trucks table + truck-photos storage bucket.
 create table if not exists public.trucks (

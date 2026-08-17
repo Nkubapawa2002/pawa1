@@ -19,7 +19,7 @@ that fits — and to the right place in the repo.
 | CPU-bound, perf-critical, memory-safe compute: fare/seat-map math, route optimization across many listings, geo distance over big sets — **and heavy in-browser math via Rust→WASM** | **Rust** | top performance + memory safety; compiles to WASM so the static frontend runs it with no build step | `services/rust/` (+ prebuilt `.wasm` in `js/`) |
 | Enterprise integrations & money: payment/settlement, bank & mobile-money SDKs, formal accounting/ledger logic, a future Android app | **Java** | mature, audited enterprise & payment SDKs; strong typing for money; Android | `services/java/` |
 | Server logic / webhooks already deployed | **TypeScript/Deno** | already in use on Supabase | `supabase/functions/` |
-| Database schema & queries | **SQL** | source of truth | `supabase/schema_master.sql` |
+| Database schema & queries | **SQL** | source of truth | `supabase/schema/schema_master.sql` |
 | Frontend UI | **HTML/CSS/JS (vanilla)** | buildless, GitHub-Pages-served | repo root, `js/`, `css/` |
 
 ## How to route a task that "drops"
@@ -62,7 +62,7 @@ The seeker's request and every agent's region+district both already live in
 Postgres. "Find the agents whose region+district cover this request" is therefore
 an **indexed SQL lookup**, implemented as the SECURITY-DEFINER RPC
 `house_demand_for_agent(region, district, listing, limit)`
-(`supabase/house_demand_for_agent.sql`). Putting this match in a separate
+(`supabase/features/house/house_demand_for_agent.sql`). Putting this match in a separate
 Java/Python service would either duplicate the data (cache-invalidation bugs) or
 just proxy to Postgres anyway — a new tier that can crash, not a safer one.
 
@@ -71,7 +71,7 @@ their region — each fetched in index order off a partial index and capped, the
 trivial merge. Urgency uses `coalesce(needed_by, 'infinity')` so the filter +
 ordering collapse into one index range (no post-scan sort).
 
-**Verified at scale** (`scripts/bench_demand_match.mjs`, 1,000,000 synthetic
+**Verified at scale** (`scripts/db/bench_demand_match.mjs`, 1,000,000 synthetic
 active rows on the real Supabase instance, temp table, no prod data touched):
 warm execution **~1.2 ms**, 30-region/district average **~3 ms**, worst **~6 ms**,
 two index scans of 200 rows — **no sequential scan**. ~326 matches/sec per core,

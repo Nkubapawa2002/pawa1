@@ -7,7 +7,7 @@
 //   • new listings are stamped with the agent's region + operating area so a
 //     searcher in that area finds the agent's services.
 //
-// Backed by public.agent_profiles (see supabase/agent_profiles.sql), keyed by
+// Backed by public.agent_profiles (see supabase/features/agent/agent_profiles.sql), keyed by
 // the agent's auth user id — the same identity the billing tracker uses.
 //
 // Usage (from a dashboard, after sign-in):

@@ -3,7 +3,7 @@
 //  - Sign in / sign up with Supabase auth (email + password)
 //  - List the current user's own property listings
 //  - Create / edit / delete listings (matches the RLS policies in
-//    supabase/schema_master.sql section 34 — owner_user_id = auth.uid())
+//    supabase/schema/schema_master.sql section 34 — owner_user_id = auth.uid())
 //  - GPS-verified pin picker: drag a marker on a satellite map OR use
 //    the device's GPS to set lat/lng
 //  - Photo upload to the `house-photos` storage bucket (client-side
@@ -2229,7 +2229,7 @@ create policy "house-photos upload" on storage.objects for insert
   // in the agent's REGION, with their own DISTRICT ranked first (match_level).
   // Prefers house_demand_for_agent (region+district); falls back to the older
   // region-only RPC, then to nothing — so the board always works, whatever SQL
-  // is installed. (See supabase/house_demand_for_agent.sql.)
+  // is installed. (See supabase/features/house/house_demand_for_agent.sql.)
   async function loadRegionDemand(region) {
     if (!sb || !region) return [];
     const district = (agentProfile && agentProfile.district) || null;

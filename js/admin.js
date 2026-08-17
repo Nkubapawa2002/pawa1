@@ -184,7 +184,7 @@ window.initAdminPage = async () => {
   const AA_MONTHLY_FEE = (window.APP_CONFIG && window.APP_CONFIG.AGENT_MONTHLY_FEE_TZS) || 10000;
   const AA_GRACE_HOURS = (window.APP_CONFIG && window.APP_CONFIG.AGENT_GRACE_HOURS) || 48;
   const AA_APPROVAL_DAYS = (window.APP_CONFIG && window.APP_CONFIG.AGENT_APPROVAL_DAYS) || 7;
-  // Lifecycle badge for a billing row (mirrors supabase/agent_approval.sql):
+  // Lifecycle badge for a billing row (mirrors supabase/features/agent/agent_approval.sql):
   //   admin-deactivated / cancelled / overdue → suspended
   //   NOT approved → live for AA_APPROVAL_DAYS from registration, then hidden
   //   approved → normal billing (paid_until / status)
@@ -396,7 +396,7 @@ window.initAdminPage = async () => {
       return;
     }
     if (!res.viaRpc) {
-      alert("Payment applied to the agent's coverage, but the receipts ledger isn't enabled yet, so it won't show in the collected totals.\n\nRun supabase/agent_billing_setup.sql in Supabase to enable receipt logging.");
+      alert("Payment applied to the agent's coverage, but the receipts ledger isn't enabled yet, so it won't show in the collected totals.\n\nRun supabase/features/agent/agent_billing_setup.sql in Supabase to enable receipt logging.");
     }
     _aaRenderSummary();
     _aaDraw();
@@ -618,8 +618,8 @@ window.initAdminPage = async () => {
     if (note) {
       const ledgerMissing = !_aaBillingMissing && collected.missing;
       note.hidden = !(_aaBillingMissing || ledgerMissing);
-      if (_aaBillingMissing) note.textContent = "Billing not saved yet: run supabase/agent_billing_setup.sql in Supabase to enable paid-status tracking. (Showing everyone as Free for now.)";
-      else if (ledgerMissing) note.textContent = "Receipts ledger not enabled: run supabase/agent_billing_setup.sql so each payment is logged and the collected totals are real. (Payments still extend coverage without it.)";
+      if (_aaBillingMissing) note.textContent = "Billing not saved yet: run supabase/features/agent/agent_billing_setup.sql in Supabase to enable paid-status tracking. (Showing everyone as Free for now.)";
+      else if (ledgerMissing) note.textContent = "Receipts ledger not enabled: run supabase/features/agent/agent_billing_setup.sql so each payment is logged and the collected totals are real. (Payments still extend coverage without it.)";
     }
 
     _aaRenderBreakdown();
@@ -852,7 +852,7 @@ window.initAdminPage = async () => {
 
   async function _aaSaveBilling(key, patch) {
     if (_aaBillingMissing) {
-      alert("Billing isn't enabled yet. Run supabase/agent_billing_setup.sql in your Supabase SQL editor, then reload this tab.");
+      alert("Billing isn't enabled yet. Run supabase/features/agent/agent_billing_setup.sql in your Supabase SQL editor, then reload this tab.");
       return;
     }
     const u = _aaByKey.get(key);
@@ -1021,7 +1021,7 @@ window.initAdminPage = async () => {
       const { error } = await sb.from("agent_messages").insert(rows);
       if (error) {
         if (/relation .* does not exist|schema cache|could not find/i.test(error.message || ""))
-          alert("In-app messaging isn't set up yet. Run supabase/agent_messages.sql in Supabase.");
+          alert("In-app messaging isn't set up yet. Run supabase/features/agent/agent_messages.sql in Supabase.");
         else alert("Couldn't send in-app message: " + error.message);
         if (status) status.textContent = "Send failed.";
         return;
@@ -1046,7 +1046,7 @@ window.initAdminPage = async () => {
 
   async function _aaBulkAction(kind) {
     if (_aaBillingMissing) {
-      alert("Billing isn't enabled yet. Run supabase/agent_billing_setup.sql in Supabase, then reload.");
+      alert("Billing isn't enabled yet. Run supabase/features/agent/agent_billing_setup.sql in Supabase, then reload.");
       return;
     }
     const targets = _aaBulkTargets();
@@ -1173,7 +1173,7 @@ window.initAdminPage = async () => {
     ]);
     const note = $("tenNote");
     if (tRes.status !== "fulfilled" || tRes.value.error) {
-      if (note) { note.hidden = false; note.textContent = "house_tenancies table not found — run supabase/house_tenancies.sql."; }
+      if (note) { note.hidden = false; note.textContent = "house_tenancies table not found — run supabase/features/house/house_tenancies.sql."; }
       list.innerHTML = `<div class="empty"><p>No tenant data.</p></div>`;
       _tenAll = [];
       _tenRenderSummary();
@@ -1329,7 +1329,7 @@ window.initAdminPage = async () => {
     } catch (e) {
       note.hidden = false;
       note.textContent = "Day jobs unavailable: " + (e.message || e) +
-        " — run supabase/day_jobs.sql if the board isn't deployed yet.";
+        " — run supabase/features/job/day_jobs.sql if the board isn't deployed yet.";
       _djJobs = [];
     }
     _djDraw();

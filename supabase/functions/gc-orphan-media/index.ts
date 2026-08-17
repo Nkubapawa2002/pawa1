@@ -8,7 +8,7 @@
 // so it can read every table and delete via the Storage API (direct SQL deletes
 // on storage.objects are blocked).
 //
-// Triggered daily by pg_cron (via pg_net) — see supabase/gc_orphan_media.sql.
+// Triggered daily by pg_cron (via pg_net) — see supabase/ops/gc_orphan_media.sql.
 // A 1-day margin protects files uploaded moments before their row is saved.
 // If PURGE_SECRET is set, callers must send a matching x-purge-key header.
 // =====================================================================

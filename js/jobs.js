@@ -6,7 +6,7 @@
 //  - "Jobs near me" sorts by distance (haversine instantly, then upgraded to
 //    real road km via OSRM — same pattern as the houses directory)
 //  - Supabase Realtime keeps every open browser's bars in sync as slots fill
-//  Backend: supabase/day_jobs.sql (tables + claim_day_job RPC + RLS)
+//  Backend: supabase/features/job/day_jobs.sql (tables + claim_day_job RPC + RLS)
 // ============================================================================
 
 window.initJobsPage = () => {
@@ -54,7 +54,7 @@ window.initJobsPage = () => {
     if (error) {
       // Table not deployed yet → friendly setup note instead of a dead page.
       listEl.innerHTML = `<div class="jobs-empty">The jobs board isn't switched on yet.<br>
-        <small>(Admin: run <code>supabase/day_jobs.sql</code> in the Supabase SQL editor.)</small></div>`;
+        <small>(Admin: run <code>supabase/features/job/day_jobs.sql</code> in the Supabase SQL editor.)</small></div>`;
       return;
     }
     jobs = data || [];

@@ -277,13 +277,13 @@ window.safeUrl = function (u) {
 
     // Houses — public property listings (House Booking TZ). Tries Supabase
     // first, but falls back to data/houses.json if the table is missing
-    // (e.g. the SQL in supabase/schema_master.sql hasn't been applied
+    // (e.g. the SQL in supabase/schema/schema_master.sql hasn't been applied
     // yet). That way the page always works for visitors.
     async getHouses(opts = {}) {
       return cached("houses", TTL.houses, async () => {
         if (sb) {
           try {
-            // Listings live 15 days from the day posted (see supabase/house_media_ttl.sql).
+            // Listings live 15 days from the day posted (see supabase/features/house/house_media_ttl.sql).
             // A daily cron purges expired rows + their media; this filter hides any
             // that are already past 15 days in the window before the sweep runs.
             const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();

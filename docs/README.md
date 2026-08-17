@@ -47,7 +47,7 @@ bus web/
 Open **SQL Editor** in the Supabase dashboard and run these in order:
 
 1. `supabase/schema.sql` — base tables + RLS + realtime
-2. `supabase/seed.sql` — regions, buses, agents, sample shipments
+2. `supabase/schema/seed.sql` — regions, buses, agents, sample shipments
 3. `supabase/schema_v2.sql` — admins, agent applications, ratings, photos, route helpers
 4. `supabase/photos.sql` — maps each bus to its photo file (run **after** step 5 below)
 

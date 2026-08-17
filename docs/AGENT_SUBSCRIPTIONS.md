@@ -41,10 +41,10 @@ a suspended agent's rows via `uid_suspended()` / `phone_suspended()`
 ## Deploy (once)
 
 1. **SQL** — run in the Supabase SQL editor, in order (all idempotent):
-   - `supabase/agent_billing.sql`
-   - `supabase/agent_subscription.sql`
-   - `supabase/agent_grace_active.sql`
-   - `supabase/agent_subscription_selfpay.sql`  ← **new** (self-serve trigger + reference_type)
+   - `supabase/features/agent/agent_billing.sql`
+   - `supabase/features/agent/agent_subscription.sql`
+   - `supabase/features/agent/agent_grace_active.sql`
+   - `supabase/features/agent/agent_subscription_selfpay.sql`  ← **new** (self-serve trigger + reference_type)
 2. **Payments** — a mobile-money provider must be configured as Edge Function
    secrets (Selcom / ClickPesa / AzamPay / Flutterwave) and `create-payment` +
    `payment-callback` deployed. Point each provider's webhook at

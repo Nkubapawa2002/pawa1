@@ -54,8 +54,8 @@ pawa2/
 ## Website AND application
 
 The site is an installable PWA (manifest.json + service-worker.js + PNG icons
-in `icons/`, regenerate with `node scripts/make_icons.mjs`) and a native
-Android app via Capacitor: `node scripts/build_app.mjs && npx cap sync android`
+in `icons/`, regenerate with `node scripts/build/make_icons.mjs`) and a native
+Android app via Capacitor: `node scripts/build/build_app.mjs && npx cap sync android`
 stages the site into `www/` (gitignored). Full runbook: `docs/APP_BUILD.md`.
 
 > Historical note: this used to live under `bus web/`. It was flattened to the
@@ -66,7 +66,7 @@ stages the site into `www/` (gitignored). Full runbook: `docs/APP_BUILD.md`.
 - **Supabase** — PostgreSQL + Auth + Storage + Edge Functions
   - Project: `kkdpacoiwntrcukgwksh.supabase.co`
   - Storage buckets: `bus-photos` (20 MB), `agent-photos` (20 MB), `ride-driver-photos` — all public
-  - Authoritative schema: `supabase/schema_master.sql`
+  - Authoritative schema: `supabase/schema/schema_master.sql`
 - **n8n** — SMS via Africa's Talking, VAPI call triggers, seat-hold expiry cron
 - **VAPI** — AI voice agent for bookings
 

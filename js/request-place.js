@@ -203,7 +203,7 @@
   // owns it; anonymous => user_id NULL, still removable by id+phone) and lets a
   // signed-out seeker create a demand even under the new `sb_publishable_` API
   // key, which the `hdp insert` RLS policy rejects for a direct anon insert
-  // (42501). See supabase/house_demand_create.sql. Falls back to the legacy
+  // (42501). See supabase/features/house/house_demand_create.sql. Falls back to the legacy
   // column-stripping insert only when that RPC isn't deployed yet.
   async function saveDemand(pin) {
     const sb = window.DataStore && window.DataStore.sb;
@@ -256,7 +256,7 @@
     }
     if (error) {
       if (/relation .* does not exist|schema cache/i.test(error.message || ""))
-        throw new Error("Requests aren't set up on this server yet. Run supabase/setup_house_demand.sql + house_demand_region.sql.");
+        throw new Error("Requests aren't set up on this server yet. Run supabase/features/house/setup_house_demand.sql + house_demand_region.sql.");
       throw error;
     }
   }

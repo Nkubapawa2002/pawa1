@@ -3313,7 +3313,7 @@ window.initHousesPage = async () => {
     }
     if (error) {
       if (/relation .* does not exist|schema cache/i.test(error.message || ""))
-        throw new Error("Waiting lists aren't set up yet on this server. Run supabase/setup_house_demand.sql.");
+        throw new Error("Waiting lists aren't set up yet on this server. Run supabase/features/house/setup_house_demand.sql.");
       throw error;
     }
     const mine = JSON.parse(localStorage.getItem("pawa_my_demand_pins") || "[]");

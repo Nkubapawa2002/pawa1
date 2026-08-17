@@ -6,7 +6,7 @@
 // house-photos bucket via the Storage API (the ONLY supported way — direct
 // SQL deletes on storage.objects are blocked) and then its row deleted.
 //
-// Triggered daily by pg_cron (via pg_net) — see supabase/house_media_ttl.sql.
+// Triggered daily by pg_cron (via pg_net) — see supabase/features/house/house_media_ttl.sql.
 // Uses the service role (auto-injected) so it can purge across all owners and
 // bypass RLS. If PURGE_SECRET is set, callers must send a matching x-purge-key
 // header — the daily cron passes it; that keeps the public endpoint from being

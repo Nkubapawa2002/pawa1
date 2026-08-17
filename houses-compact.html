@@ -390,7 +390,7 @@
   }
 
   // ── WIRED: map ONE public.houses row -> the fields the card reads.
-  // Column names are the real schema (supabase/schema_master.sql):
+  // Column names are the real schema (supabase/schema/schema_master.sql):
   //   price_tzs, size_sqm, room_kind, ward/district/area, lat/lng, photo,
   //   verified, available, created_at, amenities[].
   function normalize(row){
@@ -586,7 +586,7 @@
     // stamps ownership from app_uid() so a signed-in user owns their pin and an
     // anonymous seeker still gets a removable (id + phone) row — the direct
     // anon insert is rejected by RLS under the new publishable API key.
-    // See supabase/house_demand_create.sql.
+    // See supabase/features/house/house_demand_create.sql.
     const args = {
       p_id:id, p_lat:place.lat, p_lng:place.lng, p_phone:phone,
       p_region:region, p_area:(state.reqArea||place.name||region), p_district:null,

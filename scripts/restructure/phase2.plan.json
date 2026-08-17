@@ -1,0 +1,360 @@
+{
+  "moves": [
+    {
+      "from": "supabase/add_extra_costs.sql",
+      "to": "supabase/ops/add_extra_costs.sql"
+    },
+    {
+      "from": "supabase/admin_areas.sql",
+      "to": "supabase/ops/admin_areas.sql"
+    },
+    {
+      "from": "supabase/agent_approval.sql",
+      "to": "supabase/features/agent/agent_approval.sql"
+    },
+    {
+      "from": "supabase/agent_auth.sql",
+      "to": "supabase/features/agent/agent_auth.sql"
+    },
+    {
+      "from": "supabase/agent_billing.sql",
+      "to": "supabase/features/agent/agent_billing.sql"
+    },
+    {
+      "from": "supabase/agent_billing_anchor.sql",
+      "to": "supabase/features/agent/agent_billing_anchor.sql"
+    },
+    {
+      "from": "supabase/agent_billing_setup.sql",
+      "to": "supabase/features/agent/agent_billing_setup.sql"
+    },
+    {
+      "from": "supabase/agent_fee.sql",
+      "to": "supabase/features/agent/agent_fee.sql"
+    },
+    {
+      "from": "supabase/agent_grace_active.sql",
+      "to": "supabase/features/agent/agent_grace_active.sql"
+    },
+    {
+      "from": "supabase/agent_messages.sql",
+      "to": "supabase/features/agent/agent_messages.sql"
+    },
+    {
+      "from": "supabase/agent_profiles.sql",
+      "to": "supabase/features/agent/agent_profiles.sql"
+    },
+    {
+      "from": "supabase/agent_subscription.sql",
+      "to": "supabase/features/agent/agent_subscription.sql"
+    },
+    {
+      "from": "supabase/agent_subscription_selfpay.sql",
+      "to": "supabase/features/agent/agent_subscription_selfpay.sql"
+    },
+    {
+      "from": "supabase/audit_and_fix.sql",
+      "to": "supabase/schema/audit_and_fix.sql"
+    },
+    {
+      "from": "supabase/cleanup_duplicate_indexes.sql",
+      "to": "supabase/fixes/cleanup_duplicate_indexes.sql"
+    },
+    {
+      "from": "supabase/clerk_migrate_owner_ids.sql",
+      "to": "supabase/auth/clerk_migrate_owner_ids.sql"
+    },
+    {
+      "from": "supabase/clerk_text_user_ids.sql",
+      "to": "supabase/auth/clerk_text_user_ids.sql"
+    },
+    {
+      "from": "supabase/day_jobs.sql",
+      "to": "supabase/features/job/day_jobs.sql"
+    },
+    {
+      "from": "supabase/db_production_fixes.sql",
+      "to": "supabase/fixes/db_production_fixes.sql"
+    },
+    {
+      "from": "supabase/fix_approve_agent_overload.sql",
+      "to": "supabase/features/agent/fix_approve_agent_overload.sql"
+    },
+    {
+      "from": "supabase/fix_bookings_cash_rls.sql",
+      "to": "supabase/fixes/fix_bookings_cash_rls.sql"
+    },
+    {
+      "from": "supabase/fix_finance_rls.sql",
+      "to": "supabase/fixes/fix_finance_rls.sql"
+    },
+    {
+      "from": "supabase/fix_function_search_path.sql",
+      "to": "supabase/fixes/fix_function_search_path.sql"
+    },
+    {
+      "from": "supabase/fix_meet_rooms_purpose.sql",
+      "to": "supabase/features/meet/fix_meet_rooms_purpose.sql"
+    },
+    {
+      "from": "supabase/fix_ride_realtime.sql",
+      "to": "supabase/features/ride/fix_ride_realtime.sql"
+    },
+    {
+      "from": "supabase/fix_view_security_invoker.sql",
+      "to": "supabase/fixes/fix_view_security_invoker.sql"
+    },
+    {
+      "from": "supabase/gc_orphan_media.sql",
+      "to": "supabase/ops/gc_orphan_media.sql"
+    },
+    {
+      "from": "supabase/house_availability.sql",
+      "to": "supabase/features/house/house_availability.sql"
+    },
+    {
+      "from": "supabase/house_demand_create.sql",
+      "to": "supabase/features/house/house_demand_create.sql"
+    },
+    {
+      "from": "supabase/house_demand_for_agent.sql",
+      "to": "supabase/features/house/house_demand_for_agent.sql"
+    },
+    {
+      "from": "supabase/house_demand_needed_by.sql",
+      "to": "supabase/features/house/house_demand_needed_by.sql"
+    },
+    {
+      "from": "supabase/house_demand_region.sql",
+      "to": "supabase/features/house/house_demand_region.sql"
+    },
+    {
+      "from": "supabase/house_demand_remove.sql",
+      "to": "supabase/features/house/house_demand_remove.sql"
+    },
+    {
+      "from": "supabase/house_media_ttl.sql",
+      "to": "supabase/features/house/house_media_ttl.sql"
+    },
+    {
+      "from": "supabase/house_media_ttl_cron.sql",
+      "to": "supabase/features/house/house_media_ttl_cron.sql"
+    },
+    {
+      "from": "supabase/house_tenancies.sql",
+      "to": "supabase/features/house/house_tenancies.sql"
+    },
+    {
+      "from": "supabase/house_tenancies_landlord.sql",
+      "to": "supabase/features/house/house_tenancies_landlord.sql"
+    },
+    {
+      "from": "supabase/houses_is_frame.sql",
+      "to": "supabase/features/house/houses_is_frame.sql"
+    },
+    {
+      "from": "supabase/houses_type_freeform.sql",
+      "to": "supabase/features/house/houses_type_freeform.sql"
+    },
+    {
+      "from": "supabase/meet_secure.sql",
+      "to": "supabase/features/meet/meet_secure.sql"
+    },
+    {
+      "from": "supabase/reactivate_legacy_trial.sql",
+      "to": "supabase/ops/reactivate_legacy_trial.sql"
+    },
+    {
+      "from": "supabase/regions_seed.sql",
+      "to": "supabase/ops/regions_seed.sql"
+    },
+    {
+      "from": "supabase/remove_demo_agents.sql",
+      "to": "supabase/features/agent/remove_demo_agents.sql"
+    },
+    {
+      "from": "supabase/remove_legacy_features.sql",
+      "to": "supabase/ops/remove_legacy_features.sql"
+    },
+    {
+      "from": "supabase/schema_master.sql",
+      "to": "supabase/schema/schema_master.sql"
+    },
+    {
+      "from": "supabase/security_hardening.sql",
+      "to": "supabase/auth/security_hardening.sql"
+    },
+    {
+      "from": "supabase/seed.sql",
+      "to": "supabase/schema/seed.sql"
+    },
+    {
+      "from": "supabase/services.sql",
+      "to": "supabase/features/service/services.sql"
+    },
+    {
+      "from": "supabase/setup_house_demand.sql",
+      "to": "supabase/features/house/setup_house_demand.sql"
+    },
+    {
+      "from": "supabase/setup_houses.sql",
+      "to": "supabase/features/house/setup_houses.sql"
+    },
+    {
+      "from": "supabase/tenants_helpers_v2.sql",
+      "to": "supabase/tenancy/tenants_helpers_v2.sql"
+    },
+    {
+      "from": "supabase/trucks.sql",
+      "to": "supabase/features/truck/trucks.sql"
+    },
+    {
+      "from": "supabase/trucks_type_freeform.sql",
+      "to": "supabase/features/truck/trucks_type_freeform.sql"
+    },
+    {
+      "from": "scripts/_compress_new.mjs",
+      "to": "scripts/build/_compress_new.mjs"
+    },
+    {
+      "from": "scripts/apply-claude-design.js",
+      "to": "scripts/build/apply-claude-design.js"
+    },
+    {
+      "from": "scripts/apply-rides-schema.js",
+      "to": "scripts/deploy/apply-rides-schema.js"
+    },
+    {
+      "from": "scripts/backfill_admin_areas.mjs",
+      "to": "scripts/db/backfill_admin_areas.mjs"
+    },
+    {
+      "from": "scripts/bench_demand_match.mjs",
+      "to": "scripts/db/bench_demand_match.mjs"
+    },
+    {
+      "from": "scripts/build_app.mjs",
+      "to": "scripts/build/build_app.mjs"
+    },
+    {
+      "from": "scripts/create_agent_bucket.mjs",
+      "to": "scripts/upload/create_agent_bucket.mjs"
+    },
+    {
+      "from": "scripts/db_audit.mjs",
+      "to": "scripts/db/db_audit.mjs"
+    },
+    {
+      "from": "scripts/db_photos.mjs",
+      "to": "scripts/upload/db_photos.mjs"
+    },
+    {
+      "from": "scripts/db_spider.mjs",
+      "to": "scripts/db/db_spider.mjs"
+    },
+    {
+      "from": "scripts/db_table_usage.mjs",
+      "to": "scripts/db/db_table_usage.mjs"
+    },
+    {
+      "from": "scripts/deploy-create-payment.js",
+      "to": "scripts/deploy/deploy-create-payment.js"
+    },
+    {
+      "from": "scripts/faststart_audit.mjs",
+      "to": "scripts/media/faststart_audit.mjs"
+    },
+    {
+      "from": "scripts/faststart_backfill.py",
+      "to": "scripts/media/faststart_backfill.py"
+    },
+    {
+      "from": "scripts/inject_theme.mjs",
+      "to": "scripts/build/inject_theme.mjs"
+    },
+    {
+      "from": "scripts/make_icons.mjs",
+      "to": "scripts/build/make_icons.mjs"
+    },
+    {
+      "from": "scripts/resize_hero_images.mjs",
+      "to": "scripts/build/resize_hero_images.mjs"
+    },
+    {
+      "from": "scripts/rls_anon_probe.mjs",
+      "to": "scripts/db/rls_anon_probe.mjs"
+    },
+    {
+      "from": "scripts/run-migration-section51.js",
+      "to": "scripts/archive/run-migration-section51.js"
+    },
+    {
+      "from": "scripts/run-migration-section52.js",
+      "to": "scripts/archive/run-migration-section52.js"
+    },
+    {
+      "from": "scripts/run-migration-section53.js",
+      "to": "scripts/archive/run-migration-section53.js"
+    },
+    {
+      "from": "scripts/run-migration-section54.js",
+      "to": "scripts/archive/run-migration-section54.js"
+    },
+    {
+      "from": "scripts/run_sql.mjs",
+      "to": "scripts/db/run_sql.mjs"
+    },
+    {
+      "from": "scripts/setup_android_sdk.ps1",
+      "to": "scripts/build/setup_android_sdk.ps1"
+    },
+    {
+      "from": "scripts/strip_emojis.mjs",
+      "to": "scripts/build/strip_emojis.mjs"
+    },
+    {
+      "from": "scripts/upload_data_photos.mjs",
+      "to": "scripts/upload/upload_data_photos.mjs"
+    },
+    {
+      "from": "scripts/upload_hero_photos.mjs",
+      "to": "scripts/upload/upload_hero_photos.mjs"
+    },
+    {
+      "from": "scripts/upload_new_site_photos.mjs",
+      "to": "scripts/upload/upload_new_site_photos.mjs"
+    },
+    {
+      "from": "scripts/upload_page_icons.mjs",
+      "to": "scripts/upload/upload_page_icons.mjs"
+    },
+    {
+      "from": "scripts/upload_truck_seed.mjs",
+      "to": "scripts/upload/upload_truck_seed.mjs"
+    },
+    {
+      "from": "scripts/verify-migration-section51.js",
+      "to": "scripts/archive/verify-migration-section51.js"
+    },
+    {
+      "from": "scripts/verify-migration-section52.js",
+      "to": "scripts/archive/verify-migration-section52.js"
+    },
+    {
+      "from": "scripts/verify_area_columns.mjs",
+      "to": "scripts/db/verify_area_columns.mjs"
+    },
+    {
+      "from": "scripts/verify_registration.mjs",
+      "to": "scripts/db/verify_registration.mjs"
+    },
+    {
+      "from": "scripts/verify_tenancy.mjs",
+      "to": "scripts/db/verify_tenancy.mjs"
+    },
+    {
+      "from": "scripts/wire_mobile_into_pages.js",
+      "to": "scripts/build/wire_mobile_into_pages.js"
+    }
+  ]
+}

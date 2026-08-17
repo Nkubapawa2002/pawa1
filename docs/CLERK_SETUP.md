@@ -57,7 +57,7 @@ When both are set, `js/config.js` flips `window.CLERK_ENABLED = true`, which:
 ### D. RLS — DONE (migration applied 2026-06-15)
 `auth.uid()` casts the JWT `sub` to **uuid**, so a Clerk id (`user_2ab…`, text)
 throws `22P02 invalid input syntax for type uuid`. This was fixed by
-**`supabase/clerk_text_user_ids.sql`** (already applied to the live project):
+**`supabase/auth/clerk_text_user_ids.sql`** (already applied to the live project):
 - adds `public.app_uid()` → returns the `sub` claim as **text** (NULL when anon);
 - converts the six owner columns Clerk users write from `uuid` → `text`
   (`houses`/`trucks`/`services`/`house_tenancies.owner_user_id`,

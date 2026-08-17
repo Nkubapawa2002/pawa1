@@ -105,14 +105,14 @@ window.APP_CONFIG = {
   // agent (house owner, truck owner, service provider) pays this
   // monthly fee to the admin offline; the admin records it in admin.html →
   // "All Agents" and the amount sets how long coverage lasts. Authoritative DB
-  // logic: supabase/agent_billing_setup.sql; these mirror it for the UI copy.
+  // logic: supabase/features/agent/agent_billing_setup.sql; these mirror it for the UI copy.
   AGENT_MONTHLY_FEE_TZS: 10000,
   // Legacy 48h "pay-or-pause" grace — no longer enforced (the model is now
   // approval-based, see AGENT_APPROVAL_DAYS). Kept only for old UI copy paths.
   AGENT_GRACE_HOURS: 48,
   // New agents are live immediately but must be APPROVED by an admin within this
   // many days of registering, or their listings auto-hide until approved.
-  // Enforced in supabase/agent_billing_setup.sql; mirrored here for the UI copy.
+  // Enforced in supabase/features/agent/agent_billing_setup.sql; mirrored here for the UI copy.
   AGENT_APPROVAL_DAYS: 7,
 
   // ---------- Hidden navigation ----------

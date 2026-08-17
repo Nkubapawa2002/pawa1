@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Security fix — enable RLS on 5 unprotected public tables
 -- =====================================================================
--- Audit (scripts/db_audit.mjs) found these tables with RLS DISABLED while
+-- Audit (scripts/db/db_audit.mjs) found these tables with RLS DISABLED while
 -- the public `anon` role holds full grants (SELECT/INSERT/UPDATE/DELETE/
 -- TRUNCATE). Because the anon key ships in js/config.js, anyone on the
 -- internet could read or wipe them. Notably scheduled_reminders held ~650
