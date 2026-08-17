@@ -151,14 +151,33 @@ scripts/
 Each phase ends with all three audits re-run. Broken refs must be 0 and pages
 booting must stay 22/22 before the next phase starts.
 
-| # | Phase | Risk | Why this order |
+| # | Phase | Risk | Status |
 |---|---|---|---|
-| 1 | Settle the working tree — commit the 48 deletions and 16 modifications | none | Cannot measure change against a dirty tree |
-| 2 | Reorganize `supabase/` and `scripts/` | none | Nothing references these paths |
-| 3 | Reorganize `js/` into core/lib/pages, update 22 HTML files | low | Verified by the harness |
-| 4 | Resolve orphans + duplicate globals | low | Removes real collision risk |
-| 5 | Rewrite `CLAUDE.md` to describe the actual product | none | Every future session reads this file |
-| 6 | Split the 18 oversized files | medium | Genuine refactor — do last, one file at a time |
+| 1 | Settle the working tree | none | **done** — 4 commits |
+| 2 | Reorganize `supabase/` and `scripts/` | low (not none — see below) | **done** — 89 moves, 96 references rewritten |
+| 3 | Reorganize `js/` into core/lib/pages, update 22 HTML files | low | next |
+| 4 | Resolve orphans + duplicate globals | low | pending |
+| 5 | Rewrite `CLAUDE.md` and `docs/README.md` to describe the actual product | none | pending |
+| 6 | Split the 18 oversized files | medium | pending — do last, one file at a time |
+
+### Correction: Phase 2 was not zero-risk
+
+This plan originally claimed `supabase/` and `scripts/` could be moved freely
+because "nothing references these paths". That was wrong. SQL filenames are
+embedded in **user-facing strings** that tell an admin which file to run:
+
+```js
+alert("Billing isn't enabled yet. Run supabase/agent_billing_setup.sql in
+       your Supabase SQL editor, then reload this tab.");
+```
+
+`js/admin.js` alone had 9 such references; 96 existed across 58 files. A plain
+`git mv` would have left admins hunting for files that no longer exist —
+silently, since nothing would throw.
+
+`scripts/restructure/move.mjs` therefore performs the move **and** the reference
+rewrite as a single operation, so the two cannot drift. It is reusable for
+Phase 3, where the same hazard applies to `<script src>` paths.
 
 Phase 6 is where real regressions could hide, which is exactly why it comes
 after the harness is trusted and the tree is clean.
