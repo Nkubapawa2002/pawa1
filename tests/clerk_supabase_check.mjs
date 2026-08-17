@@ -19,7 +19,7 @@ const fail = (s) => { failures++; bad(s); };
 
 // ---- Load config.js by evaluating it in a fake window ----
 function loadConfig() {
-  const src = fs.readFileSync(path.join(root, "js", "config.js"), "utf8");
+  const src = fs.readFileSync(path.join(root, "js", "core", "config.js"), "utf8");
   const window = {};
   // config.js touches document/Analytics at the bottom; stub them.
   const document = { createElement: () => ({ setAttribute() {}, addEventListener() {} }),

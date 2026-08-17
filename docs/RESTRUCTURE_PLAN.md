@@ -155,8 +155,8 @@ booting must stay 22/22 before the next phase starts.
 |---|---|---|---|
 | 1 | Settle the working tree | none | **done** — 4 commits |
 | 2 | Reorganize `supabase/` and `scripts/` | low (not none — see below) | **done** — 89 moves, 96 references rewritten |
-| 3 | Reorganize `js/` into core/lib/pages, update 22 HTML files | low | next |
-| 4 | Resolve orphans + duplicate globals | low | pending |
+| 3 | Reorganize `js/` into core/lib/pages, update 22 HTML files | low | **done** — 55 moves, 440 references rewritten |
+| 4 | Resolve orphans + duplicate globals | low | next |
 | 5 | Rewrite `CLAUDE.md` and `docs/README.md` to describe the actual product | none | pending |
 | 6 | Split the 18 oversized files | medium | pending — do last, one file at a time |
 
@@ -181,6 +181,34 @@ Phase 3, where the same hazard applies to `<script src>` paths.
 
 Phase 6 is where real regressions could hide, which is exactly why it comes
 after the harness is trusted and the tree is clean.
+
+### Lesson from Phase 3: the mover cannot see assembled paths
+
+`move.mjs` rewrites literal substrings, so a path built from segments is
+invisible to it:
+
+```js
+join(ROOT, "js", "geolocate.js")   // NOT rewritten — broke 4 test files
+"js/geolocate.js"                   // rewritten
+```
+
+Four test files referenced their subjects this way and broke silently until
+run. **After any future move, run the test suites, not just the audits.**
+
+### Correction: the orphan count was wrong
+
+The baseline reported 4 orphan scripts. Two of them — `analytics.js` and
+`auth-clerk.js` — are injected at runtime by `config.js`:
+
+```js
+_ph.src = "js/core/analytics.js";
+```
+
+Both audits scanned only `<script src>` in HTML, so runtime-injected files
+looked dead. Deleting them would have broken analytics and Clerk auth. Both
+audits now detect injection; the true orphan count is **2**
+(`fab.js`, `mobile-nav.js`). The same check found `nav.js` still injecting
+`calling-agent.js`, deleted in Phase 1 — that loader has been removed.
 
 ---
 

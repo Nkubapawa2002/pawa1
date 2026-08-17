@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const code = fs.readFileSync(path.join(root, "js", "geo-poly.js"), "utf8");
+const code = fs.readFileSync(path.join(root, "js", "lib", "geo-poly.js"), "utf8");
 const sandbox = { window: {} };
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);

@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const code = fs.readFileSync(path.join(root, "js", "geo.js"), "utf8");
+const code = fs.readFileSync(path.join(root, "js", "lib", "geo.js"), "utf8");
 
 let passed = 0, failed = 0;
 function ok(name, cond, extra) {
