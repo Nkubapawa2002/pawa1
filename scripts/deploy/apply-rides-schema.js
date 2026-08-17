@@ -28,7 +28,7 @@ const USER = process.env.PGUSER || `postgres.${PROJECT_REF}`;
 const DB   = process.env.PGDATABASE || "postgres";
 
 const SCHEMA_FILE = path.resolve(
-  __dirname, "..", "supabase", "rides_schema.sql"
+  __dirname, "..", "..", "supabase", "rides_schema.sql"
 );
 
 const sql = fs.readFileSync(SCHEMA_FILE, "utf8");

@@ -24,7 +24,7 @@ const PROJECT_REF = "kkdpacoiwntrcukgwksh";
 const PAT = process.env.SUPABASE_PAT;
 if (!PAT) { console.error("SUPABASE_PAT not set"); process.exit(1); }
 
-const FN_ROOT = path.join(__dirname, "..", "supabase", "functions");
+const FN_ROOT = path.join(__dirname, "..", "..", "supabase", "functions");
 
 // Shared files all payment functions need. Uploaded under ../_shared/
 const SHARED_FILES = [

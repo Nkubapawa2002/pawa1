@@ -5,7 +5,7 @@
 const fs   = require("node:fs");
 const path = require("node:path");
 
-const DIR  = path.join(__dirname, "..");
+const DIR  = path.join(__dirname, "..", "..");
 const NEEDLE = `<link rel="stylesheet" href="css/claude-design.css" />`;
 
 let touched = 0, skipped = 0;

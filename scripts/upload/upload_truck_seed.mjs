@@ -10,7 +10,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const TMP = join(__dir, "..", ".tmp_trucks");
+const TMP = join(__dir, "..", "..", ".tmp_trucks");
 const SUPABASE_URL = "https://kkdpacoiwntrcukgwksh.supabase.co";
 const KEY = process.env.SUPABASE_SERVICE_ROLE;
 if (!KEY) { console.error("Set SUPABASE_SERVICE_ROLE"); process.exit(1); }

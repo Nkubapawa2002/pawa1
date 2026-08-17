@@ -4,7 +4,11 @@
 // revalidate for assets. Tiny by design — no offline DB / write queue.
 // =====================================================================
 
-const VERSION = "v299-2026-06-26-demand-rpc";
+// Bump on every change to APP_SHELL. The activate handler purges caches whose
+// name no longer matches, so an unchanged VERSION leaves existing installs
+// serving a precache full of the OLD js/ paths — which, after the core/lib/
+// pages restructure, no longer exist.
+const VERSION = "v300-2026-08-17-js-restructure";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -49,8 +53,6 @@ const APP_SHELL = [
   "./js/pages/home-app.js",
   "./js/core/app-shell.js",
   "./js/core/theme.js",
-  "./js/_quarantine/mobile-nav.js",
-  "./js/_quarantine/fab.js",
   "./js/pages/tenant.js",
   "./manifest.json",
   "./icons/icon-maskable.svg",

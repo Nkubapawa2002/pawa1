@@ -16,7 +16,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const DATA = join(__dir, "..", "data");
+const DATA = join(__dir, "..", "..", "data");
 
 const PROJECT_REF = "kkdpacoiwntrcukgwksh";
 const SUPABASE_URL = `https://${PROJECT_REF}.supabase.co`;

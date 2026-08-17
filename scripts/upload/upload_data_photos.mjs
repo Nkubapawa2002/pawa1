@@ -15,7 +15,7 @@ import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const DATA  = join(__dir, "..", "data");
+const DATA  = join(__dir, "..", "..", "data");
 
 const SUPABASE_URL = "https://kkdpacoiwntrcukgwksh.supabase.co";
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE;

@@ -7,12 +7,15 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dir, "..");
+const ROOT = join(__dir, "..", "..");
 const WWW = join(ROOT, "www");
 
 // Top-level entries to copy. Everything else (node_modules, android, supabase,
 // scripts, services, docs, tests, n8n, server files, dotfiles) stays out.
-const INCLUDE_DIRS = ["css", "js", "icons", "voice"];
+// "voice" used to hold the bus-era VAPI assistant config and was removed with
+// the rest of that product; listing a directory that no longer exists aborts
+// the whole staging run, so it is dropped rather than skipped silently.
+const INCLUDE_DIRS = ["css", "js", "icons"];
 const DATA_DIR = "data"; // copied selectively below (skip _originals backups)
 
 await rm(WWW, { recursive: true, force: true });

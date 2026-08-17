@@ -28,7 +28,10 @@ import puppeteer from "puppeteer";
 const ROOT = resolve(import.meta.dirname, "..", "..");
 const PORT = 8081;                 // not 8080, so a dev server can stay running
 const ORIGIN = `http://localhost:${PORT}`;
-const PAGE_TIMEOUT_MS = 20000;
+// Generous: map-heavy pages pull dozens of tiles, and running 22 pages back to
+// back on a busy machine made pages intermittently exceed a 20s budget and be
+// reported as broken when they load fine in isolation.
+const PAGE_TIMEOUT_MS = 45000;
 const SETTLE_MS = 2500;            // let deferred/async page code run and throw
 
 // ---- helpers ---------------------------------------------------------------

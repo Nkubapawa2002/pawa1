@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const ICONS = join(__dir, "..", "icons");
+const ICONS = join(__dir, "..", "..", "icons");
 
 const browser = await puppeteer.launch();
 const page = await browser.newPage();

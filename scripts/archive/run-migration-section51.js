@@ -15,7 +15,7 @@ if (!PAT) {
 }
 
 const sqlPath = path.join(
-  __dirname, "..", "supabase", "_migration_section51.sql"
+  __dirname, "..", "..", "supabase", "_migration_section51.sql"
 );
 const sql = fs.readFileSync(sqlPath, "utf8");
 

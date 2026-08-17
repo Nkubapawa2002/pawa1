@@ -75,11 +75,24 @@ const resolveLocal = (htmlPath, url) =>
 
 // ---- global definition extraction ------------------------------------------
 
-const GLOBAL_PATTERN = /^\s*window\.([A-Za-z_$][\w$]*)\s*=/gm;
+const GLOBAL_PATTERN = /^\s*window\.([A-Za-z_$][\w$]*)\s*=\s*(.*)$/gm;
+
+// Two globals are defined in more than one file ON PURPOSE. Reporting them as
+// collisions trains the reader to ignore this check, so they are named here
+// with the reason instead.
+const INTENTIONAL_DUPLICATES = {
+  Auth: "js/core/auth-clerk.js deliberately replaces the Supabase implementation " +
+        "in js/core/auth.js with a Clerk-backed one that mirrors its interface. " +
+        "It is loaded only when CLERK_ENABLED, so the two never coexist.",
+};
 
 const extractGlobals = (jsPath) => {
   const src = readFileSync(jsPath, "utf8");
-  return [...src.matchAll(GLOBAL_PATTERN)].map(([, name]) => name);
+  return [...src.matchAll(GLOBAL_PATTERN)]
+    // `window.X = window.X || …` is a guarded fallback that cannot clobber an
+    // existing value — the null-object pattern, not a competing definition.
+    .filter(([, name, rhs]) => !new RegExp(`^window\\.${name}\\s*\\|\\|`).test(rhs.trim()))
+    .map(([, name]) => name);
 };
 
 // ---- checks ----------------------------------------------------------------
@@ -138,10 +151,15 @@ for (const js of jsFiles) {
     globalOwners.get(name).add(rel(js));
   }
 }
-const duplicateGlobals = [...globalOwners.entries()]
+const allDuplicates = [...globalOwners.entries()]
   .filter(([, owners]) => owners.size > 1)
   .map(([name, owners]) => ({ name, files: [...owners].sort() }))
   .sort((a, b) => b.files.length - a.files.length);
+
+const duplicateGlobals = allDuplicates.filter((d) => !INTENTIONAL_DUPLICATES[d.name]);
+const acceptedDuplicates = allDuplicates
+  .filter((d) => INTENTIONAL_DUPLICATES[d.name])
+  .map((d) => ({ ...d, reason: INTENTIONAL_DUPLICATES[d.name] }));
 
 // Oversized files, per the 800-line rule.
 const oversized = files
@@ -167,6 +185,14 @@ section("DUPLICATE GLOBALS", duplicateGlobals);
 for (const { name, files: owners } of duplicateGlobals) {
   console.log(`  window.${name}`);
   for (const o of owners) console.log(`      ${o}`);
+}
+
+if (acceptedDuplicates.length) {
+  console.log(`\n=== INTENTIONAL DUPLICATES, not defects (${acceptedDuplicates.length}) ===`);
+  for (const { name, files: owners, reason } of acceptedDuplicates) {
+    console.log(`  window.${name}  — ${owners.join(", ")}`);
+    console.log(`      ${reason}`);
+  }
 }
 
 section(`FILES OVER ${MAX_LINES} LINES`, oversized);
