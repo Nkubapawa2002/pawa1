@@ -156,7 +156,7 @@ booting must stay 22/22 before the next phase starts.
 | 1 | Settle the working tree | none | **done** — 4 commits |
 | 2 | Reorganize `supabase/` and `scripts/` | low (not none — see below) | **done** — 89 moves, 96 references rewritten |
 | 3 | Reorganize `js/` into core/lib/pages, update 22 HTML files | low | **done** — 55 moves, 440 references rewritten |
-| 4 | Resolve orphans + duplicate globals | low | next |
+| 4 | Resolve orphans + duplicate globals | low | **done** — plus 15 scripts repaired |
 | 5 | Rewrite `CLAUDE.md` and `docs/README.md` to describe the actual product | none | pending |
 | 6 | Split the 18 oversized files | medium | pending — do last, one file at a time |
 
@@ -194,6 +194,38 @@ join(ROOT, "js", "geolocate.js")   // NOT rewritten — broke 4 test files
 
 Four test files referenced their subjects this way and broke silently until
 run. **After any future move, run the test suites, not just the audits.**
+
+### Lesson from Phase 4: moving a script breaks how it finds the root
+
+Phase 2 moved 15 scripts one directory deeper. Each located the repo root by
+walking up from its own file:
+
+```js
+const ROOT = join(__dir, "..");   // scripts/x.mjs -> root
+                                   // scripts/build/x.mjs -> scripts/  ✗
+```
+
+The path still resolved, just to the wrong directory, so nothing failed until
+the script was actually run. Three were live and documented. `build_app.mjs`
+additionally still staged the deleted `voice/` directory, aborting the run.
+
+`scripts/audit/script-roots.mjs` now compares each script's `".."` count with
+its real depth. **The audits check the website; they do not check the tooling.
+Run the tooling too.**
+
+### Correction: the "duplicate globals" were not defects
+
+Both flagged collisions are deliberate patterns, so the code was left alone and
+the audit was taught to distinguish them:
+
+* `window.Analytics` — `config.js` uses `window.Analytics = window.Analytics ||
+  {no-ops}`, a guarded fallback (null-object) that cannot overwrite the real
+  implementation.
+* `window.Auth` — `auth-clerk.js` intentionally swaps in a Clerk-backed
+  implementation mirroring `auth.js`, and loads only when `CLERK_ENABLED`, so
+  the two never coexist.
+
+"Fixing" either would have broken working design.
 
 ### Correction: the orphan count was wrong
 
