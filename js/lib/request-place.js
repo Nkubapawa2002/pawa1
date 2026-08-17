@@ -81,7 +81,7 @@
     return parts.join(", ");
   }
 
-  // Region centroid from the bundled gazetteer (js/tz-places.js) — the last-
+  // Region centroid from the bundled gazetteer (js/lib/tz-places.js) — the last-
   // resort point so a request with no findable street still has coordinates.
   function regionCentroid(name) {
     const lc = String(name || "").toLowerCase().replace(/\s+region$/, "").trim();

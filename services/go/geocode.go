@@ -301,7 +301,7 @@ func (g *geocoder) reverse(ctx context.Context, lat, lng float64) (string, error
 	return placeAreaLabel(h), nil
 }
 
-// ---- label / tag helpers (ported from js/houses.js) -----------------------
+// ---- label / tag helpers (ported from js/pages/houses.js) -----------------------
 
 // placeAreaLabel: nearest meaningful area + wider area, e.g. "Mikocheni, Kinondoni".
 func placeAreaLabel(h nominatimHit) string {

@@ -10,7 +10,7 @@
      • Layered 3D shadow system (--shadow-3d-{sm,md,lg,xl})
      • Glowing gradient buttons with depth
      • Subtle hover-tilt / press-depth interactions
-     • Reveal-on-scroll for cards (works with js/premium.js)
+     • Reveal-on-scroll for cards (works with js/core/premium.js)
      • Mobile-perfect responsive type and spacing
      • Respects prefers-reduced-motion
    ════════════════════════════════════════════════════════════════════════ */
@@ -347,7 +347,7 @@ button[type="submit"], #callAgentBtn {
     0 -2px 6px rgba(0,0,0,.25) inset !important;
 }
 /* Auto-hide after 3s of no scrolling (re-shown on touch / scroll).
-   Wired by js/premium.js — applied to .pawa-fab and the call widget. */
+   Wired by js/core/premium.js — applied to .pawa-fab and the call widget. */
 .pawa-fab, .pawa-call-widget {
   transition: opacity .35s ease, transform .35s ease;
 }

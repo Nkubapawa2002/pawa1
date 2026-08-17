@@ -104,7 +104,7 @@ window.initChatPage = async () => {
 
   addMessage("assistant", window.t("chat_greeting"));
 
-  // window.AI (js/ai.js) wraps ai-chat / ai-think / ai-map. The API key
+  // window.AI (js/lib/ai.js) wraps ai-chat / ai-think / ai-map. The API key
   // lives only in Supabase Edge Function secrets; the browser holds nothing.
   const cfg = window.APP_CONFIG || {};
   const haveAI = !!cfg.SUPABASE_URL && !!window.AI;
@@ -196,7 +196,7 @@ ${jobLines || "(none open at the moment — suggest checking jobs.html or postin
 
 MOVING TRUCKS (${(trucks || []).length} by region): ${trkLines || "(none yet)"}`;
   };
-  // Agentic tools (js/ai-tools.js): the brain can search live data across
+  // Agentic tools (js/pages/ai-tools.js): the brain can search live data across
   // the whole app before answering. Reads go through the anon Supabase
   // client, so RLS keeps it to exactly what a public visitor can see.
   const tools = window.AITools || null;

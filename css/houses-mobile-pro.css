@@ -12,7 +12,7 @@
    Everything is scoped to body[data-page="houses"] and the phone width.
    ===================================================================== */
 
-/* The mobile "Filters" trigger row is injected by js/houses-mobile.js and
+/* The mobile "Filters" trigger row is injected by js/pages/houses-mobile.js and
    stays hidden on tablet/desktop, where the full toolbar is shown inline. */
 body[data-page="houses"] .hp-filterbar { display: none; }
 

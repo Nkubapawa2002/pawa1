@@ -9,12 +9,12 @@ and the app keeps using the built-in Supabase email/password auth.
 ## 1. PostHog (analytics) — ready now
 
 1. Create a PostHog project → copy the **Project API key** (starts `phc_`).
-2. Put it in `js/config.js` (or, to keep it out of git, in `js/config.local.js`):
+2. Put it in `js/core/config.js` (or, to keep it out of git, in `js/config.local.js`):
    ```js
    POSTHOG_KEY: "phc_xxx",
    POSTHOG_HOST: "https://us.i.posthog.com", // or https://eu.i.posthog.com
    ```
-3. Reload. `js/analytics.js` loads only when the key is set. It autocaptures
+3. Reload. `js/core/analytics.js` loads only when the key is set. It autocaptures
    clicks/pageviews and identifies the signed-in user. Add custom events
    anywhere with `window.Analytics.capture("event_name", { ...props })`.
 
@@ -42,16 +42,16 @@ not change; only the identity provider does.
    Supabase will now accept Clerk JWTs; `auth.jwt()->>'sub'` is the Clerk user id.
 
 ### C. This repo
-Set both values in `js/config.js` (or `js/config.local.js`):
+Set both values in `js/core/config.js` (or `js/config.local.js`):
 ```js
 CLERK_PUBLISHABLE_KEY: "pk_test_xxx",
 CLERK_DOMAIN: "clerk.your-app.com",   // no https://
 ```
-When both are set, `js/config.js` flips `window.CLERK_ENABLED = true`, which:
+When both are set, `js/core/config.js` flips `window.CLERK_ENABLED = true`, which:
 - makes the Supabase client send Clerk's token on every request
-  (`accessToken` in `js/data.js`), and
-- loads `js/auth-clerk.js`, which replaces `window.Auth` with a Clerk-backed
-  version mirroring `js/auth.js` (so `login.js` and the dashboard gates keep
+  (`accessToken` in `js/core/data.js`), and
+- loads `js/core/auth-clerk.js`, which replaces `window.Auth` with a Clerk-backed
+  version mirroring `js/core/auth.js` (so `login.js` and the dashboard gates keep
   working against the same API).
 
 ### D. RLS — DONE (migration applied 2026-06-15)
@@ -82,11 +82,11 @@ Options:
   id (by email) and `UPDATE` the owner columns. Do this once, server-side.
 
 ### F. Auth flows — DONE (complete & verified end-to-end)
-All of `window.Auth` (the Clerk facade in `js/auth-clerk.js`) handles the Clerk
+All of `window.Auth` (the Clerk facade in `js/core/auth-clerk.js`) handles the Clerk
 code flows through ONE shared modal (`authCodePrompt`), so every page works with
 no per-page UI — admin, accounting, dashboard, super-admin (via `window.Auth.*`)
 and the agent portals (via `sb.auth.*`).
-- **`sb.auth` shim lives in `js/data.js`** (single source of truth). It's durable
+- **`sb.auth` shim lives in `js/core/data.js`** (single source of truth). It's durable
   (forwards every Clerk auth change, not once) and delegates the interactive
   methods to `window.Auth`. `auth-clerk.js` no longer swaps `sb.auth`.
 - **Sign-in:** `Auth.signIn` → on `needs_client_trust` (new-device) / 2FA /
@@ -103,7 +103,7 @@ and the agent portals (via `sb.auth.*`).
 - Verified by `tests/_clerk_signin_e2e.mjs`, `tests/_clerk_flows_e2e.mjs`,
   `tests/_clerk_backend_e2e.mjs`, `tests/_login_init_smoke.mjs`.
 
-Remaining cleanup (optional): remove `js/auth.js` (Supabase-only facade) — it's
+Remaining cleanup (optional): remove `js/core/auth.js` (Supabase-only facade) — it's
 still the pre-Clerk-load fallback; harmless to keep.
 
 ---

@@ -30,8 +30,8 @@ Each row is one secret you must set. **Owner** = where it lives. **Set with** = 
 | # | Key | Owner | Set with | Used by |
 |---|---|---|---|---|
 | 1 | `ANTHROPIC_API_KEY` | VAPI assistant + n8n env | VAPI → Provider Keys → Anthropic; `n8n` → Settings → Environment Variables | Claude inference for every voice/chat turn |
-| 2 | `SUPABASE_URL` | Browser (`bus web/js/config.js`) + Edge Functions | Edit `bus web/js/config.js`; `supabase secrets set SUPABASE_URL=...` | Frontend + Edge Functions |
-| 3 | `SUPABASE_ANON_KEY` | Browser (`bus web/js/config.js`) | Edit `bus web/js/config.js` | Public RLS-protected reads/writes |
+| 2 | `SUPABASE_URL` | Browser (`bus web/js/core/config.js`) + Edge Functions | Edit `bus web/js/core/config.js`; `supabase secrets set SUPABASE_URL=...` | Frontend + Edge Functions |
+| 3 | `SUPABASE_ANON_KEY` | Browser (`bus web/js/core/config.js`) | Edit `bus web/js/core/config.js` | Public RLS-protected reads/writes |
 | 4 | `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions only | `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...` | Server-side bypass for Edge Functions |
 | 5 | Postgres BUS TZ PAWA — host/db/user/pass/port | n8n credential `Postgres BUS TZ PAWA` | n8n → Settings → Credentials → New → Postgres | All booking tools (workflow 01) + extended tools (01b) |
 | 6 | Postgres Pawa Website — host/db/user/pass/port | n8n credential `Postgres Pawa Website` | n8n → Settings → Credentials → New → Postgres (point at the website's Supabase) | Cargo tools in 01b (`find_agents`, `find_buses_for_route`, `track_shipment`, `register_shipment`) |
@@ -44,8 +44,8 @@ Each row is one secret you must set. **Owner** = where it lives. **Set with** = 
 | 13 | `PAYMENT_GATEWAY_SECRET` | n8n env | same | HMAC verification on payment callback |
 | 14 | `VAPI_PRIVATE_KEY` | n8n env | same | Outbound call API auth |
 | 15 | `VAPI_PHONE_NUMBER_ID` | n8n env | same | Originating number for outbound calls |
-| 16 | `VAPI_ASSISTANT_ID` | n8n env + browser config | n8n env vars; `bus web/js/config.js` for the in-browser voice widget | Wires outbound call to the PAWA assistant |
-| 17 | `VAPI_PUBLIC_KEY` | Browser config | `bus web/js/config.js` | In-browser voice widget |
+| 16 | `VAPI_ASSISTANT_ID` | n8n env + browser config | n8n env vars; `bus web/js/core/config.js` for the in-browser voice widget | Wires outbound call to the PAWA assistant |
+| 17 | `VAPI_PUBLIC_KEY` | Browser config | `bus web/js/core/config.js` | In-browser voice widget |
 | 18 | `MANAGER_PHONE` | n8n env | same | Target of `manager_escalation` outbound calls |
 | 19 | `MANAGER_EMAILS` | n8n env | same | Recipients of payment-confirmation email |
 | 20 | `MANAGER_FROM_EMAIL` | n8n env | same | From address |
@@ -53,7 +53,7 @@ Each row is one secret you must set. **Owner** = where it lives. **Set with** = 
 | 22 | `MANAGER_NOTIFY_TOKEN` | n8n env | same | Bearer for `MANAGER_NOTIFY_URL` |
 | 23 | SMTP credential | n8n credential `SMTP BUS TZ PAWA` | n8n → Credentials → SMTP | Manager email alerts (workflow 02) |
 | 24 | Selcom / ClickPesa / AzamPay / Flutterwave keys | Supabase Edge Function secrets | `supabase secrets set SELCOM_API_KEY=...` etc. | `bus web/supabase/functions/create-payment` |
-| 25 | `MAPBOX_TOKEN` | Browser config | `bus web/js/config.js` | Optional — meet/track maps |
+| 25 | `MAPBOX_TOKEN` | Browser config | `bus web/js/core/config.js` | Optional — meet/track maps |
 
 **What is NOT a credential** (don't put it on this list): tenant-specific runtime data (routes, buses, prices), seeded reference tables (`nearest_hubs`), or values that can be derived from the database.
 
@@ -128,7 +128,7 @@ Set the gateway's callback URL to `https://your-n8n.com/webhook/vapi/payment-cal
 
 ### Step 8 — Strip browser-side secrets
 
-Open `bus web/js/config.js` and confirm `ANTHROPIC_API_KEY` is empty. Claude lives in VAPI/n8n now; the browser must never ship the key.
+Open `bus web/js/core/config.js` and confirm `ANTHROPIC_API_KEY` is empty. Claude lives in VAPI/n8n now; the browser must never ship the key.
 
 ---
 

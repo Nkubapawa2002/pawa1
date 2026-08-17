@@ -3,7 +3,7 @@
 // New listings populate automatically at registration; this catches old rows.
 //
 // Needs:  PG_PASSWORD  (DB)  +  LOCATIONIQ_KEY  (an UNrestricted LocationIQ key —
-// the client key in js/config.js is domain-locked and will be rejected server-side).
+// the client key in js/core/config.js is domain-locked and will be rejected server-side).
 //
 //   PG_PASSWORD=… LOCATIONIQ_KEY=… node scripts/db/backfill_admin_areas.mjs
 import pg from "pg";

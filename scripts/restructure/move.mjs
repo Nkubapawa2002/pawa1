@@ -16,6 +16,15 @@
 //    node scripts/restructure/move.mjs <plan.json> --apply  # do it
 //
 //  A plan is { "moves": [ { "from": "...", "to": "..." }, ... ] }.
+//
+//  LIMITATION — rewriting is literal substring replacement, so a path assembled
+//  from segments is invisible to it:
+//
+//      join(ROOT, "js", "geolocate.js")     // NOT rewritten
+//      "js/geolocate.js"                    // rewritten
+//
+//  After any move, run the audits and the test suite; a path built this way
+//  fails loudly at runtime rather than silently, but it will not be fixed here.
 // ============================================================================
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";

@@ -22,9 +22,9 @@ exists; you cannot configure secrets before the project exists).
 Supabase Cloud → **New project** → pick a region close to Tanzania
 (`eu-west-2` is fine). Copy these for later:
 
-- **Project URL**: `https://<ref>.supabase.co` → goes into `js/config.js` (`SUPABASE_URL`).
-- **anon (publishable) key** → goes into `js/config.js` (`SUPABASE_ANON_KEY`). Safe to ship to browsers because RLS is enforced.
-- **service_role key** → goes into n8n env vars (`SUPABASE_SERVICE_KEY`) and Edge Function secrets (Supabase auto-injects this as `SUPABASE_SERVICE_ROLE_KEY` — do not set it manually). **Never** put this in `js/config.js` — it bypasses RLS.
+- **Project URL**: `https://<ref>.supabase.co` → goes into `js/core/config.js` (`SUPABASE_URL`).
+- **anon (publishable) key** → goes into `js/core/config.js` (`SUPABASE_ANON_KEY`). Safe to ship to browsers because RLS is enforced.
+- **service_role key** → goes into n8n env vars (`SUPABASE_SERVICE_KEY`) and Edge Function secrets (Supabase auto-injects this as `SUPABASE_SERVICE_ROLE_KEY` — do not set it manually). **Never** put this in `js/core/config.js` — it bypasses RLS.
 - **DB password** — used for the Postgres n8n credential.
 
 ### Phase 1 · Run the SQL — in this exact order
@@ -112,7 +112,7 @@ FLW_SECRET_KEY=
 FLW_HASH=
 
 # ---- n8n base (for agent-chat to call tools) ----
-N8N_WEBHOOK_BASE=https://n8n.yourdomain.com         # same value as js/config.js
+N8N_WEBHOOK_BASE=https://n8n.yourdomain.com         # same value as js/core/config.js
 
 # ---- Anthropic (global key for ai-chat / ai-think / ai-map) ----
 ANTHROPIC_API_KEY=                                  # required by the three system AI functions; per-tenant keys still handle agent-chat
@@ -184,7 +184,7 @@ https://<your-ref>.supabase.co/functions/v1/payment-callback?provider=<name>
 
 ### Phase 7 · Wire the front-end
 
-Edit `js/config.js`:
+Edit `js/core/config.js`:
 
 ```js
 SUPABASE_URL:      "https://<your-ref>.supabase.co",

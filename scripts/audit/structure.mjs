@@ -112,8 +112,18 @@ for (const html of htmlFiles) {
   }
 }
 
-// Orphans: page scripts under js/ that no HTML file loads. Build/CLI scripts
-// under scripts/ and supabase/ are expected to be standalone, so exempt them.
+// Scripts can also be injected at runtime by other scripts, e.g. js/core/config.js
+// sets `_ph.src = "js/core/analytics.js"`. Those files appear in no <script src>
+// and would be misreported as dead code if we scanned HTML alone.
+const DYNAMIC_SRC = /\.src\s*=\s*["'](js\/[^"']+\.js)["']/g;
+for (const js of jsFiles) {
+  for (const [, target] of readFileSync(js, "utf8").matchAll(DYNAMIC_SRC)) {
+    referencedScripts.add(target);
+  }
+}
+
+// Orphans: page scripts under js/ that nothing loads, statically or dynamically.
+// Build/CLI scripts under scripts/ and supabase/ are standalone by design.
 const orphanScripts = jsFiles
   .map(rel)
   .filter((p) => p.startsWith("js/"))

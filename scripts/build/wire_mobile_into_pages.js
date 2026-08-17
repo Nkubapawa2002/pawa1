@@ -26,9 +26,9 @@ const HEAD_INJECT = `
 ${MARKER}`;
 
 const BODY_INJECT = `
-    <script src="js/mobile-nav.js"></script>
-    <script src="js/fab.js"></script>
-    <script src="js/sw-register.js"></script>
+    <script src="js/_quarantine/mobile-nav.js"></script>
+    <script src="js/_quarantine/fab.js"></script>
+    <script src="js/core/sw-register.js"></script>
 ${MARKER}`;
 
 function patchFile(file) {

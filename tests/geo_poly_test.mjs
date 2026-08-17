@@ -1,4 +1,4 @@
-// Offline unit tests for js/geo-poly.js (point-in-polygon for area alerts).
+// Offline unit tests for js/lib/geo-poly.js (point-in-polygon for area alerts).
 //   node tests/geo_poly_test.mjs
 import fs from "node:fs";
 import vm from "node:vm";

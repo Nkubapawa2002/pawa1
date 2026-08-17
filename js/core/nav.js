@@ -180,16 +180,11 @@ window.renderNav = (active) => {
     }
   })();
 
-  // Floating "Talk to Pawa" call widget — HIDDEN FOR NOW (per request).
-  // To bring it back, set APP_CONFIG.SHOW_PAWA_CALL_WIDGET = true in js/config.js.
-  if ((window.APP_CONFIG && window.APP_CONFIG.SHOW_PAWA_CALL_WIDGET) &&
-      !document.querySelector('script[data-pawa-call]')) {
-    const s = document.createElement("script");
-    s.src = "js/calling-agent.js";
-    s.dataset.pawaCall = "1";
-    s.async = true;
-    document.body.appendChild(s);
-  }
+  // The floating "Talk to Pawa" call widget used to be injected here behind
+  // APP_CONFIG.SHOW_PAWA_CALL_WIDGET. Its script, js/calling-agent.js, was part
+  // of the bus-era voice product and has been removed, so the loader could only
+  // ever have 404'd. The flag was never defined, so nothing changes by dropping
+  // it. History has the widget if it is ever wanted back.
 };
 
 window.renderFooter = () => {

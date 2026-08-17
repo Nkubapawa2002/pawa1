@@ -15,7 +15,7 @@ structured intent the existing frontend engines already understand.
  Browser (static, buildless)                 Server (holds the key)
  ┌──────────────────────────┐                ┌─────────────────────────────┐
  │ houses.js / ride.js      │   query +      │ Supabase Edge Function       │
- │   └─ js/ai-search.js  ───┼── context ─── │   ai-search/index.ts         │
+ │   └─ js/lib/ai-search.js  ───┼── context ─── │   ai-search/index.ts         │
  │        window.AISearch   │                │   → Anthropic Messages API   │
  │                          │ ── intent ────│   (ANTHROPIC_API_KEY secret) │
  │  fallback: parseSmartQuery (regex)         └─────────────────────────────┘
@@ -23,7 +23,7 @@ structured intent the existing frontend engines already understand.
  └──────────────────────────┘                 services/python/main.py (same contract)
 ```
 
-- **The API key never reaches the browser.** `js/ai-search.js` only knows the
+- **The API key never reaches the browser.** `js/lib/ai-search.js` only knows the
   endpoint URL. The key lives in a Supabase secret (or the Python server's env).
 - **Graceful by design.** No key / call fails / offline → `AISearch.*` returns
   `null` and the page falls back to the regex parser + WASM ranker. Nothing breaks.
@@ -34,9 +34,9 @@ structured intent the existing frontend engines already understand.
 |------|------|
 | `supabase/functions/ai-search/index.ts` | The AI brain (Deno Edge Function). Holds the key, calls Claude, returns intent JSON. |
 | `services/python/main.py` | Same contract, self-hostable (stdlib only). For local testing or non-Supabase hosting. |
-| `js/ai-search.js` | Browser client `window.AISearch`. Drop-in over the regex parser; silent fallback. |
-| `js/config.js` | `AI_SEARCH_PATH` (Edge Function) and optional `AI_SEARCH_URL` (override). |
-| `js/houses.js` | Wires AI into house smart search (`enhanceSmartSearchWithAI`). Regex stays the baseline. |
+| `js/lib/ai-search.js` | Browser client `window.AISearch`. Drop-in over the regex parser; silent fallback. |
+| `js/core/config.js` | `AI_SEARCH_PATH` (Edge Function) and optional `AI_SEARCH_URL` (override). |
+| `js/pages/houses.js` | Wires AI into house smart search (`enhanceSmartSearchWithAI`). Regex stays the baseline. |
 | `js/ride.js` + `ride.html` | " Tell us your trip" box → `AISearch.parseRide()` fills pickup / dropoff / vehicle. Manual fields always work. |
 
 ## Activate it — the only step left
@@ -51,7 +51,7 @@ supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 supabase functions deploy ai-search
 ```
 
-Then flip the switch in `js/config.js`:
+Then flip the switch in `js/core/config.js`:
 
 ```js
 AI_SEARCH_ENABLED: true,

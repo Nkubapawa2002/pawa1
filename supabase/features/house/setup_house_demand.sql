@@ -66,7 +66,7 @@ create policy "hdp owner delete" on public.house_demand_pins for delete
   using (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
--- 3. Haversine (km) — pure SQL, matches js/houses.js + services/go/geo.go.
+-- 3. Haversine (km) — pure SQL, matches js/pages/houses.js + services/go/geo.go.
 -- ---------------------------------------------------------------------------
 create or replace function public.hdp_haversine_km(
   lat1 double precision, lng1 double precision,

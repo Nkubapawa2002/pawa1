@@ -72,7 +72,7 @@ stages the site into `www/` (gitignored). Full runbook: `docs/APP_BUILD.md`.
 
 ## Key config
 
-All runtime keys live in `js/config.js`.
+All runtime keys live in `js/core/config.js`.
 
 ## Dev server
 

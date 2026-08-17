@@ -26,7 +26,7 @@
     </svg>
   `;
   // Claude-powered "Talk to PAWA" chat bubble — HIDDEN FOR NOW (per request).
-  // To bring it back, set APP_CONFIG.SHOW_PAWA_CHAT_FAB = true in js/config.js.
+  // To bring it back, set APP_CONFIG.SHOW_PAWA_CHAT_FAB = true in js/core/config.js.
   // (The "Install Pawa" prompt below is separate and stays active.)
   if (window.APP_CONFIG && window.APP_CONFIG.SHOW_PAWA_CHAT_FAB) document.body.appendChild(fab);
 

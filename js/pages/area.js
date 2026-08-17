@@ -9,7 +9,7 @@
 //    1. Autocomplete blends three sources so one or two letters already help:
 //         • the areas that ACTUALLY have listings (region/district/ward/area
 //           tags off the loaded houses + services), labelled with a live count;
-//         • the offline gazetteer (js/tz-places.js — every region + the common
+//         • the offline gazetteer (js/lib/tz-places.js — every region + the common
 //           Dar wards/landmarks) for instant, correct local hits;
 //         • pawaGeo.suggest() (LocationIQ, country-wide) for everything else,
 //           right down to villages and hamlets.

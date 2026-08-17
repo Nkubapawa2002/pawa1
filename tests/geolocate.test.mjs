@@ -1,5 +1,5 @@
 // ============================================================================
-//  geolocate.test.mjs — behavioural tests for js/geolocate.js
+//  geolocate.test.mjs — behavioural tests for js/lib/geolocate.js
 //
 //  Runs the real helper in a real browser against a FAKE navigator.geolocation
 //  so we can reproduce the phone conditions that were breaking "use my
@@ -15,7 +15,7 @@ import puppeteer from "puppeteer";
 const ROOT = resolve(import.meta.dirname, "..");
 // GEO_SRC lets the suite be pointed at another copy of the helper — used to
 // verify these tests actually fail against the pre-fix version.
-const SOURCE = readFileSync(process.env.GEO_SRC || join(ROOT, "js", "geolocate.js"), "utf8");
+const SOURCE = readFileSync(process.env.GEO_SRC || join(ROOT, "js", "lib", "geolocate.js"), "utf8");
 
 const results = [];
 const record = (name, passed, detail = "") => {

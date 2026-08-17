@@ -3,7 +3,7 @@
 Role in the polyglot stack: AI reasoning & LLM orchestration. This is the
 designated "reasoning" home (see ../../docs/LANGUAGE-ROUTING.md). It implements
 the SAME JSON contract as the Supabase Edge Function `ai-search`, so the static
-frontend (js/ai-search.js) can talk to either one — just point
+frontend (js/lib/ai-search.js) can talk to either one — just point
 APP_CONFIG.AI_SEARCH_URL at this server, e.g. "http://127.0.0.1:8094/ai-search".
 
 It turns a free-text housing / ride / "near me" question (English or Swahili)

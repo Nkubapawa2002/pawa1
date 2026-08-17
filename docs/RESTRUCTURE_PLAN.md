@@ -171,7 +171,7 @@ alert("Billing isn't enabled yet. Run supabase/agent_billing_setup.sql in
        your Supabase SQL editor, then reload this tab.");
 ```
 
-`js/admin.js` alone had 9 such references; 96 existed across 58 files. A plain
+`js/pages/admin.js` alone had 9 such references; 96 existed across 58 files. A plain
 `git mv` would have left admins hunting for files that no longer exist —
 silently, since nothing would throw.
 

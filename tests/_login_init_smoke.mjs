@@ -48,11 +48,11 @@ let failures = 0;
 const check = (cond, msg) => { console.log((cond ? "  PASS " : "  FAIL ") + msg); if (!cond) failures++; };
 
 try {
-  run("js/config.js");
+  run("js/core/config.js");
   check(window.APP_CONFIG?.USE_CLERK === true, "config: USE_CLERK true");
   check(window.CLERK_ENABLED === true, "config: CLERK_ENABLED true");
 
-  run("js/data.js");
+  run("js/core/data.js");
   check(!!window.SB, "data.js: window.SB created");
   // The crux: sb.auth.* must NOT throw before auth-clerk.js loads.
   let threw = false;
@@ -75,7 +75,7 @@ try {
   window.SB.from = () => chain;
   window.SB.rpc = async () => ({ data: [], error: null });
 
-  run("js/login.js");
+  run("js/pages/login.js");
   check(typeof window.initLoginPage === "function", "login.js: initLoginPage defined");
 
   // The original crash: if init aborted at sb.auth, later code never ran.

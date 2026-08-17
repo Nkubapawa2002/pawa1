@@ -11,7 +11,7 @@
 #      (Render auto-detects the Dockerfile). This file is then optional.
 #
 # Free plan note: the instance sleeps after ~15 min idle, so the first request
-# after a quiet spell is slow. The frontend (js/geo.js) falls back to calling
+# after a quiet spell is slow. The frontend (js/lib/geo.js) falls back to calling
 # Nominatim directly whenever the gateway is slow/unreachable, so the map keeps
 # working either way — the gateway just makes it faster and politer when warm.
 
@@ -37,7 +37,7 @@ services:
         sync: false
 
   # Python service: AI search brain + video faststart remux (ffmpeg). The
-  # houses uploader (js/agent-houses.js) POSTs each video here before storing it,
+  # houses uploader (js/pages/agent-houses.js) POSTs each video here before storing it,
   # so the MP4 streams without stutter. Bytes-in → bytes-out: no Supabase creds
   # live here. Free plan sleeps after ~15 min idle; the uploader warms it when
   # the new-listing form opens and falls back to the original file if it's cold.

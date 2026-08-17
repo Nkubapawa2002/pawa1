@@ -20,7 +20,7 @@ const DATA = join(__dir, "..", "data");
 
 const PROJECT_REF = "kkdpacoiwntrcukgwksh";
 const SUPABASE_URL = `https://${PROJECT_REF}.supabase.co`;
-// Public anon key — same value already shipped to every browser in js/config.js.
+// Public anon key — same value already shipped to every browser in js/core/config.js.
 const ANON_KEY = "sb_publishable_qDfG71jBmWEG-JA_Xdh2MA_m6krC_8o";
 const BUCKET = "site-photos";
 

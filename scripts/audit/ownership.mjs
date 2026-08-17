@@ -23,7 +23,14 @@ const htmlPages = readdirSync(ROOT, { withFileTypes: true })
 
 const SCRIPT_SRC = /<script[^>]+src\s*=\s*["']([^"']+)["']/gi;
 
-const loadersOf = new Map();   // js path -> Set(pages)
+// Scripts are also injected at runtime, e.g. js/core/config.js does:
+//     _ph.src = "js/core/analytics.js";
+// A file loaded only that way has no <script src> anywhere and would look
+// orphaned if we scanned HTML alone — which is exactly wrong, since deleting
+// or moving it breaks the app silently.
+const DYNAMIC_SRC = /\.src\s*=\s*["'](js\/[^"']+\.js)["']/g;
+
+const loadersOf = new Map();   // js path -> Set(loaders: pages or js files)
 const scriptsOf = new Map();   // page    -> [js paths]
 
 for (const page of htmlPages) {
@@ -37,6 +44,19 @@ for (const page of htmlPages) {
   for (const src of local) {
     if (!loadersOf.has(src)) loadersOf.set(src, new Set());
     loadersOf.get(src).add(page);
+  }
+}
+
+// Second pass: runtime-injected scripts, credited to the file that injects them.
+const dynamicLoads = [];
+if (existsSync(join(ROOT, "js"))) {
+  for (const name of readdirSync(join(ROOT, "js")).filter((f) => extname(f) === ".js")) {
+    const src = readFileSync(join(ROOT, "js", name), "utf8");
+    for (const [, target] of src.matchAll(DYNAMIC_SRC)) {
+      dynamicLoads.push({ target, injectedBy: `js/${name}` });
+      if (!loadersOf.has(target)) loadersOf.set(target, new Set());
+      loadersOf.get(target).add(`js/${name} (runtime)`);
+    }
   }
 }
 
@@ -54,6 +74,13 @@ const classify = (src) => {
 
 const buckets = { "global-shared": [], "multi-page": [], "page-specific": [], orphan: [] };
 for (const src of jsFiles) buckets[classify(src)].push(src);
+
+console.log(`=== RUNTIME-INJECTED SCRIPTS (${dynamicLoads.length}) ===`);
+for (const { target, injectedBy } of dynamicLoads) {
+  const exists = existsSync(join(ROOT, target));
+  console.log(`  ${exists ? "ok  " : "GONE"}  ${target}  <- injected by ${injectedBy}`);
+}
+console.log();
 
 console.log(`=== SCRIPT OWNERSHIP (${jsFiles.length} files in js/, ${htmlPages.length} pages) ===`);
 for (const [bucket, list] of Object.entries(buckets)) {

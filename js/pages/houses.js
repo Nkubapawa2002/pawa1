@@ -3123,7 +3123,7 @@ window.initHousesPage = async () => {
   //  pin: their wanted spot + budget + specs + phone. It persists to
   //  public.house_demand_pins (RLS: they own it). Later, when an agent posts
   //  a property near that spot, the agent dashboard surfaces the waiting
-  //  renters and their numbers (see js/agent-houses.js + the house_demand_near
+  //  renters and their numbers (see js/pages/agent-houses.js + the house_demand_near
   //  RPC). This is the persistent, agent-reaching cousin of the localStorage
   //  geo-alerts above — those only notify the same browser; a demand pin
   //  reaches the person who can actually post the room.

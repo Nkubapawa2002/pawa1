@@ -251,7 +251,7 @@ window.I18N = {
     chat_sub: "Ask about homes to rent, daily services, day jobs, or getting around.",
     chat_placeholder: "Type your question...",
     chat_send: "Send",
-    chat_no_key: "No API key configured. Edit js/config.js to enable AI replies. Demo mode active.",
+    chat_no_key: "No API key configured. Edit js/core/config.js to enable AI replies. Demo mode active.",
     chat_greeting: "Welcome! I'm Pawa, your Maisha na Lifeza assistant. I can help you find a home, hire trusted help, or get around. Ask me anything.",
 
     // Messages thread
@@ -396,7 +396,7 @@ window.I18N = {
     voice_check_btn: "Check Status",
     voice_checking: "Checking…",
     voice_no_booking: "No booking found for that number.",
-    voice_no_key: "Voice agent not configured. Set VAPI_PUBLIC_KEY and VAPI_ASSISTANT_ID in js/config.js.",
+    voice_no_key: "Voice agent not configured. Set VAPI_PUBLIC_KEY and VAPI_ASSISTANT_ID in js/core/config.js.",
 
     // Freight / cargo pricing (send.html)
     send_size_section: "Size & Transport Price",
@@ -464,7 +464,7 @@ window.I18N = {
     cash_retarget_pending_alert: "cash customer(s) waiting to be recorded for retargeting",
 
     // Voice booking — bus full extra
-    fast_voice_no_key: "Voice agent not configured. Add VAPI_PUBLIC_KEY and VAPI_ASSISTANT_ID in js/config.js.",
+    fast_voice_no_key: "Voice agent not configured. Add VAPI_PUBLIC_KEY and VAPI_ASSISTANT_ID in js/core/config.js.",
 
     // Meet & Locate
     nav_meet: "Meet & Locate",
@@ -721,7 +721,7 @@ window.I18N = {
     pcw_callback_label: "Have Pawa call you back",
     pcw_request: "Request call",
     pcw_end: "End call",
-    pcw_no_key: "Voice agent not yet configured — add VAPI_PUBLIC_KEY in js/config.js.",
+    pcw_no_key: "Voice agent not yet configured — add VAPI_PUBLIC_KEY in js/core/config.js.",
     pcw_phone_required: "Please enter a phone number.",
     pcw_requested: "Got it — Pawa will ring you within a minute.",
     pcw_failed: "Could not start the call.",
@@ -812,7 +812,7 @@ window.I18N = {
     ah_err_email_exists: "An account with {email} already exists. Switch to Sign in and enter your password — or reset it if you've forgotten.",
     ah_msg_signup_ok: "Account created. Check your email if confirmation is required, then sign in.",
     ah_msg_auth_fail: "Authentication failed.",
-    ah_msg_supabase_missing: "This page needs Supabase to be configured in js/config.js. Without it, listings can't be saved.",
+    ah_msg_supabase_missing: "This page needs Supabase to be configured in js/core/config.js. Without it, listings can't be saved.",
 
     // Agent houses — dashboard
     ah_signed_in_as: "Signed in as",
@@ -1017,7 +1017,7 @@ window.I18N = {
     hp_act_request: "Tell us what you want",
     hp_act_commute: "Match to my life",
 
-    // "Tell us what you want" demand-request modal (js/request-place.js)
+    // "Tell us what you want" demand-request modal (js/lib/request-place.js)
     rp_title: "Tell us what you want",
     rp_lead: "No map needed. Pick your region, say what you want and when — agents working there will see your request and call you when something matches.",
     rp_region_label: "Your region",
@@ -1126,7 +1126,7 @@ window.I18N = {
     adb_in_days: "in {n}d",
     adb_by: "by",
 
-    // Agent houses dashboard — waiting/demand panels (js/agent-houses.js)
+    // Agent houses dashboard — waiting/demand panels (js/pages/agent-houses.js)
     ahw_waiting_renter: "Waiting renter",
     ahw_near_head_one: "{n} person is waiting near {where}",
     ahw_near_head_many: "{n} people are waiting near {where}",
@@ -1399,7 +1399,7 @@ window.I18N = {
     chat_sub: "Uliza kuhusu nyumba za kupanga, huduma za kila siku, vibarua, au usafiri.",
     chat_placeholder: "Andika swali lako...",
     chat_send: "Tuma",
-    chat_no_key: "Hakuna funguo ya API. Hariri js/config.js kuwasha majibu ya AI. Hali ya jaribio inafanya kazi.",
+    chat_no_key: "Hakuna funguo ya API. Hariri js/core/config.js kuwasha majibu ya AI. Hali ya jaribio inafanya kazi.",
     chat_greeting: "Karibu! Mimi ni Pawa, msaidizi wako wa Maisha na Lifeza. Naweza kukusaidia kupata nyumba, kuajiri msaada wa kuaminika, au kuzunguka. Uliza chochote.",
 
     // Messages thread
@@ -1544,7 +1544,7 @@ window.I18N = {
     voice_check_btn: "Angalia Hali",
     voice_checking: "Inatafuta…",
     voice_no_booking: "Hakuna tiketi iliyopatikana kwa namba hiyo.",
-    voice_no_key: "Wakala wa sauti hajasanidiwa. Weka VAPI_PUBLIC_KEY na VAPI_ASSISTANT_ID katika js/config.js.",
+    voice_no_key: "Wakala wa sauti hajasanidiwa. Weka VAPI_PUBLIC_KEY na VAPI_ASSISTANT_ID katika js/core/config.js.",
 
     // Freight / cargo pricing
     send_size_section: "Ukubwa & Bei ya Usafirishaji",
@@ -1611,7 +1611,7 @@ window.I18N = {
     cash_retarget_saved: "Imehifadhiwa. Mteja ameongezwa kwenye orodha.",
     cash_retarget_pending_alert: "mteja wa taslimu anasubiri kuandikwa",
 
-    fast_voice_no_key: "Wakala wa sauti hajasanidiwa. Weka VAPI_PUBLIC_KEY na VAPI_ASSISTANT_ID katika js/config.js.",
+    fast_voice_no_key: "Wakala wa sauti hajasanidiwa. Weka VAPI_PUBLIC_KEY na VAPI_ASSISTANT_ID katika js/core/config.js.",
 
     // Meet & Locate
     nav_meet: "Kutana & Kupata",
@@ -1868,7 +1868,7 @@ window.I18N = {
     pcw_callback_label: "Pawa akupigie",
     pcw_request: "Omba simu",
     pcw_end: "Maliza simu",
-    pcw_no_key: "Wakala wa sauti hajasanidiwa — weka VAPI_PUBLIC_KEY katika js/config.js.",
+    pcw_no_key: "Wakala wa sauti hajasanidiwa — weka VAPI_PUBLIC_KEY katika js/core/config.js.",
     pcw_phone_required: "Tafadhali ingiza namba ya simu.",
     pcw_requested: "Sawa — Pawa atakupigia ndani ya dakika moja.",
     pcw_failed: "Hatukuweza kuanza simu.",
@@ -1959,7 +1959,7 @@ window.I18N = {
     ah_err_email_exists: "Akaunti yenye {email} tayari ipo. Nenda kwenye Ingia uweke nenosiri lako — au liweke upya kama umelisahau.",
     ah_msg_signup_ok: "Akaunti imefunguliwa. Angalia barua pepe yako kama uthibitisho unahitajika, kisha ingia.",
     ah_msg_auth_fail: "Imeshindikana kuingia.",
-    ah_msg_supabase_missing: "Ukurasa huu unahitaji Supabase iwekwe kwenye js/config.js. Bila hiyo, orodha haziwezi kuhifadhiwa.",
+    ah_msg_supabase_missing: "Ukurasa huu unahitaji Supabase iwekwe kwenye js/core/config.js. Bila hiyo, orodha haziwezi kuhifadhiwa.",
 
     // Agent houses — dashibodi
     ah_signed_in_as: "Umeingia kama",
@@ -2164,7 +2164,7 @@ window.I18N = {
     hp_act_request: "Tuambie unachotaka",
     hp_act_commute: "Linganisha na maisha yangu",
 
-    // "Tell us what you want" demand-request modal (js/request-place.js)
+    // "Tell us what you want" demand-request modal (js/lib/request-place.js)
     rp_title: "Tuambie unachotaka",
     rp_lead: "Hakuna ramani inayohitajika. Chagua mkoa wako, sema unachotaka na lini — mawakala wanaofanya kazi huko wataona ombi lako na watakupigia kunapopatikana kinacholingana.",
     rp_region_label: "Mkoa wako",
@@ -2273,7 +2273,7 @@ window.I18N = {
     adb_in_days: "ndani ya siku {n}",
     adb_by: "ifikapo",
 
-    // Agent houses dashboard — waiting/demand panels (js/agent-houses.js)
+    // Agent houses dashboard — waiting/demand panels (js/pages/agent-houses.js)
     ahw_waiting_renter: "Mpangaji anayesubiri",
     ahw_near_head_one: "Mtu {n} anasubiri karibu na {where}",
     ahw_near_head_many: "Watu {n} wanasubiri karibu na {where}",

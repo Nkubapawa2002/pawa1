@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <script src="js/theme.js"></script>
+  <script src="js/core/theme.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Admin — Maisha na Lifeza</title>
@@ -385,23 +385,23 @@
   <div id="footer-slot"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/nav.js"></script>
-  <script src="js/auth-ui.js"></script>
-  <script src="js/admin.js"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
+  <script src="js/core/nav.js"></script>
+  <script src="js/lib/auth-ui.js"></script>
+  <script src="js/pages/admin.js"></script>
   <script>
-    // Pure app-shell: in-app bottom tab bar (js/app-shell.js). Admin keeps its
+    // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js). Admin keeps its
     // own Sign-out button.
     window.applyTranslations();
     window.initAdminPage();
   </script>
 
-    <script src="js/app-shell.js"></script>
-    <script src="js/sw-register.js"></script>
+    <script src="js/core/app-shell.js"></script>
+    <script src="js/core/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
-  <script src="js/premium.js" defer></script>
+  <script src="js/core/premium.js" defer></script>
 </body>
 </html>

@@ -38,7 +38,7 @@ Every stub answers `GET /health` with JSON like
   - `GET  /health`
   Built in: a 1 req/s token-bucket limiter, a 6 h TTL cache, and singleflight
   dedup (N identical concurrent lookups → 1 upstream call). The haversine +
-  commute maths in `geo.go` are ported 1:1 from `js/houses.js` — keep them in
+  commute maths in `geo.go` are ported 1:1 from `js/pages/houses.js` — keep them in
   sync. To move the frontend onto it, point `geocodePlace`/`searchPlaces`/
   `reverseName` at this service instead of `nominatim.openstreetmap.org`.
 - **Rust** — std-lib only (no crates to download). On Windows this uses the

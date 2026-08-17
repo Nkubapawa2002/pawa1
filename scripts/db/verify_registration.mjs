@@ -12,7 +12,7 @@
 // Reads from environment (load .env first):
 //   TEST_EMAIL, TEST_PASSWORD      — a throwaway agent account on the live site
 //   SUPABASE_URL, SUPABASE_ANON_KEY — optional; falls back to the public values
-//                                     baked into js/config.js
+//                                     baked into js/core/config.js
 //
 // Run:
 //   set -a; . ./.env; set +a; node scripts/db/verify_registration.mjs
@@ -20,7 +20,7 @@
 // =====================================================================
 import { createClient } from "@supabase/supabase-js";
 
-// Public, browser-safe defaults (same as js/config.js). Override via env.
+// Public, browser-safe defaults (same as js/core/config.js). Override via env.
 const SUPABASE_URL =
   process.env.SUPABASE_URL || "https://kkdpacoiwntrcukgwksh.supabase.co";
 const SUPABASE_ANON_KEY =

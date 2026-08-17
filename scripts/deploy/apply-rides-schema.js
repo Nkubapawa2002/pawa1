@@ -17,7 +17,7 @@ if (!PASSWORD) {
   process.exit(1);
 }
 
-// Project ref pulled from bus web/js/config.js (SUPABASE_URL).
+// Project ref pulled from bus web/js/core/config.js (SUPABASE_URL).
 const PROJECT_REF = "kkdpacoiwntrcukgwksh";
 
 // Supabase pooler — works with strict outbound networks. Use the IPv4-friendly

@@ -4,7 +4,7 @@
 // the browser can open a realtime voice session WITHOUT ever seeing the
 // real GEMINI_API_KEY. The key lives only as an Edge Function secret.
 //
-// The browser (js/gemini-voice.js) calls this, gets { token }, then
+// The browser (js/pages/gemini-voice.js) calls this, gets { token }, then
 // connects to Gemini Live using that token as its apiKey. The token is
 // good for a few uses and expires in 30 minutes; new sessions must start
 // within a short window, so a leaked token is near-useless.

@@ -1,10 +1,10 @@
 // =====================================================================
-// js/ai.js — thin client for the three Anthropic-backed Edge Functions.
+// js/lib/ai.js — thin client for the three Anthropic-backed Edge Functions.
 // Exposes window.AI.{chat, think, map}. The API key lives only in
 // Supabase secrets; this file only knows the public anon key + paths.
 //
-// Pages that want AI must load this AFTER js/config.js:
-//   <script src="js/ai.js"></script>
+// Pages that want AI must load this AFTER js/core/config.js:
+//   <script src="js/lib/ai.js"></script>
 // =====================================================================
 
 (function () {

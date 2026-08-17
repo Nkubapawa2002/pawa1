@@ -1,7 +1,7 @@
 // ============================================================================
 //  House matching engine — loader for the Rust → WASM ranker.
 //
-//  Source: services/rust/src/lib.rs  →  js/house-match.wasm (prebuilt, 27 KB).
+//  Source: services/rust/src/lib.rs  →  js/pages/house-match.wasm (prebuilt, 27 KB).
 //  The frontend stays buildless: we just fetch + instantiate the .wasm.
 //
 //  Exposes window.HouseMatch.rank(houses, opts) → Map(id → {score, distKm}).
@@ -31,7 +31,7 @@
     triedLoad = true;
     try {
       // WASM URL relative to the page (works under a GitHub Pages subpath too).
-      const url = new URL("js/house-match.wasm", document.baseURI).href;
+      const url = new URL("js/pages/house-match.wasm", document.baseURI).href;
       let instance;
       if (typeof WebAssembly.instantiateStreaming === "function") {
         try {

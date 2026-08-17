@@ -9,7 +9,7 @@ window.APP_CONFIG = {
   SUPABASE_URL: "https://kkdpacoiwntrcukgwksh.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_qDfG71jBmWEG-JA_Xdh2MA_m6krC_8o",
 
-  // ---------- Clerk auth (optional · js/auth-clerk.js) ----------
+  // ---------- Clerk auth (optional · js/core/auth-clerk.js) ----------
   // Identity provider, used as Supabase's THIRD-PARTY auth issuer so Row-Level
   // Security keeps working (it reads the Clerk user id from the token).
   //
@@ -45,14 +45,14 @@ window.APP_CONFIG = {
   TRUCK_PHOTOS_BUCKET: "truck-photos",
   SERVICE_PHOTOS_BUCKET: "service-photos",
 
-  // ---------- Map / geocoding (LocationIQ, called directly by js/geo.js) ------
+  // ---------- Map / geocoding (LocationIQ, called directly by js/lib/geo.js) ------
   // The browser geocodes through LocationIQ (hosted, CORS-enabled). This is a
   // CLIENT-SIDE key: restrict it to your domain(s) in the LocationIQ dashboard
   // (Account → restrict by referer) so it can't be reused elsewhere — the same
   // pattern as a Mapbox/Google Maps browser key. Free tier: 5,000 lookups/day.
   LOCATIONIQ_KEY: "pk.3ed6d1197fc3f49a728d0135030d3d89",
 
-  // Legacy: the old self-hosted Go map gateway. No longer used by js/geo.js
+  // Legacy: the old self-hosted Go map gateway. No longer used by js/lib/geo.js
   // (the browser now calls LocationIQ directly). Kept for reference only.
   GEO_GATEWAY_URL: "https://pawa-map-gateway.onrender.com",
 
@@ -172,7 +172,7 @@ window.APP_CONFIG = {
   // The meet / ride / track pages read it from APP_CONFIG at runtime.
   MAPBOX_TOKEN: "",
 
-  // ---------- Approximate location fallback (js/geolocate.js) ----------
+  // ---------- Approximate location fallback (js/lib/geolocate.js) ----------
   // When precise browser GPS is denied / blocked / unavailable (e.g. desktop
   // with no GPS, location turned off, or served over plain http), the app
   // falls back to a coarse, city-level location so "Near me" still works.
@@ -218,7 +218,7 @@ window.APP_CONFIG = {
     { role: "support_role_organizer", name: "Fatuma Said", phone: "+255 713 000 002", whatsapp: "255713000002" }
   ],
 
-  // ---------- Analytics (PostHog · js/analytics.js) ----------
+  // ---------- Analytics (PostHog · js/core/analytics.js) ----------
   // Product analytics + autocapture + (optional) session replay. Leave
   // POSTHOG_KEY EMPTY to disable completely — when empty, analytics.js never
   // loads and nothing is ever sent (privacy/perf by default). To turn it on,
@@ -231,7 +231,7 @@ window.APP_CONFIG = {
   // ---------- Currency ----------
   CURRENCY: "TZS",
 
-  // ---------- Live FX rates (js/fx.js) ----------
+  // ---------- Live FX rates (js/lib/fx.js) ----------
   // Adds an "≈ $X" foreign equivalent next to TZS prices for diaspora /
   // international users. Source: open.er-api.com (free, no key, CORS, daily
   // updates) — from the public-apis list. Rates are cached in localStorage
@@ -258,19 +258,19 @@ window.formatTZS = (n) => {
 window.Analytics = window.Analytics || { capture() {}, identify() {}, reset() {} };
 if (window.APP_CONFIG.POSTHOG_KEY) {
   const _ph = document.createElement("script");
-  _ph.src = "js/analytics.js";
+  _ph.src = "js/core/analytics.js";
   _ph.defer = true;
   (document.head || document.documentElement).appendChild(_ph);
 }
 
 // ---------- Clerk bootstrap ----------
-// Flag the app as "Clerk mode" so js/data.js wires the Supabase client to send
+// Flag the app as "Clerk mode" so js/core/data.js wires the Supabase client to send
 // Clerk's token, then load the Clerk adapter. When no Clerk key is set this is
 // a no-op and the app uses Supabase Auth exactly as before.
 window.CLERK_ENABLED = !!(window.APP_CONFIG.USE_CLERK && window.APP_CONFIG.CLERK_PUBLISHABLE_KEY && window.APP_CONFIG.CLERK_DOMAIN);
 if (window.CLERK_ENABLED) {
   const _ck = document.createElement("script");
-  _ck.src = "js/auth-clerk.js";
+  _ck.src = "js/core/auth-clerk.js";
   _ck.defer = true;
   (document.head || document.documentElement).appendChild(_ck);
 }

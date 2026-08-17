@@ -1,6 +1,6 @@
 package main
 
-// Pure geo maths — no I/O, no dependencies. Ported 1:1 from js/houses.js so
+// Pure geo maths — no I/O, no dependencies. Ported 1:1 from js/pages/houses.js so
 // the Go service and the browser agree to the metre. Keep them in sync.
 
 import "math"
@@ -24,7 +24,7 @@ type Mode struct {
 	Kmh   float64 `json:"kmh"`
 }
 
-// Modes mirrors MODES in js/houses.js. car is the fallback.
+// Modes mirrors MODES in js/pages/houses.js. car is the fallback.
 var Modes = map[string]Mode{
 	"walk":     {"Walk", "🚶", 4.5},
 	"bodaboda": {"Bodaboda", "🏍️", 22},

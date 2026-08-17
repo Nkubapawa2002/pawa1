@@ -4,7 +4,7 @@
 // The AI brain for ALL search on Pawa — houses (rent/sale), rides, and
 // generic "find X near me". Turns a free-text question in English OR
 // Swahili into ONE structured intent the frontend engines understand
-// (js/houses.js parseSmartQuery shape, js/ride.js, near-me anchor).
+// (js/pages/houses.js parseSmartQuery shape, js/ride.js, near-me anchor).
 //
 // Powered by Gemini (reuses the GEMINI_API_KEY secret that already powers
 // gemini-chat). The key lives only as an Edge Function secret. Until this
@@ -26,7 +26,7 @@ const MODELS = [
   "gemini-2.0-flash-lite",
 ];
 
-// Keep this in lockstep with js/ai-search.js.
+// Keep this in lockstep with js/lib/ai-search.js.
 const SYSTEM_PROMPT = `You are the search-intent parser for Pawa, a Tanzania (TZ) housing + ride-hailing app used in English and Swahili. Convert the user's free-text request into ONE JSON object. Output the JSON only — no prose, no code fences.
 
 Shape (always return every key; use null / [] when not stated):

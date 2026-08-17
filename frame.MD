@@ -203,7 +203,7 @@ The Frame is not a new silo — it is a **lens over data Pawa already has**.
 | Frame layer        | Already in the app                                         |
 |--------------------|-----------------------------------------------------------|
 | Walls (the area)   | `region → district → ward` auto-tagging from a pin; agent operating-area polygons; houses Area circle/draw |
-| Magnets            | Map (OSM POIs) via the geocoder/map gateway; landmark gazetteer in `js/tz-places.js` |
+| Magnets            | Map (OSM POIs) via the geocoder/map gateway; landmark gazetteer in `js/lib/tz-places.js` |
 | Roads / carry      | `pawaRoute` (OSRM) road distance + drawn routes already in near-me/houses |
 | Shared services    | `services.html` marketplace listings (revealed supply)    |
 | Population signal   | Listings, demand "needed-by" pins, area alerts, day-job posts, near-me searches |
@@ -235,7 +235,7 @@ frame" intent — that an agent or admin opens for any area and reads top-to-bot
 1. **Frame primitive** — given a pin or ward, return its walls + the layer-1/2
    facts from the map (magnets, carrying road) and Pawa's own pins. No score yet.
 2. **Overlay** — draw the Frame + magnets on the existing Leaflet maps (reuse
-   `js/geo.js`, area-circle, poly tooling).
+   `js/lib/geo.js`, area-circle, poly tooling).
 3. **Score** — add Section 6, equal weights, always with the "why".
 4. **Gap panel** — join RevealedDemand vs SupplyAlready (Pawa's own tables).
 5. **Agent assignment** — "one agent owns one Frame", surfaced in agent dashboards

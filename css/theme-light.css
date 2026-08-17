@@ -1,7 +1,7 @@
 /* ============================================================================
    Light theme  —  user-selectable companion to the dark "Twilight" default.
    Load this LAST (after neon-pro.css + design-system.css). It is INERT until
-   <html data-theme="light"> is set by js/theme.js.
+   <html data-theme="light"> is set by js/core/theme.js.
 
    Strategy: the whole app is token-driven across three families —
      --n-*   (neon-pro.css)      · dark page chrome + components
@@ -123,7 +123,7 @@
 :root[data-theme="light"] h5,
 :root[data-theme="light"] h6 { text-shadow: none; }
 
-/* ── App-shell tab bar (styles injected by js/app-shell.js, hardcoded dark) ─ */
+/* ── App-shell tab bar (styles injected by js/core/app-shell.js, hardcoded dark) ─ */
 :root[data-theme="light"] .app-tabbar {
   background: rgba(255, 255, 255, 0.82);
   border-top-color: rgba(20, 18, 12, 0.08);

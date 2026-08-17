@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <script src="js/theme.js"></script>
+  <script src="js/core/theme.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Pnzaki, Maisha na Lifeza Homes Daily Services in Tanzania</title>
@@ -323,7 +323,7 @@
 
     /* ───────────────────────────────────────────────────────────────
        App-style home feed — the "Twilight" direction (Claude design),
-       wired to real listings via js/home-app.js. Dark emerald glass,
+       wired to real listings via js/pages/home-app.js. Dark emerald glass,
        restrained gold, native iOS/Android feel. Scoped to .ha so it never
        touches the shared nav / manifesto / feedback chrome.
        ─────────────────────────────────────────────────────────────── */
@@ -734,12 +734,12 @@
   <div id="footer-slot"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/nav.js"></script>
-  <script src="js/request-place.js"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
+  <script src="js/core/nav.js"></script>
+  <script src="js/lib/request-place.js"></script>
   <script>
     // "Tell us what you want" opens the shared request modal right here (no map,
     // no page change). The other two helper cards are plain links. Scripts run at
@@ -750,7 +750,7 @@
     });
   </script>
   <script>
-    // Pure app-shell: the in-app header + bottom tab bar (js/app-shell.js)
+    // Pure app-shell: the in-app header + bottom tab bar (js/core/app-shell.js)
     // replace the desktop top nav + footer here.
     window.applyTranslations();
 
@@ -909,10 +909,10 @@
     })();
   </script>
 
-    <script src="js/home-app.js"></script>
-    <script src="js/app-shell.js"></script>
-    <script src="js/sw-register.js"></script>
+    <script src="js/pages/home-app.js"></script>
+    <script src="js/core/app-shell.js"></script>
+    <script src="js/core/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
-  <script src="js/premium.js" defer></script>
+  <script src="js/core/premium.js" defer></script>
 </body>
 </html>

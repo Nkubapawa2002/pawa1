@@ -22,7 +22,7 @@ step required (the admin "All Agents" tab still works as an override).
 Agent dashboard
   └─ my_agent_subscription()  → { reason, paid_until, agent_key, … }
   └─ paywall banner shows "Pay now — TZS 10,000/month"   (grace / expired states)
-       └─ openAgentSubscribeModal()  (js/config.js)
+       └─ openAgentSubscribeModal()  (js/core/config.js)
             └─ POST /functions/v1/create-payment
                  reference      = "<agent_key>|<unique>"
                  reference_type = "agent_subscription"

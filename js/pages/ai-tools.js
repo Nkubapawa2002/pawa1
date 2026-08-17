@@ -1,5 +1,5 @@
 // =====================================================================
-// js/ai-tools.js — the AI assistant's tool belt (agentic search).
+// js/pages/ai-tools.js — the AI assistant's tool belt (agentic search).
 //
 // Gives the chat brain the ability to LOOK THINGS UP across the app
 // (houses, services, trucks, day jobs, agents, places) instead of
@@ -14,7 +14,7 @@
 //   • Each tool returns a column-allowlisted, row-capped (≤8) projection.
 //   • No tool touches job claims, tenants, payments or any account table.
 //
-// Load AFTER js/data.js + js/ai.js:  <script src="js/ai-tools.js"></script>
+// Load AFTER js/core/data.js + js/lib/ai.js:  <script src="js/pages/ai-tools.js"></script>
 // =====================================================================
 
 (function () {

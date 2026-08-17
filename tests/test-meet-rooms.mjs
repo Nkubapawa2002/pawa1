@@ -1,5 +1,5 @@
 // End-to-end check of the meet/locate room-creation path against the LIVE DB,
-// using the same anon client + columns the browser uses (js/meet.js).
+// using the same anon client + columns the browser uses (js/pages/meet.js).
 // Run:  node tests/test-meet-rooms.mjs
 // It inserts a throwaway room per UI purpose value, reports pass/fail, then
 // deletes the rooms it managed to create (cleanup). Read-only on failure.

@@ -14,7 +14,7 @@ window.initAdminPage = async () => {
 
   if (!sb) {
     loginGate.hidden = false;
-    window.authMsg($("loginError"), "error", "Supabase not configured. Check js/config.js.");
+    window.authMsg($("loginError"), "error", "Supabase not configured. Check js/core/config.js.");
     return;
   }
 

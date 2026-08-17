@@ -4675,7 +4675,7 @@ body[data-bg] .container > .page-subtitle {
 }
 
 /* ===================================================================
-   Shared map maximize / minimize (js/map-expand.js)
+   Shared map maximize / minimize (js/lib/map-expand.js)
    A floating chevron button grows an inline map in place and back.
    =================================================================== */
 .pawa-map-expand-btn {

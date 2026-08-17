@@ -340,12 +340,12 @@
     </div>
   </div>
 
-<!-- Shared app runtime: Supabase client + config, the DataStore (js/data.js),
+<!-- Shared app runtime: Supabase client + config, the DataStore (js/core/data.js),
      and the TZ gazetteer used to geocode alert/match/request areas. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js"></script>
-<script src="js/data.js"></script>
-<script src="js/tz-places.js"></script>
+<script src="js/core/config.js"></script>
+<script src="js/core/data.js"></script>
+<script src="js/lib/tz-places.js"></script>
 
 <script>
 (function(){
@@ -369,7 +369,7 @@
     {id:'h12', title:'Warehouse · 500 m²', type:'warehouse', listing:'sale', bedrooms:0, bathrooms:1, sqm:500, room_kind:'', area:'Mbezi', region:'Dar es Salaam', road:'Morogoro Rd · 500 m', price:320000000, verified:true, featured:false, match:0, dist_km:12.0, age_days:7, commute:'', amenities:['Loading bay','Security','3-phase power'], posted:'5d', photos:9, rating:4.5, reviews:5, negotiable:true, image:'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&q=70'},
   ];
 
-  // ── WIRED: real Supabase listings via the shared DataStore (js/data.js).
+  // ── WIRED: real Supabase listings via the shared DataStore (js/core/data.js).
   // DataStore.getHouses() returns rows from public.houses (Supabase first,
   // data/houses.json fallback). We hide rows whose deal is closed
   // (available === false) and map each through normalize().
@@ -474,7 +474,7 @@
   //   open  -> house.html?id=…  (the existing detail page)
   //   save  -> localStorage["pawa_house_favs"]  (read by favorites.html / house.html)
   //   createAlert -> localStorage["pawa_house_geo_alerts"] (the realtime engine
-  //                  in js/houses.js fires these when a matching listing appears)
+  //                  in js/pages/houses.js fires these when a matching listing appears)
   //   submitRequest -> public.house_demand_pins  (agents in the region get it)
   const FAVS_KEY='pawa_house_favs', FAV_ORDER_KEY='pawa_house_fav_order';
   const ALERTS_KEY='pawa_house_geo_alerts', SEEN_KEY='pawa_house_seen_ids';
@@ -499,7 +499,7 @@
     changeLocation: changeLocation,
   };
 
-  // Build a circle area-alert compatible with js/houses.js's realtime matcher.
+  // Build a circle area-alert compatible with js/pages/houses.js's realtime matcher.
   function createAlert(){
     const place = (window.resolveTzPlace && window.resolveTzPlace(state.alertArea)) || null;
     if(!place){ toast("Couldn't place “"+(state.alertArea||'')+"” — try a known area or landmark"); return false; }
@@ -549,7 +549,7 @@
 
   // Raise demand so agents operating in the region see a waiting seeker.
   // Writes a REAL public.house_demand_pins row using the same payload shape and
-  // column-strip-on-error insert as js/request-place.js (the proven prod flow).
+  // column-strip-on-error insert as js/lib/request-place.js (the proven prod flow).
   // A phone is required for the agent-visible insert (it's how agents reach the
   // seeker, and the column is NOT NULL); without one we keep a local-only copy.
   const DEMAND_MINE_KEY = 'pawa_my_demand_pins';
@@ -1046,6 +1046,6 @@
   })();
 })();
 </script>
-<script src="js/sw-register.js"></script>
+<script src="js/core/sw-register.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// Offline unit tests for the routing engine in js/geo.js — no network.
+// Offline unit tests for the routing engine in js/lib/geo.js — no network.
 // Loads geo.js in a VM sandbox with a mocked fetch + storage, then drives
 // pawaRoute.table / pawaRoute.route through the failure modes that matter in
 // production: endpoint failover, transient 429s, malformed listings, cache

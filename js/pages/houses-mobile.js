@@ -6,7 +6,7 @@
 //  reachable fast, WITHOUT moving any input the page's main JS reads — every
 //  control still lives in the same DOM node, just hidden until expanded.
 //
-//  Self-contained: no dependency on js/houses.js internals. CSS in
+//  Self-contained: no dependency on js/pages/houses.js internals. CSS in
 //  css/houses-mobile-pro.css only reacts at ≤760px, so this is inert on desktop.
 // ============================================================================
 (function () {
@@ -65,7 +65,7 @@
   });
 
   // "Near me" just drives the real (hidden) GPS button so all the existing
-  // geolocation logic in js/houses.js runs unchanged.
+  // geolocation logic in js/pages/houses.js runs unchanged.
   near.addEventListener("click", function () {
     var real = document.getElementById("houseNearMeBtn");
     if (real) real.click();

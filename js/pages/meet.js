@@ -797,7 +797,7 @@ const _initMeetPageImpl = () => {
   // ICE servers are built from APP_CONFIG: always the two Google STUN servers,
   // plus any TURN relay configured (TURN_URLS/USERNAME/CREDENTIAL). TURN is
   // what makes calls survive Tanzanian mobile-carrier NAT — without it,
-  // STUN-only calls there fail and the call "crashes". See js/config.js.
+  // STUN-only calls there fail and the call "crashes". See js/core/config.js.
   function buildIceServers() {
     const cfg = window.APP_CONFIG || {};
     const servers = [
@@ -826,7 +826,7 @@ const _initMeetPageImpl = () => {
     [].concat(s.urls).some(u => /^turns?:/i.test(u)));
   if (!HAS_TURN) {
     console.warn("[meet] No TURN server configured — calls may fail on mobile " +
-      "(carrier NAT). Add TURN_URLS/TURN_USERNAME/TURN_CREDENTIAL in js/config.js.");
+      "(carrier NAT). Add TURN_URLS/TURN_USERNAME/TURN_CREDENTIAL in js/core/config.js.");
   }
   const peerConns  = new Map();   // user_id -> RTCPeerConnection
   let camMuted = false;

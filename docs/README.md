@@ -72,7 +72,7 @@ Open **SQL Editor** in the Supabase dashboard and run these in order:
    ```
 
 5. To add an email to `APP_CONFIG.ADMIN_EMAILS` (browser-side allow-list),
-   edit `js/config.js`.
+   edit `js/core/config.js`.
 
 ### 4. Run a local server
 
@@ -113,7 +113,7 @@ If `SUPABASE_URL` is empty, the site falls back to the local JSON files in `data
 
 ## Insurance
 
-Every parcel is automatically insured for **80% of the declared value**. The percentage is configurable in `js/config.js`:
+Every parcel is automatically insured for **80% of the declared value**. The percentage is configurable in `js/core/config.js`:
 
 ```js
 INSURANCE_COVERAGE_PERCENT: 80

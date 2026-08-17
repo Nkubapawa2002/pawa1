@@ -1,10 +1,10 @@
 // =====================================================================
 // auth-clerk.js — Clerk identity, wired as Supabase's THIRD-PARTY issuer.
 // ---------------------------------------------------------------------
-// Loaded by js/config.js ONLY when CLERK_PUBLISHABLE_KEY + CLERK_DOMAIN are set.
+// Loaded by js/core/config.js ONLY when CLERK_PUBLISHABLE_KEY + CLERK_DOMAIN are set.
 // It loads Clerk (buildless, from your Clerk Frontend API) and REPLACES
 // window.Auth with a Clerk-backed implementation that mirrors the Supabase one
-// (js/auth.js), so login.js and the dashboard gates keep calling the same API.
+// (js/core/auth.js), so login.js and the dashboard gates keep calling the same API.
 //
 // Headless on purpose: it drives Clerk's client API directly so the custom
 // css/auth.css UI is preserved (no Clerk prebuilt widgets).
@@ -227,7 +227,7 @@
     };
 
     // Swap the Supabase-backed facade for the Clerk one. The sb.auth shim lives
-    // in js/data.js (single source of truth) and delegates here via window.Auth,
+    // in js/core/data.js (single source of truth) and delegates here via window.Auth,
     // so we don't replace sb.auth from this file anymore.
     window.Auth = ClerkAuth;
 

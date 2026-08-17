@@ -1,0 +1,224 @@
+{
+  "moves": [
+    {
+      "from": "js/admin.js",
+      "to": "js/pages/admin.js"
+    },
+    {
+      "from": "js/agent-demand-board.js",
+      "to": "js/lib/agent-demand-board.js"
+    },
+    {
+      "from": "js/agent-houses.js",
+      "to": "js/pages/agent-houses.js"
+    },
+    {
+      "from": "js/agent-profile.js",
+      "to": "js/lib/agent-profile.js"
+    },
+    {
+      "from": "js/agent-services.js",
+      "to": "js/pages/agent-services.js"
+    },
+    {
+      "from": "js/agent-trucks.js",
+      "to": "js/pages/agent-trucks.js"
+    },
+    {
+      "from": "js/ai-search.js",
+      "to": "js/lib/ai-search.js"
+    },
+    {
+      "from": "js/ai-tools.js",
+      "to": "js/pages/ai-tools.js"
+    },
+    {
+      "from": "js/ai.js",
+      "to": "js/lib/ai.js"
+    },
+    {
+      "from": "js/analytics.js",
+      "to": "js/core/analytics.js"
+    },
+    {
+      "from": "js/app-shell.js",
+      "to": "js/core/app-shell.js"
+    },
+    {
+      "from": "js/area-boundary.js",
+      "to": "js/lib/area-boundary.js"
+    },
+    {
+      "from": "js/area.js",
+      "to": "js/pages/area.js"
+    },
+    {
+      "from": "js/auth-clerk.js",
+      "to": "js/core/auth-clerk.js"
+    },
+    {
+      "from": "js/auth-ui.js",
+      "to": "js/lib/auth-ui.js"
+    },
+    {
+      "from": "js/auth.js",
+      "to": "js/core/auth.js"
+    },
+    {
+      "from": "js/chat.js",
+      "to": "js/pages/chat.js"
+    },
+    {
+      "from": "js/config.js",
+      "to": "js/core/config.js"
+    },
+    {
+      "from": "js/data.js",
+      "to": "js/core/data.js"
+    },
+    {
+      "from": "js/fab.js",
+      "to": "js/_quarantine/fab.js"
+    },
+    {
+      "from": "js/favorites.js",
+      "to": "js/pages/favorites.js"
+    },
+    {
+      "from": "js/find-mode.js",
+      "to": "js/lib/find-mode.js"
+    },
+    {
+      "from": "js/frame.js",
+      "to": "js/pages/frame.js"
+    },
+    {
+      "from": "js/fx.js",
+      "to": "js/lib/fx.js"
+    },
+    {
+      "from": "js/gemini-chat.js",
+      "to": "js/pages/gemini-chat.js"
+    },
+    {
+      "from": "js/gemini-voice.js",
+      "to": "js/pages/gemini-voice.js"
+    },
+    {
+      "from": "js/geo-poly.js",
+      "to": "js/lib/geo-poly.js"
+    },
+    {
+      "from": "js/geo.js",
+      "to": "js/lib/geo.js"
+    },
+    {
+      "from": "js/geolocate.js",
+      "to": "js/lib/geolocate.js"
+    },
+    {
+      "from": "js/home-app.js",
+      "to": "js/pages/home-app.js"
+    },
+    {
+      "from": "js/house-match.js",
+      "to": "js/pages/house-match.js"
+    },
+    {
+      "from": "js/house-match.wasm",
+      "to": "js/pages/house-match.wasm"
+    },
+    {
+      "from": "js/house.js",
+      "to": "js/pages/house.js"
+    },
+    {
+      "from": "js/houses-mobile.js",
+      "to": "js/pages/houses-mobile.js"
+    },
+    {
+      "from": "js/houses.js",
+      "to": "js/pages/houses.js"
+    },
+    {
+      "from": "js/i18n.js",
+      "to": "js/core/i18n.js"
+    },
+    {
+      "from": "js/jobs.js",
+      "to": "js/pages/jobs.js"
+    },
+    {
+      "from": "js/login.js",
+      "to": "js/pages/login.js"
+    },
+    {
+      "from": "js/map-expand.js",
+      "to": "js/lib/map-expand.js"
+    },
+    {
+      "from": "js/meet.js",
+      "to": "js/pages/meet.js"
+    },
+    {
+      "from": "js/mobile-nav.js",
+      "to": "js/_quarantine/mobile-nav.js"
+    },
+    {
+      "from": "js/nav.js",
+      "to": "js/core/nav.js"
+    },
+    {
+      "from": "js/near-me.js",
+      "to": "js/pages/near-me.js"
+    },
+    {
+      "from": "js/premium.js",
+      "to": "js/core/premium.js"
+    },
+    {
+      "from": "js/request-place.js",
+      "to": "js/lib/request-place.js"
+    },
+    {
+      "from": "js/service.js",
+      "to": "js/pages/service.js"
+    },
+    {
+      "from": "js/services.js",
+      "to": "js/pages/services.js"
+    },
+    {
+      "from": "js/share-location.js",
+      "to": "js/pages/share-location.js"
+    },
+    {
+      "from": "js/super-admin.js",
+      "to": "js/pages/super-admin.js"
+    },
+    {
+      "from": "js/sw-register.js",
+      "to": "js/core/sw-register.js"
+    },
+    {
+      "from": "js/tenant.js",
+      "to": "js/pages/tenant.js"
+    },
+    {
+      "from": "js/theme.js",
+      "to": "js/core/theme.js"
+    },
+    {
+      "from": "js/truck.js",
+      "to": "js/pages/truck.js"
+    },
+    {
+      "from": "js/trucks.js",
+      "to": "js/pages/trucks.js"
+    },
+    {
+      "from": "js/tz-places.js",
+      "to": "js/lib/tz-places.js"
+    }
+  ]
+}

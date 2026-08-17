@@ -1,7 +1,7 @@
 // =====================================================================
 // analytics.js — PostHog product analytics
 // ---------------------------------------------------------------------
-// Loaded dynamically by js/config.js ONLY when APP_CONFIG.POSTHOG_KEY is set,
+// Loaded dynamically by js/core/config.js ONLY when APP_CONFIG.POSTHOG_KEY is set,
 // so when analytics is disabled nothing here runs and nothing is sent.
 //
 // Exposes a tiny, provider-agnostic facade so the rest of the app never
