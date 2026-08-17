@@ -38,4 +38,22 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Location — required for "use my location" everywhere in the app (near-me
+      search, GPS pin picking, meet/share-location live tracking).
+
+      These MUST be declared even though the app never calls the Android
+      location APIs directly. Capacitor's BridgeWebChromeClient handles the
+      WebView's geolocation request by calling permissionLauncher.launch() for
+      exactly these two permissions, and Android instantly denies a runtime
+      request for any permission that is not declared here — without ever
+      showing the user a prompt. Without these lines navigator.geolocation
+      fails with PERMISSION_DENIED on every device, silently.
+
+      COARSE is listed alongside FINE because on Android 12+ the user may grant
+      approximate location only; the bridge accepts that as a grant.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 </manifest>

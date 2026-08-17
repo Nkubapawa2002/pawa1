@@ -84,11 +84,24 @@
     };
   }
 
+  // How long the prompt-safe first shot may take before we stop waiting on it
+  // and let the watch below carry on. Deliberately well under maxWaitMs so the
+  // two timers can never race to settle the same promise.
+  const FIRST_FIX_MS = 6000;
+
+  // A recent cached fix is worth taking instantly: it lets the UI respond right
+  // away (via onProgress) while the watch keeps tightening toward GPS accuracy.
+  const CACHED_FIX_MAX_AGE_MS = 60000;
+
   // One-shot "best fix": prompt-safe, then tighten for a short window.
   async function best(opts = {}) {
     const {
-      targetAccuracy = 25,   // metres — stop early once this good
-      maxWaitMs      = 8000,  // hard cap so the caller never hangs
+      targetAccuracy = 25,    // metres — stop early once this good
+      // Hard cap so the caller never hangs. A cold GPS lock on a phone takes
+      // 15-45s outdoors and can be far worse indoors, so this must be generous
+      // — the old 8s cap timed out before the device could ever produce a fix,
+      // which is why "use my location" appeared broken on phones.
+      maxWaitMs      = 25000,
       highAccuracy   = true,
       onProgress,             // called with each improving fix
       signal,                 // optional AbortSignal to cancel (e.g. second tap)
@@ -131,23 +144,35 @@
         if (a <= targetAccuracy) settleOK();
       };
 
+      // Step 2 — keep watching to tighten the fix until good enough / timeout.
+      // Started either once the first shot lands or when it fails for a reason
+      // that is worth waiting out (a slow first lock is not a real failure).
+      const startWatch = () => {
+        if (done || watchId != null) return;
+        watchId = navigator.geolocation.watchPosition(
+          consider,
+          () => {},  // ignore mid-watch errors; the hard timer is the backstop
+          { enableHighAccuracy: highAccuracy, maximumAge: 0, timeout: maxWaitMs }
+        );
+      };
+
       // Step 1 — one-shot to force the prompt (iOS) and get an immediate fix.
+      // Allows a recent cached fix so the UI can react instantly; because
+      // consider() only settles early once targetAccuracy is met, a coarse
+      // cached reading updates the caller without ending the search.
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           consider(pos);
-          if (done) return;
-          // Step 2 — keep watching to tighten the fix until good enough / timeout.
-          watchId = navigator.geolocation.watchPosition(
-            consider,
-            () => {},  // ignore mid-watch errors; we already have a fix
-            { enableHighAccuracy: highAccuracy, maximumAge: 0, timeout: maxWaitMs }
-          );
+          startWatch();
         },
         (e) => {
-          const code = e.code === 1 ? "denied" : e.code === 2 ? "unavailable" : "timeout";
-          settleErr(err(code, message(e)));
+          // Denied is terminal — no amount of waiting produces a fix.
+          if (e.code === 1) { settleErr(err("denied", message(e))); return; }
+          // Position-unavailable and timeout are both recoverable: the device
+          // may simply not have locked on yet. Keep watching until the hard cap.
+          startWatch();
         },
-        { enableHighAccuracy: highAccuracy, maximumAge: 0, timeout: maxWaitMs }
+        { enableHighAccuracy: highAccuracy, maximumAge: CACHED_FIX_MAX_AGE_MS, timeout: FIRST_FIX_MS }
       );
 
       // Hard stop: return the best we have, or a timeout error if none yet.
@@ -242,18 +267,29 @@
       if (onError) onError(err(code, message(e)));
     };
 
+    const startWatch = () => {
+      if (stopped || watchId != null) return;
+      watchId = navigator.geolocation.watchPosition(
+        (p) => { if (!stopped && onFix) onFix(toFix(p), p); },
+        fail,
+        { enableHighAccuracy: highAccuracy, timeout, maximumAge }
+      );
+    };
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (stopped) return;
         if (onFix) onFix(toFix(pos), pos);
-        watchId = navigator.geolocation.watchPosition(
-          (p) => { if (!stopped && onFix) onFix(toFix(p), p); },
-          fail,
-          { enableHighAccuracy: highAccuracy, timeout, maximumAge }
-        );
+        startWatch();
       },
-      fail,
-      { enableHighAccuracy: highAccuracy, timeout: 20000, maximumAge: 0 }
+      (e) => {
+        // Only a denial is fatal to tracking. A slow or momentarily unavailable
+        // first fix must not cancel the session — start the watch anyway and
+        // let it deliver the position once the device locks on.
+        if (e.code === 1) { fail(e); return; }
+        startWatch();
+      },
+      { enableHighAccuracy: highAccuracy, timeout: 20000, maximumAge: CACHED_FIX_MAX_AGE_MS }
     );
 
     return function stop() {
