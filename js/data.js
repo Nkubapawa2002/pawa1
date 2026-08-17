@@ -178,70 +178,13 @@ window.safeUrl = function (u) {
   // TTLs — tune here, not at every call site.
   const TTL = {
     regions:  24 * 60 * 60 * 1000,   // 1 day — almost never changes
-    buses:         5 * 60 * 1000,    // 5 min
-    agents:        5 * 60 * 1000,    // 5 min
     houses:        2 * 60 * 1000     // 2 min — listings churn faster
   };
-
-  // -------- Mappers (DB -> UI shape) --------
-  const mapShipment = (r) => ({
-    tracking_code: r.tracking_code,
-    sender: { name: r.sender_name, phone: r.sender_phone, region: r.sender_region },
-    receiver: { name: r.receiver_name, phone: r.receiver_phone, region: r.receiver_region },
-    product: {
-      description: r.product_description,
-      weight_kg: Number(r.product_weight_kg),
-      value_tzs: Number(r.product_value_tzs || 0),
-      insured: r.insured !== false
-    },
-    bus: { name: r.bus_name, route: r.bus_route, departure: r.bus_departure },
-    agent_origin: { name: r.agent_origin_name, phone: r.agent_origin_phone },
-    agent_destination: { name: r.agent_destination_name, phone: r.agent_destination_phone },
-    status: r.status,
-    notes: r.notes,
-    created_at: r.created_at,
-    updated_at: r.updated_at
-  });
-
-  const reverseShipment = (s) => ({
-    tracking_code: s.tracking_code,
-    sender_name: s.sender.name,
-    sender_phone: s.sender.phone,
-    sender_region: s.sender.region,
-    receiver_name: s.receiver.name,
-    receiver_phone: s.receiver.phone,
-    receiver_region: s.receiver.region,
-    product_description: s.product.description,
-    product_weight_kg: s.product.weight_kg,
-    product_size_category: s.product.size_category || "medium",
-    product_freight_fee: s.product.freight_fee || 0,
-    product_suggested_fee: s.product.suggested_fee || 0,
-    product_value_tzs: s.product.value_tzs || 0,
-    insured: s.product.insured !== false,
-    bus_name: s.bus.name,
-    bus_route: s.bus.route,
-    bus_departure: s.bus.departure,
-    agent_origin_name: s.agent_origin?.name || null,
-    agent_origin_phone: s.agent_origin?.phone || null,
-    agent_destination_name: s.agent_destination?.name || null,
-    agent_destination_phone: s.agent_destination?.phone || null,
-    status: s.status || "Awaiting Price",
-    notes: s.notes || null
-  });
 
   // -------- Public API --------
   window.DataStore = {
     isOnline: !!sb,
     sb,
-
-    busPhotoUrl(path) {
-      if (!path) return "";
-      if (path.startsWith("http")) return path;
-      if (!sb) return `data/${path}`;
-      const bucket = (window.APP_CONFIG && window.APP_CONFIG.BUS_PHOTOS_BUCKET) || "bus-photos";
-      const { data } = sb.storage.from(bucket).getPublicUrl(path);
-      return data.publicUrl;
-    },
 
     agentPhotoUrl(path) {
       if (!path) return "";
@@ -267,9 +210,9 @@ window.safeUrl = function (u) {
 
     // Build the Call + WhatsApp button group for a single number.
     // Used by every contact-rendering helper so the UX is consistent across
-    // the site (bus directory, agent directory, dashboards, etc.).
+    // the site (house listings, agent directory, dashboards, etc.).
     renderCallButtons(num, opts = {}) {
-      // Phone is user-controlled (agent/bus/ride registration). Restrict the
+      // Phone is user-controlled (agent/provider registration). Restrict the
       // href to digits/+ and HTML-escape the displayed number so a value like
       // `" onerror=…` can't break out of the attribute (stored XSS).
       const tel = this.cleanPhone(num).replace(/[^\d+]/g, "");
@@ -329,30 +272,6 @@ window.safeUrl = function (u) {
           return data.map(r => r.name);
         }
         return loadJSON("regions");
-      }, opts);
-    },
-
-    // Buses
-    async getBuses(opts = {}) {
-      return cached("buses", TTL.buses, async () => {
-        if (sb) {
-          const { data, error } = await sb.from("buses").select("*").order("name");
-          if (error) throw error;
-          return data;
-        }
-        return loadJSON("buses");
-      }, opts);
-    },
-
-    // Agents
-    async getAgents(opts = {}) {
-      return cached("agents", TTL.agents, async () => {
-        if (sb) {
-          const { data, error } = await sb.from("agents").select("*").order("region");
-          if (error) throw error;
-          return data;
-        }
-        return loadJSON("agents");
       }, opts);
     },
 
@@ -453,197 +372,6 @@ window.safeUrl = function (u) {
       const bucket = (window.APP_CONFIG && window.APP_CONFIG.SERVICE_PHOTOS_BUCKET) || "service-photos";
       const { data } = sb.storage.from(bucket).getPublicUrl(path);
       return data.publicUrl;
-    },
-
-    // Shipments
-    async getShipments() {
-      if (sb) {
-        const { data, error } = await sb.from("shipments").select("*")
-          .order("created_at", { ascending: false });
-        if (error) throw error;
-        return data.map(mapShipment);
-      }
-      const seed = await loadJSON("shipments");
-      const local = JSON.parse(localStorage.getItem("shipments_local") || "[]");
-      const overrides = JSON.parse(localStorage.getItem("shipment_overrides") || "{}");
-      return [...local, ...seed].map(s => overrides[s.tracking_code]
-        ? { ...s, ...overrides[s.tracking_code] } : s);
-    },
-
-    async findShipment(code) {
-      if (sb) {
-        const { data, error } = await sb.from("shipments").select("*")
-          .ilike("tracking_code", code).maybeSingle();
-        if (error) throw error;
-        return data ? mapShipment(data) : null;
-      }
-      const all = await this.getShipments();
-      return all.find(s => s.tracking_code.toLowerCase() === code.toLowerCase()) || null;
-    },
-
-    async findShipmentsByPhone(phone, role) {
-      // role: 'sender' | 'receiver'
-      // `phone` may be a single value, a comma/space-separated list of phones,
-      // or a name. We split on commas/semicolons and OR every term.
-      const col = role === "sender" ? "sender_phone" : "receiver_phone";
-      const nameCol = role === "sender" ? "sender_name" : "receiver_name";
-      const terms = phone.split(/[,;]/).map(s => s.trim()).filter(Boolean);
-      if (!terms.length) return [];
-      if (sb) {
-        const ors = terms.flatMap(t => [
-          `${col}.ilike.%${t}%`,
-          `${nameCol}.ilike.%${t}%`
-        ]).join(",");
-        const { data, error } = await sb.from("shipments").select("*")
-          .or(ors)
-          .order("created_at", { ascending: false });
-        if (error) throw error;
-        return data.map(mapShipment);
-      }
-      const all = await this.getShipments();
-      return all.filter(s => {
-        const p = role === "sender" ? s.sender : s.receiver;
-        const phoneNorm = (p.phone || "").replace(/\s/g, "");
-        return terms.some(t => {
-          const tNorm = t.replace(/\s/g, "");
-          return phoneNorm.includes(tNorm) || (p.name || "").toLowerCase().includes(t.toLowerCase());
-        });
-      });
-    },
-
-    async createShipment(s) {
-      if (sb) {
-        const { error } = await sb.from("pending_changes").insert({
-          entity_type:  "shipment",
-          action:       "insert",
-          entity_id:    s.tracking_code,
-          payload:      reverseShipment(s),
-          requested_by: `${s.sender.name} / ${s.sender.phone}`
-        });
-        if (error) throw error;
-        return s;
-      }
-      // Offline fallback — no approval gate in local mode
-      const local = JSON.parse(localStorage.getItem("shipments_local") || "[]");
-      local.unshift(s);
-      localStorage.setItem("shipments_local", JSON.stringify(local));
-      return s;
-    },
-
-    async updateShipmentStatus(code, status) {
-      if (sb) {
-        const { error } = await sb.from("shipments").update({ status }).eq("tracking_code", code);
-        if (error) throw error;
-        return true;
-      }
-      const overrides = JSON.parse(localStorage.getItem("shipment_overrides") || "{}");
-      overrides[code] = { ...(overrides[code] || {}), status };
-      localStorage.setItem("shipment_overrides", JSON.stringify(overrides));
-      return true;
-    },
-
-    // Public tracking-chat confirmation (Arrived / Delivered). Direct table
-    // UPDATE is now restricted to admins + the assigned signed-in agent, so the
-    // public confirm buttons go through the narrow confirm_shipment_status RPC.
-    async confirmShipmentStatus(code, status) {
-      if (sb) {
-        const { error } = await sb.rpc("confirm_shipment_status", { p_code: code, p_status: status });
-        if (error) throw error;
-        return true;
-      }
-      const overrides = JSON.parse(localStorage.getItem("shipment_overrides") || "{}");
-      overrides[code] = { ...(overrides[code] || {}), status };
-      localStorage.setItem("shipment_overrides", JSON.stringify(overrides));
-      return true;
-    },
-
-    // Messages thread
-    async getMessages(code) {
-      if (sb) {
-        const { data, error } = await sb.from("shipment_messages").select("*")
-          .eq("tracking_code", code).order("created_at");
-        if (error) throw error;
-        return data;
-      }
-      const all = JSON.parse(localStorage.getItem("messages_" + code) || "[]");
-      return all;
-    },
-
-    async addMessage(code, fromRole, fromName, message) {
-      const row = { tracking_code: code, from_role: fromRole, from_name: fromName, message };
-      if (sb) {
-        const { error } = await sb.from("shipment_messages").insert(row);
-        if (error) throw error;
-        return true;
-      }
-      const all = JSON.parse(localStorage.getItem("messages_" + code) || "[]");
-      all.push({ ...row, id: Date.now(), created_at: new Date().toISOString() });
-      localStorage.setItem("messages_" + code, JSON.stringify(all));
-      return true;
-    },
-
-    // Realtime subscriptions (Supabase only)
-    subscribeShipment(code, callback) {
-      if (!sb) return { unsubscribe() {} };
-      const channel = sb.channel("shipment_" + code)
-        .on("postgres_changes", {
-          event: "*", schema: "public", table: "shipments",
-          filter: `tracking_code=eq.${code}`
-        }, callback)
-        .subscribe();
-      return channel;
-    },
-
-    subscribeMessages(code, callback) {
-      if (!sb) return { unsubscribe() {} };
-      const channel = sb.channel("messages_" + code)
-        .on("postgres_changes", {
-          event: "INSERT", schema: "public", table: "shipment_messages",
-          filter: `tracking_code=eq.${code}`
-        }, callback)
-        .subscribe();
-      return channel;
-    },
-
-    // Helpers
-    // Server-side generator (RPC) guarantees uniqueness via a Postgres sequence;
-    // if it's available we trust it. Otherwise we fall back to the client-side
-    // algorithm in js/tracking-id.js, which is collision-resistant by design
-    // (32^4 random suffix per ms + Damm check digit).
-    async generateTrackingCode(originRegion, destRegion) {
-      if (sb) {
-        const { data, error } = await sb.rpc("generate_tracking_code", {
-          p_origin: originRegion,
-          p_dest:   destRegion
-        });
-        if (!error && data) return data;
-      }
-      if (window.TrackingID?.generate) {
-        return window.TrackingID.generate({ origin: originRegion, destination: destRegion });
-      }
-      // Last-resort fallback if tracking-id.js wasn't loaded
-      const code = (s) => (s || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3) || "XXX";
-      const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const seq  = String(Math.floor(Math.random() * 9000) + 1000);
-      return `TZ-${code(originRegion)}-${code(destRegion)}-${date}-${seq}`;
-    },
-
-    findBusesForRoute(buses, from, to) {
-      return buses.filter(b => (b.routes || []).some(r =>
-        r.from?.toLowerCase() === from.toLowerCase() &&
-        r.to?.toLowerCase() === to.toLowerCase()
-      ));
-    },
-
-    findAgentsByRegion(agents, region) {
-      return agents.filter(a => a.region?.toLowerCase() === region.toLowerCase());
-    },
-
-    clearLocal() {
-      localStorage.removeItem("shipments_local");
-      localStorage.removeItem("shipment_overrides");
-      Object.keys(localStorage).filter(k => k.startsWith("messages_"))
-        .forEach(k => localStorage.removeItem(k));
     }
   };
 })();

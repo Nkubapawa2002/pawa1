@@ -1,7 +1,7 @@
 // =====================================================================
 // POST /functions/v1/ai-map
 // Natural-language map query → structured map intent for Leaflet/MapLibre.
-// e.g. "nearest agent to Mwanza", "show buses Dar -> Arusha tonight".
+// e.g. "nearest agent to Mwanza", "show houses for rent in Mbezi Beach".
 //
 // Powered by Gemini (reuses the GEMINI_API_KEY secret that already powers
 // gemini-chat). The key lives only as an Edge Function secret.
@@ -29,7 +29,7 @@ Always respond with a single JSON object, no prose. Shape:
   "from": { "name": string|null, "lat": number|null, "lng": number|null } | null,
   "to":   { "name": string|null, "lat": number|null, "lng": number|null } | null,
   "region": string|null,
-  "entity": "agent" | "bus" | "shipment" | "ride" | "stop" | "place" | "house" | "truck" | "service" | null,
+  "entity": "agent" | "stop" | "place" | "house" | "truck" | "service" | null,
   "filters": object,
   "answer": string
 }

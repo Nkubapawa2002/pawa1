@@ -2,8 +2,8 @@
 // js/ai-tools.js — the AI assistant's tool belt (agentic search).
 //
 // Gives the chat brain the ability to LOOK THINGS UP across the app
-// (houses, services, trucks, day jobs, agents, buses, parcels, places)
-// instead of answering from a static snapshot.
+// (houses, services, trucks, day jobs, agents, places) instead of
+// answering from a static snapshot.
 //
 // SECURITY MODEL — why this can't leak data:
 //   • Every query runs in the browser through the PUBLIC anon Supabase
@@ -12,8 +12,6 @@
 //   • Tools are a fixed allowlist with fixed filters — the model can pick
 //     parameters, never tables, columns or raw SQL.
 //   • Each tool returns a column-allowlisted, row-capped (≤8) projection.
-//   • Parcel lookup needs the EXACT tracking code (same rule as track.html)
-//     and masks phone numbers; there is no "list parcels" tool.
 //   • No tool touches job claims, tenants, payments or any account table.
 //
 // Load AFTER js/data.js + js/ai.js:  <script src="js/ai-tools.js"></script>
@@ -23,10 +21,6 @@
   const MAX_ROWS = 8;
   const str = (v, n = 90) => (v == null ? "" : String(v).slice(0, n));
   const num = (v) => (Number.isFinite(+v) ? +v : null);
-  const maskPhone = (p) => {
-    p = str(p, 20);
-    return p.length > 6 ? p.slice(0, 5) + "****" + p.slice(-2) : (p ? "***" : "");
-  };
   const norm = (s) => String(s || "").toLowerCase();
   const matches = (hay, q) => !q || norm(hay).includes(norm(q));
   // Listings keep contact in an `owner` jsonb ({name, phone, whatsapp});

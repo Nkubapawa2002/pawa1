@@ -39,7 +39,6 @@ window.APP_CONFIG = {
   CLERK_JWT_TEMPLATE: "supabase",
 
   // Public bucket names
-  BUS_PHOTOS_BUCKET: "bus-photos",
   AGENT_PHOTOS_BUCKET: "agent-photos",
   SITE_PHOTOS_BUCKET: "site-photos",
   HOUSE_PHOTOS_BUCKET: "house-photos",
@@ -103,7 +102,7 @@ window.APP_CONFIG = {
 
   // ---------- Agent subscriptions ----------
   // Admin-controlled billing, NO payment gateway (gateway comes later). Every
-  // agent (house owner, truck owner, service provider, bus/cargo) pays this
+  // agent (house owner, truck owner, service provider) pays this
   // monthly fee to the admin offline; the admin records it in admin.html →
   // "All Agents" and the amount sets how long coverage lasts. Authoritative DB
   // logic: supabase/agent_billing_setup.sql; these mirror it for the UI copy.
@@ -120,32 +119,8 @@ window.APP_CONFIG = {
   // Pages listed here are hidden from the top nav + mobile drawer (the files
   // still exist and work if visited directly — this only removes the menu
   // links). Reversible: delete an entry to bring its menu link back.
-  // The legacy bus/parcel transport pages were deleted in the housing/services
-  // pivot, so there is nothing left to hide. Add a filename here to drop its
-  // nav link without deleting the page.
+  // Add a filename here to drop its nav link without deleting the page.
   HIDDEN_NAV: [],
-
-  // ---------- Insurance ----------
-  INSURANCE_COVERAGE_PERCENT: 80,
-
-  // ---------- VAPI Voice Agent ----------
-  // Frontend (browser → AI) call uses VAPI_PUBLIC_KEY + VAPI_ASSISTANT_ID.
-  // Outbound (AI → user phone) is triggered from the n8n workflow which
-  // uses VAPI_PRIVATE_KEY + VAPI_PHONE_NUMBER_ID stored as n8n credentials —
-  // do NOT put the private key here.
-  VAPI_PUBLIC_KEY: "",
-  VAPI_ASSISTANT_ID: "",
-  VAPI_PHONE_NUMBER_ID: "",     // internal VAPI ID for the virtual number
-
-  // ---------- Virtual Phone Number ----------
-  // This is the actual number clients dial to reach the AI booking agent.
-  // Host it on Africa's Talking or Twilio → point the inbound webhook to
-  // your n8n instance at: N8N_WEBHOOK_BASE + /webhook/inbound-call
-  // n8n then connects the caller to VAPI and handles SMS via AT/Twilio.
-  VIRTUAL_PHONE_NUMBER: "",         // e.g. "+255800123456" (AT) or "+1415XXXXXXX" (Twilio)
-  VIRTUAL_PHONE_DISPLAY: "",        // formatted for display e.g. "+255 800 123 456"
-  SMS_PROVIDER: "africas_talking",  // "africas_talking" | "twilio"
-  AT_SHORTCODE: "",                 // Africa's Talking shortcode / sender ID (for SMS display)
 
   // ---------- Payments ----------
   // The frontend only needs SUPABASE_URL + SUPABASE_ANON_KEY (above).
@@ -242,12 +217,6 @@ window.APP_CONFIG = {
     { role: "support_role_manager", name: "xcracker pawa",  phone: "+255 741 632 744", whatsapp: "255741622744" },
     { role: "support_role_organizer", name: "Fatuma Said", phone: "+255 713 000 002", whatsapp: "255713000002" }
   ],
-
-  // ---------- Freight / Cargo Pricing ----------
-  FREIGHT_BASE_TZS: 2000,
-  FREIGHT_PER_KG_TZS: 500,
-  FREIGHT_MAINTENANCE_PCT: 10,
-  FREIGHT_SIZE_MULTIPLIERS: { small: 1.0, medium: 1.5, large: 2.5 },
 
   // ---------- Analytics (PostHog · js/analytics.js) ----------
   // Product analytics + autocapture + (optional) session replay. Leave
