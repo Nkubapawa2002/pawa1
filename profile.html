@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script src="js/core/theme.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Profile — your account, your key, your listings — Maisha na Lifeza</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <!-- The row styling, shared with the homepage and p-chat.html. -->
+  <link rel="stylesheet" href="css/action-cards.css" />
+  <!-- The key dialogs (safety number, backup, restore), shared with p-message.html. -->
+  <link rel="stylesheet" href="css/pm-identity.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+
+  <style>
+    /* =====================================================================
+       Profile — the fifth tab: who you are on this site, and everything that
+       belongs to you.
+
+       Until now this tab pointed at login.html, or at the agent dashboard if
+       you happened to be signed in. That is a door, not a place: it answered
+       "how do I sign in?" and nothing else, so a signed-in person tapping
+       Profile landed in a listings table, and the encryption key that makes
+       P-Message work had no home at all.
+
+       The page is built out of one repeated row (css/action-cards.css, the
+       same file the homepage and P-Chat use) so it cannot drift away from the
+       rest of the app, and the three key dialogs come from
+       js/lib/pm-identity-ui.js so there is exactly one copy of the screen
+       that hands out a private key.
+       ===================================================================== */
+    body[data-page="profile"] {
+      --c-surface: #141A18; --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-muted: rgba(233,243,238,.55);
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="profile"] #nav-slot,
+    body[data-page="profile"] #footer-slot { display: none !important; }
+    body[data-page="profile"] [hidden] { display: none !important; }
+
+    .pf-wrap { max-width: 560px; margin: 0 auto; padding: 26px 16px 0; }
+
+    /* Identity card */
+    .pf-me { display: flex; align-items: center; gap: 14px; padding-right: 52px; }
+    .pf-av {
+      flex: 0 0 auto; width: 60px; height: 60px; border-radius: 20px; display: grid; place-items: center;
+      background: rgba(46,230,166,.13); color: #2EE6A6; font-size: 21px; font-weight: 800;
+    }
+    .pf-av.is-guest { background: rgba(246,196,90,.14); color: #F6C45A; }
+    .pf-me-tx { min-width: 0; }
+    .pf-name {
+      font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800;
+      color: #EAF1EE; margin: 0; line-height: 1.2;
+    }
+    .pf-who { font-size: 12.5px; color: rgba(233,243,238,.55); margin-top: 3px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pf-tag { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; padding: 2px 6px; border-radius: 6px; margin-left: 6px;
+      background: rgba(255,255,255,.07); color: rgba(233,243,238,.6); vertical-align: middle; }
+    .pf-tag.admin { background: rgba(197,148,255,.16); color: #C594FF; }
+    .pf-tag.guest { background: rgba(246,196,90,.16); color: #F6C45A; }
+
+    .pf-body { max-width: 560px; margin: 0 auto; padding: 4px 16px 0; }
+    .pf-group { margin-top: 24px; }
+    .pf-group-h {
+      font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 800;
+      letter-spacing: .14em; text-transform: uppercase; color: rgba(233,243,238,.62); margin: 0 0 9px;
+    }
+
+    .pf-note { font-size: 12.5px; color: rgba(233,243,238,.6); line-height: 1.55;
+      background: rgba(255,255,255,.03); border: 1px solid var(--c-border);
+      border-radius: 14px; padding: 13px; margin-bottom: 11px; }
+    .pf-note b { color: #EAF1EE; }
+    .pf-note.warn { border-color: rgba(246,196,90,.28); background: rgba(246,196,90,.07); }
+
+    /* A row that shows a value on the right — language, theme, safety number. */
+    .pf-val { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #2EE6A6; }
+    .pf-val.mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 500;
+      font-size: 11px; color: rgba(233,243,238,.5); }
+
+    .pf-acts { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
+    .pf-acts .pm-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
+
+    :root[data-theme="light"] body[data-page="profile"] {
+      background: var(--c-bg, #F7F5EF); color: var(--c-text);
+    }
+    :root[data-theme="light"] .pf-name { color: var(--c-text); }
+    :root[data-theme="light"] .pf-who,
+    :root[data-theme="light"] .pf-group-h,
+    :root[data-theme="light"] .pf-note { color: var(--c-text-muted); }
+    :root[data-theme="light"] .pf-note b { color: var(--c-text); }
+    :root[data-theme="light"] .pf-val { color: #0a7d57; }
+  </style>
+  <link rel="stylesheet" href="css/theme-light.css" />
+</head>
+<body data-page="profile" data-app-shell="profile.html">
+  <div id="nav-slot"></div>
+
+  <header class="pf-wrap">
+    <div class="pf-me">
+      <div class="pf-av" id="pfAvatar">·</div>
+      <div class="pf-me-tx">
+        <h1 class="pf-name" id="pfName">—</h1>
+        <div class="pf-who" id="pfWho"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="pf-body" id="pfMain"></main>
+
+  <div class="app-shell-pad"></div>
+  <div id="footer-slot"></div>
+
+  <div class="pm-back-drop" id="pfModalBack">
+    <div class="pm-modal" id="pfModal"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
+  <script src="js/core/nav.js"></script>
+  <script src="js/lib/p-crypto.js"></script>
+  <script src="js/lib/pm-store.js"></script>
+  <script src="js/lib/pm-identity-ui.js"></script>
+  <script src="js/pages/profile.js"></script>
+  <script src="js/core/app-shell.js"></script>
+  <script src="js/core/sw-register.js"></script>
+</body>
+</html>

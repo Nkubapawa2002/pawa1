@@ -43,12 +43,43 @@
     meCache = {
       userId: session.user.id,
       email: email,
-      // The claim is checked again in the database by is_admin() on every
-      // privileged call. This is only for deciding what to DRAW.
+      // A guest is a real authenticated user who has not proved who they are.
+      // Supabase marks the session; the database checks the same claim itself
+      // in app_is_guest(), so this is only for deciding what to DRAW.
+      isGuest: session.user.is_anonymous === true,
+      // Likewise checked again by is_admin() on every privileged call.
       isAdmin: !!email && admins.map(function (e) { return e.toLowerCase(); })
         .indexOf(String(email).toLowerCase()) >= 0,
     };
     return meCache;
+  }
+
+  /**
+   * Start a guest session — an account-less person messaging an agent.
+   *
+   * It is a real anonymous Supabase user, so app_uid() resolves, RLS applies
+   * and the encryption is bit-for-bit what a signed-in agent gets. What a
+   * guest does NOT get is the run of the database: p_message_guests.sql fences
+   * every content-creating policy with `not app_is_guest()`, so this cannot
+   * become a free way to post listings.
+   *
+   * The session lives in this browser, exactly like the encryption key. Say so
+   * in the UI: clearing the browser loses both the thread and the ability to
+   * read it.
+   */
+  async function signInAsGuest(displayName, region) {
+    var client = sb();
+    if (!client) throw new Error("Not connected.");
+    var name = String(displayName || "").trim();
+    if (name.length < 2) throw new Error("SHORT_NAME");
+
+    var res = await client.auth.signInAnonymously();
+    if (res.error) throw new Error(res.error.message || String(res.error));
+    meCache = null;
+    identity = null;
+    var who = await me(true);
+    if (!who.userId) throw new Error("Could not start a guest session.");
+    return ensureIdentity({ displayName: name, region: region || null });
   }
 
   // ---- identity -------------------------------------------------------------
@@ -109,6 +140,13 @@
   }
 
   function inbox() { return rpc("pm_inbox").then(function (r) { return r || []; }); }
+
+  // The person on the other side of a thread, for the safety-number check.
+  // Not a directory lookup: guests are deliberately absent from the directory,
+  // so an agent verifying a guest would have found nobody.
+  function peer(userId) {
+    return rpc("pm_peer", { p_user_id: userId }).then(function (r) { return (r && r[0]) || null; });
+  }
   function startDirect(userId) { return rpc("pm_start_direct", { p_other: userId }); }
   function markRead(threadId) { return rpc("pm_mark_read", { p_thread: threadId }); }
 
@@ -235,11 +273,13 @@
 
   window.PMStore = {
     me: me,
+    signInAsGuest: signInAsGuest,
     ensureIdentity: ensureIdentity,
     restoreIdentity: restoreIdentity,
     current: current,
     directory: directory,
     inbox: inbox,
+    peer: peer,
     startDirect: startDirect,
     markRead: markRead,
     threadKeys: threadKeys,

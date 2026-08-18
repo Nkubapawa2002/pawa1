@@ -123,6 +123,57 @@ would want, and a signed-out visitor has nobody to message anyway.
 
 ---
 
+## Guests — chatting without an account
+
+Someone looking at a room has no reason to make an account before asking "is
+this still available?", and a wall there costs the **agent** the enquiry, not
+just the visitor the convenience. So P-Message's signed-out screen offers a
+guest chat: give a name agents can call you by, and start.
+
+A guest gets an **anonymous Supabase session** — a real auth user with a real
+`sub`. That matters: `app_uid()` resolves, RLS applies, and the encryption is
+bit-for-bit what a signed-in agent gets. There is no weaker mode for people
+without an account. The only difference is that nobody has proved who they are.
+
+**The part that mattered more than the feature.** Turning on anonymous sign-ins
+means "authenticated" no longer implies "has an email address". Every policy of
+the form
+
+```sql
+with check (app_uid() is not null and owner_user_id = app_uid())
+```
+
+was, until that moment, a policy only a real account could satisfy. Left alone,
+anyone could post house listings, services and trucks without so much as an
+email — free, unlimited, untraceable spam in the actual catalogue. So
+`p_message_guests.sql` adds `public.app_is_guest()` (the `is_anonymous` JWT
+claim) and every content-creating policy gained `and not app_is_guest()`,
+restoring exactly the posture that existed before. **The two halves are not
+separable: enabling anonymous sign-ins without that file opens the catalogue to
+anyone.**
+
+What a guest may do, and nothing else:
+
+| | |
+|---|---|
+| hold a key | published like anyone's, marked `is_guest` |
+| read the directory | agents only |
+| open a thread | **with an agent only** — guest-to-guest would be a free unidentified channel between two unidentified people, which is a spam network with our name on it |
+| send messages | same encryption, same everything |
+| …at a limit | five new conversations an hour; costless accounts plus unlimited threads is the whole spam recipe |
+
+Guests are **not** in the directory (it is for finding agents, not a roll of
+every visitor) and **not** in a broadcast (a guest session is a browser tab;
+counting it would inflate "sent to 900 people" into a number that means
+nothing). `pm_peer()` exists so an agent can still check a guest's safety
+number despite that absence.
+
+The cost to the guest is stated up front, on the gate and again on Profile:
+**the conversation and the key that opens it live in this browser.** Clearing
+it, or changing phone, loses both.
+
+---
+
 ## The directory
 
 `agent_profiles` is not world-readable, because it carries a phone number.
@@ -143,8 +194,16 @@ js/lib/p-crypto.js                      the scheme; pure, no DOM, no network
 js/lib/pm-store.js                      identity, calls, decryption; no DOM
 js/pages/p-message.js                   the screen
 p-message.html                          markup + styles
-supabase/features/message/p_message.sql  tables, RLS, RPCs  (APPLIED)
+supabase/features/message/p_message.sql        tables, RLS, RPCs   (APPLIED)
+supabase/features/message/p_message_guests.sql guests + the fence  (APPLIED)
+js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
+css/pm-identity.css                     their styling, so it travels with them
+profile.html · js/pages/profile.js      the account tab
 ```
+
+Anonymous sign-ins are enabled on the project
+(`external_anonymous_users_enabled`). Turning that off disables guest chat;
+turning it on without `p_message_guests.sql` opens the catalogue.
 
 `p-message.html` deliberately does **not** load `css/premium.css`: it
 force-styles every input and textarea to a near-white glass pill with
@@ -159,7 +218,9 @@ for the same reason.
 |---|---|
 | `tests/p_crypto_test.mjs` | 36 — the scheme, written as attacks: the wrong person opening it, a row moved to another thread, a reused key or IV, a wrong backup passphrase quietly succeeding |
 | `tests/p_message_db_test.mjs` | 31 — against the **real database** with RLS actually on (`set local role authenticated` + JWT claims; as `postgres` every policy is bypassed and the test would prove nothing). Writes `pmtest_*` rows and deletes them at both ends |
-| `tests/p_message_page_test.mjs` | 34 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text** |
+| `tests/p_message_page_test.mjs` | 47 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text**, and the whole guest path |
+| `tests/p_message_guest_test.mjs` | 19 — against the real database: mostly proving the DOWNSIDE was closed (a guest cannot post a house, a service or an agent profile) rather than that the feature works |
+| `tests/profile_page_test.mjs` | 41 — Profile's three states, and that a guest is never offered a door the database will refuse |
 
 Run the middle one only when you mean to — it writes to production.
 
@@ -178,6 +239,10 @@ Run the middle one only when you mean to — it writes to production.
   the part that turns trust-on-first-use into something stronger.
 - **One device per person.** Adding a second device means restoring the backup
   code onto it; there is no multi-device key sync.
+- **A guest cannot upgrade in place.** Signing in after chatting as a guest
+  starts a fresh identity; the guest thread stays with the guest session. Moving
+  a thread across would mean re-wrapping every message key to the new identity —
+  doable, and not done.
 - **No attachments and no push notifications.** A photo of a room is a natural
   next thing to send, and both are real work: encrypting a blob and storing it,
   and waking a phone without leaking who is talking to whom.

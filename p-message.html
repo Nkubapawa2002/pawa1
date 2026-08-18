@@ -22,6 +22,8 @@
        war neither file wins. -->
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/design-system.css" />
+  <!-- The key dialogs (safety number, backup, restore), shared with profile.html. -->
+  <link rel="stylesheet" href="css/pm-identity.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 
   <style>
@@ -152,32 +154,10 @@
     .pm-send[disabled] { opacity: .45; cursor: default; }
     .pm-conv-note { font-size: 11px; text-align: center; padding: 7px 14px 0; color: rgba(233,243,238,.42); }
 
-    /* Modals — safety number, backup, broadcast. */
-    .pm-back-drop { position: fixed; inset: 0; z-index: 1000; background: rgba(2,6,23,.66);
-      display: none; align-items: flex-end; justify-content: center; }
-    .pm-back-drop.is-on { display: flex; }
-    @media (min-width: 560px) { .pm-back-drop { align-items: center; padding: 20px; } }
-    .pm-modal { width: 100%; max-width: 460px; max-height: 92vh; overflow: auto; background: #101815;
-      border: 1px solid var(--c-border); border-radius: 20px 20px 0 0; padding: 20px; }
-    @media (min-width: 560px) { .pm-modal { border-radius: 20px; } }
-    .pm-modal h2 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin: 0 0 4px; color: #EAF1EE; }
-    .pm-modal p { font-size: 13px; color: rgba(233,243,238,.6); line-height: 1.55; margin: 0 0 13px; }
-    .pm-modal label { display: block; font-size: 12px; font-weight: 700; color: rgba(233,243,238,.7); margin: 12px 0 5px; }
-    .pm-modal input, .pm-modal select, .pm-modal textarea {
-      width: 100%; box-sizing: border-box; background: rgba(255,255,255,.05); border: 1px solid var(--c-border);
-      color: #E9F3EE; border-radius: 12px; padding: 11px 12px; font: inherit; font-size: 14px; }
-    .pm-modal textarea { resize: vertical; min-height: 110px; }
-    .pm-modal-acts { display: flex; gap: 9px; margin-top: 16px; }
-    .pm-modal-acts .pm-btn { flex: 1; }
-    .pm-big-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 21px; letter-spacing: .06em;
-      text-align: center; color: #2EE6A6; background: rgba(46,230,166,.08);
-      border: 1px solid rgba(46,230,166,.2); border-radius: 14px; padding: 15px; margin: 6px 0 4px; }
-    .pm-code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; word-break: break-all;
-      background: rgba(255,255,255,.05); border: 1px solid var(--c-border); border-radius: 12px;
-      padding: 11px; color: rgba(233,243,238,.75); max-height: 130px; overflow: auto; }
-    .pm-msg-out { font-size: 12.5px; margin-top: 11px; min-height: 17px; color: rgba(233,243,238,.6); }
-    .pm-msg-out.bad { color: #ff8a7a; }
-    .pm-msg-out.good { color: #2EE6A6; }
+    /* The modal shell, the buttons, the safety-number and backup-code blocks
+       are all in css/pm-identity.css now — js/lib/pm-identity-ui.js draws that
+       markup on Profile too, so the styling travels with the library rather
+       than being copied into each page. */
 
     @media (min-width: 900px) {
       .pm-conv { position: fixed; left: 50%; right: auto; width: 520px; margin-left: 20px;
@@ -288,6 +268,7 @@
   <script src="js/lib/ai.js"></script>
   <script src="js/lib/p-crypto.js"></script>
   <script src="js/lib/pm-store.js"></script>
+  <script src="js/lib/pm-identity-ui.js"></script>
   <script src="js/pages/p-message.js"></script>
   <script src="js/core/app-shell.js"></script>
   <script src="js/core/sw-register.js"></script>

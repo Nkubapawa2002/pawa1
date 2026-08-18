@@ -37,10 +37,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---- the stub post office ---------------------------------------------------
 // Deliberately dumb, exactly like the real schema: it holds ciphertext and
 // wrapped keys and has no idea what any of it says.
-const stub = (email) => `
+const stub = (email, opts) => `
 window.__PM_SENT = [];
 window.supabase = { createClient: function () {
   var me = ${JSON.stringify("user_self")};
+  // Signed out until signInAnonymously() is called — the guest path.
+  var signedIn = ${JSON.stringify(!(opts && opts.signedOut))};
+  var anon = false;
   var db = {
     keys: {},                       // user_id -> { public_key, fingerprint, display_name, region, is_agent }
     threads: {},                    // id -> { kind, title, region, members: [] }
@@ -150,7 +153,13 @@ window.supabase = { createClient: function () {
     from: table,
     auth: {
       getSession: function () {
-        return Promise.resolve({ data: { session: { user: { id: me, email: ${JSON.stringify(email)} } } }, error: null });
+        if (!signedIn) return Promise.resolve({ data: { session: null }, error: null });
+        return Promise.resolve({ data: { session: { user: {
+          id: me, email: anon ? null : ${JSON.stringify(email)}, is_anonymous: anon } } }, error: null });
+      },
+      signInAnonymously: function () {
+        signedIn = true; anon = true; me = "guest_self";
+        return Promise.resolve({ data: { user: { id: me, is_anonymous: true } }, error: null });
       },
       getUser: function () { return Promise.resolve({ data: { user: { id: me, email: ${JSON.stringify(email)} } }, error: null }); },
       signOut: function () { return Promise.resolve({ error: null }); },
@@ -170,7 +179,7 @@ const browser = await puppeteer.launch({
   headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"], protocolTimeout: 120000,
 });
 
-async function openPage(email) {
+async function openPage(email, opts) {
   const page = await browser.newPage();
   await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 1 });
   const errs = [];
@@ -188,7 +197,7 @@ async function openPage(email) {
         "access-control-allow-methods": "*" } });
     }
     if (/cdn\.jsdelivr\.net.*supabase/.test(url)) {
-      return req.respond({ status: 200, headers: { "content-type": "application/javascript" }, body: stub(email) });
+      return req.respond({ status: 200, headers: { "content-type": "application/javascript" }, body: stub(email, opts) });
     }
     if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "text/css" }, body: "" });
@@ -387,6 +396,51 @@ try {
     await admin.page.screenshot({ path: "tests/shot_pmessage_announce.png" });
   }
   await admin.page.close();
+
+  section("9. Someone with no account at all");
+  // The signed-out screen is not a wall: a person looking at a room has no
+  // reason to make an account before asking whether it is still available, and
+  // a wall there costs the AGENT the enquiry.
+  const guest = await openPage(null, { signedOut: true });
+  await sleep(900);
+
+  ok(await guest.page.$("#pmGuestGo") !== null, "the signed-out screen offers to start a chat as a guest");
+  const gateText = await guest.page.$eval("#pmGate", (n) => n.textContent);
+  ok(/without an account/i.test(gateText), "saying so in as many words", gateText.slice(0, 60));
+  ok(/encrypted the same way/i.test(gateText),
+     "and promising the same encryption, not a lesser mode", gateText.slice(0, 200));
+  ok(/this device/i.test(gateText),
+     "while warning that the conversation lives on this device only");
+  ok(await guest.page.$('#pmGate a[href="login.html"]') !== null, "signing in is still offered beside it");
+
+  // A name is required — an agent answering an enquiry should have something
+  // to call the person.
+  await guest.page.click("#pmGuestGo");
+  await sleep(500);
+  ok(/two letters/i.test(await guest.page.$eval("#pmGuestMsg", (n) => n.textContent)),
+     "starting with no name is refused", await guest.page.$eval("#pmGuestMsg", (n) => n.textContent));
+
+  await guest.page.type("#pmGuestName", "Asha");
+  await guest.page.click("#pmGuestGo");
+  await sleep(1500);
+
+  ok(await guest.page.$eval("#pmGate", (n) => n.hidden), "with a name, the gate gives way");
+  const guestLock = await guest.page.$eval("#pmLockText", (n) => n.textContent);
+  ok(/encrypted/i.test(guestLock) && !/not/i.test(guestLock),
+     "the guest gets the same end-to-end lock as everyone else", guestLock);
+  const guestFp = await guest.page.$eval("#pmFpBtn", (n) => n.textContent);
+  ok(/\d{4} \d{4} \d{4}/.test(guestFp), "and their own safety number", guestFp);
+
+  const guestPub = await guest.page.evaluate(() =>
+    (window.__PM_SENT || []).find((c) => c.name === "pm_publish_key"));
+  ok(guestPub && guestPub.args.p_display_name === "Asha",
+     "published under the name they gave", JSON.stringify(guestPub && guestPub.args.p_display_name));
+  ok(await guest.page.$eval("#panePeople", (n) => n.classList.contains("is-on")),
+     "and they land on the agent list, which is what they came for");
+  ok(await guest.page.$eval("#pmBroadcastBtn", (n) => getComputedStyle(n).display === "none"),
+     "a guest gets no announce button");
+  ok(guest.errs.length === 0, "no page errors on the guest path", guest.errs.slice(0, 3).join("\n        "));
+  await guest.page.close();
 
   process.stdout.write(`\n${pass} passed, ${fail} failed\n`);
 } finally {

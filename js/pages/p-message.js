@@ -77,10 +77,6 @@
     el.pmModalBack.classList.remove("is-on");
     el.pmModal.innerHTML = "";
   }
-  el.pmModalBack && el.pmModalBack.addEventListener("click", function (e) {
-    if (e.target === el.pmModalBack) closeModal();
-  });
-
   // ---- the gate ------------------------------------------------------------
   // One panel, one state at a time: signed out, insecure page, or setting up.
   function gate(html) {
@@ -98,10 +94,7 @@
     me = await window.PMStore.me();
     if (!me.userId) {
       lock(true);
-      gate('<div class="pm-note"><b>' + esc(t("pm_signin_t", "Sign in to use P-Message")) + "</b><br>" +
-        esc(t("pm_signin_d", "Your messages are encrypted with a key that belongs to your account, so there is nobody to be as until you sign in.")) +
-        '</div><a class="pm-btn" href="login.html" style="display:inline-block;text-decoration:none">' +
-        esc(t("pm_signin_go", "Sign in")) + "</a>");
+      showGuestGate();
       renderAiRow();
       return;
     }
@@ -136,6 +129,61 @@
 
     await refreshInbox();
     renderAiRow();
+  }
+
+  /**
+   * The signed-out screen.
+   *
+   * Not a wall. Somebody looking at a room has no reason to make an account
+   * before asking "is this still available?", and a wall there costs the agent
+   * the enquiry, not just the visitor the convenience. So the first offer is to
+   * chat as a guest — with the SAME encryption; the difference is only that
+   * nobody has proved who they are, which is why the thread lives on this
+   * device and only agents can be written to.
+   */
+  function showGuestGate() {
+    gate('<div class="pm-note"><b>' + esc(t("pm_guest_t", "Message an agent without an account")) + "</b><br>" +
+      esc(t("pm_guest_d", "Give a name they can call you by and start straight away. It is encrypted the same way — but it lives on this device, so clearing your browser loses the conversation.")) +
+      "</div>" +
+      '<input class="pm-search" id="pmGuestName" maxlength="40" data-i18n-placeholder="pm_guest_name" ' +
+      'placeholder="What should agents call you?" />' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap">' +
+        '<button class="pm-btn" id="pmGuestGo">' + esc(t("pm_guest_go", "Start chatting")) + "</button>" +
+        '<a class="pm-btn ghost" href="login.html" style="text-decoration:none">' +
+        esc(t("pm_signin_go", "Sign in")) + "</a>" +
+      "</div>" +
+      '<div class="pm-msg-out" id="pmGuestMsg"></div>');
+
+    var go = document.getElementById("pmGuestGo");
+    var input = document.getElementById("pmGuestName");
+    var out = document.getElementById("pmGuestMsg");
+    var start = async function () {
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_working", "Working…");
+      go.disabled = true;
+      try {
+        var res = await window.PMStore.signInAsGuest(input.value);
+        fingerprint = res.fingerprint;
+        ready = true;
+        me = await window.PMStore.me(true);
+        gate(null);
+        lock(true);
+        if (el.pmFpBtn) {
+          el.pmFpBtn.hidden = false;
+          el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
+        }
+        await refreshInbox();
+        showSeg("people");           // a guest came here to find an agent
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) === "SHORT_NAME"
+          ? t("pm_guest_name_short", "Please give a name of at least two letters.")
+          : ((err && err.message) || String(err));
+        go.disabled = false;
+      }
+    };
+    go.addEventListener("click", start);
+    input.addEventListener("keydown", function (e) { if (e.key === "Enter") start(); });
   }
 
   function lock(on, text) {
@@ -180,10 +228,14 @@
       var sub = broadcast
         ? t("pm_from_admin", "From the team") + (r.region ? " · " + r.region : " · " + t("pm_nationwide", "Nationwide"))
         : [r.other_area, r.other_region].filter(Boolean).join(" · ");
+      // Somebody with no account is worth marking. It is true, and an agent
+      // deciding how much time to give an enquiry should know it.
+      var guestTag = (!broadcast && r.other_guest)
+        ? ' <span class="pm-badge off">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "";
       return '<button class="pm-row" data-thread="' + esc(r.thread_id) + '" data-kind="' + esc(r.kind) +
         '" data-name="' + esc(name) + '" data-sub="' + esc(sub) + '" data-other="' + esc(r.other_id || "") + '">' +
         '<span class="pm-av' + (broadcast ? " is-cast" : "") + '">' + (broadcast ? "★" : esc(initials(name))) + "</span>" +
-        '<span class="pm-rtx"><span class="pm-name">' + esc(name) +
+        '<span class="pm-rtx"><span class="pm-name">' + esc(name) + guestTag +
           (broadcast ? ' <span class="pm-badge">' + esc(t("pm_badge_cast", "Announcement")) + "</span>" : "") +
         '</span><span class="pm-sub">' + esc(sub || clock(r.last_at)) + "</span></span>" +
         (r.unread ? '<span class="pm-unread">' + r.unread + "</span>" : "") + "</button>";
@@ -382,77 +434,20 @@
   }
 
   // ---- safety number, backup, broadcast ------------------------------------
-  function showFingerprint(name, theirs) {
-    modal("<h2>" + esc(t("pm_verify_t", "Safety numbers")) + "</h2>" +
-      "<p>" + esc(t("pm_verify_d", "Read these aloud to each other — on a call, or standing together. If they match, nobody has slipped between you. If they do not, stop and tell us.")) + "</p>" +
-      "<label>" + esc(t("pm_verify_yours", "Yours")) + "</label>" +
-      '<div class="pm-big-fp">' + esc(fingerprint || "—") + "</div>" +
-      (theirs ? "<label>" + esc(name || "") + "</label><div class=\"pm-big-fp\">" + esc(theirs) + "</div>" : "") +
-      '<div class="pm-modal-acts"><button class="pm-btn" id="pmFpOk">' + esc(t("pm_close", "Close")) + "</button></div>");
-    document.getElementById("pmFpOk").addEventListener("click", closeModal);
-  }
-
-  function showBackup() {
-    modal("<h2>" + esc(t("pm_backup_t", "Your key lives on this device")) + "</h2>" +
-      "<p>" + esc(t("pm_backup_d", "That is what makes these messages private — and it means clearing this browser's data loses them for good. Save a backup code now and you can restore it on another phone.")) + "</p>" +
-      "<label>" + esc(t("pm_backup_pass", "Passphrase (8+ characters)")) + "</label>" +
-      '<input type="password" id="pmBkPass" autocomplete="new-password" />' +
-      '<div id="pmBkOut"></div>' +
-      '<div class="pm-modal-acts">' +
-        '<button class="pm-btn" id="pmBkMake">' + esc(t("pm_backup_make", "Create code")) + "</button>" +
-        '<button class="pm-btn ghost" id="pmBkSkip">' + esc(t("pm_later", "Later")) + "</button>" +
-      "</div>" +
-      '<div class="pm-msg-out" id="pmBkMsg"></div>' +
-      '<p style="margin-top:14px"><button class="pm-btn ghost" id="pmBkRestore" style="width:100%">' +
-      esc(t("pm_restore", "I have a backup code")) + "</button></p>");
-
-    document.getElementById("pmBkSkip").addEventListener("click", closeModal);
-    document.getElementById("pmBkMake").addEventListener("click", async function () {
-      var out = document.getElementById("pmBkMsg");
-      try {
-        var code = await window.PMCrypto.backup(window.PMStore.current(),
-          document.getElementById("pmBkPass").value);
-        document.getElementById("pmBkOut").innerHTML =
-          "<label>" + esc(t("pm_backup_code", "Your backup code — keep it somewhere safe")) + "</label>" +
-          '<div class="pm-code">' + esc(code) + "</div>";
-        out.className = "pm-msg-out good";
-        out.textContent = t("pm_backup_ok", "Copy it somewhere only you can reach. It is useless without your passphrase.");
-      } catch (err) {
-        out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
-      }
-    });
-    document.getElementById("pmBkRestore").addEventListener("click", showRestore);
-  }
-
-  function showRestore() {
-    modal("<h2>" + esc(t("pm_restore_t", "Restore your key")) + "</h2>" +
-      "<p>" + esc(t("pm_restore_d", "Paste the backup code from your other device. This replaces the key on this one, so anything sent to this device only will stop opening.")) + "</p>" +
-      "<label>" + esc(t("pm_restore_code", "Backup code")) + "</label><textarea id=\"pmRsCode\"></textarea>" +
-      "<label>" + esc(t("pm_backup_pass", "Passphrase")) + "</label><input type=\"password\" id=\"pmRsPass\" />" +
-      '<div class="pm-modal-acts">' +
-        '<button class="pm-btn" id="pmRsGo">' + esc(t("pm_restore_go", "Restore")) + "</button>" +
-        '<button class="pm-btn ghost" id="pmRsCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
-      "</div><div class=\"pm-msg-out\" id=\"pmRsMsg\"></div>");
-
-    document.getElementById("pmRsCancel").addEventListener("click", closeModal);
-    document.getElementById("pmRsGo").addEventListener("click", async function () {
-      var out = document.getElementById("pmRsMsg");
-      out.className = "pm-msg-out"; out.textContent = t("pm_working", "Working…");
-      try {
-        var res = await window.PMStore.restoreIdentity(
-          document.getElementById("pmRsCode").value, document.getElementById("pmRsPass").value);
-        fingerprint = res.fingerprint;
-        el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
-        out.className = "pm-msg-out good";
-        out.textContent = t("pm_restore_ok", "Restored. Your old conversations open again.");
-        await refreshInbox();
-      } catch (err) {
-        out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
-      }
-    });
-  }
+  // The three key dialogs live in js/lib/pm-identity-ui.js, because Profile
+  // needs the same ones and two copies of a dialog that hands out a private
+  // key is not a duplication worth risking. Wired to this page's modal shell.
+  window.PMIdentityUI.attach({
+    backdrop: el.pmModalBack, panel: el.pmModal, t: t,
+    fingerprint: function () { return fingerprint; },
+    onChange: async function (res) {
+      fingerprint = res.fingerprint;
+      if (el.pmFpBtn) el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
+      await refreshInbox();
+    },
+  });
+  var showFingerprint = function (name, theirs) { window.PMIdentityUI.safetyNumbers(name, theirs); };
+  var showBackup = function () { window.PMIdentityUI.backup(); };
 
   function showBroadcast() {
     var names = (window.TZ_REGION_CENTERS || []).map(function (r) { return r.name; })
@@ -552,9 +547,10 @@
     el.pmVerify && el.pmVerify.addEventListener("click", async function () {
       var theirs = null;
       if (open && open.otherId) {
+        // pm_peer, not the directory: a guest is deliberately absent from the
+        // directory, so verifying one there would silently find nobody.
         try {
-          var rows = await window.PMStore.directory({ limit: 500 });
-          var hit = rows.filter(function (r) { return r.user_id === open.otherId; })[0];
+          var hit = await window.PMStore.peer(open.otherId);
           theirs = hit && hit.fingerprint;
         } catch (_) {}
       }

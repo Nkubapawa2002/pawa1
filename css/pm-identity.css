@@ -1,0 +1,77 @@
+/* ============================================================================
+   pm-identity.css — the modal shell js/lib/pm-identity-ui.js draws into.
+
+   The library writes this markup on two different screens (P-Message and
+   Profile), so the styling travels with it rather than being copied into each
+   page's <style> block. Anything here is fair game for a host page to reuse —
+   p-message.html leans on .pm-btn and .pm-modal for its own dialogs too.
+
+   Dark by default with a light-mode block at the end, because both hosts are
+   app-shell pages that paint their own dark ground.
+   ============================================================================ */
+
+.pm-back-drop {
+  position: fixed; inset: 0; z-index: 1000; background: rgba(2, 6, 23, .66);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.pm-back-drop.is-on { display: flex; }
+@media (min-width: 560px) { .pm-back-drop { align-items: center; padding: 20px; } }
+
+.pm-modal {
+  width: 100%; max-width: 460px; max-height: 92vh; overflow: auto;
+  background: #101815; border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 20px 20px 0 0; padding: 20px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+@media (min-width: 560px) { .pm-modal { border-radius: 20px; } }
+
+.pm-modal h2 { font-size: 18px; font-weight: 800; margin: 0 0 4px; color: #EAF1EE; }
+.pm-modal p { font-size: 13px; color: rgba(233, 243, 238, .6); line-height: 1.55; margin: 0 0 13px; }
+.pm-modal label { display: block; font-size: 12px; font-weight: 700; color: rgba(233, 243, 238, .7); margin: 12px 0 5px; }
+.pm-modal input, .pm-modal select, .pm-modal textarea {
+  width: 100%; box-sizing: border-box; background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .08); color: #E9F3EE;
+  border-radius: 12px; padding: 11px 12px; font: inherit; font-size: 14px;
+}
+.pm-modal textarea { resize: vertical; min-height: 110px; }
+.pm-modal-acts { display: flex; gap: 9px; margin-top: 16px; }
+.pm-modal-acts .pm-btn { flex: 1; }
+
+.pm-btn {
+  background: #2EE6A6; color: #06170F; border: 0; border-radius: 12px; padding: 11px 16px;
+  font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer;
+}
+.pm-btn.ghost { background: rgba(255, 255, 255, .06); color: #E9F3EE; border: 1px solid rgba(255, 255, 255, .08); }
+.pm-btn[disabled] { opacity: .5; cursor: progress; }
+
+/* The safety number, sized to be read aloud from arm's length. */
+.pm-big-fp {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 21px; letter-spacing: .06em;
+  text-align: center; color: #2EE6A6; background: rgba(46, 230, 166, .08);
+  border: 1px solid rgba(46, 230, 166, .2); border-radius: 14px; padding: 15px; margin: 6px 0 4px;
+}
+/* The backup code: long, must wrap, must be selectable in full. */
+.pm-code {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; word-break: break-all;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 12px; padding: 11px; color: rgba(233, 243, 238, .75); max-height: 130px; overflow: auto;
+}
+.pm-msg-out { font-size: 12.5px; margin-top: 11px; min-height: 17px; color: rgba(233, 243, 238, .6); }
+.pm-msg-out.bad { color: #ff8a7a; }
+.pm-msg-out.good { color: #2EE6A6; }
+
+:root[data-theme="light"] .pm-modal {
+  background: #ffffff; border-color: var(--c-border, rgba(20, 20, 15, .12));
+}
+:root[data-theme="light"] .pm-modal h2 { color: var(--c-text, #1a1915); }
+:root[data-theme="light"] .pm-modal p,
+:root[data-theme="light"] .pm-modal label,
+:root[data-theme="light"] .pm-msg-out { color: var(--c-text-muted, #6b6960); }
+:root[data-theme="light"] .pm-modal input,
+:root[data-theme="light"] .pm-modal select,
+:root[data-theme="light"] .pm-modal textarea,
+:root[data-theme="light"] .pm-code {
+  background: rgba(20, 20, 15, .04); border-color: rgba(20, 20, 15, .12); color: #1a1915;
+}
+:root[data-theme="light"] .pm-btn.ghost { background: rgba(20, 20, 15, .05); color: #1a1915; border-color: rgba(20, 20, 15, .12); }
+:root[data-theme="light"] .pm-big-fp { color: #0a7d57; background: rgba(10, 125, 87, .07); border-color: rgba(10, 125, 87, .22); }

@@ -38,6 +38,7 @@
     // chat.html keeps the assistant, the voice agent and the support numbers.
     // P-Message links to it rather than swallowing it.
     "chat.html": "pmessage", "meet.html": "pmessage",
+    "profile.html": "profile",
     "login.html": "profile", "agent-houses.html": "profile",
     "agent-services.html": "profile", "agent-trucks.html": "profile",
     "admin.html": "profile", "super-admin.html": "profile",
@@ -96,7 +97,7 @@
       { id: "explore", href: "explore.html", label: t("tab_explore", "Explore"), icon: ICON.explore },
       { id: "pchat", href: "p-chat.html", label: t("tab_pchat", "P-Chat"), icon: ICON.pchat },
       { id: "pmessage", href: "p-message.html", label: t("tab_pmessage", "P-Message"), icon: ICON.pmessage },
-      { id: "profile", href: "login.html", label: t("tab_profile", "Profile"), icon: ICON.profile },
+      { id: "profile", href: "profile.html", label: t("tab_profile", "Profile"), icon: ICON.profile },
     ];
 
     const nav = document.createElement("nav");
@@ -114,16 +115,9 @@
       nav.parentNode.insertBefore(pad, nav);
     }
 
-    // Profile → send signed-in users to their dashboard instead of the login form.
-    (async () => {
-      try {
-        const email = window.Auth && (await window.Auth.currentEmail());
-        if (email) {
-          const a = nav.querySelector('a[href="login.html"]');
-          if (a) a.setAttribute("href", "agent-houses.html");
-        }
-      } catch (_) {}
-    })();
+    // The Profile tab used to rewrite itself to agent-houses.html for signed-in
+    // users, because login.html had nothing to offer them. profile.html serves
+    // every state itself, so the tab now goes to one place for everyone.
   }
 
   if (document.body) {
