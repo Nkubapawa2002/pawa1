@@ -131,7 +131,23 @@ window.initLoginPage = () => {
     }
   }
 
+  // Where to send someone after a fresh sign-in, when they arrived from a page
+  // that asked for one (e.g. the homepage video space: login.html?next=index.html).
+  // Only a same-origin RELATIVE path is honoured — an absolute URL or a
+  // protocol-relative "//evil.com" would turn this into an open redirect.
+  function nextTarget() {
+    const raw = new URLSearchParams(location.search).get("next") || "";
+    if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("//")) return "";
+    return /^[\w./-]+\.html(\?[\w=&%.-]*)?(#[\w-]*)?$/.test(raw) ? raw : "";
+  }
+
   async function routeSignedIn(session, { autoRedirect } = {}) {
+    if (autoRedirect) {
+      const next = nextTarget();
+      // An explicit destination beats the portal chooser: this person did not
+      // come here to pick a portal, they came to finish something else.
+      if (next) { location.href = next; return; }
+    }
     show(portalCard);
     if (portalEmail) portalEmail.textContent = session.user.email || "your account";
     if (portalSpin) portalSpin.style.display = "";

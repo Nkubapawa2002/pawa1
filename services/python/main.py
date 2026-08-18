@@ -42,8 +42,39 @@ HOST = os.environ.get("HOST", "127.0.0.1")  # container/Render set HOST=0.0.0.0
 # This endpoint is bytes-in → faststart-bytes-out, so the frontend keeps owning
 # the Supabase upload (no storage credentials ever touch this service).
 FFMPEG = shutil.which("ffmpeg")
-MAX_VIDEO_BYTES = 80 * 1024 * 1024  # a touch above the 60 MB client cap
+FFPROBE = shutil.which("ffprobe")
+MAX_VIDEO_BYTES = 80 * 1024 * 1024  # a touch above the 50 MB client/bucket cap
 FFMPEG_TIMEOUT_S = 120
+
+# ---- duration cap ----------------------------------------------------------
+# Every video on the platform is capped at 2m39s. The browser checks this too,
+# but a browser check is advice, not enforcement — anyone can POST straight at
+# this endpoint. So the cut happens HERE, and this is the only number that
+# matters. Anything longer is trimmed to the cap and the part within the limit
+# is kept; nothing is rejected for length alone.
+MAX_DURATION_S = 159.0
+
+# A `-c copy` trim can only cut on a keyframe, so the result lands at or a
+# little under the cap. If it lands MORE than this far under, the input had
+# sparse keyframes and we re-encode to cut precisely instead.
+COPY_TRIM_SLACK_S = 5.0
+
+# Container magic bytes. `file.type` and the filename are attacker-controlled;
+# these are not. Anything that is not a recognised video container is refused
+# before it is ever handed to ffmpeg.
+def _sniff_container(data: bytes) -> str | None:
+    """Return 'mp4' | 'webm' | None from the leading bytes alone."""
+    if len(data) < 16:
+        return None
+    # ISO-BMFF (mp4/mov/m4v): a `ftyp` box within the first 64 bytes.
+    if data[4:8] == b"ftyp":
+        return "mp4"
+    if b"ftyp" in data[:64]:
+        return "mp4"
+    # Matroska / WebM: EBML header.
+    if data[:4] == b"\x1a\x45\xdf\xa3":
+        return "webm"
+    return None
 
 
 def _is_faststart(data: bytes) -> bool:
@@ -55,27 +86,90 @@ def _is_faststart(data: bytes) -> bool:
     return mdat == -1 or moov < mdat
 
 
-def faststart(data: bytes) -> tuple[bytes, bool]:
-    """Return (bytes, applied). Never raises — on any failure returns the input
-    unchanged so a missing/old ffmpeg can never block a listing upload."""
-    if not FFMPEG or len(data) > MAX_VIDEO_BYTES or _is_faststart(data):
-        return data, False
+def _probe_duration(path: str) -> float | None:
+    """Seconds, or None when ffprobe is missing or the file is unreadable."""
+    if not FFPROBE:
+        return None
+    try:
+        out = subprocess.run(
+            [FFPROBE, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            check=True, capture_output=True, timeout=30,
+        ).stdout.decode().strip()
+        return float(out)
+    except Exception:  # noqa: BLE001 — missing ffprobe / no duration / not a video
+        return None
+
+
+def normalize(data: bytes) -> tuple[bytes, dict]:
+    """Trim to MAX_DURATION_S and move `moov` to the front, in one pass.
+
+    Returns (bytes, info). Never raises: on any failure the input is returned
+    unchanged so a cold/broken gateway can never block an upload. The ONE thing
+    a caller must not assume is that trimming happened — check info['trimmed'].
+    """
+    info: dict = {"trimmed": False, "faststart": False, "duration": None,
+                  "container": None, "reencoded": False}
+
+    container = _sniff_container(data)
+    info["container"] = container
+    if container is None or not FFMPEG or len(data) > MAX_VIDEO_BYTES:
+        return data, info
+
     try:
         with tempfile.TemporaryDirectory() as d:
             src = os.path.join(d, "in")
             dst = os.path.join(d, "out.mp4")
             with open(src, "wb") as f:
                 f.write(data)
-            subprocess.run(
-                [FFMPEG, "-y", "-i", src, "-c", "copy",
-                 "-movflags", "+faststart", "-f", "mp4", dst],
-                check=True, capture_output=True, timeout=FFMPEG_TIMEOUT_S,
-            )
+
+            duration = _probe_duration(src)
+            info["duration"] = duration
+            needs_trim = duration is not None and duration > MAX_DURATION_S
+            needs_fast = not _is_faststart(data)
+            if not needs_trim and not needs_fast:
+                return data, info
+
+            args = [FFMPEG, "-y", "-i", src]
+            if needs_trim:
+                args += ["-t", str(MAX_DURATION_S)]
+            args += ["-c", "copy", "-movflags", "+faststart", "-f", "mp4", dst]
+            subprocess.run(args, check=True, capture_output=True, timeout=FFMPEG_TIMEOUT_S)
+
+            # Did the keyframe-aligned cut land far short of the cap? Then the
+            # source had sparse keyframes; re-encode to cut exactly. Rare, and
+            # only ever runs on clips that were over the limit to begin with.
+            if needs_trim:
+                got = _probe_duration(dst)
+                if got is not None and got < MAX_DURATION_S - COPY_TRIM_SLACK_S:
+                    subprocess.run(
+                        [FFMPEG, "-y", "-i", src, "-t", str(MAX_DURATION_S),
+                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
+                         "-c:a", "aac", "-movflags", "+faststart", "-f", "mp4", dst],
+                        check=True, capture_output=True, timeout=FFMPEG_TIMEOUT_S,
+                    )
+                    info["reencoded"] = True
+                    got = _probe_duration(dst)
+                info["duration"] = got
+            else:
+                info["duration"] = duration
+
             with open(dst, "rb") as f:
                 out = f.read()
-        return (out, True) if out else (data, False)
+
+        if not out:
+            return data, info
+        info["trimmed"] = needs_trim
+        info["faststart"] = True
+        return out, info
     except Exception:  # noqa: BLE001 — ffmpeg missing/unsupported codec/timeout
-        return data, False
+        return data, info
+
+
+def faststart(data: bytes) -> tuple[bytes, bool]:
+    """Back-compat wrapper for the original /faststart contract."""
+    out, info = normalize(data)
+    return out, bool(info["faststart"])
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -132,8 +226,10 @@ CORS = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     # Custom response headers are invisible to cross-origin JS unless exposed.
-    # The /faststart caller reads X-Faststart to tell "remuxed" from "passthrough".
-    "Access-Control-Expose-Headers": "X-Faststart",
+    # The /faststart caller reads X-Faststart to tell "remuxed" from "passthrough";
+    # the video space also reads X-Duration (post-trim, to send to publish_region_video)
+    # and X-Trimmed (to tell the user their clip was cut to the 2m39s cap).
+    "Access-Control-Expose-Headers": "X-Faststart, X-Duration, X-Trimmed, X-Container",
 }
 
 
@@ -235,9 +331,14 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._send(200, {
                 "lang": "python", "status": "ok",
-                "role": "AI reasoning — ai-search brain + video faststart",
+                "role": "AI reasoning — ai-search brain + video normalise",
                 "ai_search": "ready" if os.environ.get("ANTHROPIC_API_KEY") else "no_key",
                 "faststart": "ready" if FFMPEG else "no_ffmpeg",
+                # Trimming needs ffprobe to know the duration; without it the
+                # gateway still remuxes but silently stops enforcing the cap,
+                # so the frontend surfaces this rather than trusting it.
+                "trim": "ready" if (FFMPEG and FFPROBE) else "no_ffprobe",
+                "max_duration_s": MAX_DURATION_S,
                 "port": PORT,
             })
         else:
@@ -246,15 +347,29 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("Content-Length", "0") or "0")
 
-        # Video faststart remux: raw video bytes in → faststart video bytes out.
-        if self.path.rstrip("/") == "/faststart":
+        # Video normalise: raw bytes in → trimmed-to-2m39s, faststart bytes out.
+        # /faststart is the original name and stays working; both run the same
+        # normalise, so the duration cap applies to listing videos too.
+        if self.path.rstrip("/") in ("/faststart", "/normalize"):
             if length <= 0 or length > MAX_VIDEO_BYTES:
                 return self._send(400, {"error": "bad_size"})
             data = self.rfile.read(length)
-            out, applied = faststart(data)
+
+            # Refuse anything that is not a real video container before ffmpeg
+            # is handed the bytes. The client's Content-Type is not evidence.
+            if _sniff_container(data) is None:
+                return self._send(415, {"error": "not_a_video"})
+
+            out, info = normalize(data)
             return self._send_bytes(
-                200, out, "video/mp4" if applied else (self.headers.get("Content-Type") or "video/mp4"),
-                {"X-Faststart": "applied" if applied else "passthrough"},
+                200, out,
+                "video/mp4" if info["faststart"] else (self.headers.get("Content-Type") or "video/mp4"),
+                {
+                    "X-Faststart": "applied" if info["faststart"] else "passthrough",
+                    "X-Duration": ("%.2f" % info["duration"]) if info["duration"] is not None else "",
+                    "X-Trimmed": "yes" if info["trimmed"] else "no",
+                    "X-Container": info["container"] or "",
+                },
             )
 
         # Accept the path the frontend uses (/functions/v1/ai-search), a short

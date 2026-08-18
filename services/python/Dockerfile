@@ -1,9 +1,16 @@
-# Pawa python service — AI search brain + video faststart remux.
+# Pawa python service — AI search brain + video normalise.
 #
-# Stdlib-only Python, plus the `ffmpeg` binary for the /faststart endpoint
-# (lossless `-movflags +faststart` remux so uploaded house videos stream
-# without stutter). Reads $PORT (Render/Cloud Run/Fly inject it) and binds all
-# interfaces via HOST=0.0.0.0.
+# Stdlib-only Python, plus the `ffmpeg` package for /normalize (and its older
+# alias /faststart):
+#   · ffmpeg  — trims to the 2m39s cap and does the lossless
+#               `-movflags +faststart` remux so uploads stream without stutter
+#   · ffprobe — measures the duration. Shipped in the same Debian `ffmpeg`
+#               package, and NOT optional: without it main.py cannot tell how
+#               long a clip is, so it silently stops enforcing the cap and
+#               /health reports "trim": "no_ffprobe".
+#
+# Reads $PORT (Render/Cloud Run/Fly inject it) and binds all interfaces via
+# HOST=0.0.0.0.
 #
 # Build context must be this directory (services/python).
 

@@ -1145,7 +1145,44 @@ window.I18N = {
     ahw_days_left: "{n} days left",
     ahw_move_by_title: "Wants to move in by {date}",
     ahw_misfit_title: "May not be worth a call",
-    ahw_your_area: "your area"
+    ahw_your_area: "your area",
+
+    // Video space — the community video slot at the bottom of the homepage.
+    // One video per region, live for 9 hours, first upload wins the slot.
+    vs_kicker: "Video ya",
+    vs_badge_community: "Posted by someone in {region}",
+    vs_badge_default: "From Pnzaki",
+    vs_empty: "No video here yet. Be the first — post a clip and everyone browsing your region sees it for the next 9 hours.",
+    vs_loading: "Loading your region's video…",
+    vs_post: "Post yours",
+    vs_signin: "Sign in to post",
+    vs_change_region: "Change region",
+    vs_region_label: "Which region are you posting to?",
+    vs_hint: "Up to 2 min 39 s · longer clips are trimmed · one video per region at a time",
+    vs_sound: "Sound",
+    vs_time_left_h: "{h}h {m}m left",
+    vs_time_left_m: "{m}m left",
+    // Upload stages
+    vs_stage_validating: "Checking your video…",
+    vs_stage_claiming: "Reserving the space for {region}…",
+    vs_stage_processing: "Preparing your video…",
+    vs_stage_trimming: "Your clip is longer than 2 min 39 s — trimming it to fit…",
+    vs_stage_uploading: "Uploading…",
+    vs_stage_publishing: "Almost there…",
+    // Outcomes
+    vs_ok: "Posted. It's live for the next 9 hours.",
+    vs_ok_trimmed: "Posted — trimmed to 2 min 39 s. It's live for the next 9 hours.",
+    vs_err_auth: "Sign in first — that's how we keep the space accountable.",
+    vs_err_busy: "Someone in {region} got there first. The space frees up at {time} — try again then.",
+    vs_err_busy_soon: "Someone in {region} got there first. Try again when their 9 hours are up.",
+    vs_err_rate: "You've already posted in the last 9 hours. You can post again at {time}.",
+    vs_err_gateway: "Your clip is longer than 2 min 39 s and the trimming service is asleep right now. Wait a minute and try again, or trim it yourself first.",
+    vs_err_region: "We couldn't tell which region you're in. Pick one above and try again.",
+    vs_err_claim_lost: "The upload took too long and the space was released. Please try again.",
+    vs_err_upload: "The upload didn't finish — check your connection and try again.",
+    vs_err_offline: "You appear to be offline.",
+    vs_err_generic: "That didn't work. Please try again.",
+
   },
 
   sw: {
@@ -2292,7 +2329,43 @@ window.I18N = {
     ahw_days_left: "siku {n} zimebaki",
     ahw_move_by_title: "Anataka kuhamia ifikapo {date}",
     ahw_misfit_title: "Huenda haifai kupiga simu",
-    ahw_your_area: "eneo lako"
+    ahw_your_area: "eneo lako",
+
+    // Nafasi ya video — video moja kwa kila mkoa, inaishi kwa saa 9.
+    vs_kicker: "Video ya",
+    vs_badge_community: "Imewekwa na mtu wa {region}",
+    vs_badge_default: "Kutoka Pnzaki",
+    vs_empty: "Bado hakuna video hapa. Kuwa wa kwanza — weka klipu yako na kila anayevinjari mkoa wako ataiona kwa saa 9 zijazo.",
+    vs_loading: "Inapakia video ya mkoa wako…",
+    vs_post: "Weka yako",
+    vs_signin: "Ingia ili kuweka",
+    vs_change_region: "Badilisha mkoa",
+    vs_region_label: "Unaweka video kwa mkoa gani?",
+    vs_hint: "Hadi dakika 2 sekunde 39 · klipu ndefu hukatwa · video moja kwa kila mkoa kwa wakati",
+    vs_sound: "Sauti",
+    vs_time_left_h: "zimebaki saa {h} dakika {m}",
+    vs_time_left_m: "zimebaki dakika {m}",
+    // Hatua za kupakia
+    vs_stage_validating: "Tunaangalia video yako…",
+    vs_stage_claiming: "Tunahifadhi nafasi ya {region}…",
+    vs_stage_processing: "Tunaandaa video yako…",
+    vs_stage_trimming: "Klipu yako ni ndefu kuliko dakika 2 sekunde 39 — tunaikata ili itoshe…",
+    vs_stage_uploading: "Inapakia…",
+    vs_stage_publishing: "Karibu kumaliza…",
+    // Matokeo
+    vs_ok: "Imewekwa. Itaonekana kwa saa 9 zijazo.",
+    vs_ok_trimmed: "Imewekwa — imekatwa hadi dakika 2 sekunde 39. Itaonekana kwa saa 9 zijazo.",
+    vs_err_auth: "Ingia kwanza — ndivyo tunavyoweka nafasi hii kuwa ya uwazi.",
+    vs_err_busy: "Mtu wa {region} amekutangulia. Nafasi itakuwa wazi saa {time} — jaribu tena wakati huo.",
+    vs_err_busy_soon: "Mtu wa {region} amekutangulia. Jaribu tena saa 9 zake zitakapoisha.",
+    vs_err_rate: "Tayari umeweka video ndani ya saa 9 zilizopita. Unaweza kuweka tena saa {time}.",
+    vs_err_gateway: "Klipu yako ni ndefu kuliko dakika 2 sekunde 39 na huduma ya kukata imelala kwa sasa. Subiri dakika moja ujaribu tena, au ikate mwenyewe kwanza.",
+    vs_err_region: "Hatukuweza kujua uko mkoa gani. Chagua mmoja hapo juu ujaribu tena.",
+    vs_err_claim_lost: "Kupakia kumechukua muda mrefu na nafasi imeachiwa. Tafadhali jaribu tena.",
+    vs_err_upload: "Kupakia hakukukamilika — angalia mtandao wako ujaribu tena.",
+    vs_err_offline: "Inaonekana huna mtandao.",
+    vs_err_generic: "Haikufanikiwa. Tafadhali jaribu tena.",
+
   }
 };
 

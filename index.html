@@ -20,222 +20,229 @@
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
 
-  <!-- Fraunces: an expressive variable serif for the brand manifesto quote -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&display=swap" />
   <!-- Plus Jakarta Sans: the app-home (Twilight design) UI typeface -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 
   <style>
     /* ───────────────────────────────────────────────────────────────
-       Brand manifesto — a bilingual message to our people.
-       A liquid-glass "pedestal" that carries the Swahili message and,
-       beneath a gold rule, its faithful English translation. Full-bleed
-       dark band lit by a slow-drifting gold + emerald aura. Both
-       languages are always visible (this is the message itself, not
-       UI chrome — so it is intentionally NOT i18n-toggled).
+       Video space — one community video per region, live for 9 hours.
+       Whoever claims their region's slot first is what everyone in that
+       region sees; when the 9 hours are up it falls back to the default
+       clip posted by an admin. Plays automatically once scrolled into
+       view (muted, as every mobile browser requires).
        ─────────────────────────────────────────────────────────────── */
-    .manifesto {
+    .video-space {
       position: relative;
       margin: 8px 0 4px;
-      padding: clamp(24px, 4.5vw, 54px) 20px;
+      padding: clamp(22px, 4.5vw, 48px) 20px;
       display: flex;
       justify-content: center;
       overflow: hidden;
       isolation: isolate;
     }
-    .manifesto-aura {
-      position: absolute; inset: -30% -12%;
-      z-index: -1; pointer-events: none;
+    /* Slow-drifting aura, inherited from the band this section replaced. */
+    .video-space::before {
+      content: "";
+      position: absolute; inset: -30% -10%;
+      z-index: -1;
       background:
-        radial-gradient(ellipse 48% 55% at 20% 22%, rgba(252, 209, 22, .17), transparent 60%),
-        radial-gradient(ellipse 55% 60% at 84% 82%, rgba(16, 185, 129, .22), transparent 62%),
-        radial-gradient(ellipse 120% 90% at 50% 50%, transparent 38%, rgba(4, 12, 9, .55) 92%);
-      animation: manifesto-drift 19s ease-in-out infinite alternate;
-      will-change: transform, opacity;
+        radial-gradient(46% 52% at 22% 28%, rgba(252, 209, 22, .16), transparent 62%),
+        radial-gradient(52% 58% at 78% 72%, rgba(16, 185, 129, .16), transparent 64%),
+        linear-gradient(180deg, #06120d, #04100b);
+      animation: vs-drift 19s ease-in-out infinite alternate;
     }
-    @keyframes manifesto-drift {
-      0%   { transform: translate3d(-2%, -1.5%, 0) scale(1);    opacity: .82; }
-      100% { transform: translate3d(2.5%, 1.5%, 0) scale(1.09); opacity: 1; }
+    @keyframes vs-drift {
+      from { transform: translate3d(-2%, -1%, 0) scale(1.02); }
+      to   { transform: translate3d(2%, 1%, 0) scale(1.06); }
     }
-    /* faint constellation of gold sparks drifting up behind the card */
-    .manifesto-sparks { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-    .manifesto-sparks span {
-      position: absolute; bottom: -6%; width: 4px; height: 4px; border-radius: 50%;
-      background: radial-gradient(circle at 35% 30%, #fff2c2, #f0c024 55%, rgba(140, 90, 12, 0) 75%);
-      box-shadow: 0 0 10px 2px rgba(252, 209, 22, .35);
-      opacity: 0; animation: spark-rise linear infinite;
-    }
-    @keyframes spark-rise {
-      0%   { transform: translateY(0) scale(.5); opacity: 0; }
-      12%  { opacity: var(--so, .7); }
-      88%  { opacity: var(--so, .7); }
-      100% { transform: translateY(-60vh) scale(1); opacity: 0; }
-    }
-    .manifesto-card {
+
+    .vs-card {
       position: relative;
-      max-width: 520px; margin: 0;
-      padding: clamp(18px, 3.2vw, 32px) clamp(18px, 3.6vw, 38px) clamp(16px, 2.6vw, 28px);
-      text-align: center;
+      width: 100%; max-width: 420px;
+      padding: 16px 16px 18px;
       border-radius: 22px;
-      background: linear-gradient(165deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .022));
+      background: linear-gradient(165deg, rgba(14, 32, 24, .92), rgba(7, 18, 13, .94));
       border: 1px solid rgba(252, 209, 22, .22);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, .10),
-        0 26px 64px rgba(0, 0, 0, .46),
-        0 0 0 1px rgba(16, 185, 129, .06);
-      backdrop-filter: blur(15px) saturate(1.12);
-      -webkit-backdrop-filter: blur(15px) saturate(1.12);
-      opacity: 0; transform: translateY(28px);
-      isolation: isolate;
-      transform-style: preserve-3d;
-      transition: transform .25s cubic-bezier(.2, .7, .2, 1);
-      will-change: transform;
+      box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .05);
+      backdrop-filter: blur(8px);
     }
-    /* The reveal: rise + settle, ease-out. The resting state (opacity:1;
-       transform:none) is declared on the class itself so the card is ALWAYS
-       visible once .in lands — even if the animation is unsupported or skipped
-       — and can never get stuck at opacity:0 (the old blank-void bug). */
-    .manifesto-card.in { opacity: 1; transform: none; animation: rise-in 1.05s cubic-bezier(.22, .7, .25, 1) both; }
-    @keyframes rise-in {
-      0%   { opacity: 0; transform: translateY(30px) scale(.985); filter: blur(6px); }
-      55%  { opacity: 1; }
-      100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+
+    /* ── Header: region + how long this one has left ── */
+    .vs-head {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 11px; flex-wrap: wrap;
     }
-    /* keep all text above the cursor spotlight (which sits at z-index 0) */
-    .manifesto-card > *:not(.manifesto-spot):not(.manifesto-mark) { position: relative; z-index: 1; }
-    /* cursor-following spotlight — gold core fading into emerald */
-    .manifesto-spot {
-      position: absolute; inset: 0; z-index: 0; border-radius: inherit;
-      pointer-events: none; opacity: 0; transition: opacity .35s ease;
-      background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%),
-        rgba(252, 209, 22, .18), rgba(52, 211, 153, .10) 42%, transparent 72%);
-    }
-    /* hairline gold sheen riding the top edge of the glass */
-    .manifesto-card::before {
-      content: ""; position: absolute; left: 12%; right: 12%; top: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255, 224, 102, .8), transparent);
-    }
-    /* oversized decorative opening quotation mark */
-    .manifesto-mark {
-      position: absolute; top: clamp(-14px, -1.4vw, -7px); left: clamp(10px, 2.5vw, 26px);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(46px, 8vw, 84px); line-height: 1;
-      color: var(--n-gold, #fcd116); opacity: .26; z-index: 1;
-      pointer-events: none; user-select: none;
-    }
-    .manifesto-kicker {
-      margin: 0 0 clamp(9px, 1.5vw, 14px);
-      display: inline-flex; align-items: center; gap: 9px;
-      font-size: .64rem; font-weight: 700;
-      letter-spacing: .24em; text-transform: uppercase;
-      color: rgba(255, 224, 102, .9);
-    }
-    .manifesto-kicker span { color: rgba(252, 209, 22, .55); }
-    .manifesto blockquote { margin: 0; padding: 0; border: 0; quotes: none; }
-    .manifesto-sw {
-      position: relative;
-      perspective: 600px;                    /* gives the word roll-up real depth */
-      font-family: "Fraunces", Georgia, "Times New Roman", serif;
-      font-optical-sizing: auto;
-      font-weight: 500;
-      font-size: clamp(.96rem, 1.9vw, 1.3rem);
-      line-height: 1.45; letter-spacing: -.005em;
-      color: #fdfefb;
-      text-wrap: balance;
-    }
-    .manifesto-sw em {
-      font-style: italic;
-      background: linear-gradient(100deg, #e0a30c 0%, #fcd116 25%, #fff4c2 50%, #fcd116 75%, #e0a30c 100%);
-      background-size: 240% 100%;
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: manifesto-shimmer 5.5s linear infinite;
-    }
-    @keyframes manifesto-shimmer { from { background-position: 0% 0; } to { background-position: -240% 0; } }
-    .manifesto-sw .vow {
-      display: block; margin-top: .45em; font-weight: 600;
-      color: var(--n-green-bright, #34d399);
-    }
-    .manifesto-rule {
-      width: 50px; height: 2px; margin: clamp(14px, 2.2vw, 22px) auto;
-      border-radius: 2px;
-      background: linear-gradient(90deg, transparent, rgba(252, 209, 22, .95), transparent);
-    }
-    .manifesto-en {
-      font-size: clamp(.78rem, 1.15vw, .88rem);
-      line-height: 1.6;
-      color: rgba(231, 241, 236, .85);
-      text-wrap: pretty;
-      max-width: 54ch; margin-inline: auto;
-    }
-    .manifesto-en em { font-style: italic; color: rgba(255, 224, 102, .94); }
-    .manifesto-en .vow { color: rgba(255, 255, 255, .96); font-weight: 600; }
-    .manifesto-sign {
-      margin-top: clamp(16px, 2.2vw, 24px);
+    .vs-kicker {
+      margin: 0; flex: 1; min-width: 0;
+      display: flex; align-items: center; gap: 7px;
       font-size: .68rem; font-weight: 700;
       letter-spacing: .22em; text-transform: uppercase;
-      color: rgba(252, 209, 22, .8);
+      color: rgba(252, 209, 22, .82);
     }
-    .manifesto-sign::before { content: "— "; opacity: .65; }
-    /* word-by-word cinematic assembly of the Swahili line (JS wraps words in .w) */
-    .manifesto-sw .w {
-      display: inline-block;
-      opacity: 0; transform: translateY(22px) rotateX(-90deg);
-      transform-origin: 50% 100%;            /* pivot at the baseline → rolls up from below */
-      transition: opacity .5s ease, transform .6s cubic-bezier(.18, .8, .25, 1);
-      will-change: opacity, transform;
+    .vs-kicker > span[aria-hidden] { color: rgba(252, 209, 22, .5); }
+
+    /* The region is a control, not a label. Whoever is about to take the slot
+       must be able to see AND correct which region they are taking. */
+    .vs-region-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      max-width: 100%; padding: 3px 8px 3px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(252, 209, 22, .26);
+      background: rgba(252, 209, 22, .08);
+      color: #FCD116; cursor: pointer;
+      font: inherit; letter-spacing: .12em;
+      transition: background .16s ease, border-color .16s ease;
     }
-    .manifesto-card.words-in .manifesto-sw .w { opacity: 1; transform: none; }
-    /* gold lightning strike — a bright diagonal beam that flickers across the
-       card once, the moment the word-assembly lands (JS adds .flashed) */
-    .manifesto-card::after {
-      content: ""; position: absolute; inset: 0; z-index: 3;
-      border-radius: inherit; pointer-events: none; opacity: 0;
-      mix-blend-mode: screen;
+    .vs-region-btn:hover { background: rgba(252, 209, 22, .16); border-color: rgba(252, 209, 22, .5); }
+    .vs-region-btn #vsRegion { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .vs-region-btn svg { flex: none; transition: transform .18s ease; }
+    .vs-region-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+    .vs-region-pick { display: block; margin: 0 0 11px; }
+    .vs-region-pick span {
+      display: block; margin-bottom: 5px;
+      font-size: .7rem; color: rgba(255, 255, 255, .5);
+    }
+    .vs-region-pick select {
+      width: 100%; padding: 9px 11px;
+      border-radius: 11px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(4, 12, 8, .8);
+      color: #EAF1EE; font-size: .84rem;
+    }
+    .vs-region-pick select:focus-visible { outline: 2px solid rgba(252, 209, 22, .6); outline-offset: 1px; }
+
+    #vsCountdown {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+      color: rgba(255, 255, 255, .55); white-space: nowrap;
+    }
+    /* A live dot only when there IS something live and counting down. */
+    #vsCountdown:not(:empty)::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%;
+      background: #34D399; box-shadow: 0 0 0 0 rgba(52, 211, 153, .55);
+      animation: vs-pulse 2.2s ease-out infinite;
+    }
+    @keyframes vs-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, .5); }
+      70%  { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+    }
+
+    /* ── Stage. 9:16 because almost every clip is filmed on a phone held
+         upright; `contain` letterboxes a landscape video rather than
+         cropping someone's face out of it.
+
+         THE STAGE HAS EXACTLY THREE STATES, and one class on .video-space
+         picks between them: is-loading | is-empty | is-playing. Nothing is
+         visible unless its state is the current one, so the stage can never
+         end up as a black rectangle with an invisible message behind it. ── */
+    .vs-stage {
+      position: relative;
+      aspect-ratio: 9 / 16;
+      max-height: 68vh;
+      margin: 0 auto;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #050d09;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .vs-stage video {
+      width: 100%; height: 100%;
+      object-fit: contain;
+      display: none;
+      background: #050d09;
+    }
+    .video-space.is-playing .vs-stage video { display: block; }
+
+    /* Skeleton — a slow sheen over the stage while the region's video is
+       being looked up. Honest about the wait without faking a percentage. */
+    .vs-skeleton { position: absolute; inset: 0; display: none; }
+    .video-space.is-loading .vs-skeleton { display: block; }
+    .vs-skeleton::after {
+      content: ""; position: absolute; inset: 0;
       background: linear-gradient(105deg,
-        transparent 40%,
-        rgba(255, 240, 170, 0) 46%,
-        rgba(255, 236, 150, .55) 49.5%,
-        rgba(255, 255, 255, .92) 50.5%,
-        rgba(255, 236, 150, .55) 52%,
-        transparent 60%);
-      background-size: 260% 100%;
-      background-position: 135% 0;
+        transparent 30%, rgba(255, 255, 255, .07) 48%, transparent 66%);
+      background-size: 240% 100%;
+      animation: vs-sheen 1.6s linear infinite;
     }
-    .manifesto-card.flashed::after { animation: manifesto-strike .9s cubic-bezier(.2, .6, .2, 1) 1; }
-    @keyframes manifesto-strike {
-      0%   { opacity: 0;  background-position: 135% 0; }
-      7%   { opacity: .95; }
-      14%  { opacity: .35; }                 /* flicker */
-      22%  { opacity: 1; }                    /* main strike */
-      100% { opacity: 0;  background-position: -55% 0; }
+    @keyframes vs-sheen { from { background-position: 140% 0; } to { background-position: -60% 0; } }
+
+    .vs-empty {
+      display: none;
+      padding: 26px 20px; text-align: center;
+      color: rgba(255, 255, 255, .62); font-size: .88rem; line-height: 1.55;
     }
-    /* Phones — keep the card breathing, text crisp and centred */
-    @media (max-width: 600px) {
-      .manifesto { padding: clamp(20px, 6vw, 36px) 14px; }
-      .manifesto-card { border-radius: 18px; max-width: 100%; }
-      .manifesto-sw { font-size: clamp(.95rem, 4.4vw, 1.18rem); line-height: 1.5; }
-      .manifesto-en { font-size: clamp(.8rem, 3.4vw, .9rem); line-height: 1.6; }
-      .manifesto-mark { font-size: clamp(40px, 16vw, 64px); top: -10px; left: 12px; }
-      .manifesto-kicker { letter-spacing: .2em; gap: 7px; }
-      .manifesto-sign { letter-spacing: .16em; }
+    .video-space.is-empty .vs-empty { display: block; }
+    .vs-empty svg { display: block; margin: 0 auto 12px; opacity: .34; }
+
+    /* Mute toggle floats over the video — autoplay is only permitted muted,
+       so this is the control that actually matters to a viewer. */
+    .vs-mute {
+      position: absolute; right: 10px; bottom: 10px;
+      width: 38px; height: 38px; border-radius: 999px;
+      display: none; place-items: center;
+      border: 1px solid rgba(255, 255, 255, .22);
+      background: rgba(4, 12, 8, .68);
+      backdrop-filter: blur(6px);
+      color: #EAF1EE; cursor: pointer;
+      transition: background .18s ease, border-color .18s ease;
     }
-    /* Small phones — tighten further so nothing crowds the edges */
-    @media (max-width: 380px) {
-      .manifesto-card { padding: 18px 16px 16px; }
-      .manifesto-sw { font-size: 1.02rem; }
-      .manifesto-mark { display: none; }      /* avoid clipping on very narrow screens */
+    .video-space.is-playing .vs-mute { display: grid; }
+    .vs-mute:hover { background: rgba(4, 12, 8, .88); border-color: rgba(252, 209, 22, .5); }
+    .vs-mute .vs-on  { display: none; }
+    .vs-mute.is-on .vs-on  { display: block; }
+    .vs-mute.is-on .vs-off { display: none; }
+
+    /* ── Footer: who posted it, and the post button ── */
+    .vs-foot {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 12px; flex-wrap: wrap;
+    }
+    #vsBadge {
+      flex: 1; min-width: 0;
+      font-size: .76rem; color: rgba(255, 255, 255, .6);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .vs-post {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 16px; border-radius: 999px;
+      border: 1px solid rgba(252, 209, 22, .45);
+      background: linear-gradient(165deg, rgba(252, 209, 22, .18), rgba(252, 209, 22, .07));
+      color: #FCD116; font-size: .8rem; font-weight: 700; cursor: pointer;
+      transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+    }
+    .vs-post:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 22px -12px rgba(252, 209, 22, .8); }
+    .vs-post:disabled { opacity: .5; cursor: progress; }
+    .vs-post:focus-visible { outline: 2px solid rgba(252, 209, 22, .8); outline-offset: 2px; }
+
+    /* Indeterminate bar — the upload has no reliable progress event across
+       browsers, so an honest "working" beats a fake percentage. */
+    .vs-bar { height: 3px; margin-top: 11px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, .1); }
+    .vs-bar::after {
+      content: ""; display: block; height: 100%; width: 38%;
+      border-radius: 3px; background: linear-gradient(90deg, transparent, #FCD116, transparent);
+      animation: vs-slide 1.15s ease-in-out infinite;
+    }
+    @keyframes vs-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+
+    .vs-status { margin-top: 9px; font-size: .78rem; line-height: 1.5; color: rgba(255, 255, 255, .68); min-height: 1.1em; }
+    .vs-status.ok  { color: #7BE3B0; }
+    .vs-status.err { color: #FFB4A6; }
+
+    .vs-hint { margin: 8px 0 0; font-size: .68rem; color: rgba(255, 255, 255, .38); line-height: 1.5; }
+
+    @media (max-width: 640px) {
+      .video-space { padding: clamp(18px, 6vw, 32px) 14px; }
+      .vs-card { border-radius: 18px; max-width: 100%; }
+      .vs-stage { max-height: 62vh; }
+      .vs-kicker { letter-spacing: .16em; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .manifesto-aura { animation: none; }
-      .manifesto-sparks { display: none; }
-      .manifesto-card { opacity: 1; transform: none; animation: none; }
-      .manifesto-sw em { animation: none; }
-      .manifesto-spot { display: none; }
-      .manifesto-sw .w { opacity: 1; transform: none; transition: none; }
-      .manifesto-card::after { animation: none !important; opacity: 0; }
+      .video-space::before,
+      .vs-skeleton::after,
+      #vsCountdown:not(:empty)::before { animation: none; }
+      .vs-bar::after { animation: none; width: 100%; }
     }
 
     /* ── Feedback — compact pill that expands into an on-brand glass form ── */
@@ -325,7 +332,7 @@
        App-style home feed — the "Twilight" direction (Claude design),
        wired to real listings via js/pages/home-app.js. Dark emerald glass,
        restrained gold, native iOS/Android feel. Scoped to .ha so it never
-       touches the shared nav / manifesto / feedback chrome.
+       touches the shared nav / video space / feedback chrome.
        ─────────────────────────────────────────────────────────────── */
     body[data-page="index"] { background: #070C0A; }
     .ha {
@@ -665,27 +672,64 @@
 
   </main>
 
-  <!-- Brand manifesto — our message to the people of Tanzania, in both languages -->
-  <section class="manifesto" id="manifesto" aria-labelledby="manifesto-sw">
-    <div class="manifesto-aura" aria-hidden="true"></div>
-    <div class="manifesto-sparks" id="manifesto-sparks" aria-hidden="true"></div>
-    <figure class="manifesto-card">
-      <div class="manifesto-spot" aria-hidden="true"></div>
-      <span class="manifesto-mark" aria-hidden="true">&ldquo;</span>
-      <p class="manifesto-kicker">Ahadi Yetu <span aria-hidden="true">&middot;</span> Our Promise</p>
-      <blockquote class="manifesto-sw" id="manifesto-sw" lang="sw">
-        Kwa nini uchague kuwa wa kawaida wakati una chaguo la kuwa <em>bora zaidi</em>?
-        Uamuzi huo uko mikononi mwako. Kumbuka: nguvu kubwa huambatana na wajibu mkubwa.
-        <span class="vow">Chagua kwa hekima, ishi kwa ubora, na furahia safari yako.</span>
-      </blockquote>
-      <div class="manifesto-rule" aria-hidden="true"></div>
-      <blockquote class="manifesto-en" lang="en">
-        Why would you choose to be ordinary when you hold the choice to become something <em>far greater</em>? That decision lies in your hands. Remember &mdash; with great power comes great
-        responsibility.
-        <span class="vow">So choose with wisdom, live with excellence, and savour every step of your journey.</span>
-      </blockquote>
-      <figcaption class="manifesto-sign">Pnzaki</figcaption>
-    </figure>
+  <!-- Video space — one community video per region, live for 9 hours.
+       Starts in .is-loading so the stage is never a bare black rectangle;
+       js/pages/video-space-home.js swaps it for .is-empty or .is-playing. -->
+  <section class="video-space is-loading" id="videoSpace" aria-labelledby="vsKicker">
+    <div class="vs-card">
+      <div class="vs-head">
+        <p class="vs-kicker" id="vsKicker">
+          <span data-i18n="vs_kicker">Video ya</span>
+          <span aria-hidden="true">&middot;</span>
+          <button type="button" class="vs-region-btn" id="vsRegionBtn"
+                  aria-expanded="false" aria-controls="vsRegionPick"
+                  data-i18n-title="vs_change_region" title="Change region">
+            <span id="vsRegion">Tanzania</span>
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </p>
+        <span id="vsCountdown" aria-live="polite"></span>
+      </div>
+
+      <label class="vs-region-pick" id="vsRegionPick" hidden>
+        <span data-i18n="vs_region_label">Which region are you posting to?</span>
+        <select id="vsRegionSelect"></select>
+      </label>
+
+      <div class="vs-stage">
+        <video id="vsVideo" muted playsinline webkit-playsinline preload="none"
+               disablepictureinpicture disableremoteplayback
+               aria-label="Community video for your region"></video>
+
+        <div class="vs-skeleton" aria-hidden="true"></div>
+
+        <p class="vs-empty">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span data-i18n="vs_empty">No video here yet. Be the first &mdash; post a clip and everyone
+          browsing your region sees it for the next 9 hours.</span>
+        </p>
+
+        <button type="button" class="vs-mute" id="vsUnmute"
+                aria-pressed="false" aria-label="Toggle sound"
+                data-i18n-title="vs_sound" title="Sound">
+          <svg class="vs-off" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          <svg class="vs-on" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        </button>
+      </div>
+
+      <div class="vs-foot">
+        <span id="vsBadge"></span>
+        <button type="button" class="vs-post" id="vsPost">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span id="vsPostLabel" data-i18n="vs_post">Post yours</span>
+        </button>
+        <input type="file" id="vsFile" accept="video/mp4,video/webm,video/quicktime" hidden />
+      </div>
+
+      <div class="vs-bar" id="vsBar" hidden></div>
+      <p class="vs-status" id="vsStatus" role="status" aria-live="polite"></p>
+      <p class="vs-hint" id="vsHint" data-i18n="vs_hint">Up to 2 min 39 s &middot; longer clips are trimmed &middot; one video per region at a time</p>
+    </div>
   </section>
 
   <main class="container">
@@ -754,109 +798,6 @@
     // replace the desktop top nav + footer here.
     window.applyTranslations();
 
-    // Brand manifesto — a showpiece:
-    //   • the Swahili line assembles word-by-word on scroll-in
-    //   • the glass card tilts toward the pointer with a gold spotlight
-    //   • drifting gold sparks float behind it
-    // Everything heavy is skipped when reduced-motion is requested.
-    (function () {
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const card = document.querySelector(".manifesto-card");
-
-      if (card) {
-        // Wrap each Swahili word in a .w span for the staggered assembly.
-        // The gradient-clipped <em> is kept whole (splitting it would break the
-        // gold text fill); every other word — including the green vow — splits.
-        const sw = card.querySelector(".manifesto-sw");
-        let assembleMs = 900;
-        if (sw && !reduce) {
-          let i = 0;
-          const STEP = 0.045;
-          const wrap = (node) => {
-            [...node.childNodes].forEach((n) => {
-              if (n.nodeType === 3) {
-                const parts = n.textContent.split(/(\s+)/);
-                const frag = document.createDocumentFragment();
-                parts.forEach((p) => {
-                  if (p === "" || /^\s+$/.test(p)) { frag.appendChild(document.createTextNode(p)); return; }
-                  const s = document.createElement("span");
-                  s.className = "w"; s.textContent = p;
-                  s.style.transitionDelay = (i++ * STEP).toFixed(3) + "s";
-                  frag.appendChild(s);
-                });
-                node.replaceChild(frag, n);
-              } else if (n.nodeType === 1) {
-                if (n.tagName === "EM") { n.classList.add("w"); n.style.transitionDelay = (i++ * STEP).toFixed(3) + "s"; }
-                else wrap(n);
-              }
-            });
-          };
-          wrap(sw);
-          // when the last word's transition lands → fire the lightning strike
-          assembleMs = (Math.max(0, i - 1) * STEP + 0.7) * 1000;
-        }
-
-        const reveal = () => {
-          card.classList.add("in", "words-in");
-          if (!reduce) setTimeout(() => card.classList.add("flashed"), assembleMs);
-        };
-        if (reduce || !("IntersectionObserver" in window)) {
-          // Reduced-motion users, or any browser without IntersectionObserver,
-          // get the card immediately — it must never be left invisible.
-          reveal();
-        } else {
-          const mo = new IntersectionObserver((entries) => {
-            entries.forEach(e => { if (e.isIntersecting) { reveal(); mo.unobserve(e.target); } });
-          }, { threshold: 0.3 });
-          mo.observe(card);
-          // Safety net: if the observer somehow never fires (edge layouts,
-          // very tall cards), reveal after a short delay so the brand promise
-          // can never end up as a blank gap again.
-          setTimeout(() => { if (!card.classList.contains("in")) reveal(); }, 2600);
-
-          // Pointer spotlight + parallax tilt (fine pointers only; the tilt waits
-          // until the entrance animation has finished so the two never fight).
-          if (window.matchMedia("(pointer: fine)").matches) {
-            const spot = card.querySelector(".manifesto-spot");
-            let ready = false;
-            card.addEventListener("animationend", () => { ready = true; }, { once: true });
-            card.addEventListener("pointermove", (e) => {
-              const r = card.getBoundingClientRect();
-              const x = (e.clientX - r.left) / r.width;
-              const y = (e.clientY - r.top) / r.height;
-              card.style.setProperty("--mx", (x * 100).toFixed(1) + "%");
-              card.style.setProperty("--my", (y * 100).toFixed(1) + "%");
-              if (spot) spot.style.opacity = "1";
-              if (ready) {
-                card.style.transform =
-                  "perspective(1100px) rotateX(" + ((0.5 - y) * 6).toFixed(2) + "deg)" +
-                  " rotateY(" + ((x - 0.5) * 7).toFixed(2) + "deg)";
-              }
-            });
-            card.addEventListener("pointerleave", () => {
-              if (spot) spot.style.opacity = "0";
-              if (ready) card.style.transform = "perspective(1100px) rotateX(0deg) rotateY(0deg)";
-            });
-          }
-        }
-      }
-
-      const sparks = document.getElementById("manifesto-sparks");
-      if (sparks && !reduce) {
-        const n = window.innerWidth < 640 ? 7 : 14;
-        for (let i = 0; i < n; i++) {
-          const s = document.createElement("span");
-          const size = 2 + Math.random() * 4;
-          s.style.width = s.style.height = size.toFixed(1) + "px";
-          s.style.left = (Math.random() * 100).toFixed(2) + "%";
-          s.style.setProperty("--so", (0.3 + Math.random() * 0.5).toFixed(2));
-          s.style.animationDuration = (10 + Math.random() * 12).toFixed(1) + "s";
-          s.style.animationDelay = (-Math.random() * 20).toFixed(1) + "s";
-          sparks.appendChild(s);
-        }
-      }
-    })();
-
     // Feedback form → emailed to us via FormSubmit's AJAX endpoint (no backend).
     // Inline success/error, button locked while sending, honeypot for spam.
     (function () {
@@ -909,6 +850,11 @@
     })();
   </script>
 
+    <!-- tz-places supplies the region centres video-space.js uses to work out
+         which region's slot a visitor should see. -->
+    <script src="js/lib/tz-places.js"></script>
+    <script src="js/lib/video-space.js"></script>
+    <script src="js/pages/video-space-home.js" defer></script>
     <script src="js/pages/home-app.js"></script>
     <script src="js/core/app-shell.js"></script>
     <script src="js/core/sw-register.js"></script>

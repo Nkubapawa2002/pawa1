@@ -242,6 +242,7 @@
         <button class="tab-btn active" data-tab="allagents">All Agents <span id="allAgentsBadge" class="badge"></span></button>
         <button class="tab-btn" data-tab="tenants">Tenants <span id="tenantsBadge" class="badge"></span></button>
         <button class="tab-btn" data-tab="dayjobs">Day Jobs <span id="djBadge" class="badge"></span></button>
+        <button class="tab-btn" data-tab="videospace">Video space <span id="vsAdminBadge" class="badge"></span></button>
       </div>
 
 
@@ -379,6 +380,37 @@
         <div id="dayJobsList"></div>
       </div>
 
+      <!-- Video space — the default clip each region falls back to, plus what is
+           live right now. See supabase/features/video/region_video_space.sql. -->
+      <div class="tab-panel" id="tab-videospace" hidden>
+        <div class="aa-head">
+          <div>
+            <h3 style="margin:0;">Video space — defaults &amp; what's live</h3>
+            <p class="hint" style="margin:2px 0 0;">
+              Each region shows one community video for 9 hours; when that expires (or nobody
+              has posted) it falls back to the default below. A region with no default of its
+              own uses the global one. Videos are capped at 2 min 39 s — longer uploads are
+              trimmed, not rejected.
+            </p>
+          </div>
+          <button id="vsAdminRefresh" class="btn btn-outline btn-sm" type="button">↻ Refresh</button>
+        </div>
+
+        <p id="vsAdminNote" class="banner error" hidden style="margin:0 0 12px;"></p>
+
+        <div class="aa-controls">
+          <select id="vsAdminRegion">
+            <option value="">Global default (every region without its own)</option>
+          </select>
+          <button id="vsAdminUpload" class="btn btn-sm" type="button">Set default video…</button>
+          <button id="vsAdminClear" class="btn btn-outline btn-sm" type="button">Remove default</button>
+          <input type="file" id="vsAdminFile" accept="video/mp4,video/webm,video/quicktime" hidden />
+        </div>
+        <p id="vsAdminStatus" class="hint" style="margin:6px 0 14px;" role="status" aria-live="polite"></p>
+
+        <div id="vsAdminList"></div>
+      </div>
+
     </section>
   </main>
 
@@ -391,7 +423,9 @@
   <script src="js/core/auth.js"></script>
   <script src="js/core/nav.js"></script>
   <script src="js/lib/auth-ui.js"></script>
+  <script src="js/lib/video-space.js"></script>
   <script src="js/pages/admin.js"></script>
+  <script src="js/pages/admin-video-space.js" defer></script>
   <script>
     // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js). Admin keeps its
     // own Sign-out button.

@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v300-2026-08-17-js-restructure";
+const VERSION = "v302-2026-08-17-video-space";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -39,6 +39,8 @@ const APP_SHELL = [
   "./js/lib/geo.js",
   "./js/lib/geo-poly.js",
   "./js/lib/tz-places.js",
+  "./js/lib/video-space.js",
+  "./js/pages/video-space-home.js",
   "./js/pages/area.js",
   "./js/lib/geolocate.js",
   "./js/lib/map-expand.js",

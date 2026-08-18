@@ -44,6 +44,10 @@ window.APP_CONFIG = {
   HOUSE_PHOTOS_BUCKET: "house-photos",
   TRUCK_PHOTOS_BUCKET: "truck-photos",
   SERVICE_PHOTOS_BUCKET: "service-photos",
+  // The video space at the bottom of the homepage. Deliberately its own bucket:
+  // these clips are public, short-lived (9 hours) and swept by their own job, so
+  // they must not inherit the listing buckets' policies or TTL.
+  REGION_VIDEOS_BUCKET: "region-videos",
 
   // ---------- Map / geocoding (LocationIQ, called directly by js/lib/geo.js) ------
   // The browser geocodes through LocationIQ (hosted, CORS-enabled). This is a
@@ -56,14 +60,23 @@ window.APP_CONFIG = {
   // (the browser now calls LocationIQ directly). Kept for reference only.
   GEO_GATEWAY_URL: "https://pawa-map-gateway.onrender.com",
 
-  // ---------- Video faststart gateway (services/python) ----------
-  // Public URL of the Python service that remuxes uploaded house videos to MP4
-  // "faststart" (moov atom to the front) so they stream without stutter. The
-  // houses uploader POSTs each clip here before storing it, and silently falls
-  // back to the original file if this is unset/unreachable. Leave empty to
-  // auto-use http://127.0.0.1:8094 on localhost. Set to your deployed URL (no
-  // trailing slash) to enable it in production.
+  // ---------- Video gateway (services/python) ----------
+  // Public URL of the Python service that normalises every uploaded video:
+  //   · trims it to VIDEO_MAX_DURATION_S (the cap is enforced HERE, not in the
+  //     browser — a browser check is advice, and anyone can POST directly)
+  //   · remuxes to MP4 "faststart" (moov atom to the front) so it streams
+  //     without stutter instead of buffering the whole file first
+  // Callers POST each clip here before storing it and fall back to the original
+  // file if this is unset/unreachable. Leave empty to auto-use
+  // http://127.0.0.1:8094 on localhost. Set to your deployed URL (no trailing
+  // slash) to enable it in production.
   VIDEO_GATEWAY_URL: "https://pawa-video-gateway-oymf.onrender.com",
+
+  // 2 minutes 39 seconds — the platform-wide ceiling on every video, listing
+  // clips and video-space posts alike. Anything longer is trimmed to fit rather
+  // than rejected. Must match MAX_DURATION_S in services/python/main.py and the
+  // 165s guard in publish_region_video().
+  VIDEO_MAX_DURATION_S: 159,
 
   // Emails allowed to log into admin.html (must also exist in `admins` table for RLS).
   ADMIN_EMAILS: ["pawa4761@gmail.com"],

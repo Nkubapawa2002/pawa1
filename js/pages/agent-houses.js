@@ -65,11 +65,18 @@ window.initAgentHousesPage = async () => {
   // Media limits
   const MAX_PHOTOS    = 12;
   const MAX_VIDEOS    = 2;
-  // Keep clips SHORT so they upload reliably on slow mobile links. A 60 s / 60 MB
-  // clip was timing out (cold faststart gateway + a single large PUT to storage),
-  // which surfaced as a "database/upload" failure. 20 s ≈ a few MB → uploads fast.
-  const MAX_VIDEO_S   = 20;            // seconds
-  const MAX_VIDEO_B   = 20 * 1024 * 1024;  // 20 MB
+  // 2 min 39 s — the platform-wide ceiling, shared with the homepage video space
+  // (see js/lib/video-space.js and services/python/main.py, which does the actual
+  // cutting). A clip longer than this is no longer REJECTED: the gateway trims it
+  // and keeps the part within the limit.
+  //
+  // The size cap is what still protects slow mobile links. A 60 MB clip was
+  // timing out (cold gateway + a single large PUT to storage) and surfacing as a
+  // confusing "database/upload" failure, so the byte ceiling stays low even
+  // though the duration ceiling went up — 2m39s of sanely-encoded phone video
+  // fits well inside it, and anything that doesn't is over-bitrate for the job.
+  const MAX_VIDEO_S   = (window.APP_CONFIG && window.APP_CONFIG.VIDEO_MAX_DURATION_S) || 159;
+  const MAX_VIDEO_B   = 50 * 1024 * 1024;  // 50 MB
   const fTitle        = document.getElementById("ahTitle");
   const fType         = document.getElementById("ahType");
   const fTypeOther    = document.getElementById("ahTypeOther");
@@ -844,12 +851,16 @@ create policy "house-photos upload" on storage.objects for insert
         alert(`"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max is ${MAX_VIDEO_B / 1024 / 1024} MB per video — please trim it to a short clip.`);
         continue;
       }
-      let durationOk = false;
+      // Over-length clips are trimmed by the gateway at save time rather than
+      // refused here, so an agent is never sent away to find a video editor.
+      // Unreadable metadata is not a reason to block either — ffprobe measures
+      // it properly server-side.
+      let durationOk = true;
       try { durationOk = await checkVideoDuration(file, MAX_VIDEO_S); }
-      catch (err) { alert(`Couldn't read "${file.name}": ` + err.message); continue; }
+      catch (_) { durationOk = true; }
       if (!durationOk) {
-        alert(`"${file.name}" is longer than ${MAX_VIDEO_S} seconds. Please trim it first.`);
-        continue;
+        const mins = Math.floor(MAX_VIDEO_S / 60), secs = MAX_VIDEO_S % 60;
+        alert(`"${file.name}" is longer than ${mins} min ${secs} s — it will be trimmed to that length when you save.`);
       }
       const objectUrl = URL.createObjectURL(file);
       videoTiles.push({
@@ -2365,12 +2376,19 @@ create policy "house-photos upload" on storage.objects for insert
     document.getElementById("ahBoardClose")?.addEventListener("click", () => panel.remove());
   }
 
-  // ---- Video faststart gateway (services/python) ---------------------------
-  // Phone/Windows recorders put the MP4 `moov` index at the END of the file, so
-  // the clip stutters until the whole thing downloads. We remux it to faststart
-  // (moov to the front, lossless) via the python service before upload. If that
-  // service is unset/asleep/unreachable we just upload the original — the listing
-  // never fails to save over a video-optimisation step.
+  // ---- Video gateway (services/python) -------------------------------------
+  // Two jobs, one round trip, on the way to storage:
+  //   · faststart — phone/Windows recorders put the MP4 `moov` index at the END
+  //     of the file, so the clip stutters until the whole thing downloads. The
+  //     gateway remuxes it to the front, losslessly.
+  //   · trim — anything over MAX_VIDEO_S is cut to fit. This is why an
+  //     over-length clip is now a warning at pick time instead of a refusal:
+  //     the agent is not sent away to find a video editor.
+  //
+  // /faststart is the original endpoint name and still does both. If the service
+  // is unset/asleep/unreachable we just upload the original — the listing never
+  // fails to save over a video-optimisation step. The one consequence is that a
+  // long clip uploaded while the gateway is down stays long.
   function _videoGatewayBase() {
     const cfg = (window.APP_CONFIG && window.APP_CONFIG.VIDEO_GATEWAY_URL) || "";
     if (cfg) return cfg.replace(/\/+$/, "");

@@ -19,6 +19,8 @@
 //   const stop = pawaLocate.watch({ onFix, onError, highAccuracy,
 //                                   timeout, maximumAge })   // continuous
 //   pawaLocate.message(err)                        -> friendly string
+//   pawaLocate.lastKnown()                         -> { lat, lng, at } | null
+//                                                     (cached, never prompts)
 //
 // best() rejects with a normalised error: { code, message } where code is one
 // of "unsupported" | "insecure" | "denied" | "unavailable" | "timeout" |
@@ -84,6 +86,32 @@
     };
   }
 
+  // Last known position, for features that want a rough idea of where someone
+  // is but must NOT trigger a permission prompt to get it — the homepage video
+  // space picks the region to play this way (js/lib/video-space.js), and would
+  // otherwise default everyone to Dar es Salaam forever.
+  //
+  // Written only when a fix is actually granted, so it never manufactures a
+  // location the user did not agree to share. Coarse on purpose: coordinates
+  // and a timestamp, nothing else, so a stale entry can be judged and ignored.
+  const LAST_POS_KEY = "pawa_last_pos";
+
+  function remember(fix) {
+    if (!fix || !isFinite(fix.lat) || !isFinite(fix.lng)) return;
+    try {
+      localStorage.setItem(LAST_POS_KEY, JSON.stringify({
+        lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy || null, at: Date.now(),
+      }));
+    } catch (_) { /* private mode / quota — a missing hint is not an error */ }
+  }
+
+  function lastKnown() {
+    try {
+      const v = JSON.parse(localStorage.getItem(LAST_POS_KEY) || "null");
+      return v && isFinite(v.lat) && isFinite(v.lng) ? v : null;
+    } catch (_) { return null; }
+  }
+
   // How long the prompt-safe first shot may take before we stop waiting on it
   // and let the watch below carry on. Deliberately well under maxWaitMs so the
   // two timers can never race to settle the same promise.
@@ -126,7 +154,9 @@
       };
       const settleOK = () => {
         if (done) return; done = true; cleanup();
-        resolve(toFix(bestPos));
+        const fix = toFix(bestPos);
+        remember(fix);          // only the final, tightest fix — not every tick
+        resolve(fix);
       };
       const settleErr = (e) => {
         if (done) return; done = true; cleanup();
@@ -298,5 +328,5 @@
     };
   }
 
-  window.pawaLocate = { supported, secure, best, bestOrApprox, approximate, watch, message, permissionState };
+  window.pawaLocate = { supported, secure, best, bestOrApprox, approximate, watch, message, permissionState, lastKnown };
 })();
