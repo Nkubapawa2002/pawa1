@@ -329,13 +329,44 @@
    * unmute control, which is also the behaviour people expect from a feed.
    * Reduced-motion users get a paused video with controls instead.
    */
+  /**
+   * Match the stage's shape to the clip's own.
+   *
+   * The stage is 9/16 by default because most clips are shot on a phone held
+   * upright. A landscape clip in that box was losing roughly half its height
+   * to black bars — the "video is tiny, the margins are huge" complaint. Now
+   * the box takes the video's real ratio the moment the metadata lands, so it
+   * is never letterboxed, and because the ratios then agree, object-fit: cover
+   * crops nothing either.
+   *
+   * Clamped to between 9/16 and 16/9 so one freak upload cannot render the
+   * stage as a sliver or a skyscraper.
+   */
+  function fitStage(video) {
+    if (!video) return;
+    var stage = video.closest ? video.closest(".vs-stage") : null;
+    if (!stage) return;
+    var apply = function () {
+      var w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) return;
+      stage.style.aspectRatio = String(Math.min(Math.max(w / h, 9 / 16), 16 / 9));
+    };
+    if (video.readyState >= 1) apply();   // metadata already in (cached clip)
+    video.addEventListener("loadedmetadata", apply);
+  }
+
   function autoplayOnView(video) {
     if (!video) return function () {};
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     video.muted = true;
+    // Loop. A nine-hour slot that plays its clip once and then freezes on a
+    // random last frame is worse than showing nothing — whoever arrives after
+    // the first play sees a still image and assumes the space is broken.
+    video.loop = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
+    fitStage(video);
 
     if (reduce || !("IntersectionObserver" in window)) {
       video.controls = true;
@@ -377,6 +408,7 @@
     current: current,
     publicUrl: publicUrl,
     autoplayOnView: autoplayOnView,
+    fitStage: fitStage,
     resolveRegion: resolveRegion,
     setRegion: setRegion,
     nearestRegion: nearestRegion,

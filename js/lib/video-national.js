@@ -96,26 +96,25 @@
     }
 
     video.src = publicUrl(found.path);
-    video.loop = true;
-    video.muted = true;                 // every mobile browser requires this
     if (badge) badge.textContent = found.label || t("vn_badge", "From Pnzaki");
     setState("is-playing");
 
-    // Play only once it is actually on screen. Autoplaying a video the visitor
-    // has not scrolled to burns mobile data for something nobody is watching.
+    // Hand playback to the shared helper rather than repeating it here: it
+    // already loops, mutes, sizes the stage to the clip, plays only once the
+    // stage is actually on screen, pauses in a backgrounded tab, and falls
+    // back to controls when a browser refuses autoplay. Two copies of that
+    // would drift, and the homepage stage is where the edge cases surface.
     var start = function () {
       var p = video.play();
-      if (p && p.catch) p.catch(function () { /* autoplay refused — the tap-to-play control stands */ });
+      if (p && p.catch) p.catch(function () { video.controls = true; });
     };
-    if ("IntersectionObserver" in window) {
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) {
-          if (e.isIntersecting) { start(); }
-          else { video.pause(); }
-        });
-      }, { threshold: 0.35 });
-      io.observe(root);
+    if (window.VideoSpace && window.VideoSpace.autoplayOnView) {
+      window.VideoSpace.autoplayOnView(video);
     } else {
+      // video-space.js absent — still loop and play rather than show a
+      // one-shot clip that freezes on its last frame.
+      video.loop = true;
+      video.muted = true;
       start();
     }
 

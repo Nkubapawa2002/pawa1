@@ -21,7 +21,7 @@
 .video-space {
   position: relative;
   margin: 8px 0 4px;
-  padding: clamp(22px, 4.5vw, 48px) 20px;
+  padding: clamp(12px, 2.2vw, 20px) 16px;
   display: flex;
   justify-content: center;
   overflow: hidden;
@@ -45,8 +45,8 @@
 
 .vs-card {
   position: relative;
-  width: 100%; max-width: 420px;
-  padding: 16px 16px 18px;
+  width: 100%; max-width: 380px;
+  padding: 11px 11px 13px;
   border-radius: 22px;
   background: linear-gradient(165deg, rgba(14, 32, 24, .92), rgba(7, 18, 13, .94));
   border: 1px solid rgba(252, 209, 22, .22);
@@ -126,8 +126,12 @@
      end up as a black rectangle with an invisible message behind it. ── */
 .vs-stage {
   position: relative;
+  /* Starting shape only. VideoSpace.fitStage() replaces it with the clip's
+     own ratio as soon as loadedmetadata fires — which is why both pages
+     set preload="metadata" rather than "none": without the header the
+     stage would sit at 9/16 until playback began and then visibly jump. */
   aspect-ratio: 9 / 16;
-  max-height: 68vh;
+  max-height: 56vh;
   margin: 0 auto;
   border-radius: 16px;
   overflow: hidden;
@@ -136,7 +140,7 @@
 }
 .vs-stage video {
   width: 100%; height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   display: none;
   background: #050d09;
 }
@@ -220,9 +224,9 @@
 .vs-hint { margin: 8px 0 0; font-size: .68rem; color: rgba(255, 255, 255, .38); line-height: 1.5; }
 
 @media (max-width: 640px) {
-  .video-space { padding: clamp(18px, 6vw, 32px) 14px; }
+  .video-space { padding: clamp(10px, 3vw, 16px) 12px; }
   .vs-card { border-radius: 18px; max-width: 100%; }
-  .vs-stage { max-height: 62vh; }
+  .vs-stage { max-height: 52vh; }
   .vs-kicker { letter-spacing: .16em; }
 }
 @media (prefers-reduced-motion: reduce) {
