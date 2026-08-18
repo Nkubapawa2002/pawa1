@@ -115,15 +115,28 @@ console.log("\n3. RPCs");
 // difference between "no bucket" and "bucket with nothing in it".
 console.log("\n4. Storage");
 {
-  const r = await fetch(`${URL_BASE}/storage/v1/bucket/${BUCKET}`, { headers: H });
+  // Ask for a key that cannot exist, on the PUBLIC object path, and read the
+  // error code rather than the status — both cases are 404:
+  //
+  //   NoSuchKey     the bucket is there and served publicly; only the key is missing
+  //   NoSuchBucket  no such bucket
+  //
+  // The obvious endpoint (GET /storage/v1/bucket/<id>) does NOT work here: it
+  // is admin-only, so with the anon key it answers NoSuchBucket for every
+  // bucket, including ones that plainly exist. It reported this bucket missing
+  // for an hour after the schema had been applied correctly.
+  //
+  // The trade-off is that this proves reachability on the public path, not the
+  // bucket's `public` flag itself — verifying that needs a service-role key,
+  // which this script deliberately does not carry.
+  const r = await fetch(`${URL_BASE}/storage/v1/object/public/${BUCKET}/__probe__.mp4`, { headers: H });
   const b = await r.json().catch(() => null);
-  if (!r.ok || b?.code === "NoSuchBucket") {
+  if (b?.code === "NoSuchBucket") {
     fail(`bucket "${BUCKET}" exists`, "run supabase/features/video/region_video_space.sql (it creates the bucket)");
-  } else if (b?.public !== true) {
-    fail(`bucket "${BUCKET}" is public`, "clips would need signed URLs; the homepage uses public ones");
+  } else if (b?.code === "NoSuchKey" || r.ok) {
+    pass(`bucket "${BUCKET}" exists and serves public URLs`);
   } else {
-    const mb = b.file_size_limit ? `${Math.round(b.file_size_limit / 1048576)} MB cap` : "no size cap";
-    pass(`bucket "${BUCKET}" exists and is public`, mb);
+    fail(`bucket "${BUCKET}" reachable`, `unexpected reply: ${JSON.stringify(b)?.slice(0, 120)}`);
   }
 }
 
