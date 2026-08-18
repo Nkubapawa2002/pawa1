@@ -362,6 +362,11 @@ try {
     await page.click("#segChats");
     await sleep(300);
     await page.screenshot({ path: "tests/shot_pmessage.png", fullPage: true });
+    await page.click("#segPeople");
+    await sleep(500);
+    await page.screenshot({ path: "tests/shot_pmessage_agents.png", fullPage: true });
+    await page.click("#segChats");
+    await sleep(200);
     await page.evaluate(() => document.querySelector("#pmInbox [data-thread]").click());
     await sleep(900);
     await page.screenshot({ path: "tests/shot_pmessage_thread.png" });
@@ -378,6 +383,9 @@ try {
   ok(scopes.length > 5 && /Everyone in Tanzania/i.test(scopes[0]),
      "and can pick the whole country or one region", scopes.slice(0, 3).join(" / "));
   ok(await admin.page.$("#pmCastBody") !== null, "with a message to write");
+  if (process.argv.includes("--shot")) {
+    await admin.page.screenshot({ path: "tests/shot_pmessage_announce.png" });
+  }
   await admin.page.close();
 
   process.stdout.write(`\n${pass} passed, ${fail} failed\n`);
