@@ -1,0 +1,233 @@
+/* ============================================================================
+   Video space — the community video stage.
+
+   Shared by index.html (per-region slot: pick a region, watch, post) and
+   explore.html (national slot: the global default, view only). Extracted
+   from index.html when explore gained its own stage — two inline copies of
+   220 lines would have drifted the moment either page was touched.
+
+   explore.html has no post button, region picker, countdown or progress
+   bar, so the rules for those simply never match there. That costs nothing
+   and keeps one file as the single description of how the stage looks.
+   ============================================================================ */
+
+/* ───────────────────────────────────────────────────────────────
+   Video space — one community video per region, live for 9 hours.
+   Whoever claims their region's slot first is what everyone in that
+   region sees; when the 9 hours are up it falls back to the default
+   clip posted by an admin. Plays automatically once scrolled into
+   view (muted, as every mobile browser requires).
+   ─────────────────────────────────────────────────────────────── */
+.video-space {
+  position: relative;
+  margin: 8px 0 4px;
+  padding: clamp(22px, 4.5vw, 48px) 20px;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Slow-drifting aura, inherited from the band this section replaced. */
+.video-space::before {
+  content: "";
+  position: absolute; inset: -30% -10%;
+  z-index: -1;
+  background:
+    radial-gradient(46% 52% at 22% 28%, rgba(252, 209, 22, .16), transparent 62%),
+    radial-gradient(52% 58% at 78% 72%, rgba(16, 185, 129, .16), transparent 64%),
+    linear-gradient(180deg, #06120d, #04100b);
+  animation: vs-drift 19s ease-in-out infinite alternate;
+}
+@keyframes vs-drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(1.02); }
+  to   { transform: translate3d(2%, 1%, 0) scale(1.06); }
+}
+
+.vs-card {
+  position: relative;
+  width: 100%; max-width: 420px;
+  padding: 16px 16px 18px;
+  border-radius: 22px;
+  background: linear-gradient(165deg, rgba(14, 32, 24, .92), rgba(7, 18, 13, .94));
+  border: 1px solid rgba(252, 209, 22, .22);
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .05);
+  backdrop-filter: blur(8px);
+}
+
+/* ── Header: region + how long this one has left ── */
+.vs-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 11px; flex-wrap: wrap;
+}
+.vs-kicker {
+  margin: 0; flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 7px;
+  font-size: .68rem; font-weight: 700;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: rgba(252, 209, 22, .82);
+}
+.vs-kicker > span[aria-hidden] { color: rgba(252, 209, 22, .5); }
+
+/* The region is a control, not a label. Whoever is about to take the slot
+   must be able to see AND correct which region they are taking. */
+.vs-region-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  max-width: 100%; padding: 3px 8px 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(252, 209, 22, .26);
+  background: rgba(252, 209, 22, .08);
+  color: #FCD116; cursor: pointer;
+  font: inherit; letter-spacing: .12em;
+  transition: background .16s ease, border-color .16s ease;
+}
+.vs-region-btn:hover { background: rgba(252, 209, 22, .16); border-color: rgba(252, 209, 22, .5); }
+.vs-region-btn #vsRegion { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vs-region-btn svg { flex: none; transition: transform .18s ease; }
+.vs-region-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.vs-region-pick { display: block; margin: 0 0 11px; }
+.vs-region-pick span {
+  display: block; margin-bottom: 5px;
+  font-size: .7rem; color: rgba(255, 255, 255, .5);
+}
+.vs-region-pick select {
+  width: 100%; padding: 9px 11px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(4, 12, 8, .8);
+  color: #EAF1EE; font-size: .84rem;
+}
+.vs-region-pick select:focus-visible { outline: 2px solid rgba(252, 209, 22, .6); outline-offset: 1px; }
+
+#vsCountdown {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+  color: rgba(255, 255, 255, .55); white-space: nowrap;
+}
+/* A live dot only when there IS something live and counting down. */
+#vsCountdown:not(:empty)::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: #34D399; box-shadow: 0 0 0 0 rgba(52, 211, 153, .55);
+  animation: vs-pulse 2.2s ease-out infinite;
+}
+@keyframes vs-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, .5); }
+  70%  { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+/* ── Stage. 9:16 because almost every clip is filmed on a phone held
+     upright; `contain` letterboxes a landscape video rather than
+     cropping someone's face out of it.
+
+     THE STAGE HAS EXACTLY THREE STATES, and one class on .video-space
+     picks between them: is-loading | is-empty | is-playing. Nothing is
+     visible unless its state is the current one, so the stage can never
+     end up as a black rectangle with an invisible message behind it. ── */
+.vs-stage {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  max-height: 68vh;
+  margin: 0 auto;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #050d09;
+  display: flex; align-items: center; justify-content: center;
+}
+.vs-stage video {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  display: none;
+  background: #050d09;
+}
+.video-space.is-playing .vs-stage video { display: block; }
+
+/* Skeleton — a slow sheen over the stage while the region's video is
+   being looked up. Honest about the wait without faking a percentage. */
+.vs-skeleton { position: absolute; inset: 0; display: none; }
+.video-space.is-loading .vs-skeleton { display: block; }
+.vs-skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg,
+    transparent 30%, rgba(255, 255, 255, .07) 48%, transparent 66%);
+  background-size: 240% 100%;
+  animation: vs-sheen 1.6s linear infinite;
+}
+@keyframes vs-sheen { from { background-position: 140% 0; } to { background-position: -60% 0; } }
+
+.vs-empty {
+  display: none;
+  padding: 26px 20px; text-align: center;
+  color: rgba(255, 255, 255, .62); font-size: .88rem; line-height: 1.55;
+}
+.video-space.is-empty .vs-empty { display: block; }
+.vs-empty svg { display: block; margin: 0 auto 12px; opacity: .34; }
+
+/* Mute toggle floats over the video — autoplay is only permitted muted,
+   so this is the control that actually matters to a viewer. */
+.vs-mute {
+  position: absolute; right: 10px; bottom: 10px;
+  width: 38px; height: 38px; border-radius: 999px;
+  display: none; place-items: center;
+  border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(4, 12, 8, .68);
+  backdrop-filter: blur(6px);
+  color: #EAF1EE; cursor: pointer;
+  transition: background .18s ease, border-color .18s ease;
+}
+.video-space.is-playing .vs-mute { display: grid; }
+.vs-mute:hover { background: rgba(4, 12, 8, .88); border-color: rgba(252, 209, 22, .5); }
+.vs-mute .vs-on  { display: none; }
+.vs-mute.is-on .vs-on  { display: block; }
+.vs-mute.is-on .vs-off { display: none; }
+
+/* ── Footer: who posted it, and the post button ── */
+.vs-foot {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 12px; flex-wrap: wrap;
+}
+#vsBadge {
+  flex: 1; min-width: 0;
+  font-size: .76rem; color: rgba(255, 255, 255, .6);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vs-post {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; border-radius: 999px;
+  border: 1px solid rgba(252, 209, 22, .45);
+  background: linear-gradient(165deg, rgba(252, 209, 22, .18), rgba(252, 209, 22, .07));
+  color: #FCD116; font-size: .8rem; font-weight: 700; cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+}
+.vs-post:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 22px -12px rgba(252, 209, 22, .8); }
+.vs-post:disabled { opacity: .5; cursor: progress; }
+.vs-post:focus-visible { outline: 2px solid rgba(252, 209, 22, .8); outline-offset: 2px; }
+
+/* Indeterminate bar — the upload has no reliable progress event across
+   browsers, so an honest "working" beats a fake percentage. */
+.vs-bar { height: 3px; margin-top: 11px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, .1); }
+.vs-bar::after {
+  content: ""; display: block; height: 100%; width: 38%;
+  border-radius: 3px; background: linear-gradient(90deg, transparent, #FCD116, transparent);
+  animation: vs-slide 1.15s ease-in-out infinite;
+}
+@keyframes vs-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+
+.vs-status { margin-top: 9px; font-size: .78rem; line-height: 1.5; color: rgba(255, 255, 255, .68); min-height: 1.1em; }
+.vs-status.ok  { color: #7BE3B0; }
+.vs-status.err { color: #FFB4A6; }
+
+.vs-hint { margin: 8px 0 0; font-size: .68rem; color: rgba(255, 255, 255, .38); line-height: 1.5; }
+
+@media (max-width: 640px) {
+  .video-space { padding: clamp(18px, 6vw, 32px) 14px; }
+  .vs-card { border-radius: 18px; max-width: 100%; }
+  .vs-stage { max-height: 62vh; }
+  .vs-kicker { letter-spacing: .16em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .video-space::before,
+  .vs-skeleton::after,
+  #vsCountdown:not(:empty)::before { animation: none; }
+  .vs-bar::after { animation: none; width: 100%; }
+}

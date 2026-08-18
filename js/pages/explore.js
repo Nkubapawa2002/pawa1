@@ -949,6 +949,13 @@
     // Deep-linked straight to the map: mount it now that there is something
     // to draw, so it never opens on an empty canvas.
     if (view === "map") { view = "list"; openMap(); }
+
+    // The national video, last and deliberately unawaited: it sits at the very
+    // bottom of the page and must never delay the results above it. It renders
+    // its own empty state, so a failure here costs nothing.
+    if (window.VideoNational) {
+      window.VideoNational.mount(document.getElementById("nationalVideo"));
+    }
   }
 
   if (document.readyState !== "loading") boot();

@@ -1149,6 +1149,11 @@ window.I18N = {
 
     // Video space — the community video slot at the bottom of the homepage.
     // One video per region, live for 9 hours, first upload wins the slot.
+    // National video — the single clip on Explore, seen country-wide.
+    vn_kicker: "Video ya Tanzania",
+    vn_video_label: "Video for the whole country",
+    vn_badge: "From Pnzaki",
+    vn_empty: "No video here yet. Post one in your region from the home page — and an admin can set the clip everyone sees here.",
     vs_kicker: "Video ya",
     vs_badge_community: "Posted by someone in {region}",
     vs_badge_default: "From Pnzaki",
@@ -2404,6 +2409,11 @@ window.I18N = {
     ahw_your_area: "eneo lako",
 
     // Nafasi ya video — video moja kwa kila mkoa, inaishi kwa saa 9.
+    // Video ya taifa — klipu moja kwenye Vinjari, inayoonekana nchi nzima.
+    vn_kicker: "Video ya Tanzania",
+    vn_video_label: "Video kwa nchi nzima",
+    vn_badge: "Kutoka Pnzaki",
+    vn_empty: "Bado hakuna video hapa. Weka moja kwa mkoa wako kutoka ukurasa wa mwanzo — na msimamizi anaweza kuweka klipu ambayo kila mtu anaiona hapa.",
     vs_kicker: "Video ya",
     vs_badge_community: "Imewekwa na mtu wa {region}",
     vs_badge_default: "Kutoka Pnzaki",
@@ -2526,6 +2536,11 @@ window.applyTranslations = () => {
   });
   document.querySelectorAll("[data-i18n-title]").forEach(el => {
     el.title = window.t(el.dataset.i18nTitle);
+  });
+  // A screen reader announces aria-label, so leaving it in one language makes
+  // the control unreadable for everyone using the other.
+  document.querySelectorAll("[data-i18n-aria-label]").forEach(el => {
+    el.setAttribute("aria-label", window.t(el.dataset.i18nAriaLabel));
   });
   document.documentElement.lang = window.getLang();
 };

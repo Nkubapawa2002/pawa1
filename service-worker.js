@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v304-2026-08-17-explore-roads";
+const VERSION = "v305-2026-08-18-national-video";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -51,6 +51,10 @@ const APP_SHELL = [
   "./js/lib/explore-map.js",
   "./js/lib/explore-roads.js",
   "./js/pages/explore.js",
+  // The national video stage on explore.html, and the stylesheet both stages
+  // share with index.html.
+  "./js/lib/video-national.js",
+  "./css/video-space.css",
   "./js/pages/area.js",
   "./js/lib/geolocate.js",
   "./js/lib/map-expand.js",

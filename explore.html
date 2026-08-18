@@ -15,6 +15,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
 
+  <!-- The video-space stage, shared with index.html. -->
+  <link rel="stylesheet" href="css/video-space.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 
   <style>
@@ -609,6 +611,45 @@
       </div>
     </div>
 
+
+    <!-- The national video. Explore searches the whole country, so its stage is
+         the one clip everyone sees wherever they are — the global default an
+         admin sets. View only: the place to POST is the homepage, where the
+         slot is your own region's. Starts .is-loading so it is never a bare
+         black rectangle; js/lib/video-national.js swaps the state. -->
+    <section class="video-space is-loading" id="nationalVideo" aria-labelledby="vnKicker">
+      <div class="vs-card">
+        <div class="vs-head">
+          <p class="vs-kicker" id="vnKicker" data-i18n="vn_kicker">Video ya Tanzania</p>
+        </div>
+
+        <div class="vs-stage">
+          <video muted playsinline webkit-playsinline preload="none"
+                 disablepictureinpicture disableremoteplayback
+                 data-i18n-aria-label="vn_video_label"
+                 aria-label="Video for the whole country"></video>
+
+          <div class="vs-skeleton" aria-hidden="true"></div>
+
+          <p class="vs-empty">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            <span data-i18n="vn_empty">No video here yet.</span>
+          </p>
+
+          <button type="button" class="vs-mute" data-vn-mute
+                  aria-pressed="false" aria-label="Toggle sound"
+                  data-i18n-title="vs_sound" title="Sound">
+            <svg class="vs-off" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            <svg class="vs-on" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          </button>
+        </div>
+
+        <div class="vs-foot">
+          <span data-vn-badge></span>
+        </div>
+      </div>
+    </section>
+
     <div class="app-shell-pad"></div>
   </main>
 
@@ -634,6 +675,8 @@
   <!-- explore-map.js is tiny and loads Leaflet itself, lazily, on the first
        tap of "Map". Nothing map-related is fetched before that. -->
   <script src="js/lib/explore-map.js"></script>
+  <script src="js/lib/video-space.js"></script>
+  <script src="js/lib/video-national.js"></script>
   <script src="js/pages/explore.js"></script>
   <script src="js/core/app-shell.js"></script>
   <script src="js/core/sw-register.js"></script>
