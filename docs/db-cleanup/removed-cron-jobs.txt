@@ -1,0 +1,6 @@
+jobid  jobname                    schedule   command                                      
+-----  -------------------------  ---------  ---------------------------------------------
+1      pawa_trip_reminders        * * * * *   select public.enqueue_due_trip_reminders(); 
+2      pawa_expire_drivers        * * * * *  select public.expire_stale_drivers();        
+3      pawa_expire_ride_requests  * * * * *  select public.expire_stale_ride_requests();  
+(3 rows)
