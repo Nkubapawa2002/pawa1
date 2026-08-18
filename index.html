@@ -21,6 +21,8 @@
   <link rel="stylesheet" href="css/design-system.css" />
   <!-- The video-space stage, shared with explore.html. -->
   <link rel="stylesheet" href="css/video-space.css" />
+  <!-- The helper-card styling, shared with p-chat.html. -->
+  <link rel="stylesheet" href="css/action-cards.css" />
 
   <!-- Plus Jakarta Sans: the app-home (Twilight design) UI typeface -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
@@ -218,20 +220,10 @@
     .ha-muted { font-size: 12.5px; color: rgba(255,255,255,.78); }
     .ha-price { display: block; font-size: 19px; font-weight: 800; color: #2EE6A6; margin-top: 8px; }
     .ha-price small { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.6); margin-left: 3px; }
-    /* "Can't find it?" helper cards (request demand / area alert / scan nearby) */
+    /* "Can't find it?" helper cards — the card styling itself now lives in
+       css/action-cards.css, shared with p-chat.html. Only this page's own
+       spacing for the block stays here. */
     .ha-find-head { margin-top: 22px; }
-    .ha-find-sub { font-size: 13px; color: #93a39d; margin: -4px 0 12px; line-height: 1.5; }
-    .ha-find { display: grid; gap: 11px; }
-    .ha-find-card { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 18px; padding: 14px; text-decoration: none; cursor: pointer; font: inherit; transition: transform .12s ease, border-color .12s ease; }
-    .ha-find-card:hover { border-color: rgba(46,230,166,.32); }
-    .ha-find-card:active { transform: scale(.99); }
-    .ha-find-ic { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; }
-    .ha-find-ic.ic-emerald { background: rgba(46,230,166,.12); }
-    .ha-find-ic.ic-violet { background: rgba(197,148,255,.14); }
-    .ha-find-ic.ic-gold { background: rgba(246,196,90,.14); }
-    .ha-find-tx { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-    .ha-find-t { font-size: 14.5px; font-weight: 800; color: #EAF1EE; }
-    .ha-find-d { font-size: 12px; color: #93a39d; line-height: 1.45; }
     .ha-feed { display: flex; flex-direction: column; gap: 14px; }
     .ha-card { background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 24px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,.28); text-decoration: none; display: block; }
     .ha-card-photo { position: relative; display: block; height: 178px; background: #0f1714; }

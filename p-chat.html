@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script src="js/core/theme.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>P-Chat — ask for it, watch a place, meet up — Maisha na Lifeza</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/premium.css" />
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <!-- The helper-card styling, shared with the homepage. -->
+  <link rel="stylesheet" href="css/action-cards.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+
+  <style>
+    /* =====================================================================
+       P-Chat — the third tab.
+
+       Every OTHER tab answers "what is out there?": Home shows the feed,
+       Explore searches the four catalogues, Messages carries conversations.
+       This one answers the opposite question — "how do I reach out?" — and
+       collects the seven tools that were previously scattered across the
+       homepage, the desktop menu and, in two cases, nowhere at all.
+
+       It owns no engine of its own. Every row opens the page or the modal
+       that already implements the thing; this is a doorway, never a second
+       copy. The card styling comes from css/action-cards.css, the same file
+       the homepage uses, so the two surfaces cannot drift apart.
+       ===================================================================== */
+    /* Same token overrides + ground as favorites.html, the tab this one
+       replaced — an app-shell page paints its own dark ground rather than
+       inheriting the desktop site's. */
+    body[data-page="p-chat"] {
+      --c-surface: #141A18; --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55);
+      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6;
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="p-chat"] #nav-slot,
+    body[data-page="p-chat"] #footer-slot { display: none !important; }
+
+    .pc-wrap { max-width: 560px; margin: 0 auto; padding: 30px 16px 4px; }
+    /* The display serif from the design system is for the marketing pages; the
+       app-shell tabs are all Plus Jakarta Sans, so say so explicitly — h1/h2
+       would otherwise inherit Source Serif and read as a different product. */
+    .pc-title {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      font-size: 26px; font-weight: 800; color: #EAF1EE; margin: 0;
+    }
+    .pc-sub { font-size: 13px; color: rgba(233,243,238,.62); margin: 5px 0 0; line-height: 1.5; }
+
+    .pc-groups { max-width: 560px; margin: 0 auto; padding: 20px 16px 0; }
+    .pc-group + .pc-group { margin-top: 26px; }
+    .pc-group-h {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+      color: rgba(233,243,238,.62); margin: 0 0 9px;
+    }
+
+    /* A quiet second action under a card that already has a primary one — "my
+       requests", "any area by name". A card each would give the rare action the
+       same weight as the common one. Indented to the card's text column (14px card padding
+       + 46px icon + 13px gap) so it reads as belonging to the card above it. */
+    .pc-more {
+      justify-self: start; display: inline-flex; align-items: center; gap: 5px;
+      margin: -3px 0 2px 73px; font: inherit; font-size: 12px; font-weight: 700;
+      color: #2EE6A6; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none;
+    }
+    .pc-more:hover { text-decoration: underline; }
+
+    :root[data-theme="light"] body[data-page="p-chat"] {
+      background: var(--c-bg, #F7F5EF); color: var(--c-text);
+    }
+    :root[data-theme="light"] .pc-title { color: var(--c-text); }
+    :root[data-theme="light"] .pc-sub,
+    :root[data-theme="light"] .pc-group-h { color: var(--c-text-muted); }
+    :root[data-theme="light"] .pc-more { color: #0a7d57; }
+  </style>
+  <link rel="stylesheet" href="css/theme-light.css" />
+</head>
+<body data-page="p-chat" data-app-shell="p-chat.html">
+  <div id="nav-slot"></div>
+
+  <header class="pc-wrap">
+    <h1 class="pc-title" data-i18n="tab_pchat">P-Chat</h1>
+    <p class="pc-sub" data-i18n="pc_sub">Ask for what you need, watch a place, or find each other — the tools that reach out, in one tab.</p>
+  </header>
+
+  <main class="pc-groups">
+
+    <!-- ── Pull it to you ──────────────────────────────────────────────────
+         For the seeker who does not see what they want in the catalogue and
+         can make the catalogue come to them instead. Both rows reuse the
+         engines on houses.html: the shared request modal and the area-alert
+         modal. -->
+    <section class="pc-group">
+      <h2 class="pc-group-h" data-i18n="pc_g_ask">Pull it to you</h2>
+      <div class="ha-find">
+        <button type="button" class="ha-find-card" id="pcRequestBtn">
+          <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="home_find_request">Tell us what you want</span>
+            <span class="ha-find-d" data-i18n="home_find_request_d">Say where, your budget and when — every agent there sees it and calls you.</span>
+          </span>
+        </button>
+        <button type="button" class="pc-more" id="pcMineBtn" data-i18n="pc_my_requests">My requests</button>
+
+        <a class="ha-find-card" href="houses.html?alert=1">
+          <span class="ha-find-ic ic-violet" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#C594FF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#C594FF" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="home_find_alert">Alert me about an area</span>
+            <span class="ha-find-d" data-i18n="home_find_alert_d">Draw or pick an area and get a ping the moment a room is listed there.</span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ── Read a place ────────────────────────────────────────────────────
+         Two different questions about a place, so two rows: "what is around
+         me right now?" (near-me.html) and "what kind of place is this to do
+         business in?" (frame.html). Browsing a named area is the same
+         question as the first at a different zoom, so it is a secondary link
+         on that card rather than a third row. -->
+    <section class="pc-group">
+      <h2 class="pc-group-h" data-i18n="pc_g_read">Read a place</h2>
+      <div class="ha-find">
+        <a class="ha-find-card" href="near-me.html">
+          <span class="ha-find-ic ic-gold" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#F6C45A" stroke-width="1.7"/><path d="M21 21l-4.3-4.3" stroke="#F6C45A" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="home_find_scan">Scan areas and services near you</span>
+            <span class="ha-find-d" data-i18n="home_find_scan_d">Browse every important area, home and service nearby, listed by name.</span>
+          </span>
+        </a>
+        <a class="pc-more" href="area.html" data-i18n="pc_scan_more">Or open any area by name</a>
+
+        <a class="ha-find-card" href="frame.html">
+          <span class="ha-find-ic ic-violet" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#C594FF" stroke-width="1.7"/><path d="M3 10h18M9 20V10" stroke="#C594FF" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="home_frame_title">Read any area as a room for business</span>
+            <span class="ha-find-d" data-i18n="pc_frame_d">Who gathers there, the roads that carry them, and where demand beats supply.</span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ── Meet and work ───────────────────────────────────────────────────
+         Being findable, rather than finding. meet.html was reachable only
+         from the agent dashboard and share-location.html was linked from
+         nowhere at all — a working feature nobody could get to. -->
+    <section class="pc-group">
+      <h2 class="pc-group-h" data-i18n="pc_g_meet">Meet and work</h2>
+      <div class="ha-find">
+        <a class="ha-find-card" href="meet.html">
+          <span class="ha-find-ic ic-sky" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z" stroke="#5EB7FF" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="10.3" r="2.5" stroke="#5EB7FF" stroke-width="1.7"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="meet_title">Meet &amp; Locate</span>
+            <span class="ha-find-d" data-i18n="pc_meet_d">See each other on a live map for a viewing or a service visit — one 6-character code.</span>
+          </span>
+        </a>
+
+        <a class="ha-find-card" href="share-location.html">
+          <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-7 16-2-6-7-2z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="pc_share">Share a location</span>
+            <span class="ha-find-d" data-i18n="pc_share_d">Send anyone the exact spot of a house, a shop or a meeting point.</span>
+          </span>
+        </a>
+
+        <a class="ha-find-card" href="jobs.html">
+          <span class="ha-find-ic ic-rose" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="13" rx="2.2" stroke="#FF8AA8" stroke-width="1.7"/><path d="M8 7V5.4A2.4 2.4 0 0 1 10.4 3h3.2A2.4 2.4 0 0 1 16 5.4V7" stroke="#FF8AA8" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="pc_jobs">Jobs and staff</span>
+            <span class="ha-find-d" data-i18n="pc_jobs_d">Claim a day job near you, or post one and hire the crew you need today.</span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="app-shell-pad"></div>
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
+  <script src="js/core/nav.js"></script>
+  <!-- The request modal's own dependencies: the gazetteer for region centroids,
+       geo.js for geocoding a typed area, geolocate.js for the "use my location"
+       button. Without them the modal still sends — it just falls back a step. -->
+  <script src="js/lib/tz-places.js"></script>
+  <script src="js/lib/geo.js"></script>
+  <script src="js/lib/geolocate.js"></script>
+  <script src="js/lib/request-place.js"></script>
+  <script>
+    // Same shared modal the homepage opens — not a second implementation. If the
+    // script failed to load, fall through to the page that owns the engine.
+    document.getElementById("pcRequestBtn")?.addEventListener("click", () => {
+      if (window.pawaRequestPlace) window.pawaRequestPlace.open();
+      else location.href = "houses.html?request=1";
+    });
+    document.getElementById("pcMineBtn")?.addEventListener("click", () => {
+      if (window.pawaRequestPlace) window.pawaRequestPlace.openMine();
+      else location.href = "houses.html?request=1";
+    });
+    window.applyTranslations();
+  </script>
+  <script src="js/core/app-shell.js"></script>
+  <script src="js/core/sw-register.js"></script>
+</body>
+</html>

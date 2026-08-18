@@ -1,0 +1,36 @@
+/* ============================================================================
+   Action cards — the "pull it to you" row of tappable helper cards.
+
+   Lifted verbatim out of index.html's <style> block when P-Chat (p-chat.html)
+   became the second surface that needed them. Two copies of a card style drift
+   within a release; one file does not.
+
+   Used by:  index.html ("Can't find it yet?")  ·  p-chat.html (every row)
+
+   Light mode is NOT here — css/theme-light.css already overrides .ha-find-card
+   / .ha-find-t / .ha-find-d by class name, so both pages inherit it. Keep this
+   file linked BEFORE that stylesheet.
+   ============================================================================ */
+
+.ha-find-sub { font-size: 13px; color: #93a39d; margin: -4px 0 12px; line-height: 1.5; }
+.ha-find { display: grid; gap: 11px; }
+
+.ha-find-card {
+  display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+  background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 18px;
+  padding: 14px; text-decoration: none; cursor: pointer; font: inherit;
+  transition: transform .12s ease, border-color .12s ease;
+}
+.ha-find-card:hover { border-color: rgba(46,230,166,.32); }
+.ha-find-card:active { transform: scale(.99); }
+
+.ha-find-ic { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; }
+.ha-find-ic.ic-emerald { background: rgba(46,230,166,.12); }
+.ha-find-ic.ic-violet  { background: rgba(197,148,255,.14); }
+.ha-find-ic.ic-gold    { background: rgba(246,196,90,.14); }
+.ha-find-ic.ic-sky     { background: rgba(94,183,255,.14); }
+.ha-find-ic.ic-rose    { background: rgba(255,138,168,.14); }
+
+.ha-find-tx { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ha-find-t { font-size: 14.5px; font-weight: 800; color: #EAF1EE; }
+.ha-find-d { font-size: 12px; color: #93a39d; line-height: 1.45; }

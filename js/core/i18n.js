@@ -113,7 +113,25 @@ window.I18N = {
     home_earn_kicker: "Earn with Maisha na Lifeza",
     // App-shell bottom tab bar
     tab_explore: "Explore",
+    // A product name, so it stays "P-Chat" in both languages.
+    tab_pchat: "P-Chat",
     tab_saved: "Saved",
+
+    // P-Chat (p-chat.html) — the "reach out" tab. Rows that also appear on the
+    // homepage deliberately reuse the home_find_* / meet_* keys rather than
+    // getting a second wording that would drift.
+    pc_sub: "Ask for what you need, watch a place, or find each other — the tools that reach out, in one tab.",
+    pc_g_ask: "Pull it to you",
+    pc_g_read: "Read a place",
+    pc_g_meet: "Meet and work",
+    pc_my_requests: "My requests",
+    pc_scan_more: "Or open any area by name",
+    pc_frame_d: "Who gathers there, the roads that carry them, and where demand beats supply.",
+    pc_meet_d: "See each other on a live map for a viewing or a service visit — one 6-character code.",
+    pc_share: "Share a location",
+    pc_share_d: "Send anyone the exact spot of a house, a shop or a meeting point.",
+    pc_jobs: "Jobs and staff",
+    pc_jobs_d: "Claim a day job near you, or post one and hire the crew you need today.",
     tab_messages: "Messages",
     tab_profile: "Profile",
     nav_agent_houses: "My House Listings",
@@ -1376,7 +1394,22 @@ window.I18N = {
     home_earn_kicker: "Pata na Maisha na Lifeza",
     // App-shell bottom tab bar
     tab_explore: "Vinjari",
+    tab_pchat: "P-Chat",
     tab_saved: "Hifadhi",
+
+    // P-Chat — kichupo cha "wasiliana".
+    pc_sub: "Omba unachohitaji, fuatilia eneo, au kutana na mtu — zana zote za kuwasiliana katika kichupo kimoja.",
+    pc_g_ask: "Vuta kwako",
+    pc_g_read: "Soma eneo",
+    pc_g_meet: "Kutana na kazi",
+    pc_my_requests: "Maombi yangu",
+    pc_scan_more: "Au fungua eneo lolote kwa jina",
+    pc_frame_d: "Nani hukusanyika hapo, barabara zinazowaleta, na wapi mahitaji yanazidi upatikanaji.",
+    pc_meet_d: "Onaneni kwenye ramani ya moja kwa moja mnapoenda kuangalia nyumba au kutoa huduma — msimbo mmoja wa herufi 6.",
+    pc_share: "Shiriki mahali",
+    pc_share_d: "Mtumie mtu yeyote mahali kamili pa nyumba, duka au pa kukutana.",
+    pc_jobs: "Kazi na wafanyakazi",
+    pc_jobs_d: "Chukua kazi ya siku karibu nawe, au tangaza na uajiri wafanyakazi unaowahitaji leo.",
     tab_messages: "Ujumbe",
     tab_profile: "Wasifu",
     nav_agent_houses: "Nyumba Zangu",
