@@ -64,6 +64,38 @@
   // shelf life: houses are purged at 15 days, day jobs expire in 7.
   var FRESH_TAU_DAYS = { room: 10, truck: 21, service: 30, job: 3 };
 
+  // How far outside a region a listing may sit and still count as "here".
+  // Regions are administrative lines; neighbourhoods are not. A room three
+  // streets the wrong side of a boundary is still the room you want when you
+  // are browsing that region, and a listing whose region field was never
+  // filled in should not be invisible when its pin proves where it is.
+  var REGION_EDGE_KM = 25;
+
+  // "Mkoa wa Dar es Salaam", "DAR ES SALAAM", "Dar-es-Salaam" are one place.
+  // Listings are typed by hand by hundreds of agents; the region field is the
+  // single most inconsistently spelled thing in the catalogue.
+  function normRegion(s) {
+    return String(s == null ? "" : s).toLowerCase()
+      .replace(/^mkoa\s+wa\s+/, "")
+      .replace(/[^a-z ]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /**
+   * Is this item inside the region the visitor is browsing?
+   *
+   * The name is the primary test. Distance is the safety net, and it runs in
+   * BOTH directions of failure: a blank region field, and a spelling the
+   * normaliser did not anticipate. Without it, one inconsistent agent could
+   * make a whole town disappear from its own region.
+   */
+  function regionAllows(item, intent) {
+    if (!intent.regionNorm) return true;
+    if (normRegion(item.region) === intent.regionNorm) return true;
+    return item._distKm != null && item._distKm <= REGION_EDGE_KM;
+  }
+
   // Distance decay constant, in km, when the user has not set a radius. About
   // 6 km is "the same part of a Tanzanian city".
   var GEO_TAU_DEFAULT_KM = 6;
@@ -248,6 +280,11 @@
     // agents never dropped a map pin.
     if (intent.radiusKm && item._distKm != null && item._distKm > intent.radiusKm) return "radius";
 
+    // Browsing a region. A hard filter rather than a ranking nudge: someone who
+    // picked Mwanza and still got a page of Dar listings, merely further down,
+    // would reasonably conclude the picker does nothing.
+    if (intent.regionNorm && !regionAllows(item, intent)) return "region";
+
     return null;
   }
 
@@ -320,8 +357,13 @@
       }
     }
 
-    var intentWithRadius = Object.assign({}, intent, { radiusKm: radiusKm });
-    var kept = [], dropped = { kind: 0, listing: 0, budget: 0, radius: 0, full: 0 };
+    // Normalise once here, not once per item: reject() runs across the whole
+    // catalogue and this is a regex chain.
+    var intentWithRadius = Object.assign({}, intent, {
+      radiusKm: radiusKm,
+      regionNorm: opts.region ? normRegion(opts.region) : (intent.region ? normRegion(intent.region) : ""),
+    });
+    var kept = [], dropped = { kind: 0, listing: 0, budget: 0, radius: 0, full: 0, region: 0 };
     for (var j = 0; j < items.length; j++) {
       var why = reject(items[j], intentWithRadius);
       if (why) { dropped[why] = (dropped[why] || 0) + 1; continue; }
@@ -384,6 +426,8 @@
   window.ExploreRank = {
     rank: rank,
     haversineKm: haversineKm,
+    normRegion: normRegion,
+    REGION_EDGE_KM: REGION_EDGE_KM,
     diversify: diversify,
     buildIdf: buildIdf,
     textScore: textScore,

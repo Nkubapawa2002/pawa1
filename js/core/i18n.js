@@ -1184,6 +1184,12 @@ window.I18N = {
     vs_err_generic: "That didn't work. Please try again.",
 
     // Explore — the global search across rooms, trucks, services and day jobs.
+    // Region browsing on Explore — look at any region as though you lived there.
+    xp_region_label: "Region to browse",
+    xp_region_any: "All of Tanzania",
+    xp_empty_region_t: "Nothing in {r}",
+    xp_empty_region_p: "{n} match this search elsewhere in Tanzania.",
+    xp_widen_region: "Search all of Tanzania instead",
     xp_kicker: "Explore",
     xp_title: "Everything, one search",
     xp_sub: "Rooms, trucks, services and day jobs — anywhere in Tanzania. Find a room and we'll show you the trucks that can move you in.",
@@ -2439,6 +2445,12 @@ window.I18N = {
     vs_err_generic: "Haikufanikiwa. Tafadhali jaribu tena.",
 
     // Vinjari — utafutaji mmoja kwa vyumba, malori, huduma na kazi za siku.
+    // Kuvinjari mikoa — angalia mkoa wowote kama vile unaishi humo.
+    xp_region_label: "Mkoa wa kuvinjari",
+    xp_region_any: "Tanzania nzima",
+    xp_empty_region_t: "Hakuna kitu {r}",
+    xp_empty_region_p: "{n} zinapatikana mahali pengine Tanzania.",
+    xp_widen_region: "Tafuta Tanzania nzima badala yake",
     xp_kicker: "Vinjari",
     xp_title: "Kila kitu, utafutaji mmoja",
     xp_sub: "Vyumba, malori, huduma na kazi za siku — popote Tanzania. Pata chumba nasi tutakuonyesha malori ya kukuhamishia.",

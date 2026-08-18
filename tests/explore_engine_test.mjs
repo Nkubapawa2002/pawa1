@@ -414,6 +414,68 @@ section("11. Road distance");
      "a failed routing call degrades quietly instead of throwing");
 }
 
+// ---- Region browsing --------------------------------------------------------
+// Explore lets someone in Dar browse Mwanza as though they lived there. The
+// scope has to be a real filter (or the picker does nothing visible) while
+// still surviving the region field being blank or spelled another way.
+{
+  const MWANZA_C = { lat: MWANZA.lat, lng: MWANZA.lng, name: "Mwanza" };
+
+  const inMwanza = search("", { region: "Mwanza", anchor: MWANZA_C });
+  ok(inMwanza.out.results.length > 0, "browsing Mwanza returns Mwanza listings");
+  ok(ids(inMwanza.out).every((id) => ["h3", "t2"].includes(id)),
+     "browsing Mwanza excludes every Dar listing", ids(inMwanza.out).join(","));
+
+  const inDar = search("", { region: "Dar es Salaam", anchor: MBEZI });
+  ok(!ids(inDar.out).includes("h3") && !ids(inDar.out).includes("t2"),
+     "browsing Dar excludes the Mwanza listings");
+  ok(ids(inDar.out).includes("h1"), "browsing Dar keeps the Dar room");
+
+  const everywhere = search("", {});
+  ok(everywhere.out.results.length > inMwanza.out.results.length,
+     "no region set searches the whole country");
+
+  // Spelling. The region field is typed by hand by hundreds of agents.
+  ok(ExploreRank.normRegion("Mkoa wa Dar es Salaam") === ExploreRank.normRegion("DAR ES SALAAM"),
+     "'Mkoa wa X' and 'X' normalise to the same region");
+  ok(ExploreRank.normRegion("Dar-es-Salaam") === ExploreRank.normRegion("Dar es Salaam"),
+     "punctuation does not create a second region");
+
+  // The distance safety net, in both directions of failure.
+  const blankRegion = ExploreIndex.fromHouse({
+    id: "hx", title: "Room with no region recorded", type: "room", listing: "rent",
+    price_tzs: 200000, period: "month", region: "", area: "Nyamagana",
+    lat: MWANZA.lat + 0.01, lng: MWANZA.lng + 0.01, created_at: now, owner_user_id: "oX",
+  });
+  const misspelled = ExploreIndex.fromHouse({
+    id: "hy", title: "Room in Mwanzaa", type: "room", listing: "rent",
+    price_tzs: 210000, period: "month", region: "Mwanzaa", area: "Nyamagana",
+    lat: MWANZA.lat + 0.01, lng: MWANZA.lng + 0.01, created_at: now, owner_user_id: "oY",
+  });
+  const rescued = ExploreRank.rank([...items, blankRegion, misspelled],
+    ExploreQuery.parse(""), { region: "Mwanza", anchor: MWANZA_C });
+  ok(ids(rescued).includes("hx"),
+     "a listing with no region is kept when its pin puts it inside the region");
+  ok(ids(rescued).includes("hy"),
+     "a misspelled region is kept when the pin puts it inside the region");
+
+  // ...but the net does not stretch across the country.
+  const farBlank = ExploreIndex.fromHouse({
+    id: "hz", title: "Room far away, no region", type: "room", listing: "rent",
+    price_tzs: 200000, period: "month", region: "", area: "Somewhere",
+    lat: MBEZI.lat, lng: MBEZI.lng, created_at: now, owner_user_id: "oZ",
+  });
+  const notRescued = ExploreRank.rank([...items, farBlank],
+    ExploreQuery.parse(""), { region: "Mwanza", anchor: MWANZA_C });
+  ok(!ids(notRescued).includes("hz"),
+     "a blank region 1,100 km away is NOT rescued into the region");
+
+  // The scope must survive a query, not just an empty search.
+  const typed = search("chumba", { region: "Mwanza", anchor: MWANZA_C });
+  ok(ids(typed.out).every((id) => ["h3", "t2"].includes(id)),
+     "the region scope still applies when words are typed too");
+}
+
 // ---- Verdict ----------------------------------------------------------------
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

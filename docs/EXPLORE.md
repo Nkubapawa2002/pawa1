@@ -150,6 +150,51 @@ apartment would be an insult dressed up as a suggestion.
 
 ---
 
+## Browsing a region
+
+Explore is the national view, so it answers a question the vertical pages never
+ask: *show me Mwanza, as though I lived there* — from Dar, from Mbeya, from
+anywhere. That is the `#xpRegion` picker above the radius and sort selects.
+
+Picking a region does **three** things, and it has to do all three or it lies:
+
+| | |
+|---|---|
+| **Scopes** | a hard filter in `explore-rank.js` (`reject()` → `"region"`) |
+| **Moves the anchor** | to the region centre, so distances, "nearest first", the companion rails and the road times are all measured from the place being browsed |
+| **Recentres the map** | one render ignores the visitor's own pan (`refitMap`) |
+
+Without the second, Mwanza rooms read "1,100 km away" and sort by their distance
+from Dar: confidently wrong, which is worse than unhelpful.
+
+This is the one place the high bar for hard filters (above) is met by a
+*preference* rather than a wrongness: someone who picks Mwanza and still gets a
+page of Dar listings, merely further down, will reasonably conclude the picker
+is broken.
+
+Four rules keep it honest:
+
+- **A 25 km edge** (`REGION_EDGE_KM`). Regions are administrative lines;
+  neighbourhoods are not, and the region field is typed by hand by hundreds of
+  agents. A listing whose region is blank or misspelled is kept when its *pin*
+  puts it inside. One bad speller must not erase a town from its own region.
+- **Auto-widen widens the radius, never the region.** Turning "nothing in
+  Mwanza" into a page of Dar listings is exactly the silent substitution the
+  widen notice exists to prevent. The empty state instead *offers* it, with a
+  count of what lifting the region would find.
+- **A GPS fix inside the chosen region beats the centroid.** "2 km away" is a
+  better answer than "18 km from the middle of Mwanza". The centroid stands in
+  for a location we do not have; it never overrides one we do.
+- **"Near me" and "Search this area" move an existing region choice**
+  (`followRegionTo`). Otherwise the results are scoped to one place while every
+  distance is measured from another. Neither ever *sets* a region for someone
+  browsing the whole country.
+
+Covered by `tests/explore_engine_test.mjs` (the ranking) and
+`tests/explore_region_browser.mjs` (the page, in a real browser).
+
+---
+
 ## Search is local
 
 The whole catalogue is fetched once and ranked in memory on every keystroke.
@@ -277,12 +322,18 @@ Two failure modes are handled out loud rather than silently:
 Deep links are first-class — sharing a search is the natural thing to do with one.
 
 ```
-explore.html?q=chumba+Mbezi&k=room&place=Mbezi&r=10&sort=cheap&view=map
+explore.html?q=chumba+Mbezi&k=room&region=Mwanza&place=Mbezi&r=10&sort=cheap&view=map
 ```
 
-`q` query · `k` scope · `place` anchor name · `r` radius km · `sort`
-`best`\|`near`\|`cheap`\|`new` · `view=map` opens on the map. A GPS anchor is
-deliberately **not** serialised — someone else's "near me" is not yours.
+`q` query · `k` scope · `region` region being browsed · `place` anchor name ·
+`r` radius km · `sort` `best`\|`near`\|`cheap`\|`new` · `view=map` opens on the
+map. A GPS anchor is deliberately **not** serialised — someone else's "near me"
+is not yours.
+
+A region *centroid* anchor is not serialised as `place` either: `region=` already
+reproduces it, and writing both would restore the same anchor twice and leave it
+behind when the region is cleared. On load `region` is applied first, so a
+`place` in the same link — the more specific statement — wins.
 
 ---
 

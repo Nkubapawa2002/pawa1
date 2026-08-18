@@ -173,6 +173,9 @@
     .xp-near:disabled { opacity: .55; cursor: progress; }
 
     .xp-row2 { display: flex; gap: 9px; margin-top: 9px; flex-wrap: wrap; }
+    /* The region picker changes what the whole page is about, so it gets its
+       own line on a phone rather than being one of three equal dropdowns. */
+    @media (max-width: 520px) { #xpRegion { flex: 1 0 100%; } }
     .xp-select {
       flex: 1; min-width: 140px;
       background: var(--surface); border: 1px solid var(--line);
@@ -552,6 +555,11 @@
     </div>
 
     <div class="xp-row2">
+      <!-- Browse any region as though you lived in it. Picking one moves the
+           whole engine there: results are scoped to that region, distances are
+           measured from it, and the companion rails and road times follow. -->
+      <select class="xp-select" id="xpRegion" data-i18n-aria-label="xp_region_label"
+              aria-label="Region to browse"></select>
       <select class="xp-select" id="xpRadius" aria-label="Search radius"></select>
       <select class="xp-select" id="xpSort" aria-label="Sort results"></select>
     </div>

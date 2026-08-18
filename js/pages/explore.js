@@ -59,7 +59,7 @@
   // ---- Element handles ------------------------------------------------------
   var el = {};
   ["xpForm", "xpBox", "xpQ", "xpClear", "xpExamples", "xpScopes", "xpPlace",
-   "xpNear", "xpRadius", "xpSort", "xpRead", "xpWarn", "xpCount", "xpNote",
+   "xpNear", "xpRegion", "xpRadius", "xpSort", "xpRead", "xpWarn", "xpCount", "xpNote",
    "xpSkeleton", "xpResults", "xpMore", "xpEmpty", "xpWiden", "xpReset",
    "xpLang", "xpLangLabel",
    "xpViewList", "xpViewMap", "xpMapWrap", "xpMap", "xpMapMsg", "xpMapRedo",
@@ -69,6 +69,8 @@
   var catalogue = null;         // { items, sources, counts }
   var scope = "all";
   var anchor = null;            // { lat, lng, name, source }
+  var region = "";              // "" = the whole country; otherwise a region name
+  var regionElsewhere = 0;      // matches this search would find OUTSIDE `region`
   var radiusKm = 0;
   var sort = "best";
   var shown = PAGE;
@@ -81,6 +83,7 @@
   var roadTimer = null;
   var userActed = false;        // scrolled or tapped since the last render
   var usingRoads = false;       // at least one real road distance is in play
+  var refitMap = false;         // next syncMap must reframe, ignoring a user pan
 
   // ---- Helpers --------------------------------------------------------------
   function esc(s) {
@@ -158,6 +161,113 @@
     }).join("");
   }
 
+  // ---- Region -----------------------------------------------------------------
+  /**
+   * Explore is the national view, so it has to answer a question the homepage
+   * never asks: "show me Mwanza, as though I lived there" — from Dar, from
+   * Mbeya, from anywhere.
+   *
+   * Picking a region does three things at once, and it has to do all three or
+   * it is a lie:
+   *   · SCOPES the results to that region (explore-rank.js, reject/"region");
+   *   · MOVES the anchor there, so every distance, the "nearest first" sort,
+   *     the companion rails and the road times are all measured from the place
+   *     being browsed rather than from wherever the phone happens to be;
+   *   · RECENTRES the map on it.
+   *
+   * Without the second, someone in Dar browsing Mwanza would see Mwanza rooms
+   * labelled "1,100 km away" and sorted by their distance from Dar, which is
+   * worse than useless — it is confidently wrong.
+   */
+  function regionList() {
+    return (window.TZ_REGION_CENTERS || [])
+      .filter(function (r) { return r && r.name && isFinite(r.lat) && isFinite(r.lng); })
+      .sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+
+  function regionCentre(name) {
+    if (!name) return null;
+    var want = window.ExploreRank.normRegion(name);
+    var hit = regionList().filter(function (r) {
+      return window.ExploreRank.normRegion(r.name) === want;
+    })[0];
+    return hit ? { lat: hit.lat, lng: hit.lng, name: hit.name } : null;
+  }
+
+  /** Which region a position sits in, by nearest centre. */
+  function regionAt(lat, lng) {
+    var best = null, bestKm = Infinity;
+    regionList().forEach(function (r) {
+      var km = window.ExploreRank.haversineKm(lat, lng, r.lat, r.lng);
+      if (km < bestKm) { bestKm = km; best = r.name; }
+    });
+    return best;
+  }
+
+  function fillRegionSelect() {
+    if (!el.xpRegion) return;
+    var opts = ['<option value="">' + esc(t("xp_region_any", "All of Tanzania")) + "</option>"];
+    regionList().forEach(function (r) {
+      opts.push('<option value="' + esc(r.name) + '"' +
+                (r.name === region ? " selected" : "") + ">" + esc(r.name) + "</option>");
+    });
+    el.xpRegion.innerHTML = opts.join("");
+    el.xpRegion.value = region;
+  }
+
+  /**
+   * Adopt `name` as the region being browsed and move the anchor to match.
+   *
+   * The one subtlety worth keeping: if the visitor's own GPS fix is already
+   * inside the region they picked, that fix is kept as the anchor. Their real
+   * position is strictly better than the centroid of the region they are
+   * standing in — "2 km away" beats "18 km from the middle of Mwanza". The
+   * centroid is a stand-in for a location we do not have, not an improvement
+   * on one we do.
+   */
+  function applyRegion(name) {
+    region = name || "";
+    if (!region) {
+      // Dropping the region leaves a GPS fix alone but retires a centroid,
+      // which was only ever standing in for the region.
+      if (anchor && anchor.source === "region") anchor = null;
+      if (el.xpPlace && anchor == null) el.xpPlace.value = "";
+      return;
+    }
+    var centre = regionCentre(region);
+    if (!centre) return;
+    var keepGps = anchor && anchor.source === "gps" &&
+                  regionAt(anchor.lat, anchor.lng) === centre.name;
+    if (!keepGps) {
+      anchor = { lat: centre.lat, lng: centre.lng, name: centre.name, source: "region" };
+      if (el.xpPlace) el.xpPlace.value = "";
+    }
+  }
+
+  /**
+   * Move the region being browsed to wherever the visitor just pointed, and
+   * report whether it actually moved.
+   *
+   * "Near me" and "Search this area" are both concrete statements about a
+   * place. Left alone, an older region choice would go on filtering results to
+   * somewhere else while every distance was measured from here — the page
+   * would look broken in the way that is hardest to explain. The newer, more
+   * specific instruction wins.
+   *
+   * It only ever moves an EXISTING choice. Someone browsing the whole country
+   * has not asked to be confined to one region, and confining them silently
+   * would hide most of the catalogue.
+   */
+  function followRegionTo(lat, lng) {
+    if (!region) return false;
+    var here = regionAt(lat, lng);
+    var norm = window.ExploreRank.normRegion;
+    if (!here || norm(here) === norm(region)) return false;
+    region = here;
+    if (el.xpRegion) el.xpRegion.value = here;
+    return true;
+  }
+
   // ---- The search -----------------------------------------------------------
   function currentIntent() {
     var intent = window.ExploreQuery.parse(el.xpQ ? el.xpQ.value : "", { scope: scope });
@@ -187,6 +297,7 @@
 
     var out = window.ExploreRank.rank(catalogue.items, intent, {
       anchor: anchor,
+      region: region || null,
       radiusKm: useRadius || null,
       sort: sort,
       diversity: sort === "best",
@@ -202,7 +313,12 @@
       for (var i = 0; i < WIDEN.length; i++) {
         if (WIDEN[i] !== 0 && WIDEN[i] <= useRadius) continue;
         var wider = window.ExploreRank.rank(catalogue.items, intent, {
-          anchor: anchor, radiusKm: WIDEN[i] || null, sort: sort,
+          // The region stays. Widening the RADIUS is a smaller promise than
+          // widening the PLACE — quietly turning "nothing in Mwanza" into a
+          // page of Dar listings is exactly the silent substitution the
+          // auto-widen notice exists to prevent.
+          anchor: anchor, region: region || null,
+          radiusKm: WIDEN[i] || null, sort: sort,
           diversity: sort === "best",
         });
         if (wider.results.length) {
@@ -213,6 +329,17 @@
       }
     } else {
       widenedTo = null;
+    }
+
+    // Still nothing, and a region is doing the excluding? Count what lifting it
+    // would find. Offered, never applied: the region was an explicit choice and
+    // overriding it silently would make the picker untrustworthy.
+    regionElsewhere = 0;
+    if (!out.results.length && region && !opts.noWiden) {
+      var anywhere = window.ExploreRank.rank(catalogue.items, intent, {
+        anchor: anchor, region: null, radiusKm: null, sort: sort,
+      });
+      regionElsewhere = anywhere.results.length;
     }
 
     lastResults = out.results;
@@ -316,7 +443,20 @@
     if (intent.priceMax) tags.push({ cls: "is-money", text: t("xp_f_under", "under {v}", { v: money(intent.priceMax) }) });
     if (intent.priceMin) tags.push({ cls: "is-money", text: t("xp_f_over", "over {v}", { v: money(intent.priceMin) }) });
 
-    if (anchor) {
+    // The region being browsed gets its own chip and its own ×, because
+    // clearing it is a different act from clearing the anchor — and when a GPS
+    // fix inside the chosen region is serving as the anchor, both are true at
+    // once and both should be visible.
+    if (region) {
+      tags.push({
+        cls: "is-place", key: "region",
+        text: "🗺 " + region +
+              (anchor && anchor.source === "region" && radiusKm ? " · " + radiusKm + " km" : ""),
+      });
+    }
+    // Suppressed when the anchor is merely the region's centroid: the region
+    // chip above already says that, and saying it twice reads as two filters.
+    if (anchor && anchor.source !== "region") {
       tags.push({
         cls: "is-place", key: "place",
         text: (anchor.source === "gps" ? "📍 " : "") + anchor.name +
@@ -486,6 +626,29 @@
 
     if (!rows.length) {
       el.xpResults.innerHTML = "";
+      // Say WHICH place came up empty, and what dropping it would find. "Nothing
+      // matched that" is unhelpful when the cause is a region filter the visitor
+      // set twenty seconds ago and may have forgotten.
+      // Both branches are written on every empty render, never just the region
+      // one: these nodes persist between searches, so a "Nothing in Mwanza"
+      // left standing after the region is cleared is a stale lie.
+      var emptyT = document.getElementById("xpEmptyT");
+      var emptyP = document.getElementById("xpEmptyP");
+      if (emptyT) {
+        emptyT.textContent = region
+          ? t("xp_empty_region_t", "Nothing in {r}", { r: region })
+          : t("xp_empty_t", "Nothing matched that");
+      }
+      if (emptyP) {
+        emptyP.textContent = region && regionElsewhere
+          ? t("xp_empty_region_p", "{n} match this search elsewhere in Tanzania.", { n: regionElsewhere })
+          : t("xp_empty_p", "Try fewer words, a wider radius, or search the whole country.");
+      }
+      if (el.xpWiden) {
+        el.xpWiden.textContent = region
+          ? t("xp_widen_region", "Search all of Tanzania instead")
+          : t("xp_widen", "Search all of Tanzania");
+      }
       if (el.xpEmpty) el.xpEmpty.hidden = view === "map";
       if (el.xpMore) el.xpMore.hidden = true;
       syncMap(rows);
@@ -521,9 +684,13 @@
     window.ExploreMap.show(rows, {
       anchor: anchor,
       radiusKm: widenedTo != null ? widenedTo : radiusKm,
-      respectUserView: true,
+      // Normally a pan the visitor made is theirs to keep. Changing region is
+      // the exception: they asked to look somewhere else, so holding the old
+      // frame would leave them staring at the region they just left.
+      respectUserView: !refitMap,
       selectedId: selectedId,
     });
+    refitMap = false;
   }
 
   function applyView() {
@@ -639,9 +806,12 @@
     var span = Math.max(2, Math.round(window.ExploreMap.spanKm()));
     anchor = {
       lat: c.lat, lng: c.lng,
-      name: nearestRegionName(c.lat, c.lng) || t("xp_map_area", "this area"),
+      name: regionAt(c.lat, c.lng) || t("xp_map_area", "this area"),
       source: "map",
     };
+    // Same rule as "Near me", without the reframe: the visitor chose this
+    // frame by panning to it, so the map stays exactly where they left it.
+    followRegionTo(c.lat, c.lng);
     radiusKm = span;
     if (el.xpRadius) {
       // The radius <select> only holds fixed steps; snap to the nearest one so
@@ -711,11 +881,14 @@
     el.xpNear.querySelector("span").textContent = t("xp_locating", "Locating…");
     try {
       var fix = await window.pawaLocate.best({ targetAccuracy: 60, maxWaitMs: 20000 });
-      var name = (window.ExploreIndex && window.TZ_REGION_CENTERS)
-        ? nearestRegionName(fix.lat, fix.lng) : t("xp_you", "your location");
-      anchor = { lat: fix.lat, lng: fix.lng, name: name || t("xp_you", "your location"), source: "gps" };
+      var here = regionAt(fix.lat, fix.lng);
+      anchor = { lat: fix.lat, lng: fix.lng, name: here || t("xp_you", "your location"), source: "gps" };
       el.xpNear.classList.add("is-on");
       if (el.xpPlace) el.xpPlace.value = "";
+      // A fix from another region beats the region that was being browsed —
+      // otherwise results stay scoped to Mwanza while distances are measured
+      // from Dar, and the 10 km radius below empties the page.
+      if (followRegionTo(fix.lat, fix.lng)) refitMap = true;
       if (!radiusKm) { radiusKm = 10; if (el.xpRadius) el.xpRadius.value = "10"; }
       run();
     } catch (err) {
@@ -730,15 +903,6 @@
     }
   }
 
-  function nearestRegionName(lat, lng) {
-    var best = "", bestD = Infinity;
-    (window.TZ_REGION_CENTERS || []).forEach(function (c) {
-      var d = window.ExploreRank.haversineKm(lat, lng, c.lat, c.lng);
-      if (d < bestD) { bestD = d; best = c.name; }
-    });
-    return best;
-  }
-
   // ---- URL ------------------------------------------------------------------
   // Deep links matter here: "look at this search" is the natural way to share
   // a result set, and a shared link that lands on an empty Explore is useless.
@@ -747,7 +911,11 @@
       var p = new URLSearchParams();
       if (intent.raw) p.set("q", intent.raw);
       if (scope !== "all") p.set("k", scope);
-      if (anchor && anchor.source !== "gps") p.set("place", anchor.name);
+      if (region) p.set("region", region);
+      // A region centroid is reproduced from the region param, so writing it
+      // as a place too would restore the same anchor twice and, worse, survive
+      // clearing the region.
+      if (anchor && anchor.source !== "gps" && anchor.source !== "region") p.set("place", anchor.name);
       if (radiusKm) p.set("r", String(radiusKm));
       if (sort !== "best") p.set("sort", sort);
       if (view === "map") p.set("view", "map");
@@ -766,9 +934,13 @@
     // resolved here but the map itself is not mounted until after the
     // catalogue lands, so the load order stays the same either way.
     if (p.get("view") === "map") view = "map";
+    // Region first: applyRegion() sets the centroid anchor, and a ?place= in
+    // the same link is the more specific statement, so it overwrites it below.
+    if (p.get("region")) applyRegion(p.get("region"));
     if (p.get("place")) {
       if (el.xpPlace) el.xpPlace.value = p.get("place");
-      anchor = await resolvePlace(p.get("place"));
+      var resolved = await resolvePlace(p.get("place"));
+      if (resolved) anchor = resolved;
     }
     syncBoxState();
   }
@@ -835,6 +1007,16 @@
 
     el.xpNear && el.xpNear.addEventListener("click", useGps);
 
+    // Changing the region changes what the page IS, not merely how it is
+    // filtered: the anchor, the distances, the rails, the road times and the
+    // map centre all move with it. Hence applyRegion() rather than a plain
+    // assignment, and a full re-run rather than a re-sort.
+    el.xpRegion && el.xpRegion.addEventListener("change", function () {
+      applyRegion(el.xpRegion.value);
+      refitMap = true;
+      run();
+    });
+
     el.xpRadius && el.xpRadius.addEventListener("change", function () {
       radiusKm = parseInt(el.xpRadius.value, 10) || 0;
       run();
@@ -852,11 +1034,17 @@
     el.xpWiden && el.xpWiden.addEventListener("click", function () {
       radiusKm = 0;
       if (el.xpRadius) el.xpRadius.value = "0";
+      // "Search all of Tanzania" has to mean it. Leaving the region on would
+      // widen the radius inside a region that already returned nothing.
+      applyRegion("");
+      if (el.xpRegion) el.xpRegion.value = "";
       run();
     });
     el.xpReset && el.xpReset.addEventListener("click", function () {
       el.xpQ.value = ""; el.xpPlace.value = "";
       anchor = null; scope = "all"; radiusKm = 0; sort = "best";
+      applyRegion("");
+      if (el.xpRegion) el.xpRegion.value = "";
       if (el.xpRadius) el.xpRadius.value = "0";
       if (el.xpSort) el.xpSort.value = "best";
       el.xpNear.classList.remove("is-on");
@@ -871,6 +1059,10 @@
         anchor = null;
         if (el.xpPlace) el.xpPlace.value = "";
         el.xpNear.classList.remove("is-on");
+        run();
+      } else if (b.dataset.drop === "region") {
+        applyRegion("");
+        if (el.xpRegion) el.xpRegion.value = "";
         run();
       }
     });
@@ -934,11 +1126,13 @@
       el.xpLangLabel.textContent = window.getLang() === "sw" ? "EN" : "SW";
     }
     renderExamples();
+    fillRegionSelect();
     fillSelect(el.xpRadius, RADIUS_OPTS, radiusKm);
     fillSelect(el.xpSort, SORT_OPTS, sort);
     wire();
 
     await readUrl();
+    fillRegionSelect();          // again: a ?region= link must show as selected
     fillSelect(el.xpRadius, RADIUS_OPTS, radiusKm);
     fillSelect(el.xpSort, SORT_OPTS, sort);
 
