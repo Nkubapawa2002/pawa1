@@ -218,10 +218,6 @@
     .ha-muted { font-size: 12.5px; color: rgba(255,255,255,.78); }
     .ha-price { display: block; font-size: 19px; font-weight: 800; color: #2EE6A6; margin-top: 8px; }
     .ha-price small { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.6); margin-left: 3px; }
-    .ha-quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; }
-    .ha-q { background: #141A18; border: 1px solid rgba(255,255,255,.07); border-radius: 20px; padding: 13px 7px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; }
-    .ha-q-ic { width: 46px; height: 46px; border-radius: 14px; background: rgba(46,230,166,.12); display: grid; place-items: center; }
-    .ha-q-label { font-size: 11.5px; font-weight: 700; color: #EAF1EE; text-align: center; }
     /* "Can't find it?" helper cards (request demand / area alert / scan nearby) */
     .ha-find-head { margin-top: 22px; }
     .ha-find-sub { font-size: 13px; color: #93a39d; margin: -4px 0 12px; line-height: 1.5; }
@@ -379,21 +375,11 @@
       <div class="ha-featured" id="haFeatured" aria-busy="true"></div>
     </div>
 
-    <!-- quick access — the four core areas of the app -->
-    <div class="ha-sec-head">
-      <h2 data-i18n="home_browse_title">What do you need?</h2>
-    </div>
-    <div class="ha-quick">
-      <a class="ha-q" href="houses.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7" stroke="#2EE6A6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 10v10h14V10" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span><span class="ha-q-label" data-i18n="quick_homes">Homes</span></a>
-      <a class="ha-q" href="trucks.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 7h11v9H3z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 10h3.5l3 3v3H14z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/><circle cx="17.5" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/></svg></span><span class="ha-q-label" data-i18n="quick_trucks">Trucks</span></a>
-      <a class="ha-q" href="services.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 015.4-5.4l-2.7 2.7-2-2 2.7-2.7z" stroke="#C594FF" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="ha-q-label" data-i18n="quick_services">Services</span></a>
-      <a class="ha-q" href="jobs.html"><span class="ha-q-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8h16v11H4z" stroke="#FF9B5C" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 8V6.5A1.5 1.5 0 0110.5 5h3A1.5 1.5 0 0115 6.5V8" stroke="#FF9B5C" stroke-width="1.7"/></svg></span><span class="ha-q-label" data-i18n="quick_jobs">Day jobs</span></a>
-    </div>
 
-    <!-- "Can't find it?" helpers — surfaced right under the quick grid so a
-         seeker who doesn't see what they want can pull it to them: raise a typed
-         demand request, watch an area for new rooms, or scan everything nearby
-         by name. The first opens the shared request modal in place; the other
+    <!-- "Can't find it?" helpers — for a seeker who doesn't see what they want
+         and can pull it to them instead: raise a typed demand request, watch an
+         area for new rooms, or scan everything nearby by name. The first opens
+         the shared request modal in place; the other
          two deep-link into the pages that already own those engines. -->
     <div class="ha-sec-head ha-find-head">
       <h2 data-i18n="home_find_title">Can't find it yet?</h2>
