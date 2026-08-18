@@ -342,6 +342,30 @@ window.safeUrl = function (u) {
       }, opts);
     },
 
+    // Day jobs — short-lived casual work posts (jobs.html). Unlike houses /
+    // trucks / services there is NO bundled JSON seed: a day job is worthless
+    // the moment it is stale, so an offline visitor gets an empty list rather
+    // than demo work that no longer exists.
+    //
+    // Only open, unexpired posts. The `expires_at` filter matters because the
+    // status column is moved to 'expired' by a cron — between sweeps a row can
+    // still say 'open' while its date has passed.
+    async getDayJobs(opts = {}) {
+      return cached("day_jobs", TTL.houses, async () => {
+        if (!sb) return [];
+        // A failed query THROWS rather than returning []. Callers that merge
+        // several catalogues (js/lib/explore-index.js) need to tell "nobody is
+        // hiring today" apart from "the table is missing" — collapsing both to
+        // an empty array would quietly present an outage as an answer.
+        const { data, error } = await sb.from("day_jobs").select("*")
+          .eq("status", "open")
+          .gt("expires_at", new Date().toISOString())
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return Array.isArray(data) ? data : [];
+      }, opts);
+    },
+
     // Manual cache controls — admin pages can call these after a write
     // so the next read goes straight to Postgres instead of returning stale.
     invalidateCache(keys) { kcacheInvalidate(keys); },

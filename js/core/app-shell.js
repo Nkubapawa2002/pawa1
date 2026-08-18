@@ -23,6 +23,7 @@
   // Which tab a given page belongs to.
   const TAB_OF = {
     "index.html": "home", "": "home",
+    "explore.html": "explore",
     "houses.html": "explore", "house.html": "explore", "trucks.html": "explore",
     "truck.html": "explore", "services.html": "explore", "service.html": "explore",
     "near-me.html": "explore", "frame.html": "explore", "jobs.html": "explore",
@@ -81,7 +82,10 @@
 
     const tabs = [
       { id: "home", href: "index.html", label: t("nav_home", "Home"), icon: ICON.home },
-      { id: "explore", href: "houses.html", label: t("tab_explore", "Explore"), icon: ICON.explore },
+      // Explore is the global view across all four catalogues. It used to point
+      // at houses.html, which meant the "Explore" tab could only ever show one
+      // quarter of what the site offers.
+      { id: "explore", href: "explore.html", label: t("tab_explore", "Explore"), icon: ICON.explore },
       { id: "saved", href: "favorites.html", label: t("tab_saved", "Saved"), icon: ICON.saved },
       { id: "messages", href: "chat.html", label: t("tab_messages", "Messages"), icon: ICON.messages },
       { id: "profile", href: "login.html", label: t("tab_profile", "Profile"), icon: ICON.profile },

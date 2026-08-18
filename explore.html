@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script src="js/core/theme.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Explore — everything on Maisha na Lifeza, one search</title>
+  <meta name="description" content="Search rooms, trucks, services and day jobs anywhere in Tanzania — and see what pairs with what." />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#070C0A" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════
+       Explore — the global view.
+
+       Deliberately self-contained. Every other directory page on this site
+       loads eight stylesheets (~300 KB of styles.css + neon-pro + premium +
+       claude-design + houses-pro + mobile + …) that were written at different
+       times and fight each other for every control. That pile is why those
+       pages look the way they do.
+
+       This page loads NONE of them. It is styled here, in the "Twilight"
+       language the homepage feed already uses — same background, same
+       emerald, same card geometry — so Explore and Home read as one app.
+
+       The four verticals keep the accent colours index.html already gave
+       them, so a truck is the same gold on every screen it appears on:
+         rooms #2EE6A6 · trucks #F6C45A · services #A855F7 · jobs #FF8A4C
+       ═══════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg: #070C0A;
+      --surface: #141A18;
+      --surface-2: #1A2220;
+      --line: rgba(255, 255, 255, .08);
+      --line-strong: rgba(255, 255, 255, .14);
+      --text: #EAF1EE;
+      --muted: rgba(231, 241, 236, .55);
+      --faint: rgba(231, 241, 236, .38);
+      --accent: #2EE6A6;
+      --k-room: #2EE6A6;
+      --k-truck: #F6C45A;
+      --k-service: #A855F7;
+      --k-job: #FF8A4C;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    .xp {
+      max-width: 620px; margin: 0 auto;
+      padding: 18px 16px 40px;
+      background: radial-gradient(900px 620px at 50% -12%, #11231C 0%, rgba(7, 12, 10, 0) 62%);
+      min-height: 100vh;
+    }
+    button, input, select { font-family: inherit; }
+    a { color: inherit; }
+
+    /* ── Header ── */
+    .xp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .xp-kicker { font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+    .xp-title { font-size: 26px; font-weight: 800; margin: 4px 0 0; line-height: 1.1; }
+    .xp-sub { font-size: 13px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+    /* js/core/theme.js pins its own light/dark toggle at top-right, fixed, on
+       every page. Reserve its width so the two controls sit side by side
+       instead of on top of each other. */
+    .xp-lang {
+      flex: none; display: flex; align-items: center; gap: 5px;
+      margin-right: 44px;
+      background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
+      border-radius: 999px; padding: 7px 12px; cursor: pointer;
+      color: var(--text); font-weight: 800; font-size: 12.5px;
+    }
+
+    /* ── Search ── */
+    .xp-search { display: flex; gap: 10px; margin-top: 18px; }
+    .xp-search-box {
+      flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 16px; padding: 13px 15px;
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+    .xp-search-box:focus-within { border-color: rgba(46, 230, 166, .45); box-shadow: 0 0 0 3px rgba(46, 230, 166, .1); }
+    .xp-search-box svg { flex: none; color: var(--faint); }
+    .xp-search-box input {
+      flex: 1; min-width: 0; background: none; border: 0; outline: none;
+      color: var(--text); font-size: 15px;
+    }
+    .xp-search-box input::placeholder { color: rgba(231, 241, 236, .4); }
+    .xp-clear {
+      flex: none; background: none; border: 0; padding: 2px; cursor: pointer;
+      color: var(--faint); display: none;
+    }
+    .xp-search-box.has-value .xp-clear { display: block; }
+    .xp-go {
+      flex: none; width: 50px; height: 50px; border-radius: 16px;
+      background: var(--accent); border: 0; display: grid; place-items: center;
+      cursor: pointer; box-shadow: 0 10px 24px rgba(46, 230, 166, .28);
+    }
+    .xp-go:active { transform: scale(.96); }
+
+    /* Example queries — the fastest way to teach what this box accepts. */
+    .xp-examples { display: flex; gap: 8px; overflow-x: auto; margin: 12px -16px 0; padding: 0 16px 2px; scrollbar-width: none; }
+    .xp-examples::-webkit-scrollbar { display: none; }
+    .xp-ex {
+      flex: none; padding: 7px 13px; border-radius: 999px; cursor: pointer;
+      background: rgba(255, 255, 255, .04); border: 1px dashed var(--line-strong);
+      color: var(--muted); font-size: 12.5px; font-weight: 600; white-space: nowrap;
+    }
+    .xp-ex:hover { color: var(--text); border-color: rgba(46, 230, 166, .4); }
+
+    /* ── Scope chips ── */
+    .xp-scopes { display: flex; gap: 9px; overflow-x: auto; margin: 16px -16px 0; padding: 0 16px 2px; scrollbar-width: none; }
+    .xp-scopes::-webkit-scrollbar { display: none; }
+    .xp-scope {
+      flex: none; display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+      background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
+      color: rgba(231, 241, 236, .72); font-size: 13px; font-weight: 700;
+      transition: background .16s ease, color .16s ease, border-color .16s ease;
+    }
+    .xp-scope b { font-weight: 800; font-size: 11.5px; opacity: .7; }
+    .xp-scope .xp-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+    .xp-scope[data-k="all"]     .xp-dot { background: linear-gradient(135deg, var(--k-room), var(--k-job)); }
+    .xp-scope[data-k="room"]    .xp-dot { background: var(--k-room); }
+    .xp-scope[data-k="truck"]   .xp-dot { background: var(--k-truck); }
+    .xp-scope[data-k="service"] .xp-dot { background: var(--k-service); }
+    .xp-scope[data-k="job"]     .xp-dot { background: var(--k-job); }
+    .xp-scope.active { background: rgba(255, 255, 255, .12); color: var(--text); border-color: var(--line-strong); }
+    .xp-scope.active[data-k="room"]    { border-color: rgba(46, 230, 166, .5); }
+    .xp-scope.active[data-k="truck"]   { border-color: rgba(246, 196, 90, .5); }
+    .xp-scope.active[data-k="service"] { border-color: rgba(168, 85, 247, .5); }
+    .xp-scope.active[data-k="job"]     { border-color: rgba(255, 138, 76, .5); }
+
+    /* ── Controls: where, how far, what order ── */
+    .xp-controls {
+      display: grid; grid-template-columns: 1fr auto; gap: 9px;
+      margin-top: 14px;
+    }
+    .xp-place {
+      display: flex; align-items: center; gap: 9px; min-width: 0;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 14px; padding: 11px 13px;
+    }
+    .xp-place svg { flex: none; color: var(--accent); }
+    .xp-place input {
+      flex: 1; min-width: 0; background: none; border: 0; outline: none;
+      color: var(--text); font-size: 14px; font-weight: 600;
+    }
+    .xp-place input::placeholder { color: rgba(231, 241, 236, .4); font-weight: 500; }
+    .xp-near {
+      flex: none; display: inline-flex; align-items: center; gap: 7px;
+      padding: 11px 15px; border-radius: 14px; cursor: pointer;
+      background: rgba(110, 200, 255, .12); border: 1px solid rgba(110, 200, 255, .3);
+      color: #9FD8FF; font-size: 13px; font-weight: 700; white-space: nowrap;
+    }
+    .xp-near:hover { background: rgba(110, 200, 255, .2); }
+    .xp-near.is-on { background: rgba(110, 200, 255, .26); color: #DDF0FF; }
+    .xp-near:disabled { opacity: .55; cursor: progress; }
+
+    .xp-row2 { display: flex; gap: 9px; margin-top: 9px; flex-wrap: wrap; }
+    .xp-select {
+      flex: 1; min-width: 140px;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 14px; padding: 11px 13px;
+      color: var(--text); font-size: 13.5px; font-weight: 600;
+      appearance: none; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23EAF1EE' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; background-size: 11px;
+      padding-right: 32px;
+    }
+    .xp-select:focus-visible { outline: 2px solid rgba(46, 230, 166, .6); outline-offset: 1px; }
+
+    /* ── "Here's what I understood" — the parse, shown back ── */
+    .xp-read { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .xp-read:empty { display: none; }
+    .xp-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 11px; border-radius: 999px;
+      background: rgba(46, 230, 166, .1); border: 1px solid rgba(46, 230, 166, .28);
+      color: #8DF0CB; font-size: 12px; font-weight: 700;
+    }
+    .xp-tag.is-place { background: rgba(110, 200, 255, .1); border-color: rgba(110, 200, 255, .3); color: #A8DCFF; }
+    .xp-tag.is-money { background: rgba(246, 196, 90, .1); border-color: rgba(246, 196, 90, .3); color: #F7D999; }
+    .xp-tag-x { background: none; border: 0; padding: 0; margin-left: 1px; cursor: pointer; color: inherit; opacity: .6; line-height: 1; }
+    .xp-tag-x:hover { opacity: 1; }
+
+    /* ── Status line ── */
+    .xp-status {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 10px; margin: 22px 0 12px; flex-wrap: wrap;
+    }
+    .xp-count { font-size: 16px; font-weight: 800; }
+    .xp-count span { color: var(--muted); font-weight: 600; font-size: 13px; }
+    .xp-note { font-size: 12.5px; color: var(--faint); }
+    .xp-warn {
+      margin: 0 0 14px; padding: 11px 13px; border-radius: 13px;
+      background: rgba(246, 196, 90, .08); border: 1px solid rgba(246, 196, 90, .25);
+      color: #F2D6A0; font-size: 12.5px; line-height: 1.5;
+    }
+    .xp-warn[hidden] { display: none; }
+
+    /* ── List / Map toggle ── */
+    .xp-view {
+      display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px;
+      background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
+    }
+    .xp-view button {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 999px; border: 0; cursor: pointer;
+      background: none; color: var(--muted); font-size: 12.5px; font-weight: 700;
+      transition: background .16s ease, color .16s ease;
+    }
+    .xp-view button.active { background: var(--accent); color: #06170F; }
+    .xp-view button:focus-visible { outline: 2px solid rgba(46, 230, 166, .7); outline-offset: 2px; }
+
+    /* ── Map ──
+       Sized in viewport units so it is a *view*, not a strip: a 200 px map of
+       a city is a decoration. Capped so the controls above it stay reachable
+       without scrolling back up. */
+    .xp-mapwrap { position: relative; margin-top: 4px; }
+    .xp-mapwrap[hidden] { display: none; }
+    .xp-map {
+      height: min(62vh, 560px); min-height: 320px;
+      border-radius: 20px; overflow: hidden;
+      background: var(--surface); border: 1px solid var(--line);
+      z-index: 0;                     /* keep Leaflet's panes under the tab bar */
+    }
+    .xp-map-msg {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      padding: 24px; text-align: center; border-radius: 20px;
+      background: var(--surface); color: var(--muted); font-size: 13.5px; line-height: 1.6;
+    }
+    .xp-map-msg[hidden] { display: none; }
+
+    /* "Search this area" — appears only once the user has dragged away from
+       where the results were framed. */
+    .xp-map-redo {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      top: 12px; z-index: 500;
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 16px; border-radius: 999px; cursor: pointer;
+      background: rgba(8, 16, 12, .9); border: 1px solid rgba(46, 230, 166, .5);
+      color: var(--accent); font-size: 12.5px; font-weight: 700;
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+    }
+    .xp-map-redo[hidden] { display: none; }
+    .xp-map-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-top: 9px; flex-wrap: wrap;
+      font-size: 12px; color: var(--faint);
+    }
+    .xp-map-legend { display: flex; gap: 11px; flex-wrap: wrap; }
+    .xp-map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .xp-map-legend i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+
+    /* Markers. Leaflet is given a zero-size icon and the element centres
+       itself here, because a price label's width is not knowable up front. */
+    .xm-pin { background: none !important; border: 0 !important; }
+    .xm-pill {
+      display: inline-block; transform: translate(-50%, -50%);
+      padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+      font: 800 11.5px/1 'Plus Jakarta Sans', system-ui, sans-serif;
+      color: #06170F; border: 1.5px solid rgba(0, 0, 0, .3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .45); cursor: pointer;
+    }
+    .xm-pill.xm-room    { background: #2EE6A6; }
+    .xm-pill.xm-truck   { background: #F6C45A; }
+    .xm-pill.xm-service { background: #A855F7; color: #fff; }
+    .xm-pill.xm-job     { background: #FF8A4C; }
+    .xm-pill.is-sel {
+      outline: 2.5px solid #fff; outline-offset: 1px;
+      transform: translate(-50%, -50%) scale(1.14);
+    }
+    /* Companions are satellites of the selected result, so they read as
+       smaller and quieter than the thing they belong to. */
+    .xm-comp {
+      display: block; width: 13px; height: 13px; border-radius: 50%;
+      transform: translate(-50%, -50%);
+      border: 2px solid rgba(255, 255, 255, .9);
+      box-shadow: 0 1px 6px rgba(0, 0, 0, .5); cursor: pointer;
+    }
+    .xm-comp.xm-room { background: #2EE6A6; }
+    .xm-comp.xm-truck { background: #F6C45A; }
+    .xm-comp.xm-service { background: #A855F7; }
+    .xm-comp.xm-job { background: #FF8A4C; }
+    .xm-anchor {
+      display: block; width: 18px; height: 18px; border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(110, 200, 255, .28); border: 2px solid #7FD0FF;
+      display: grid; place-items: center;
+    }
+    .xm-anchor i { width: 7px; height: 7px; border-radius: 50%; background: #7FD0FF; display: block; }
+
+    /* ── Leaflet overrides ──
+       Leaflet ships a light theme, and because it is LAZY-LOADED its stylesheet
+       is appended to <head> AFTER this block. Equal-specificity rules would
+       therefore lose on source order, which is exactly what happened: white
+       zoom buttons and a white layer switcher on a near-black page.
+       Every override below is scoped under `.xp-map` (or another class) purely
+       to outrank Leaflet's own selectors regardless of load order — which is
+       also why `!important` is not needed anywhere here. */
+    .xp-map .leaflet-popup-content-wrapper, .xp-map .leaflet-popup-tip {
+      background: #141A18; color: var(--text);
+      border: 1px solid rgba(255, 255, 255, .14);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, .6);
+    }
+    .xp-map .leaflet-popup-content { margin: 11px 13px; font-family: inherit; }
+    .xp-map a.leaflet-popup-close-button { color: var(--faint); }
+    .xp-map.leaflet-container { background: #0A1210; font-family: inherit; }
+    .xm-pop-k {
+      display: inline-block; padding: 2px 7px; border-radius: 999px;
+      font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .xm-pop-k.xm-room { background: rgba(46, 230, 166, .18); color: #2EE6A6; }
+    .xm-pop-k.xm-truck { background: rgba(246, 196, 90, .18); color: #F6C45A; }
+    .xm-pop-k.xm-service { background: rgba(168, 85, 247, .2); color: #C89BFA; }
+    .xm-pop-k.xm-job { background: rgba(255, 138, 76, .2); color: #FF8A4C; }
+    .xm-pop-t { font-size: 13.5px; font-weight: 800; margin-top: 6px; max-width: 190px; }
+    .xm-pop-m { font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+    .xm-pop-p { font-size: 13px; font-weight: 800; color: var(--accent); margin-top: 6px; }
+    .xm-pop-go {
+      display: inline-block; margin-top: 9px; padding: 6px 13px; border-radius: 999px;
+      background: rgba(46, 230, 166, .14); border: 1px solid rgba(46, 230, 166, .4);
+      color: var(--accent) !important; font-size: 12px; font-weight: 700; text-decoration: none;
+    }
+    .xp-map .leaflet-bar a,
+    .xp-map .leaflet-bar a:hover,
+    .xp-map .leaflet-control-layers,
+    .xp-map .leaflet-control-layers-expanded {
+      background: #141A18; color: var(--text);
+      border-color: rgba(255, 255, 255, .16);
+    }
+    .xp-map .leaflet-bar a:hover { background: #1F2926; }
+    .xp-map .leaflet-bar a.leaflet-disabled { background: #101614; color: var(--faint); }
+    .xp-map .leaflet-control-layers { border-radius: 12px; padding: 4px; }
+    .xp-map .leaflet-control-layers label {
+      color: var(--text); font-size: 12.5px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px; padding: 3px 6px; margin: 0;
+    }
+    .xp-map .leaflet-control-layers-selector { accent-color: var(--accent); margin: 0; }
+    .xp-map .leaflet-control-layers-separator { border-color: rgba(255, 255, 255, .12); }
+    .xp-map .leaflet-control-attribution {
+      background: rgba(8, 16, 12, .72); color: var(--faint); font-size: 9.5px;
+    }
+    .xp-map .leaflet-control-attribution a { color: var(--muted); }
+
+    /* ── Result cards ── */
+    .xp-results { display: flex; flex-direction: column; gap: 13px; }
+    .xp-card {
+      position: relative; display: block; text-decoration: none;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 20px; overflow: hidden;
+      transition: transform .16s ease, border-color .2s ease;
+    }
+    .xp-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+    /* Briefly marks the card you arrived at from a map pin, so the scroll
+       lands somewhere obvious instead of in the middle of an identical list. */
+    .xp-card.is-focus {
+      border-color: rgba(46, 230, 166, .7);
+      box-shadow: 0 0 0 3px rgba(46, 230, 166, .14);
+    }
+    .xp-card-in { display: flex; gap: 13px; padding: 12px; align-items: stretch; }
+    .xp-thumb {
+      flex: none; width: 96px; height: 96px; border-radius: 14px; overflow: hidden;
+      background: var(--surface-2); display: grid; place-items: center; position: relative;
+    }
+    .xp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .xp-thumb svg { opacity: .32; }
+    /* The glyph sits under every photo and shows through when the photo is
+       missing OR fails to load. On a slow Tanzanian link a dead image URL is
+       common, and a blank grey square tells the reader nothing about what
+       they are looking at. */
+    .xp-thumb-ic { position: absolute; inset: 0; display: grid; place-items: center; }
+    .xp-thumb.has-img .xp-thumb-ic { display: none; }
+    .xp-thumb img { position: relative; z-index: 1; }
+    .xp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .xp-kind {
+      display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+    }
+    .xp-kind[data-k="room"]    { background: rgba(46, 230, 166, .14);  color: var(--k-room); }
+    .xp-kind[data-k="truck"]   { background: rgba(246, 196, 90, .14);  color: var(--k-truck); }
+    .xp-kind[data-k="service"] { background: rgba(168, 85, 247, .16);  color: #C89BFA; }
+    .xp-kind[data-k="job"]     { background: rgba(255, 138, 76, .16);  color: var(--k-job); }
+    .xp-name {
+      font-size: 15px; font-weight: 800; margin: 6px 0 0; line-height: 1.3;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .xp-meta { font-size: 12.5px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .xp-meta .xp-sep { opacity: .4; }
+    .xp-dist { color: #9FD8FF; font-weight: 700; }
+    .xp-dist.is-road::after { content: " by road"; font-weight: 500; opacity: .7; }
+    .xp-price { margin-top: auto; padding-top: 7px; font-size: 16px; font-weight: 800; color: var(--accent); }
+    .xp-price small { font-size: 11.5px; font-weight: 600; color: var(--faint); margin-left: 3px; }
+    .xp-price.is-ask { color: var(--muted); font-size: 13.5px; font-weight: 700; }
+    .xp-badges { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; }
+    .xp-verified {
+      display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px;
+      border-radius: 999px; background: rgba(8, 16, 12, .78);
+      border: 1px solid rgba(46, 230, 166, .5); color: var(--k-room);
+      font-size: 9.5px; font-weight: 800;
+    }
+
+    /* ── Companion rail — the cross-vertical match ── */
+    .xp-comp { border-top: 1px dashed var(--line-strong); margin: 0 12px; padding: 11px 0 12px; }
+    .xp-comp-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+    .xp-comp-t { font-size: 12.5px; font-weight: 800; }
+    .xp-comp-s { font-size: 11.5px; color: var(--faint); }
+    .xp-comp-rail { display: flex; gap: 9px; overflow-x: auto; margin: 9px -12px 0; padding: 0 12px 3px; scrollbar-width: none; }
+    .xp-comp-rail::-webkit-scrollbar { display: none; }
+    .xp-mini {
+      flex: none; width: 152px; text-decoration: none; display: block;
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 13px; padding: 9px 10px;
+      transition: border-color .18s ease;
+    }
+    .xp-mini[data-k="truck"]:hover   { border-color: rgba(246, 196, 90, .5); }
+    .xp-mini[data-k="service"]:hover { border-color: rgba(168, 85, 247, .5); }
+    .xp-mini[data-k="room"]:hover    { border-color: rgba(46, 230, 166, .5); }
+    .xp-mini[data-k="job"]:hover     { border-color: rgba(255, 138, 76, .5); }
+    /* The tile and its three lines are all <span>s — they sit inside the
+       result card's <a>, and a nested <a> is invalid HTML. Spans default to
+       inline, so each line needs an explicit block or they run together. */
+    .xp-mini-n {
+      font-size: 12.5px; font-weight: 700; line-height: 1.35;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      min-height: 2.7em;
+    }
+    .xp-mini-m {
+      display: block; font-size: 11px; color: var(--faint); margin-top: 4px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .xp-mini-p { display: block; font-size: 12.5px; font-weight: 800; margin-top: 5px; }
+    .xp-mini[data-k="truck"]   .xp-mini-p { color: var(--k-truck); }
+    .xp-mini[data-k="service"] .xp-mini-p { color: #C89BFA; }
+    .xp-mini[data-k="room"]    .xp-mini-p { color: var(--k-room); }
+    .xp-mini[data-k="job"]     .xp-mini-p { color: var(--k-job); }
+
+    /* ── Empty / loading ──
+       Every one of these carries its own `[hidden]` rule. `hidden` only works
+       through the UA stylesheet's `display:none`, which ANY display declaration
+       here outranks — so a flex container with `hidden` set stays on screen.
+       That is not a hypothetical: the loading skeleton shipped visible
+       underneath the real results until this was added. */
+    .xp-skel { display: flex; flex-direction: column; gap: 13px; }
+    .xp-skel[hidden], .xp-empty[hidden], .xp-results[hidden] { display: none; }
+    .xp-skel-row { height: 120px; border-radius: 20px; background: var(--surface); position: relative; overflow: hidden; }
+    .xp-skel-row::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .05) 48%, transparent 66%);
+      background-size: 240% 100%; animation: xp-sheen 1.5s linear infinite;
+    }
+    @keyframes xp-sheen { from { background-position: 140% 0; } to { background-position: -60% 0; } }
+
+    .xp-empty { text-align: center; padding: 40px 20px; }
+    .xp-empty svg { opacity: .26; margin-bottom: 14px; }
+    .xp-empty h3 { font-size: 16px; font-weight: 800; margin: 0 0 7px; }
+    .xp-empty p { font-size: 13.5px; color: var(--muted); margin: 0 auto; max-width: 34ch; line-height: 1.6; }
+    .xp-empty-acts { display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+    .xp-btn {
+      padding: 10px 17px; border-radius: 999px; cursor: pointer;
+      background: rgba(46, 230, 166, .12); border: 1px solid rgba(46, 230, 166, .4);
+      color: var(--accent); font-size: 13px; font-weight: 700;
+    }
+    .xp-btn:hover { background: rgba(46, 230, 166, .2); }
+    .xp-btn.ghost { background: rgba(255, 255, 255, .05); border-color: var(--line-strong); color: var(--muted); }
+
+    .xp-more { width: 100%; margin-top: 14px; padding: 13px; border-radius: 16px; cursor: pointer;
+      background: rgba(255, 255, 255, .05); border: 1px solid var(--line-strong);
+      color: var(--text); font-size: 13.5px; font-weight: 700; }
+    .xp-more:hover { background: rgba(255, 255, 255, .09); }
+    .xp-more[hidden] { display: none; }
+
+    @media (max-width: 420px) {
+      .xp-controls { grid-template-columns: 1fr; }
+      .xp-thumb { width: 82px; height: 82px; }
+      .xp-title { font-size: 23px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .xp-skel-row::after { animation: none; }
+      .xp-card:hover { transform: none; }
+    }
+  </style>
+</head>
+
+<body data-page="explore" data-app-shell="explore.html">
+
+  <div id="nav-slot"></div>
+
+  <main class="xp">
+    <header class="xp-head">
+      <div>
+        <div class="xp-kicker" data-i18n="xp_kicker">Explore</div>
+        <h1 class="xp-title" data-i18n="xp_title">Everything, one search</h1>
+        <p class="xp-sub" data-i18n="xp_sub">
+          Rooms, trucks, services and day jobs — anywhere in Tanzania.
+          Find a room and we'll show you the trucks that can move you in.
+        </p>
+      </div>
+      <button class="xp-lang" id="xpLang" type="button" aria-label="Switch language">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/></svg>
+        <span id="xpLangLabel">SW</span>
+      </button>
+    </header>
+
+    <form class="xp-search" id="xpForm" role="search">
+      <div class="xp-search-box" id="xpBox">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4" stroke-linecap="round"/></svg>
+        <input id="xpQ" type="search" autocomplete="off" enterkeyhint="search"
+               data-i18n-placeholder="xp_placeholder"
+               placeholder="Try “chumba Mbezi 300k” or “lori Mwanza”" />
+        <button class="xp-clear" id="xpClear" type="button" aria-label="Clear search">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <button class="xp-go" type="submit" aria-label="Search">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#06170F" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+      </button>
+    </form>
+
+    <div class="xp-examples" id="xpExamples" role="group" aria-label="Example searches"></div>
+
+    <div class="xp-scopes" id="xpScopes" role="tablist" aria-label="What to search"></div>
+
+    <div class="xp-controls">
+      <label class="xp-place">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+        <input id="xpPlace" type="text" autocomplete="off"
+               data-i18n-placeholder="xp_place_ph" placeholder="Anywhere in Tanzania" />
+      </label>
+      <button class="xp-near" id="xpNear" type="button">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="8.4" opacity=".55"/></svg>
+        <span data-i18n="xp_near_me">Near me</span>
+      </button>
+    </div>
+
+    <div class="xp-row2">
+      <select class="xp-select" id="xpRadius" aria-label="Search radius"></select>
+      <select class="xp-select" id="xpSort" aria-label="Sort results"></select>
+    </div>
+
+    <div class="xp-read" id="xpRead" aria-live="polite"></div>
+
+    <p class="xp-warn" id="xpWarn" hidden></p>
+
+    <div class="xp-status">
+      <div class="xp-count" id="xpCount"></div>
+      <div class="xp-view" role="group" aria-label="View">
+        <button type="button" id="xpViewList" class="active" aria-pressed="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          <span data-i18n="xp_v_list">List</span>
+        </button>
+        <button type="button" id="xpViewMap" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+          <span data-i18n="xp_v_map">Map</span>
+        </button>
+      </div>
+    </div>
+    <div class="xp-note" id="xpNote" style="margin:-6px 0 12px;"></div>
+
+    <div class="xp-skel" id="xpSkeleton">
+      <div class="xp-skel-row"></div><div class="xp-skel-row"></div><div class="xp-skel-row"></div>
+    </div>
+
+    <div class="xp-mapwrap" id="xpMapWrap" hidden>
+      <div class="xp-map" id="xpMap"></div>
+      <p class="xp-map-msg" id="xpMapMsg" hidden></p>
+      <button class="xp-map-redo" id="xpMapRedo" type="button" hidden>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+        <span data-i18n="xp_map_redo">Search this area</span>
+      </button>
+      <div class="xp-map-foot">
+        <div class="xp-map-legend">
+          <span><i style="background:#2EE6A6"></i><span data-i18n="xp_k_room">Rooms</span></span>
+          <span><i style="background:#F6C45A"></i><span data-i18n="xp_k_truck">Trucks</span></span>
+          <span><i style="background:#A855F7"></i><span data-i18n="xp_k_service">Services</span></span>
+          <span><i style="background:#FF8A4C"></i><span data-i18n="xp_k_job">Jobs</span></span>
+        </div>
+        <div id="xpMapNote"></div>
+      </div>
+    </div>
+
+    <div class="xp-results" id="xpResults"></div>
+
+    <button class="xp-more" id="xpMore" type="button" hidden></button>
+
+    <div class="xp-empty" id="xpEmpty" hidden>
+      <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4" stroke-linecap="round"/></svg>
+      <h3 id="xpEmptyT" data-i18n="xp_empty_t">Nothing matched that</h3>
+      <p id="xpEmptyP" data-i18n="xp_empty_p">Try fewer words, a wider radius, or search the whole country.</p>
+      <div class="xp-empty-acts">
+        <button class="xp-btn" id="xpWiden" data-i18n="xp_widen">Search all of Tanzania</button>
+        <button class="xp-btn ghost" id="xpReset" data-i18n="xp_reset">Start over</button>
+      </div>
+    </div>
+
+    <div class="app-shell-pad"></div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
+  <script src="js/core/nav.js"></script>
+  <script src="js/lib/fx.js"></script>
+  <script src="js/lib/tz-places.js"></script>
+  <script src="js/lib/geo.js"></script>
+  <script src="js/lib/geolocate.js"></script>
+  <script src="js/lib/explore-index.js"></script>
+  <script src="js/lib/explore-query.js"></script>
+  <script src="js/lib/explore-rank.js"></script>
+  <script src="js/lib/explore-match.js"></script>
+  <!-- Road distance. Upgrades the straight-line numbers a moment after the
+       results paint; js/lib/geo.js supplies the OSRM/Valhalla matrix. -->
+  <script src="js/lib/explore-roads.js"></script>
+  <!-- explore-map.js is tiny and loads Leaflet itself, lazily, on the first
+       tap of "Map". Nothing map-related is fetched before that. -->
+  <script src="js/lib/explore-map.js"></script>
+  <script src="js/pages/explore.js"></script>
+  <script src="js/core/app-shell.js"></script>
+  <script src="js/core/sw-register.js"></script>
+</body>
+</html>
