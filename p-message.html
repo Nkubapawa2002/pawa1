@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script src="js/core/theme.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>P-Message — encrypted chat with agents — Maisha na Lifeza</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <!-- premium.css is deliberately NOT loaded. It force-styles every input,
+       select and textarea with !important to a near-white glass pill, which is
+       wrong on a dark chat screen — explore.html leaves it out for the same
+       reason. Loading it and then fighting it with more !important would be a
+       war neither file wins. -->
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+
+  <style>
+    /* =====================================================================
+       P-Message — the fourth tab. Encrypted chat with the people behind the
+       listings, plus the assistant.
+
+       Layout is two stacked screens on a phone: the LIST (chats, agents,
+       assistant) and a CONVERSATION that slides over it. On a wide screen
+       both sit side by side, because a 1,100px-wide column of chat bubbles
+       reads like a mistake.
+
+       The lock line at the top is not decoration. It is the one place the
+       page states what is and is not protected, and it changes wording per
+       thread — the assistant thread says the opposite of what the others say
+       and must never be allowed to look the same.
+       ===================================================================== */
+    body[data-page="p-message"] {
+      --c-surface: #141A18; --c-border: rgba(255,255,255,.08);
+      --c-text: #E9F3EE; --c-text-muted: rgba(233,243,238,.55);
+      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+    }
+    body[data-page="p-message"] #nav-slot,
+    body[data-page="p-message"] #footer-slot { display: none !important; }
+
+    .pm-shell { max-width: 560px; margin: 0 auto; padding: 26px 16px 0; }
+    /* Leaves the corner free for the floating theme toggle. */
+    .pm-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-right: 52px; }
+    .pm-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; margin: 0; color: #EAF1EE; }
+    .pm-lock {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
+      font-size: 11.5px; font-weight: 700; color: #2EE6A6;
+    }
+    .pm-lock.is-open { color: #F6C45A; }
+    .pm-lock svg { width: 13px; height: 13px; }
+    .pm-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgba(233,243,238,.45); margin-top: 3px; letter-spacing: .02em; }
+
+    /* [hidden] is a UA display:none, and ANY author display wins over it.
+       Several controls here set display, so the attribute is honoured
+       explicitly — without this an ordinary user sees the Announce button.
+       (The database refuses them either way; this is about not lying.) */
+    body[data-page="p-message"] [hidden] { display: none !important; }
+
+    .pm-admin-btn {
+      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(197,148,255,.14); color: #C594FF; border: 1px solid rgba(197,148,255,.3);
+      border-radius: 12px; padding: 8px 12px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+    }
+
+    /* Segments */
+    .pm-segs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 16px;
+      background: rgba(255,255,255,.04); border: 1px solid var(--c-border); border-radius: 14px; padding: 4px; }
+    .pm-seg { border: 0; background: none; color: rgba(233,243,238,.55); font: inherit; font-size: 12.5px;
+      font-weight: 800; padding: 9px 4px; border-radius: 10px; cursor: pointer; }
+    .pm-seg.is-on { background: rgba(46,230,166,.14); color: #2EE6A6; }
+
+    .pm-body { max-width: 560px; margin: 0 auto; padding: 14px 16px 0; }
+    .pm-pane { display: none; }
+    .pm-pane.is-on { display: block; }
+
+    /* Rows — one visual language for a chat, an agent and the assistant. */
+    .pm-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+      background: #141A18; border: 1px solid var(--c-border); border-radius: 16px; padding: 12px;
+      font: inherit; color: inherit; cursor: pointer; margin-bottom: 9px; }
+    .pm-row:hover { border-color: rgba(46,230,166,.3); }
+    .pm-av { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center;
+      background: rgba(46,230,166,.12); color: #2EE6A6; font-weight: 800; font-size: 15px; }
+    .pm-av.is-ai { background: rgba(246,196,90,.14); color: #F6C45A; }
+    .pm-av.is-cast { background: rgba(197,148,255,.14); color: #C594FF; }
+    .pm-rtx { min-width: 0; flex: 1; }
+    .pm-name { font-size: 14.5px; font-weight: 700; color: #EAF1EE; display: flex; align-items: center; gap: 7px; }
+    .pm-sub { font-size: 12px; color: rgba(233,243,238,.5); margin-top: 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+      padding: 2px 6px; border-radius: 6px; background: rgba(46,230,166,.14); color: #2EE6A6; }
+    .pm-badge.warn { background: rgba(246,196,90,.16); color: #F6C45A; }
+    .pm-badge.off { background: rgba(255,255,255,.07); color: rgba(233,243,238,.5); }
+    .pm-unread { flex: 0 0 auto; min-width: 21px; height: 21px; border-radius: 11px; background: #2EE6A6;
+      color: #06170F; font-size: 11px; font-weight: 800; display: grid; place-items: center; padding: 0 6px; }
+
+    .pm-search { width: 100%; box-sizing: border-box; background: rgba(255,255,255,.05);
+      border: 1px solid var(--c-border); color: #E9F3EE; border-radius: 13px; padding: 11px 13px;
+      font: inherit; font-size: 14px; margin-bottom: 10px; }
+    .pm-filters { display: flex; gap: 8px; margin-bottom: 12px; }
+    .pm-filters select { flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--c-border);
+      color: #E9F3EE; border-radius: 13px; padding: 10px 12px; font: inherit; font-size: 13px; }
+
+    .pm-note { font-size: 12.5px; color: rgba(233,243,238,.55); line-height: 1.55;
+      background: rgba(255,255,255,.03); border: 1px solid var(--c-border);
+      border-radius: 14px; padding: 13px; margin-bottom: 12px; }
+    .pm-note b { color: #EAF1EE; }
+    .pm-note.warn { border-color: rgba(246,196,90,.28); background: rgba(246,196,90,.07); }
+    .pm-empty { text-align: center; padding: 34px 16px; color: rgba(233,243,238,.5); font-size: 13.5px; line-height: 1.6; }
+
+    .pm-btn { background: #2EE6A6; color: #06170F; border: 0; border-radius: 12px; padding: 11px 16px;
+      font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer; }
+    .pm-btn.ghost { background: rgba(255,255,255,.06); color: #E9F3EE; border: 1px solid var(--c-border); }
+    .pm-btn[disabled] { opacity: .5; cursor: progress; }
+
+    /* Conversation — a screen of its own on a phone. */
+    .pm-conv { position: fixed; inset: 0; z-index: 950; display: none; flex-direction: column;
+      background: radial-gradient(900px 600px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%); }
+    .pm-conv.is-on { display: flex; }
+    /* The floating theme toggle sits fixed at the top right on every page, so the
+       header leaves it room rather than putting Verify underneath it. */
+    .pm-conv-h { display: flex; align-items: center; gap: 11px; padding: calc(env(safe-area-inset-top,0px) + 12px) 62px 12px 14px;
+      border-bottom: 1px solid var(--c-border); background: rgba(8,16,12,.7);
+      -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+    .pm-back { background: none; border: 0; color: #E9F3EE; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
+    .pm-conv-tx { min-width: 0; flex: 1; }
+    .pm-conv-name { font-size: 15px; font-weight: 800; color: #EAF1EE; }
+    .pm-conv-sub { font-size: 11.5px; color: rgba(233,243,238,.5); margin-top: 1px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-log { flex: 1; overflow-y: auto; padding: 16px 14px 8px; display: flex; flex-direction: column; gap: 9px; }
+    .pm-msg { max-width: 78%; padding: 10px 13px; border-radius: 16px; font-size: 14px; line-height: 1.45;
+      background: #16211C; border: 1px solid var(--c-border); color: #E9F3EE; align-self: flex-start;
+      white-space: pre-wrap; overflow-wrap: anywhere; }
+    .pm-msg.mine { align-self: flex-end; background: rgba(46,230,166,.14); border-color: rgba(46,230,166,.24); }
+    .pm-msg.failed { border-style: dashed; color: rgba(233,243,238,.5); font-style: italic; }
+    .pm-msg-at { display: block; font-size: 10px; color: rgba(233,243,238,.38); margin-top: 5px; }
+    .pm-compose { display: flex; gap: 9px; padding: 10px 12px calc(env(safe-area-inset-bottom,0px) + 12px);
+      border-top: 1px solid var(--c-border); background: rgba(8,16,12,.72); }
+    .pm-compose textarea { flex: 1; resize: none; height: 44px; min-height: 44px; max-height: 120px; background: rgba(255,255,255,.05);
+      border: 1px solid var(--c-border); color: #E9F3EE; border-radius: 13px; padding: 11px 13px; font: inherit; font-size: 14px; }
+    .pm-send { flex: 0 0 auto; background: #2EE6A6; color: #06170F; border: 0; border-radius: 13px;
+      width: 46px; display: grid; place-items: center; cursor: pointer; }
+    .pm-send[disabled] { opacity: .45; cursor: default; }
+    .pm-conv-note { font-size: 11px; text-align: center; padding: 7px 14px 0; color: rgba(233,243,238,.42); }
+
+    /* Modals — safety number, backup, broadcast. */
+    .pm-back-drop { position: fixed; inset: 0; z-index: 1000; background: rgba(2,6,23,.66);
+      display: none; align-items: flex-end; justify-content: center; }
+    .pm-back-drop.is-on { display: flex; }
+    @media (min-width: 560px) { .pm-back-drop { align-items: center; padding: 20px; } }
+    .pm-modal { width: 100%; max-width: 460px; max-height: 92vh; overflow: auto; background: #101815;
+      border: 1px solid var(--c-border); border-radius: 20px 20px 0 0; padding: 20px; }
+    @media (min-width: 560px) { .pm-modal { border-radius: 20px; } }
+    .pm-modal h2 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin: 0 0 4px; color: #EAF1EE; }
+    .pm-modal p { font-size: 13px; color: rgba(233,243,238,.6); line-height: 1.55; margin: 0 0 13px; }
+    .pm-modal label { display: block; font-size: 12px; font-weight: 700; color: rgba(233,243,238,.7); margin: 12px 0 5px; }
+    .pm-modal input, .pm-modal select, .pm-modal textarea {
+      width: 100%; box-sizing: border-box; background: rgba(255,255,255,.05); border: 1px solid var(--c-border);
+      color: #E9F3EE; border-radius: 12px; padding: 11px 12px; font: inherit; font-size: 14px; }
+    .pm-modal textarea { resize: vertical; min-height: 110px; }
+    .pm-modal-acts { display: flex; gap: 9px; margin-top: 16px; }
+    .pm-modal-acts .pm-btn { flex: 1; }
+    .pm-big-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 21px; letter-spacing: .06em;
+      text-align: center; color: #2EE6A6; background: rgba(46,230,166,.08);
+      border: 1px solid rgba(46,230,166,.2); border-radius: 14px; padding: 15px; margin: 6px 0 4px; }
+    .pm-code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; word-break: break-all;
+      background: rgba(255,255,255,.05); border: 1px solid var(--c-border); border-radius: 12px;
+      padding: 11px; color: rgba(233,243,238,.75); max-height: 130px; overflow: auto; }
+    .pm-msg-out { font-size: 12.5px; margin-top: 11px; min-height: 17px; color: rgba(233,243,238,.6); }
+    .pm-msg-out.bad { color: #ff8a7a; }
+    .pm-msg-out.good { color: #2EE6A6; }
+
+    @media (min-width: 900px) {
+      .pm-conv { position: fixed; left: 50%; right: auto; width: 520px; margin-left: 20px;
+        top: 60px; bottom: 40px; border: 1px solid var(--c-border); border-radius: 22px; overflow: hidden; }
+    }
+  </style>
+  <link rel="stylesheet" href="css/theme-light.css" />
+</head>
+<body data-page="p-message" data-app-shell="p-message.html">
+  <div id="nav-slot"></div>
+
+  <header class="pm-shell">
+    <div class="pm-h">
+      <div>
+        <h1 class="pm-title" data-i18n="tab_pmessage">P-Message</h1>
+        <div class="pm-lock" id="pmLock">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.9"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+          <span id="pmLockText" data-i18n="pm_lock_on">End-to-end encrypted</span>
+        </div>
+        <button class="pm-fp" id="pmFpBtn" type="button" style="background:none;border:0;cursor:pointer;padding:0" hidden></button>
+      </div>
+      <button class="pm-admin-btn" id="pmBroadcastBtn" type="button" hidden data-i18n="pm_broadcast">Announce</button>
+    </div>
+
+    <div class="pm-segs" role="tablist">
+      <button class="pm-seg is-on" id="segChats" role="tab" data-i18n="pm_seg_chats">Chats</button>
+      <button class="pm-seg" id="segPeople" role="tab" data-i18n="pm_seg_people">Agents</button>
+      <button class="pm-seg" id="segAi" role="tab" data-i18n="pm_seg_ai">Assistant</button>
+    </div>
+  </header>
+
+  <main class="pm-body">
+    <!-- Signed out / no crypto / setting up all land here, one at a time. -->
+    <div id="pmGate" hidden></div>
+
+    <section class="pm-pane is-on" id="paneChats">
+      <div id="pmInbox"></div>
+    </section>
+
+    <section class="pm-pane" id="panePeople">
+      <input class="pm-search" id="pmSearch" type="search" data-i18n-placeholder="pm_search_ph"
+             placeholder="Search a name, ward or district" />
+      <div class="pm-filters">
+        <select id="pmRegion" data-i18n-aria-label="pm_region_label" aria-label="Region"></select>
+      </div>
+      <div id="pmPeople"></div>
+    </section>
+
+    <section class="pm-pane" id="paneAi">
+      <div class="pm-note warn" data-i18n-html="pm_ai_warn">
+        <b>The assistant is not end-to-end encrypted.</b> A model that answers you has to read
+        what you wrote. Ask it about places, prices and how the site works — not about anything
+        you would only tell one person.
+      </div>
+      <div id="pmAiRow"></div>
+
+      <!-- The voice agent and the support phone numbers still live on
+           chat.html, which lost its own tab when P-Message took the slot. One
+           row keeps them reachable rather than orphaning a working page — and
+           the assistant above calls the same js/lib/ai.js that chat.html
+           calls, so there is one AI engine here, not two. -->
+      <a class="pm-row" href="chat.html" style="text-decoration:none">
+        <span class="pm-av is-cast">☎</span>
+        <span class="pm-rtx">
+          <span class="pm-name" data-i18n="pm_voice">Voice agent and support</span>
+          <span class="pm-sub" data-i18n="pm_voice_d">Talk to the AI by voice, or call a real person on the support line.</span>
+        </span>
+      </a>
+    </section>
+  </main>
+
+  <div class="app-shell-pad"></div>
+  <div id="footer-slot"></div>
+
+  <!-- Conversation -->
+  <section class="pm-conv" id="pmConv" aria-hidden="true">
+    <div class="pm-conv-h">
+      <button class="pm-back" id="pmBack" type="button" aria-label="Back">‹</button>
+      <div class="pm-conv-tx">
+        <div class="pm-conv-name" id="pmConvName">—</div>
+        <div class="pm-conv-sub" id="pmConvSub"></div>
+      </div>
+      <button class="pm-btn ghost" id="pmVerify" type="button" style="padding:7px 11px;font-size:11.5px"
+              data-i18n="pm_verify">Verify</button>
+    </div>
+    <div class="pm-log" id="pmLog"></div>
+    <div class="pm-conv-note" id="pmConvNote"></div>
+    <form class="pm-compose" id="pmComposeForm">
+      <textarea id="pmInput" rows="1" data-i18n-placeholder="pm_write_ph" placeholder="Write a message"></textarea>
+      <button class="pm-send" id="pmSendBtn" type="submit" aria-label="Send">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-7 16-2-6-7-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+    </form>
+  </section>
+
+  <!-- Modals -->
+  <div class="pm-back-drop" id="pmModalBack">
+    <div class="pm-modal" id="pmModal"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
+  <script src="js/core/nav.js"></script>
+  <script src="js/lib/tz-places.js"></script>
+  <script src="js/lib/ai.js"></script>
+  <script src="js/lib/p-crypto.js"></script>
+  <script src="js/lib/pm-store.js"></script>
+  <script src="js/pages/p-message.js"></script>
+  <script src="js/core/app-shell.js"></script>
+  <script src="js/core/sw-register.js"></script>
+</body>
+</html>
