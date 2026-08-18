@@ -144,9 +144,17 @@
     /* ── Category nav tabs — link straight to each section's full page.
          These are the primary "take me there" tabs (Houses / Trucks /
          Near me / Services / Jobs), scrollable on narrow screens. ── */
-    .ha-tabs { display: flex; gap: 10px; overflow-x: auto; margin: 18px -16px 0; padding: 0 16px 4px; scrollbar-width: none; }
-    .ha-tabs::-webkit-scrollbar { display: none; }
-    .ha-tab { flex: none; display: flex; align-items: center; gap: 9px; padding: 9px 16px 9px 10px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); text-decoration: none; color: #EAF1EE; font-weight: 700; font-size: 13.5px; white-space: nowrap; transition: transform .14s ease, border-color .2s ease, background .2s ease; -webkit-tap-highlight-color: transparent; }
+    /* Six columns so the five categories split 3 + 2 — Houses/Trucks/Near me,
+       then Services/Jobs on their own line. The first three span two columns
+       each, the last two span three, so both rows fill the width edge to edge.
+
+       This replaced a sideways-scrolling flex row. Jobs was the fifth pill in
+       that row, which put it off-screen on a phone: you had to already know it
+       was there to swipe for it. A grid shows every category at once, with no
+       gesture to discover. */
+    .ha-tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 18px 0 0; }
+    .ha-tab { grid-column: span 2; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 9px 14px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); text-decoration: none; color: #EAF1EE; font-weight: 700; font-size: 13.5px; white-space: nowrap; transition: transform .14s ease, border-color .2s ease, background .2s ease; -webkit-tap-highlight-color: transparent; }
+    .ha-tab:nth-child(n+4) { grid-column: span 3; }
     .ha-tab:hover { background: rgba(255,255,255,.08); }
     .ha-tab:active { transform: scale(.96); }
     .ha-tab-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; }
@@ -161,6 +169,16 @@
     .ha-tab[data-k="services"]:hover { border-color: rgba(168,85,247,.45); }
     .ha-tab[data-k="jobs"]    .ha-tab-ic { background: rgba(255,138,76,.20); }
     .ha-tab[data-k="jobs"]:hover    { border-color: rgba(255,138,76,.45); }
+
+    /* Three across is too tight for an icon BESIDE a label on a small phone:
+       at 320px each cell is about 89px, and icon + gap + "Services" needs more
+       than that. Stacking the icon above the label needs only the wider of the
+       two, so it fits every screen without shrinking the text to unreadable. */
+    @media (max-width: 520px) {
+      .ha-tabs { gap: 8px; }
+      .ha-tab { flex-direction: column; gap: 5px; padding: 10px 4px; border-radius: 16px; font-size: 12px; }
+      .ha-tab-ic { width: 26px; height: 26px; }
+    }
 
     /* ── "Near you" radar card — fills the band under the tabs with a live,
          sweeping radar that pulls the eye toward near-me.html. ── */
