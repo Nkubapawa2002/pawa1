@@ -67,3 +67,6 @@ backup_meet_locations_2026-06-20.json
 
 # Map tile build workspace (multi-GB OSM extracts and intermediates)
 .mapbuild/
+
+# Audit/scratch screenshots in tests/ — regenerated on every run
+tests/_*.png
