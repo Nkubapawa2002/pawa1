@@ -517,10 +517,19 @@ input:focus, select:focus, textarea:focus {
 
   /* Pull hero content above the floating background overlay */
   .hero, .saas-hero, .page-hero {
-    margin: 0 -16px 24px;
+    margin: 0 0 24px;
     padding: 64px 20px 44px !important;
     border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   }
+  /* The edge-bleed is only correct where there is padding to bleed INTO.
+     This used to apply to every hero, including the ones that are a direct
+     child of <body> — near-me, frame and houses all put a .page-hero there,
+     so the hero came out 32px wider than the screen, hung 16px off both
+     edges, and Chrome quietly zoomed the whole page out to fit it. A page
+     rendered at 91% is not a page anyone chose to design. */
+  .container > .hero,
+  .container > .saas-hero,
+  .container > .page-hero { margin: 0 -16px 24px; }
   .hero-actions .btn,
   .btn-block, .proceed-btn { width: 100%; }
 

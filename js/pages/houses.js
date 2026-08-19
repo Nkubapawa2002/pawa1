@@ -722,10 +722,13 @@ window.initHousesPage = async () => {
     const areasSummary = document.getElementById("alertAreasSummary");
     const areasListEl  = document.getElementById("alertAreasList");
 
+    // Translated, like the rest of the sheet — a seeker who set the app to
+    // Swahili should not hit an English wall the moment they open a tool.
+    const T = (k) => (window.t ? window.t(k) : k);
     const HELP = {
-      circle: "Drop a pin (search, tap the map, or GPS) and set a radius. We'll alert you about new listings inside that circle.",
-      draw:   "Tap the map to drop the corners of the exact area you want — a neighbourhood, a block, your route to work. 3+ points make an area.",
-      area:   "Find a place, then tap “Use this whole area” to watch its entire ward / suburb — the real administrative outline, no guessing a radius.",
+      circle: T("hal_help_circle_long"),
+      draw:   T("hal_help_draw"),
+      area:   T("hal_help_area"),
     };
 
     // Area-mode / draw-mode state (reset each open).
@@ -757,7 +760,7 @@ window.initHousesPage = async () => {
     setVal("alertFrom", "");
     setVal("alertUntil", "");
     setVal("alertPhone", "");
-    coordsEl.textContent = "Pin not placed yet — search or tap the map";
+    coordsEl.textContent = T("hal_no_pin");
     coordsEl.classList.remove("has-pin");
     saveBtn.disabled = true;
     // Start in circle mode with the right panels showing.
@@ -766,7 +769,7 @@ window.initHousesPage = async () => {
     if (drawTools) drawTools.hidden = true;
     if (areaTools) areaTools.hidden = true;
     if (useAreaBtn) useAreaBtn.disabled = true;
-    if (areaNameEl) areaNameEl.textContent = "Search or tap a spot to find its ward / suburb.";
+    if (areaNameEl) areaNameEl.textContent = T("hal_area_hint");
     modeBtns.forEach((b) => {
       const on = b.dataset.mode === "circle";
       b.classList.toggle("active", on);
@@ -776,7 +779,7 @@ window.initHousesPage = async () => {
     document.getElementById("alertMapOffline")?.setAttribute("hidden", "");
     if (addAreaBtn) addAreaBtn.disabled = true;
     if (areasListEl) { areasListEl.hidden = true; areasListEl.innerHTML = ""; }
-    if (areasSummary) areasSummary.textContent = "Add one or more areas — you'll be alerted in any of them.";
+    if (areasSummary) areasSummary.textContent = T("hal_areas_hint");
 
     // Leaflet (Canvas2D) has no WebGL context limits and no transform-
     // timing issues — a simple 120 ms delay is enough for the modal to
@@ -788,7 +791,10 @@ window.initHousesPage = async () => {
       if (alertModalMap) alertModalMap.invalidateSize();
     }, 120);
 
-    const close = () => {
+    // The teardown itself. Everything that CLOSES the sheet goes through
+    // dismiss() so the page behind is unlocked and focus is handed back — see
+    // js/lib/dialog.js.
+    const teardown = () => {
       isOpen = false;
       clearTimeout(initTimer);
       backdrop.hidden = true;
@@ -805,9 +811,14 @@ window.initHousesPage = async () => {
       }
       alertPicked = null; drawPts = []; areaGeo = null; lastBoundary = null; committedAreas = [];
     };
-    closeBtn.onclick = close;
-    cancelBtn.onclick = close;
-    backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+    const dismiss = () => {
+      if (window.pawaDialog && window.pawaDialog.close(backdrop)) return;
+      teardown();
+    };
+    if (window.pawaDialog) window.pawaDialog.open(backdrop, { onClose: teardown, focus: "#alertSearchInput" });
+    closeBtn.onclick = dismiss;
+    cancelBtn.onclick = dismiss;
+    backdrop.onclick = (e) => { if (e.target === backdrop) dismiss(); };
 
     // ---- Mode switching: Circle / Draw area / Whole ward --------------------
     function currentAreaValid() {
@@ -821,9 +832,9 @@ window.initHousesPage = async () => {
       saveBtn.disabled = !(committedAreas.length > 0 || currentAreaValid());
       if (areasSummary) {
         areasSummary.textContent = committedAreas.length
-          ? `${committedAreas.length} area${committedAreas.length > 1 ? "s" : ""} added` +
-            (currentAreaValid() ? " · this one is included too" : " · define another, or Save")
-          : (currentAreaValid() ? "1 area ready — add more, or just Save" : "Add one or more areas — you'll be alerted in any of them.");
+          ? T("hal_areas_n").replace("{n}", committedAreas.length) +
+            (currentAreaValid() ? T("hal_areas_incl") : T("hal_areas_more"))
+          : (currentAreaValid() ? T("hal_areas_ready") : T("hal_areas_hint"));
       }
       renderListingDots();   // keep the matching-dot preview in sync with every change
     }
@@ -927,7 +938,7 @@ window.initHousesPage = async () => {
       drawPts = []; clearDrawingLayers();
       areaGeo = null;
       if (alertModalMap && window.AreaBoundary) AreaBoundary.clearLeaflet(alertModalMap);
-      if (areaNameEl) areaNameEl.textContent = "Search or tap a spot to find its ward / suburb.";
+      if (areaNameEl) areaNameEl.textContent = T("hal_area_hint");
       if (useAreaBtn) useAreaBtn.disabled = !lastBoundary;
     }
     // Draw all committed areas on the map (muted, persistent) + list as chips.
@@ -1149,7 +1160,7 @@ window.initHousesPage = async () => {
         : "";
       flashBanner("", `Alert saved: ${newAlert.name}`,
         `We'll notify you about ${alertCriteriaText(newAlert) || "new listings"} ${where}.${reachNote}`);
-      close();
+      dismiss();
     };
 
     // ---- setPin -------------------------------------------------------

@@ -1096,55 +1096,55 @@
     <div id="alertModalBackdrop" class="alert-modal-backdrop" hidden>
       <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="alertModalTitle">
         <header class="am-head">
-          <h3 id="alertModalTitle">Set up an area alert</h3>
-          <button id="alertCloseBtn" class="am-close" type="button" aria-label="Close">&times;</button>
+          <h3 id="alertModalTitle" data-i18n="hal_title">Set up an area alert</h3>
+          <button id="alertCloseBtn" class="am-close" type="button" aria-label="Close" data-i18n-aria-label="rp_close">&times;</button>
         </header>
 
         <div class="am-body">
-          <p class="am-help" id="alertHelp">
+          <p class="am-help" id="alertHelp" data-i18n="hal_help_circle">
             Search a place, drop a pin on the map, or use your GPS. We'll notify
             you whenever a property is listed inside the circle.
           </p>
 
           <!-- Three ways to map the area you want to watch -->
-          <div class="am-modes" role="tablist" aria-label="How to map your area">
-            <button type="button" class="am-mode active" data-mode="circle" role="tab" aria-selected="true">◯ Circle</button>
-            <button type="button" class="am-mode" data-mode="draw" role="tab" aria-selected="false">✎ Draw area</button>
-            <button type="button" class="am-mode" data-mode="area" role="tab" aria-selected="false">▦ Whole ward</button>
+          <div class="am-modes" role="tablist" aria-label="How to map your area" data-i18n-aria-label="hal_modes_label">
+            <button type="button" class="am-mode active" data-mode="circle" role="tab" aria-selected="true" data-i18n="hal_mode_circle">◯ Circle</button>
+            <button type="button" class="am-mode" data-mode="draw" role="tab" aria-selected="false" data-i18n="hal_mode_draw">✎ Draw area</button>
+            <button type="button" class="am-mode" data-mode="area" role="tab" aria-selected="false" data-i18n="hal_mode_area">▦ Whole ward</button>
           </div>
 
           <div class="am-search-row">
-            <input id="alertSearchInput" type="search" placeholder="Search a place (e.g. Masaki, Mlimani City, Mbezi…)" autocomplete="off" />
-            <button id="alertGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS"> GPS</button>
+            <input id="alertSearchInput" type="search" placeholder="Search a place (e.g. Masaki, Mlimani City, Mbezi…)" data-i18n-placeholder="hal_search_ph" autocomplete="off" />
+            <button id="alertGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS" data-i18n-title="hal_gps_title"> GPS</button>
           </div>
           <div id="alertSearchResults" class="am-search-results" hidden></div>
 
           <div class="am-map-wrap">
             <div id="alertModalMap" class="am-map"></div>
             <div class="am-map-offline" id="alertMapOffline" hidden>
-              <strong>Map can't load</strong>
-              <span>Connect to the internet to see the streets, then draw the area you want. (You can still search a place by name above.)</span>
+              <strong data-i18n="hal_offline_title">Map can't load</strong>
+              <span data-i18n="hal_offline_body">Connect to the internet to see the streets, then draw the area you want. (You can still search a place by name above.)</span>
             </div>
             <div class="am-dots-badge" id="alertDotsBadge" hidden></div>
-            <div class="am-coords" id="alertCoords">Pin not placed yet — search or tap the map</div>
+            <div class="am-coords" id="alertCoords" data-i18n="hal_no_pin">Pin not placed yet — search or tap the map</div>
           </div>
 
           <!-- Draw-area controls (only while in Draw mode) -->
           <div class="am-draw-tools" id="alertDrawTools" hidden>
-            <span id="alertDrawHint">Tap the map to add the corners of your area (3+ points).</span>
-            <button type="button" id="alertUndoPt" class="am-mini-btn">↶ Undo point</button>
-            <button type="button" id="alertClearPts" class="am-mini-btn">✕ Clear</button>
+            <span id="alertDrawHint" data-i18n="hal_draw_hint">Tap the map to add the corners of your area (3+ points).</span>
+            <button type="button" id="alertUndoPt" class="am-mini-btn" data-i18n="hal_undo">↶ Undo point</button>
+            <button type="button" id="alertClearPts" class="am-mini-btn" data-i18n="hal_clear">✕ Clear</button>
           </div>
 
           <!-- Whole-ward controls (only while in Whole-ward mode) -->
           <div class="am-area-tools" id="alertAreaTools" hidden>
-            <button type="button" id="alertUseAreaBtn" class="am-mini-btn" disabled>Use this whole area</button>
-            <span id="alertAreaName" class="am-area-name">Search or tap a spot to find its ward / suburb.</span>
+            <button type="button" id="alertUseAreaBtn" class="am-mini-btn" disabled data-i18n="hal_use_area">Use this whole area</button>
+            <span id="alertAreaName" class="am-area-name" data-i18n="hal_area_hint">Search or tap a spot to find its ward / suburb.</span>
           </div>
 
           <div class="am-radius-row" id="alertRadiusRow">
             <label for="alertRadius">
-              <span>Alert radius</span>
+              <span data-i18n="hal_radius">Alert radius</span>
               <strong id="alertRadiusLabel">1.5 km</strong>
             </label>
             <input id="alertRadius" type="range" min="250" max="10000" step="250" value="1500" />
@@ -1153,46 +1153,46 @@
           <!-- Stack several areas into ONE alert: define an area above, tap to
                add it, repeat. You'll be alerted for a listing in ANY of them. -->
           <div class="am-areas-row">
-            <button type="button" id="alertAddAreaBtn" class="am-mini-btn" disabled>+ Add this area</button>
-            <span id="alertAreasSummary" class="am-areas-summary">Add one or more areas — you'll be alerted in any of them.</span>
+            <button type="button" id="alertAddAreaBtn" class="am-mini-btn" disabled data-i18n="hal_add_area">+ Add this area</button>
+            <span id="alertAreasSummary" class="am-areas-summary" data-i18n="hal_areas_hint">Add one or more areas — you'll be alerted in any of them.</span>
           </div>
           <div id="alertAreasList" class="am-areas-list" hidden></div>
 
           <!-- What exactly are you looking for? Only matching listings fire
                the alert — no more notifications about the wrong rooms. -->
           <div class="am-filter-grid">
-            <label>Listing
+            <label><span data-i18n="hal_listing">Listing</span>
               <select id="alertListing">
-                <option value="">Any</option>
-                <option value="rent" selected>For rent</option>
-                <option value="sale">For sale</option>
+                <option value="" data-i18n="hal_any">Any</option>
+                <option value="rent" selected data-i18n="ah_for_rent">For rent</option>
+                <option value="sale" data-i18n="ah_for_sale">For sale</option>
               </select>
             </label>
-            <label>Type
+            <label><span data-i18n="hal_type">Type</span>
               <select id="alertType">
-                <option value="">Any</option>
-                <option value="apartment">Apartment / room</option>
-                <option value="house">House</option>
-                <option value="plot">Plot</option>
-                <option value="office">Office / shop</option>
+                <option value="" data-i18n="hal_any">Any</option>
+                <option value="apartment" data-i18n="ah_type_apartment">Apartment / room</option>
+                <option value="house" data-i18n="ah_type_house">House</option>
+                <option value="plot" data-i18n="ah_type_plot">Plot</option>
+                <option value="office" data-i18n="ah_type_office">Office / shop</option>
               </select>
             </label>
-            <label>Max price (TZS)
-              <input id="alertPriceMax" type="text" inputmode="numeric" placeholder="e.g. 300k or 300,000" />
+            <label><span data-i18n="hal_price_max">Max price (TZS)</span>
+              <input id="alertPriceMax" type="text" inputmode="numeric" placeholder="e.g. 300k or 300,000" data-i18n-placeholder="hal_price_ph" />
             </label>
-            <label>Min bedrooms
+            <label><span data-i18n="hal_beds">Min bedrooms</span>
               <select id="alertBeds">
-                <option value="">Any</option>
+                <option value="" data-i18n="hal_any">Any</option>
                 <option value="1">1+</option>
                 <option value="2">2+</option>
                 <option value="3">3+</option>
                 <option value="4">4+</option>
               </select>
             </label>
-            <label>Start from <small>(watch from this date)</small>
+            <label><span data-i18n="hal_from">Start from</span> <small data-i18n="hal_from_small">(watch from this date)</small>
               <input id="alertFrom" type="date" />
             </label>
-            <label>Needed by <small>(stop after this date)</small>
+            <label><span data-i18n="hal_until">Needed by</span> <small data-i18n="hal_until_small">(stop after this date)</small>
               <input id="alertUntil" type="date" />
             </label>
           </div>
@@ -1201,19 +1201,19 @@
                an agent posting nearby (or whose tenant is about to move out) sees
                you're waiting and your deadline, and can close before then. -->
           <div class="am-name-row am-reach-row" id="alertReachRow">
-            <label for="alertPhone">Let agents reach you <small>(optional — so they can close before your “needed by” date)</small></label>
+            <label for="alertPhone"><span data-i18n="hal_reach">Let agents reach you</span> <small data-i18n="hal_reach_small">(optional — so they can close before your “needed by” date)</small></label>
             <input id="alertPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+255 7XX XXX XXX" />
           </div>
 
           <div class="am-name-row">
-            <label for="alertName">Name this alert</label>
-            <input id="alertName" type="text" maxlength="60" placeholder="e.g. Masaki / near my workplace" />
+            <label for="alertName" data-i18n="hal_name">Name this alert</label>
+            <input id="alertName" type="text" maxlength="60" placeholder="e.g. Masaki / near my workplace" data-i18n-placeholder="hal_name_ph" />
           </div>
         </div>
 
         <footer class="am-foot">
-          <button id="alertCancelBtn" class="am-btn" type="button">Cancel</button>
-          <button id="alertSaveBtn"   class="am-btn am-btn-brand" type="button" disabled>Save alert</button>
+          <button id="alertCancelBtn" class="am-btn" type="button" data-i18n="rp_cancel">Cancel</button>
+          <button id="alertSaveBtn"   class="am-btn am-btn-brand" type="button" disabled data-i18n="hal_save">Save alert</button>
         </footer>
       </div>
     </div>
@@ -1368,6 +1368,7 @@
   <script src="js/lib/ai-search.js"></script>
   <script src="js/lib/geolocate.js"></script>
   <script src="js/lib/find-mode.js"></script>
+  <script src="js/lib/dialog.js"></script>
   <script src="js/lib/request-place.js"></script>
   <script src="js/pages/houses.js"></script>
   <script src="js/pages/houses-mobile.js"></script>

@@ -45,7 +45,7 @@
       .find-mode .fm-btn{flex:1;min-width:150px;text-align:left;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:10px;padding:12px 14px;cursor:pointer;font-weight:700;font-size:.95rem;display:flex;flex-direction:column;gap:3px}
       .find-mode .fm-btn small{font-weight:400;font-size:.78rem;opacity:.92}
       .find-mode .fm-btn:hover{background:rgba(255,255,255,.24)}
-      .find-mode .fm-x{position:absolute;top:8px;right:10px;background:transparent;border:0;color:#fff;font-size:1.3rem;line-height:1;cursor:pointer;opacity:.85}`;
+      .find-mode .fm-x{position:absolute;top:4px;right:6px;width:44px;height:44px;display:grid;place-items:center;background:transparent;border:0;color:#fff;font-size:1.3rem;line-height:1;cursor:pointer;opacity:.85}`;
     document.head.appendChild(s);
   }
   function init() { injectCss(); document.querySelectorAll(".find-mode[data-near]").forEach(wire); }

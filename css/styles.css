@@ -2903,6 +2903,14 @@ body[data-bg] .container > .page-subtitle {
 }
 @media (max-width: 800px) { .meet-lobby-grid { grid-template-columns: 1fr; } }
 
+/* Leaflet's layers control ("Satellite" / "Map") is a white box in every
+   theme, so its labels must stay dark ink. On a dark page they inherit the
+   page's light text and the words disappear into their own background — white
+   on white, which is how they read on the jobs board's pin picker. */
+.leaflet-control-layers,
+.leaflet-control-layers label,
+.leaflet-control-layers span { color: #1a1915; }
+
 .meet-lobby-card {
   background: var(--white);
   border: 1px solid var(--border);

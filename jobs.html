@@ -95,6 +95,18 @@
       width: 100%; padding: 9px 10px; border: 1px solid var(--c-border, #e7e4dd);
       border-radius: 10px; font-size: 16px; font-family: inherit; box-sizing: border-box;
     }
+    /* MapLibre ships 29px-wide zoom buttons and a 14px-tall attribution link.
+       This is the only page that adds NavigationControl, so it is the only one
+       that inherits them — a thumb misses both. The buttons are widened; the
+       attribution keeps its size (it is a legal credit, and making it a slab
+       would be worse) but gets a real hit area from a pseudo-element, the same
+       technique used on the homepage links. */
+    .maplibregl-ctrl button.maplibregl-ctrl-zoom-in,
+    .maplibregl-ctrl button.maplibregl-ctrl-zoom-out { width: 40px; height: 40px; }
+    .maplibregl-ctrl-attrib a { position: relative; }
+    .maplibregl-ctrl-attrib a::after {
+      content: ""; position: absolute; top: -13px; bottom: -13px; left: -6px; right: -6px;
+    }
     .jm-map { height: 240px; border-radius: 12px; overflow: hidden; margin-top: 4px; }
     .jm-map-hint { font-size: .74rem; color: var(--c-text-muted, #6b6960); margin-top: 4px; }
     .jm-actions { display: flex; gap: 8px; margin-top: 16px; }
@@ -173,6 +185,34 @@
     body[data-page="jobs"] input::placeholder, body[data-page="jobs"] textarea::placeholder { color: rgba(233,243,238,.4); }
     /* dark text on the bright green fills for AA contrast */
     body[data-page="jobs"] .jm-worker, body[data-page="jobs"] .job-mycode { color: #06170F; }
+    /* The empty state hardcodes a white card, so on the dark page it was a
+       white slab carrying the page's pale text — 1.13:1, and it is the FIRST
+       thing anyone sees when no jobs are posted. */
+    body[data-page="jobs"] .jobs-empty {
+      background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.16); color: rgba(233,243,238,.75);
+    }
+    /* .btn-outline is a white pill whose label is --c-brand. In light that is
+       #0a6f4d on white (5.6:1); in dark the brand token is the bright mint and
+       the same pill reads 1.62:1 — the two main actions on the board. */
+    /* !important because neon-pro.css and premium.css both declare this
+       button with it; without matching that weight the rule below never
+       applies at all. */
+    body[data-page="jobs"] .btn-outline {
+      background: rgba(255,255,255,.06) !important;
+      color: #E9F3EE !important;
+      border-color: rgba(255,255,255,.22) !important;
+    }
+    :root[data-theme="light"] body[data-page="jobs"] .btn-outline {
+      background: #ffffff !important;
+      color: #0a6647 !important;
+      border-color: rgba(10, 102, 71, .35) !important;
+    }
+    /* …and the light theme needs it back, or the same rule paints pale mint
+       ink on cream. Every dark block on this page is unconditional, which is
+       exactly how the light theme broke in the first place. */
+    :root[data-theme="light"] body[data-page="jobs"] .jobs-empty {
+      background: #ffffff; border-color: rgba(20, 30, 25, .16); color: #5a5850;
+    }
     body[data-page="jobs"] #nav-slot, body[data-page="jobs"] #footer-slot { display: none !important; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
@@ -184,24 +224,24 @@
 
     <div class="fast-hero-card">
       <span class="fast-hero-badge"> NEW · VIBARUA</span>
-      <h1>Day jobs near you</h1>
-      <p>Companies post short-term jobs with a pin on the map. Tap <strong>“I'll do it”</strong> to claim a slot
+      <h1 data-i18n="jb_title">Day jobs near you</h1>
+      <p data-i18n-html="jb_lead">Companies post short-term jobs with a pin on the map. Tap <strong>“I'll do it”</strong> to claim a slot
          the bar fills up as workers join, and closes automatically when the team is complete.</p>
     </div>
 
     <div class="jobs-toolbar">
-      <button id="jobsNearBtn" class="btn btn-outline"> Jobs near me</button>
-      <button id="jobsMineBtn" class="btn btn-outline"> My jobs &amp; workers</button>
+      <button id="jobsNearBtn" class="btn btn-outline" data-i18n="jb_near"> Jobs near me</button>
+      <button id="jobsMineBtn" class="btn btn-outline" data-i18n="jb_mine"> My jobs &amp; workers</button>
       <span class="jobs-count" id="jobsCount"></span>
       <span class="spacer"></span>
-      <button id="jobsPostBtn" class="btn btn-primary">＋ Post a job</button>
+      <button id="jobsPostBtn" class="btn btn-primary" data-i18n="jb_post">＋ Post a job</button>
     </div>
 
     <div id="jobsBanner" class="banner" style="display:none"></div>
 
     <div class="jobs-layout">
       <div class="job-list" id="jobList" aria-busy="true">
-        <div class="jobs-empty">Loading jobs…</div>
+        <div class="jobs-empty" data-i18n="jb_loading">Loading jobs…</div>
       </div>
       <div id="jobsMap"></div>
     </div>
@@ -211,17 +251,17 @@
   <!-- Post-a-job modal -->
   <div id="jobPostBackdrop" class="jobs-modal-backdrop" hidden>
     <div class="jobs-modal" role="dialog" aria-modal="true">
-      <h3>Post a day job</h3>
-      <p class="jm-sub">Workers nearby will see it instantly. Slots close automatically when enough workers claim.</p>
+      <h3 data-i18n="jb_post_h">Post a day job</h3>
+      <p class="jm-sub" data-i18n="jb_post_sub">Workers nearby will see it instantly. Slots close automatically when enough workers claim.</p>
       <form id="jobPostForm">
         <div class="jm-grid">
-          <label class="wide">Job title *
-            <input id="jpTitle" required maxlength="80" placeholder="e.g. Offloading a truck of cement" />
+          <label class="wide"><span data-i18n="jb_f_title">Job title *</span>
+            <input id="jpTitle" required maxlength="80" placeholder="e.g. Offloading a truck of cement" data-i18n-placeholder="jb_f_title_ph" />
           </label>
-          <label class="wide">What to do *
-            <textarea id="jpDesc" rows="2" required maxlength="500" placeholder="Describe the work clearly…"></textarea>
+          <label class="wide"><span data-i18n="jb_f_what">What to do *</span>
+            <textarea id="jpDesc" rows="2" required maxlength="500" placeholder="Describe the work clearly…" data-i18n-placeholder="jb_f_what_ph"></textarea>
           </label>
-          <label class="wide">Requirements
+          <label class="wide"><span data-i18n="jb_f_req">Requirements</span>
             <input id="jpReq" maxlength="200" placeholder="e.g. Strong, 18+, bring gloves" />
           </label>
           <label>Workers needed *
@@ -236,20 +276,20 @@
           <label>Time
             <input id="jpTime" maxlength="60" placeholder="e.g. 07:00 – 16:00" />
           </label>
-          <label class="wide">Payment note
-            <input id="jpPayNote" maxlength="120" placeholder="e.g. Cash, paid the same evening" />
+          <label class="wide"><span data-i18n="jb_f_pay">Payment note</span>
+            <input id="jpPayNote" maxlength="120" placeholder="e.g. Cash, paid the same evening" data-i18n-placeholder="jb_f_pay_ph" />
           </label>
-          <label>Company / your name *
+          <label><span data-i18n="jb_f_company">Company / your name *</span>
             <input id="jpCompany" required maxlength="80" placeholder="e.g. Bonite Traders" />
           </label>
-          <label>Phone *
+          <label><span data-i18n="jb_f_phone">Phone *</span>
             <input id="jpPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
           </label>
           <div class="wide">
-            <label>Where is the job? * <small>(tap the map or use GPS — workers navigate to this pin)</small></label>
+            <label><span data-i18n="jb_f_where">Where is the job? *</span> <small data-i18n="jb_f_where_small">(tap the map or use GPS — workers navigate to this pin)</small></label>
             <div class="jm-map" id="jpMap"></div>
-            <div class="jm-map-hint" id="jpCoords">Pin not placed yet — tap the map, or</div>
-            <button type="button" id="jpGpsBtn" class="btn btn-outline btn-sm" style="margin-top:6px"> Use my GPS location</button>
+            <div class="jm-map-hint" id="jpCoords" data-i18n="jb_no_pin">Pin not placed yet — tap the map, or</div>
+            <button type="button" id="jpGpsBtn" class="btn btn-outline btn-sm" style="margin-top:6px" data-i18n="jb_gps"> Use my GPS location</button>
           </div>
         </div>
         <div class="jm-status" id="jpStatus"></div>
@@ -265,7 +305,7 @@
   <div id="jobMineBackdrop" class="jobs-modal-backdrop" hidden>
     <div class="jobs-modal" role="dialog" aria-modal="true">
       <h3>My jobs &amp; workers</h3>
-      <p class="jm-sub">These are the jobs you posted <strong>from this device</strong> — only you can see the workers who claimed slots (names &amp; numbers). Post from the same phone/browser to manage a job; clearing your browser data removes this access.</p>
+      <p class="jm-sub" data-i18n-html="jb_mine_sub">These are the jobs you posted <strong>from this device</strong> — only you can see the workers who claimed slots (names &amp; numbers). Post from the same phone/browser to manage a job; clearing your browser data removes this access.</p>
       <form id="jobMineForm">
         <div class="jm-actions">
           <button type="button" id="jmCancel" class="btn btn-outline">Close</button>
@@ -281,21 +321,21 @@
 
   <div id="jobClaimBackdrop" class="jobs-modal-backdrop" hidden>
     <div class="jobs-modal" role="dialog" aria-modal="true" style="max-width:420px">
-      <h3 id="jcTitle">Claim this job</h3>
-      <p class="jm-sub" id="jcSub">Your name and phone go to the company so they can confirm you.</p>
+      <h3 id="jcTitle" data-i18n="jb_claim_h">Claim this job</h3>
+      <p class="jm-sub" id="jcSub" data-i18n="jb_claim_sub">Your name and phone go to the company so they can confirm you.</p>
       <form id="jobClaimForm">
         <div class="jm-grid">
-          <label class="wide">Your name *
+          <label class="wide"><span data-i18n="jb_c_name">Your name *</span>
             <input id="jcName" required maxlength="60" placeholder="e.g. Xp  Nzaki" />
           </label>
-          <label class="wide">Your phone *
+          <label class="wide"><span data-i18n="jb_c_phone">Your phone *</span>
             <input id="jcPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
           </label>
         </div>
         <div class="jm-status" id="jcStatus"></div>
         <div class="jm-actions">
-          <button type="button" id="jcCancel" class="btn btn-outline">Cancel</button>
-          <button type="submit" id="jcSubmit" class="btn btn-primary"> I'll do it</button>
+          <button type="button" id="jcCancel" class="btn btn-outline" data-i18n="rp_cancel">Cancel</button>
+          <button type="submit" id="jcSubmit" class="btn btn-primary" data-i18n="jb_do_it"> I'll do it</button>
         </div>
       </form>
     </div>

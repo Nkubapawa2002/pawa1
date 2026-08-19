@@ -58,7 +58,11 @@
     var dark = current() === "dark";
     // Show the icon of the mode you'll switch TO.
     btn.innerHTML = dark ? SUN : MOON;
-    var label = dark ? "Switch to light mode" : "Switch to dark mode";
+    // Translated: this button rides on every page, so leaving it in English
+    // meant every page in the app had two untranslated strings on it.
+    var T = function (k, en) { return window.t ? window.t(k) : en; };
+    var label = dark ? T("theme_to_light", "Switch to light mode")
+                     : T("theme_to_dark", "Switch to dark mode");
     btn.setAttribute("aria-label", label);
     btn.setAttribute("title", label);
   }

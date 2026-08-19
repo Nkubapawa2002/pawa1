@@ -57,6 +57,17 @@ const PAGES = [
   { file: "p-chat.html", label: "P-Chat" },
   { file: "p-message.html", label: "P-Message", session: SESSION.admin, prep: seedMessages },
   { file: "profile.html", label: "Profile", session: SESSION.agent, key: true },
+
+  // The seven doors P-Chat opens. The tab itself is above; these are where it
+  // SENDS people, and a tab is only as good as what is behind it. They are
+  // audited on the same six phones, in both themes, for the same three things.
+  { file: "houses.html?alert=1", label: "Area alert" },
+  { file: "near-me.html", label: "Near me" },
+  { file: "area.html", label: "Area by name" },
+  { file: "frame.html", label: "Frame" },
+  { file: "meet.html", label: "Meet & Locate" },
+  { file: "share-location.html", label: "Share a location" },
+  { file: "jobs.html", label: "Jobs and staff" },
 ];
 
 let pass = 0, fail = 0;
@@ -168,6 +179,31 @@ async function seedMessages(page) {
 // screenshot, so the rects and the shot describe one frozen frame.
 const MEASURE = () => {
   const vw = window.innerWidth, vh = window.innerHeight;
+
+  // WHAT IS BEHIND THIS TEXT, ACCORDING TO THE CASCADE.
+  // Walk up until something paints an opaque colour. That is the exact answer
+  // for the common case — a <span> inside a coloured button, a row inside a
+  // card — and it cannot be knocked off by the page having moved between the
+  // measurement and the photograph.
+  //
+  // It gives up, deliberately, the moment it meets a background IMAGE, a
+  // gradient or a backdrop-filter: those are unresolvable from computed styles,
+  // and they are the whole reason this file samples pixels at all. Returning
+  // null hands the element back to the camera.
+  const solidBehind = (node) => {
+    let el = node;
+    while (el && el !== document.documentElement) {
+      const s = getComputedStyle(el);
+      if (s.backgroundImage && s.backgroundImage !== "none") return null;
+      if ((s.backdropFilter && s.backdropFilter !== "none") ||
+          (s.webkitBackdropFilter && s.webkitBackdropFilter !== "none")) return null;
+      if (Number(s.opacity) < 1) return null;
+      const m = String(s.backgroundColor).match(/[\d.]+/g);
+      if (m && m.length >= 3 && (m.length < 4 || Number(m[3]) === 1)) return s.backgroundColor;
+      el = el.parentElement;
+    }
+    return null;
+  };
   // The scroll position these rects were taken at. The pixels must come from
   // the same one or every background sample is off by the difference.
   const out = { wide: [], contrast: [], taps: [], scrollY: window.scrollY };
@@ -229,6 +265,9 @@ const MEASURE = () => {
       const need = large ? 3 : 4.5;
       out.contrast.push({
         el: label(el), text: own.slice(0, 40), color: cs.color, need, size: Math.round(size),
+        // What the CASCADE says is behind these words — null when only the
+        // camera can answer. See solidBehind() above and its use in SCORE.
+        ownBg: solidBehind(el),
         box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
       });
     }
@@ -264,6 +303,26 @@ const SCORE = (items) => {
     if (L1 === null || L2 === null) return null;
     return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
   };
+  // An element that paints its OWN opaque background does not need the camera:
+  // the cascade already knows what is behind its text, exactly, and cannot be
+  // thrown off by the page having moved a few pixels between the measurement
+  // and the shot. Sampling exists for the hard cases — translucency, gradients,
+  // backdrop blur, and text sitting on a background it inherited from an
+  // ancestor — and those are precisely the ones where alpha < 1 or the colour
+  // is transparent.
+  //
+  // This was found by an active tab that measured 1.11:1 white-on-cream in the
+  // report while its own pixels, sampled at that instant, were the dark green
+  // the CSS asked for: a sampling artefact reported as a real failure, which is
+  // the one thing a gate must not do.
+  const opaqueOwn = (c) => {
+    const s = String(c || "");
+    if (!s || s === "transparent") return null;
+    const m = s.match(/[\d.]+/g);
+    if (!m) return null;
+    if (m.length >= 4 && Number(m[3]) < 1) return null;   // translucent: sample it
+    return s;
+  };
   const bgOf = (r) => {
     if (!px) return null;
     const k = px.scale;
@@ -289,7 +348,7 @@ const SCORE = (items) => {
     return `rgb(${mid(rs)}, ${mid(gs)}, ${mid(bs)})`;
   };
   return items.map((it) => {
-    const bg = bgOf(it.box);
+    const bg = opaqueOwn(it.ownBg) || bgOf(it.box);
     const cr = bg ? ratio(it.color, bg) : null;
     return (cr !== null && cr < it.need)
       ? { el: it.el, text: it.text, color: it.color, bg, need: it.need, size: it.size,
@@ -395,9 +454,17 @@ try {
         const geom = await page.evaluate(() => ({
           docH: document.documentElement.scrollHeight,
           vh: window.innerHeight,
+          vw: window.innerWidth,
           overflow: document.documentElement.scrollWidth - window.innerWidth,
         }));
         ok(geom.overflow <= 1, `${where}: page is ${geom.overflow}px wider than the screen`);
+        // AND the screen has to be the screen. When something does not fit,
+        // a phone does not clip it — it widens the layout viewport and renders
+        // the whole page shrunk, which the overflow check above cannot see
+        // because it compares against the ALREADY-widened viewport. Four of
+        // these pages were being served at 91% and reporting no overflow.
+        ok(geom.vw <= dev.w + 1,
+           `${where}: laid out ${geom.vw}px wide, so the page is zoomed out to ${Math.round(dev.w / geom.vw * 100)}% to fit`);
 
         // One viewport at a time, capped so a very long feed does not turn a
         // single check into a hundred screenshots.

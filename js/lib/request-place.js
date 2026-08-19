@@ -136,14 +136,14 @@
       .rp-row input:focus,.rp-row select:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
       .rp-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
       .rp-loc{margin-top:7px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:6px;
-        padding:9px 12px;border:1px dashed #0a6f4d;border-radius:10px;background:#f2faf6;color:#0a6f4d;
-        font-weight:700;font-size:.86rem;cursor:pointer}
+        padding:9px 12px;min-height:44px;box-sizing:border-box;border:1px dashed #0a6f4d;border-radius:10px;
+        background:#f2faf6;color:#0a6f4d;font-weight:700;font-size:.86rem;cursor:pointer}
       .rp-loc:disabled{opacity:.6;cursor:default}
       .rp-sug{position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #d8e6df;
         border-radius:0 0 10px 10px;max-height:210px;overflow:auto;box-shadow:0 12px 30px rgba(0,0,0,.14)}
       .rp-sug[hidden]{display:none}
-      .rp-sug button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 12px;cursor:pointer;
-        font:inherit;color:#16201b;border-bottom:1px solid #f0f3f1}
+      .rp-sug button{display:block;width:100%;text-align:left;border:0;background:none;padding:11px 12px;
+        min-height:44px;box-sizing:border-box;cursor:pointer;font:inherit;color:#16201b;border-bottom:1px solid #f0f3f1}
       .rp-sug button:hover{background:#f2f7f4}
       .rp-sug b{display:block;font-size:.9rem}
       .rp-sug span{font-size:.78rem;color:#6b7a73}
@@ -152,7 +152,7 @@
         font-size:1rem;cursor:pointer;margin-top:4px}
       .rp-go:disabled{opacity:.6;cursor:default}
       .rp-foot{display:flex;gap:8px;margin-top:8px}
-      .rp-link{flex:1;padding:10px;border:0;border-radius:11px;background:none;color:#64748b;
+      .rp-link{flex:1;padding:10px;min-height:44px;border:0;border-radius:11px;background:none;color:#64748b;
         font-size:.92rem;cursor:pointer}
       .rp-link.rp-strong{color:#0a6f4d;font-weight:700}
       .rp-msg{min-height:18px;font-size:.84rem;color:#b91c1c;margin:2px 0 6px}
@@ -168,26 +168,83 @@
       .rp-mine li:first-child{border-top:0}
       .rp-mine .rp-mine-where{font-weight:700;font-size:.92rem;color:#16201b}
       .rp-mine .rp-mine-sub{font-size:.78rem;color:#6b7a73;margin-top:2px}
-      .rp-mine .rp-rm{flex-shrink:0;padding:7px 12px;border:1px solid #f0c9c4;border-radius:9px;background:#fff5f4;
-        color:#b3261e;font-weight:700;font-size:.82rem;cursor:pointer}
+      .rp-mine .rp-rm{flex-shrink:0;padding:7px 12px;min-height:40px;border:1px solid #f0c9c4;border-radius:9px;
+        background:#fff5f4;color:#b3261e;font-weight:700;font-size:.82rem;cursor:pointer}
       .rp-mine .rp-rm:disabled{opacity:.55;cursor:default}
       .rp-empty{color:#52605a;font-size:.9rem;text-align:center;padding:14px 4px}
       .rp-row textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cdd9d3;
         border-radius:10px;font:inherit;font-size:.95rem;resize:vertical;color:#16201b}
       .rp-row textarea:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
       .rp-check{display:flex;align-items:center}
-      .rp-chk{display:flex;align-items:center;gap:8px;font-weight:600;color:#34403a;cursor:pointer;margin:0}
+      .rp-chk{display:flex;align-items:center;gap:8px;min-height:40px;font-weight:600;color:#34403a;cursor:pointer;margin:0}
       .rp-chk input{width:auto;flex-shrink:0;margin:0}
       .rp-chk small{font-weight:400;color:#7a877f;display:block}
       .rp-amen{display:flex;flex-wrap:wrap;gap:6px}
-      .rp-amen label{display:inline-flex;align-items:center;gap:5px;font-size:.82rem;padding:6px 10px;
-        border:1px solid #cdd9d3;border-radius:999px;background:#fff;cursor:pointer;color:#34403a}
+      .rp-amen label{display:inline-flex;align-items:center;gap:5px;font-size:.82rem;padding:6px 12px;
+        min-height:40px;box-sizing:border-box;border:1px solid #cdd9d3;border-radius:999px;background:#fff;
+        cursor:pointer;color:#34403a}
       .rp-amen input{width:auto;margin:0}
       .rp-amen label:has(input:checked){border-color:#0a6f4d;background:#eafaf3;color:#0a6f4d;font-weight:600}`;
     document.head.appendChild(s);
   }
 
-  function close(back) { try { back.remove(); } catch (_) {} }
+  // ---- dialog plumbing ----------------------------------------------------
+  // One at a time, page held still, Escape out, Tab kept inside, focus handed
+  // back — all of it lives in js/lib/dialog.js, because the area-alert sheet in
+  // js/pages/houses.js needs exactly the same four things and a second copy is
+  // a second thing to forget. This file only says WHICH element and what to do
+  // when it closes.
+  function alreadyOpen() {
+    return !!(window.pawaDialog && window.pawaDialog.isOpen());
+  }
+
+  function mount(back, titleId) {
+    document.body.appendChild(back);
+    if (window.pawaDialog) {
+      window.pawaDialog.open(back, { labelledBy: titleId, onClose: () => back.remove() });
+    } else if (titleId) {
+      // dialog.js missing: the sheet still works, it just loses the trap.
+      back.setAttribute("aria-labelledby", titleId);
+    }
+  }
+
+  function close(back) {
+    if (window.pawaDialog && window.pawaDialog.close(back)) return;
+    try { back.remove(); } catch (_) {}
+  }
+
+  // Give an OPTIONAL step a deadline. geo.js allows itself 8 seconds per call,
+  // which is right for a map that has nothing else to draw — but here the
+  // geocode only SHARPENS a request that is already routable by region, and the
+  // seeker is watching a button that says "Sending…". Past the cap we send with
+  // what we have rather than make them wait on a nicety.
+  function withCap(promise, ms, fallback) {
+    return Promise.race([
+      Promise.resolve(promise).catch(() => fallback),
+      new Promise((res) => setTimeout(() => res(fallback), ms)),
+    ]);
+  }
+
+  const GEO_CAP_MS = 3000;
+
+  // Today, in the seeker's OWN timezone. toISOString() would hand back the UTC
+  // date, which is yesterday for anyone east of Greenwich late in the evening —
+  // and Tanzania is UTC+3, so it would be wrong every night.
+  function todayLocal() {
+    const d = new Date(), p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  // What the seeker sees when sending fails. The real error is logged for us;
+  // "duplicate key value violates unique constraint" is not something anyone
+  // outside this repo can act on.
+  function friendlyError(err) {
+    const raw = String((err && err.message) || "");
+    if (err && err.code === "setup") return T("rp_err_setup");
+    if (/Failed to fetch|NetworkError|network|timeout/i.test(raw)) return T("rp_err_network");
+    if (/relation .* does not exist|schema cache|PGRST\d+/i.test(raw)) return T("rp_err_setup");
+    return T("rp_send_fail");
+  }
 
   // ---- persistence --------------------------------------------------------
 
@@ -255,8 +312,11 @@
       break;
     }
     if (error) {
-      if (/relation .* does not exist|schema cache/i.test(error.message || ""))
-        throw new Error("Requests aren't set up on this server yet. Run supabase/features/house/setup_house_demand.sql + house_demand_region.sql.");
+      if (/relation .* does not exist|schema cache/i.test(error.message || "")) {
+        const e = new Error("house_demand_pins missing — run supabase/features/house/setup_house_demand.sql + house_demand_region.sql");
+        e.code = "setup";
+        throw e;
+      }
       throw error;
     }
   }
@@ -293,7 +353,8 @@
     if (picked && Number.isFinite(picked.lat) && Number.isFinite(picked.lng)) {
       lat = +picked.lat; lng = +picked.lng; area = area || picked.name;
     } else if (text) {
-      const hits = await (window.pawaGeo ? window.pawaGeo.suggest(text, { limit: 5 }) : Promise.resolve([])).catch(() => []);
+      const hits = await withCap(
+        window.pawaGeo ? window.pawaGeo.suggest(text, { limit: 5 }) : [], GEO_CAP_MS, []);
       const h = (hits || []).find((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng));
       if (h) { lat = +h.lat; lng = +h.lng; area = area || h.name; }
     }
@@ -302,7 +363,9 @@
 
     if (lat != null && lng != null && window.pawaGeo) {
       try {
-        const j = await window.pawaGeo.reverse(`format=json&zoom=12&addressdetails=1&lat=${lat}&lon=${lng}`);
+        const j = await withCap(
+          window.pawaGeo.reverse(`format=json&zoom=12&addressdetails=1&lat=${lat}&lon=${lng}`),
+          GEO_CAP_MS, null);
         const a = (j && j.address) || {};
         if (!dist) dist = canonDistrict(a.county || a.state_district || a.city_district || a.district || a.municipality || "");
         if (!regOut) regOut = await canonRegion(a.state || a.region || a.county || "");
@@ -333,6 +396,7 @@
   // =====================================================================
   function open(opts) {
     opts = opts || {};
+    if (alreadyOpen()) return;
     ensureStyles();
     picked = null; gpsPoint = null; gpsDistrict = null;
 
@@ -342,7 +406,7 @@
     back.setAttribute("aria-modal", "true");
     back.innerHTML = `
       <div class="rp-card">
-        <h2>${T("rp_title")}</h2>
+        <h2 id="rpTitle">${T("rp_title")}</h2>
         <p class="rp-lead">${T("rp_lead")}</p>
 
         <div class="rp-row">
@@ -445,11 +509,11 @@
         <div class="rp-2">
           <div class="rp-row">
             <label for="rpFrom">${T("rp_from_label")} <small>${T("rp_optional")}</small></label>
-            <input id="rpFrom" type="date" />
+            <input id="rpFrom" type="date" min="${todayLocal()}" />
           </div>
           <div class="rp-row">
             <label for="rpWhen">${T("rp_by_label")} <small>${T("rp_deadline")}</small></label>
-            <input id="rpWhen" type="date" />
+            <input id="rpWhen" type="date" min="${todayLocal()}" />
           </div>
         </div>
 
@@ -476,7 +540,7 @@
           <button id="rpCancel" class="rp-link" type="button">${T("rp_cancel")}</button>
         </div>
       </div>`;
-    document.body.appendChild(back);
+    mount(back, "rpTitle");
 
     const $ = (id) => back.querySelector(id);
     const regionEl = $("#rpRegion"), locEl = $("#rpLoc");
@@ -555,8 +619,13 @@
       const text = simplifyArea(whereEl.value);
       const phone = $("#rpPhone").value.trim();
       const digits = phone.replace(/\D/g, "");
+      const from = $("#rpFrom").value || "", by = $("#rpWhen").value || "";
       if (!region) { setMsg(T("rp_need_region")); regionEl.focus(); return; }
-      if (digits.length < 9) { setMsg(T("rp_need_phone")); $("#rpPhone").focus(); return; }
+      // 9 digits is a bare local number, 12 is +255 with the country code; a
+      // 15-digit "number" is a typo we should catch here rather than hand to an
+      // agent who then cannot call anyone.
+      if (digits.length < 9 || digits.length > 13) { setMsg(T("rp_need_phone")); $("#rpPhone").focus(); return; }
+      if (from && by && from > by) { setMsg(T("rp_date_order")); $("#rpWhen").focus(); return; }
 
       goEl.disabled = true; goEl.textContent = T("rp_sending"); setMsg("");
       try {
@@ -620,7 +689,9 @@
         $("#rpDone").addEventListener("click", () => close(back));
         $("#rpToMine").addEventListener("click", () => { close(back); openMine(); });
       } catch (err) {
-        setMsg((err && err.message) || T("rp_send_fail"));
+        // The detail is for us; the seeker gets something they can act on.
+        try { console.error("[request-place] send failed:", err); } catch (_) {}
+        setMsg(friendlyError(err));
         goEl.disabled = false; goEl.textContent = T("rp_send");
       }
     });
@@ -675,6 +746,7 @@
   }
 
   async function openMine() {
+    if (alreadyOpen()) return;
     ensureStyles();
     const back = document.createElement("div");
     back.className = "rp-back";
@@ -682,13 +754,13 @@
     back.setAttribute("aria-modal", "true");
     back.innerHTML = `
       <div class="rp-card">
-        <h2>${T("rp_my")}</h2>
+        <h2 id="rpMineTitle">${T("rp_my")}</h2>
         <p class="rp-lead">${T("rp_my_lead")}</p>
         <div id="rpMineBody"><p class="rp-empty">${T("rp_loading")}</p></div>
         <button class="rp-go" type="button" id="rpNew">${T("rp_new")}</button>
         <div class="rp-foot"><button class="rp-link" type="button" id="rpMineClose">${T("rp_close")}</button></div>
       </div>`;
-    document.body.appendChild(back);
+    mount(back, "rpMineTitle");
 
     const body = back.querySelector("#rpMineBody");
     back.addEventListener("click", (e) => { if (e.target === back) close(back); });

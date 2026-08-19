@@ -35,21 +35,65 @@
     }
     #slBtn:disabled { opacity: .6; }
     #slStatus { margin-top: 14px; font-size: .92rem; min-height: 1.2em; color: #2EE6A6; font-weight: 600; }
-    .sl-emoji { font-size: 2.4rem; }
+    #slResult { margin-top: 16px; }
+    .sl-coords { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: .3px; }
+    .sl-acc { font-size: .8rem; color: rgba(233,243,238,.55); margin-top: 3px; }
+    .sl-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .sl-act {
+      flex: 1; min-height: 48px; display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.05); color: #E9F3EE; font-family: inherit;
+      font-size: .95rem; font-weight: 700; cursor: pointer; text-decoration: none;
+    }
+    .sl-act-primary { background: #2EE6A6; color: #06170F; border-color: transparent; }
+    .sl-again {
+      margin-top: 10px; min-height: 44px; width: 100%; padding: 10px; border: 0; border-radius: 12px;
+      background: none; color: rgba(233,243,238,.6); font-family: inherit; font-size: .9rem; cursor: pointer;
+    }
+
+    /* ---- light theme -----------------------------------------------------
+       Same cream palette as css/theme-light.css (--n-bg #faf9f5, --n-text
+       #1a1915, --n-text-muted #6b6960), and the deeper green #0a6647 for
+       text, which is the value the rest of the app settled on for small type
+       on cream (6.6:1). The mint #2EE6A6 stays as a BUTTON FILL under dark
+       ink, where it is a background rather than a foreground. */
+    :root[data-theme="light"] body {
+      color: #1a1915;
+      background: radial-gradient(1100px 760px at 50% -10%, #ffffff 0%, #faf9f5 60%, #f1f0ea 100%);
+    }
+    :root[data-theme="light"] .sl-card {
+      background: #ffffff; color: #1a1915;
+      border-color: rgba(20, 30, 25, .10);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 18px 44px rgba(20, 30, 25, .10);
+    }
+    :root[data-theme="light"] .sl-card h1 { color: #14201a; }
+    :root[data-theme="light"] .sl-card p { color: #5a5850; }
+    :root[data-theme="light"] .sl-card p strong { color: #1a1915; }
+    :root[data-theme="light"] #slStatus { color: #0a6647; }
+    :root[data-theme="light"] .sl-coords { color: #14201a; }
+    :root[data-theme="light"] .sl-acc { color: #6b6960; }
+    :root[data-theme="light"] .sl-act {
+      background: #f6f5f0; color: #1a1915; border-color: rgba(20, 30, 25, .14);
+    }
+    :root[data-theme="light"] .sl-act-primary { background: #0a6647; color: #ffffff; border-color: transparent; }
+    :root[data-theme="light"] .sl-again { color: #6b6960; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
 <body>
   <div class="sl-card">
-    <div class="sl-emoji"></div>
-    <h1>Share this place's location</h1>
-    <p>An agent is registering this house. Tap the button below <strong>while you are at the property</strong> to send its exact location. Nothing else is shared.</p>
-    <button id="slBtn" type="button">Share my current location</button>
-    <div id="slStatus"></div>
+    <h1 id="slTitle" data-i18n="sl_agent_title">Share this place's location</h1>
+    <p id="slLead" data-i18n-html="sl_agent_lead">An agent is registering this house. Tap the button below <strong>while you are at the property</strong> to send its exact location. Nothing else is shared.</p>
+    <button id="slBtn" type="button" data-i18n="sl_agent_btn">Share my current location</button>
+    <div id="slStatus" role="status" aria-live="polite"></div>
+    <div id="slResult" hidden></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/lib/geolocate.js"></script>
+  <script>window.applyTranslations && window.applyTranslations();</script>
   <script src="js/pages/share-location.js"></script>
 </body>
 </html>

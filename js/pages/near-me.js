@@ -12,6 +12,11 @@
 // Auto-widen: if nothing falls inside the chosen radius, we expand and show
 // the nearest few anyway, annotating how far they are.
 (function () {
+  // Every sentence this page writes at runtime goes through here. The markup
+  // was translated; the hint line and the empty state were not, so a Swahili
+  // seeker got a Swahili page that spoke English the moment it had something
+  // to tell them.
+  const T = (k) => (window.t ? window.t(k) : k);
   "use strict";
 
   const HOUSE_TYPE_LABEL = {
@@ -251,12 +256,12 @@
     if (hintEl) {
       const parts = [];
       if (!userLoc) {
-        parts.push("Tap “Use my location” to sort rooms and trucks by how close they are to you.");
+        parts.push(T("nm_hint_locate"));
       } else {
-        if (userApprox) parts.push(" Using an approximate (city-level) location — turn on GPS / allow precise location for exact distances.");
+        if (userApprox) parts.push(" " + T("nm_hint_approx"));
         if (widened) parts.push(effKm
-          ? `Nothing within ${radiusKm} km — showing the nearest within ${effKm} km instead.`
-          : `Nothing within ${radiusKm} km — showing the nearest listings instead.`);
+          ? T("nm_hint_widened").replace("{r}", radiusKm).replace("{e}", effKm)
+          : T("nm_hint_widened_any").replace("{r}", radiusKm));
       }
       hintEl.textContent = parts.join("  ");
       hintEl.hidden = parts.length === 0;
@@ -272,7 +277,7 @@
   function renderList(rows) {
     listEl.removeAttribute("aria-busy");
     if (!rows.length) {
-      listEl.innerHTML = `<div class="nm-empty">Nothing to show yet. Try “All”, widen the radius, or check back soon as more rooms and trucks get listed.</div>`;
+      listEl.innerHTML = `<div class="nm-empty">${T("nm_empty")}</div>`;
       return;
     }
     listEl.innerHTML = rows.map(cardHtml).join("");

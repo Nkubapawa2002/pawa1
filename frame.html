@@ -32,7 +32,10 @@
     }
     .fr-search { display: flex; gap: 8px; }
     .fr-search input {
-      flex: 1; min-width: 160px; padding: 11px 14px; border: 1px solid var(--c-border, #e7e4dd);
+      /* min-width:0, not 160: a flex item refuses to shrink below its
+         content by default, and at 320px the input plus "Read frame" was
+         wider than the toolbar. */
+      flex: 1; min-width: 0; padding: 11px 14px; border: 1px solid var(--c-border, #e7e4dd);
       border-radius: 10px; font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915);
     }
     .fr-btn {
@@ -276,7 +279,13 @@
     .fr-mobile-tabs button.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: transparent; }
 
     @media (max-width: 880px) {
-      .fr-toolbar { grid-template-columns: 1fr; }
+      /* minmax(0, 1fr), not 1fr: a grid track sized 1fr still refuses to go
+         below the min-content of what is in it, so the search box, the select
+         and the two buttons together held the toolbar 39px wider than a 320px
+         screen — and Chrome zoomed the page out rather than clip it. */
+      .fr-toolbar { grid-template-columns: minmax(0, 1fr); }
+      .fr-toolbar > * { min-width: 0; }
+      .fr-search { min-width: 0; }
       .fr-stage { grid-template-columns: 1fr; }
       .fr-mobile-tabs { display: flex; }
       .fr-stage[data-view="panel"] .fr-map-wrap { display: none; }
@@ -310,6 +319,45 @@
     body[data-page="frame"] .fr-actions a:not(.ghost),
     body[data-page="frame"] .fr-actions button:not(.ghost) { color: #06170F; }
     body[data-page="frame"] #nav-slot, body[data-page="frame"] #footer-slot { display: none !important; }
+    /* The mobile tab switcher was never given the dark treatment the rest of
+       this page got: the inactive tab kept the base rule's white fill and
+       inherited pale ink (1.13:1), and the active one put white on the bright
+       mint the dark theme resolves --c-brand to (1.62:1). near-me.html has the
+       same two tabs and already does this. */
+    body[data-page="frame"] .fr-mobile-tabs button:not(.active) {
+      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    }
+    body[data-page="frame"] .fr-mobile-tabs button.active { color: #06170F; }
+
+    /* ---- light theme ---------------------------------------------------
+       The block above is a dark palette with no theme condition, so it also
+       ran in light mode: the hint line measured 1.05:1 and the ghost button's
+       label 1.13:1 — pale mint ink on cream.
+
+       #06170F on the brand green is the right call in the dark theme, where
+       the brand is a bright mint. In light the brand resolves to #0a6f4d and
+       that same dark ink measures 2.98:1, so the filled buttons take white. */
+    :root[data-theme="light"] body[data-page="frame"] input,
+    :root[data-theme="light"] body[data-page="frame"] select {
+      background: #ffffff; color: #1a1915; border-color: rgba(20, 30, 25, .16);
+    }
+    :root[data-theme="light"] body[data-page="frame"] input::placeholder { color: #6b6960; }
+    :root[data-theme="light"] body[data-page="frame"] .fr-btn.ghost,
+    :root[data-theme="light"] body[data-page="frame"] .fr-actions .ghost {
+      background: #ffffff; color: #1a1915;
+    }
+    :root[data-theme="light"] body[data-page="frame"] .fr-btn:not(.ghost),
+    :root[data-theme="light"] body[data-page="frame"] .fr-actions a:not(.ghost),
+    :root[data-theme="light"] body[data-page="frame"] .fr-actions button:not(.ghost) { color: #ffffff; }
+    :root[data-theme="light"] body[data-page="frame"] .fr-hint { color: #5a5850; }
+    :root[data-theme="light"] body[data-page="frame"] .fr-empty p { color: #5a5850; }
+    :root[data-theme="light"] body[data-page="frame"] .fr-empty h3 { color: #14201a; }
+    :root[data-theme="light"] body[data-page="frame"] .fr-mobile-tabs button:not(.active) {
+      background: #ffffff; color: #1a1915; border-color: rgba(20, 30, 25, .16);
+    }
+    :root[data-theme="light"] body[data-page="frame"] .fr-mobile-tabs button.active {
+      background: #0a6647; color: #ffffff; border-color: transparent;
+    }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
@@ -318,8 +366,8 @@
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')">
     <div class="page-hero-inner">
-      <h1 class="page-title">The Frame</h1>
-      <p class="page-subtitle">Read any area as a <em>room for business</em> — the magnets that gather people, the road that carries them, who lives there, and how the place earns. Find demand before anyone posts a listing.</p>
+      <h1 class="page-title" data-i18n="fr_title">The Frame</h1>
+      <p class="page-subtitle" data-i18n-html="fr_sub">Read any area as a <em>room for business</em> — the magnets that gather people, the road that carries them, who lives there, and how the place earns. Find demand before anyone posts a listing.</p>
     </div>
   </section>
 
@@ -328,34 +376,34 @@
     <div class="fr-toolbar">
       <div class="fr-search">
         <input id="frSearch" type="search" autocomplete="off"
-               placeholder="Type a place — e.g. “Mwenge”, “Kariakoo”, “Mbezi Beach” — or use your location" />
-        <button id="frSearchBtn" class="fr-btn" type="button">Read frame</button>
+               placeholder="Type a place — e.g. “Mwenge”, “Kariakoo”, “Mbezi Beach” — or use your location" data-i18n-placeholder="fr_search_ph" />
+        <button id="frSearchBtn" class="fr-btn" type="button" data-i18n="fr_read">Read frame</button>
       </div>
-      <button id="frLocateBtn" class="fr-btn ghost" type="button" title="Use my GPS location">
+      <button id="frLocateBtn" class="fr-btn ghost" type="button" title="Use my GPS location" data-i18n-title="fr_locate_title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-        <span>My location</span>
+        <span data-i18n="fr_my_location">My location</span>
       </button>
-      <select id="frRadius" title="Frame size">
-        <option value="800">Walkable · 800 m</option>
-        <option value="1500" selected>Neighbourhood · 1.5 km</option>
-        <option value="3000">Wide · 3 km</option>
-        <option value="5000">District · 5 km</option>
+      <select id="frRadius" title="Frame size" data-i18n-title="fr_size_title">
+        <option value="800" data-i18n="fr_size_walk">Walkable · 800 m</option>
+        <option value="1500" selected data-i18n="fr_size_hood">Neighbourhood · 1.5 km</option>
+        <option value="3000" data-i18n="fr_size_wide">Wide · 3 km</option>
+        <option value="5000" data-i18n="fr_size_district">District · 5 km</option>
       </select>
     </div>
 
-    <div id="frHint" class="fr-hint" role="status">Search a place, tap <strong>My location</strong>, or click anywhere on the map to frame that spot.</div>
+    <div id="frHint" class="fr-hint" role="status" data-i18n-html="fr_hint">Search a place, tap <strong>My location</strong>, or click anywhere on the map to frame that spot.</div>
 
     <!-- Mobile tab switcher -->
     <div class="fr-mobile-tabs">
-      <button id="frTabPanel" class="active" type="button">Read-out</button>
-      <button id="frTabMap" type="button">Map</button>
+      <button id="frTabPanel" class="active" type="button" data-i18n="fr_tab_panel">Read-out</button>
+      <button id="frTabMap" type="button" data-i18n="fr_tab_map">Map</button>
     </div>
 
     <div class="fr-stage" id="frStage" data-view="panel">
       <div id="frPanel" class="fr-panel">
         <div class="fr-empty" id="frEmpty">
-          <h3>No frame yet</h3>
-          <p>Pick a spot and Pawa will read it: the magnets that gather people, the carrying road, an estimate of the population, the key operation that pays the area — and where your demand gaps are.</p>
+          <h3 data-i18n="fr_empty_h">No frame yet</h3>
+          <p data-i18n="fr_empty_p">Pick a spot and Pawa will read it: the magnets that gather people, the carrying road, an estimate of the population, the key operation that pays the area — and where your demand gaps are.</p>
         </div>
       </div>
       <div class="fr-map-wrap">

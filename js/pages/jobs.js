@@ -11,6 +11,10 @@
 
 window.initJobsPage = () => {
   const sb = window.DataStore?.sb;
+  // Every sentence this page writes at runtime — the empty state and the two
+  // failure states — goes through here, so the board speaks the language the
+  // rest of the app is set to.
+  const T = (k) => (window.t ? window.t(k) : k);
 
   const listEl    = document.getElementById("jobList");
   const countEl   = document.getElementById("jobsCount");
@@ -41,7 +45,7 @@ window.initJobsPage = () => {
   async function loadJobs() {
     if (!sb) {
       listEl.setAttribute("aria-busy", "false");
-      listEl.innerHTML = `<div class="jobs-empty">Jobs need a database connection — please try again later.</div>`;
+      listEl.innerHTML = `<div class="jobs-empty">${T("jb_err_offline")}</div>`;
       return;
     }
     const { data, error } = await sb.from("day_jobs")
@@ -52,9 +56,13 @@ window.initJobsPage = () => {
       .limit(200);
     listEl.setAttribute("aria-busy", "false");
     if (error) {
-      // Table not deployed yet → friendly setup note instead of a dead page.
-      listEl.innerHTML = `<div class="jobs-empty">The jobs board isn't switched on yet.<br>
-        <small>(Admin: run <code>supabase/features/job/day_jobs.sql</code> in the Supabase SQL editor.)</small></div>`;
+      // Table not deployed yet. The person looking at this is a worker after a
+      // day's pay, not an administrator — the SQL file to run is a note for us
+      // and belongs in the console, not on their screen.
+      try {
+        console.error("[jobs] day_jobs unavailable — run supabase/features/job/day_jobs.sql:", error.message || error);
+      } catch (_) {}
+      listEl.innerHTML = `<div class="jobs-empty">${T("jb_err_setup")}</div>`;
       return;
     }
     jobs = data || [];
@@ -135,8 +143,7 @@ window.initJobsPage = () => {
       : "";
 
     if (!rows.length) {
-      listEl.innerHTML = `<div class="jobs-empty">No day jobs posted yet.<br>
-        Are you hiring? Tap <strong>＋ Post a job</strong> and workers nearby will see it instantly.</div>`;
+      listEl.innerHTML = `<div class="jobs-empty">${T("jb_empty")}</div>`;
       renderMarkers(rows);
       return;
     }
@@ -367,6 +374,13 @@ window.initJobsPage = () => {
     // Leaflet picker (Canvas2D — no WebGL limits inside a modal).
     setTimeout(() => {
       if (postMap) { postMap.invalidateSize(); return; }
+      if (!window.L) {
+        // No map library. Say so, and leave the GPS button as the way through —
+        // the pin is what gets submitted, not the map.
+        const hint = document.getElementById("jpCoords");
+        if (hint) hint.textContent = T("jb_map_offline");
+        return;
+      }
       postMap = L.map("jpMap").setView([-6.7924, 39.2789], 11);
       window.addSatelliteHybrid ? window.addSatelliteHybrid(postMap)
         : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(postMap);
@@ -376,8 +390,11 @@ window.initJobsPage = () => {
 
   function setPostPin(lat, lng) {
     postPin = { lat, lng };
-    if (!postMarker) postMarker = L.marker([lat, lng]).addTo(postMap);
-    else postMarker.setLatLng([lat, lng]);
+    // The marker is the picture of the pin, not the pin itself.
+    if (postMap && window.L) {
+      if (!postMarker) postMarker = L.marker([lat, lng]).addTo(postMap);
+      else postMarker.setLatLng([lat, lng]);
+    }
     document.getElementById("jpCoords").textContent =
       ` Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   }

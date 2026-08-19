@@ -973,7 +973,12 @@ window.pawaGlBasemapToggle = () => ({
     wrap.className = "maplibregl-ctrl maplibregl-ctrl-group";
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.style.cssText = "width:auto;padding:0 10px;font:600 12px/30px system-ui,sans-serif;";
+    // Colour stated, not inherited. The control sits in maplibre's white
+    // .maplibregl-ctrl-group, but a <button> takes its colour from the page on
+    // pages that style buttons — so on a dark page this read white-on-white and
+    // the only way to find the satellite toggle was to guess where it was.
+    btn.style.cssText = "width:auto;padding:0 10px;font:600 12px/30px system-ui,sans-serif;" +
+      "color:#1a1915;background:#fff;";
     let sat = true;
     btn.textContent = " Map";
     btn.title = "Switch between satellite and street map";

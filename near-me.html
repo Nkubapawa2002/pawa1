@@ -143,6 +143,34 @@
     body[data-page="near-me"] .nm-badge.kind.truck,
     body[data-page="near-me"] .nm-badge.verified { color: #06170F; }
     body[data-page="near-me"] #nav-slot, body[data-page="near-me"] #footer-slot { display: none !important; }
+
+    /* ---- light theme ---------------------------------------------------
+       Everything above is a DARK palette written without a theme condition,
+       so it applied in light mode too and the page came out as pale mint ink
+       on cream — the hint line at 1.03:1, the empty state at 1.02:1, the Map
+       tab at 1.03:1. Re-stated here for the light palette.
+
+       The button fills flip the other way. #06170F on the mint of the dark
+       theme is right; on light the brand resolves to #0a6f4d and dark ink on
+       it measures 2.98:1, so white is the readable choice there. */
+    /* The hero title and subtitle are NOT re-coloured: they sit on a dark
+       photograph, which is dark in both themes. Making them ink-on-cream put
+       #14201a on a #1a3922 photo — 1.3:1, worse than what was there. */
+    :root[data-theme="light"] body[data-page="near-me"] .nm-toolbar select,
+    :root[data-theme="light"] body[data-page="near-me"] .nm-ai input {
+      background: #ffffff; color: #1a1915; border-color: rgba(20, 30, 25, .16) !important;
+    }
+    :root[data-theme="light"] body[data-page="near-me"] .nm-ai input::placeholder { color: #6b6960; }
+    :root[data-theme="light"] body[data-page="near-me"] #nmAiMsg { color: #0a6647 !important; }
+    :root[data-theme="light"] body[data-page="near-me"] .nm-mobile-tabs button:not(.active) {
+      background: #ffffff; color: #1a1915; border-color: rgba(20, 30, 25, .16);
+    }
+    :root[data-theme="light"] body[data-page="near-me"] .nm-near-me { color: #ffffff; }
+    :root[data-theme="light"] body[data-page="near-me"] .nm-mobile-tabs button.active {
+      background: #0a6647; color: #ffffff; border-color: transparent;
+    }
+    :root[data-theme="light"] body[data-page="near-me"] .nm-hint,
+    :root[data-theme="light"] body[data-page="near-me"] .nm-empty { color: #5a5850; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
@@ -161,46 +189,46 @@
     <!-- Filter bar -->
     <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
     <div class="find-mode" id="fmNearMe" data-near="nmNearBtn" data-area="nmAi" style="display:none">
-      <button class="fm-x" type="button" aria-label="Dismiss">&times;</button>
-      <div class="fm-q">How do you want to find rooms & trucks?</div>
+      <button class="fm-x" type="button" aria-label="Dismiss" data-i18n-aria-label="fm_dismiss">&times;</button>
+      <div class="fm-q" data-i18n="fm_q_nearme">How do you want to find rooms & trucks?</div>
       <div class="fm-actions">
-        <button type="button" class="fm-btn fm-near"> Near me<small>Show what's closest to me right now</small></button>
-        <button type="button" class="fm-btn fm-area"> A specific area<small>Type a town, district or ward — browse anywhere in Tanzania</small></button>
+        <button type="button" class="fm-btn fm-near"> <span data-i18n="fm_near">Near me</span><small data-i18n="fm_near_sub_nm">Show what's closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"> <span data-i18n="fm_area">A specific area</span><small data-i18n="fm_area_sub">Type a town, district or ward — browse anywhere in Tanzania</small></button>
       </div>
     </div>
 
     <div class="nm-ai" style="margin-bottom:10px;">
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <input id="nmAi" type="search" autocomplete="off"
-               placeholder="Ask in your words — e.g. “2-bed for rent near Mikocheni” or “trucks near Mwanza”"
+               placeholder="Ask in your words — e.g. “2-bed for rent near Mikocheni” or “trucks near Mwanza”" data-i18n-placeholder="nm_ai_ph"
                style="flex:1;min-width:200px;padding:11px 14px;border:1px solid #d0d7de;border-radius:10px;font-size:.95rem;" />
         <button id="nmAiBtn" type="button"
-                style="padding:10px 16px;border:1px solid #0a6f4d;background:#0a6f4d;color:#fff;border-radius:10px;font-weight:600;cursor:pointer;white-space:nowrap;"> AI search</button>
+                style="padding:10px 16px;border:1px solid #0a6f4d;background:#0a6f4d;color:#fff;border-radius:10px;font-weight:600;cursor:pointer;white-space:nowrap;" data-i18n="nm_ai_btn"> AI search</button>
       </div>
       <small id="nmAiMsg" style="display:block;margin-top:6px;color:#0a6f4d;"></small>
     </div>
 
     <div class="nm-toolbar">
-      <select id="nmKind" title="What to show">
-        <option value="all">Show: rooms &amp; trucks</option>
-        <option value="rooms">Rooms only</option>
-        <option value="trucks">Trucks only</option>
+      <select id="nmKind" title="What to show" data-i18n-title="nm_kind_title">
+        <option value="all" data-i18n="nm_kind_all">Show: rooms &amp; trucks</option>
+        <option value="rooms" data-i18n="nm_kind_rooms">Rooms only</option>
+        <option value="trucks" data-i18n="nm_kind_trucks">Trucks only</option>
       </select>
-      <select id="nmListing" title="For rooms: rent or sale">
-        <option value="">Rooms: rent &amp; sale</option>
-        <option value="rent">Rooms for rent</option>
-        <option value="sale">Rooms for sale</option>
+      <select id="nmListing" title="For rooms: rent or sale" data-i18n-title="nm_listing_title">
+        <option value="" data-i18n="nm_listing_both">Rooms: rent &amp; sale</option>
+        <option value="rent" data-i18n="nm_listing_rent">Rooms for rent</option>
+        <option value="sale" data-i18n="nm_listing_sale">Rooms for sale</option>
       </select>
-      <select id="nmRadius" title="Search radius">
-        <option value="2">Within 2 km</option>
-        <option value="5">Within 5 km</option>
-        <option value="10" selected>Within 10 km</option>
-        <option value="25">Within 25 km</option>
-        <option value="50">Within 50 km</option>
-        <option value="0">Any distance</option>
+      <select id="nmRadius" title="Search radius" data-i18n-title="nm_radius_title">
+        <option value="2" data-i18n="nm_within_2">Within 2 km</option>
+        <option value="5" data-i18n="nm_within_5">Within 5 km</option>
+        <option value="10" selected data-i18n="nm_within_10">Within 10 km</option>
+        <option value="25" data-i18n="nm_within_25">Within 25 km</option>
+        <option value="50" data-i18n="nm_within_50">Within 50 km</option>
+        <option value="0" data-i18n="nm_within_any">Any distance</option>
       </select>
       <div class="nm-actions">
-        <button id="nmNearBtn" class="nm-near-me" title="Use my GPS location">
+        <button id="nmNearBtn" class="nm-near-me" title="Use my GPS location" data-i18n-title="nm_near_title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
           <span data-i18n="nearme_locate">Use my location</span>
         </button>

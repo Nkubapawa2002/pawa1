@@ -176,6 +176,27 @@
     @media (max-width: 380px) {
       .ar-grid { grid-template-columns: 1fr 1fr; }
     }
+
+    /* ---- light theme ---------------------------------------------------
+       The hero paints its own colours, so theme-light.css (which re-declares
+       tokens) could not reach them: in light mode the title was #fff on cream
+       at 1.05:1 and every "Popular:" chip was invisible. Same cream palette
+       as the rest of the app; #0a6647 is the green that survives small type
+       on cream. */
+    :root[data-theme="light"] .ar-kicker { color: #0a6647; }
+    :root[data-theme="light"] .ar-title { color: #14201a; }
+    :root[data-theme="light"] .ar-lead { color: #5a5850; }
+    :root[data-theme="light"] .ar-pop-lbl { color: #6b6960; }
+    :root[data-theme="light"] .ar-pop-chip {
+      border-color: rgba(20, 30, 25, .14); background: #ffffff; color: #1a1915;
+    }
+    :root[data-theme="light"] .ar-intro-card h3 { color: #14201a; }
+    :root[data-theme="light"] .ar-intro-card p { color: #5a5850; }
+    :root[data-theme="light"] .ar-intro-card p b,
+    :root[data-theme="light"] .ar-intro-card p em { color: #1a1915; }
+    :root[data-theme="light"] .ar-pop-chip:hover {
+      background: rgba(10, 102, 71, .08); border-color: rgba(10, 102, 71, .35);
+    }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
@@ -185,8 +206,8 @@
   <main class="ar-wrap">
     <header class="ar-head">
       <div class="ar-kicker">Browse anywhere</div>
-      <h1 class="ar-title">Explore an area</h1>
-      <p class="ar-lead">Type any region, district, ward or village no location needed and see every home and service available there.</p>
+      <h1 class="ar-title" data-i18n="ar_title">Explore an area</h1>
+      <p class="ar-lead" data-i18n="ar_lead">Type any region, district, ward or village no location needed and see every home and service available there.</p>
     </header>
 
     <div class="ar-searchwrap">
@@ -195,7 +216,7 @@
           <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.9"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
           <input id="arInput" type="search" enterkeyhint="search"
                  placeholder="e.g. Sinza, Kinondoni, Mwanza, Paje…"
-                 aria-label="Type a region, district, ward or village" role="combobox" aria-expanded="false" aria-controls="arSuggest" />
+                 aria-label="Type a region, district, ward or village" data-i18n-aria-label="ar_input_aria" role="combobox" aria-expanded="false" aria-controls="arSuggest" />
         </label>
         <button class="ar-go" type="submit">Find</button>
       </form>
@@ -208,15 +229,15 @@
     <div class="ar-intro" id="arIntro">
       <div class="ar-intro-card">
         <div class="ar-intro-ic"></div>
-        <div><h3>Search by name, not GPS</h3><p>Looking somewhere you're not? Just type the place: a region like <b>Mwanza</b>, a district like <b>Kinondoni</b>, or a ward/village like <b>kariako</b>.</p></div>
+        <div><h3 data-i18n="ar_h_search">Search by name, not GPS</h3><p data-i18n-html="ar_p_search">Looking somewhere you're not? Just type the place: a region like <b>Mwanza</b>, a district like <b>Kinondoni</b>, or a ward/village like <b>kariako</b>.</p></div>
       </div>
       <div class="ar-intro-card">
         <div class="ar-intro-ic"></div>
-        <div><h3>Homes &amp; services together</h3><p>See every house for rent or sale <em>and</em> every local service provider listed in that area side by side.</p></div>
+        <div><h3 data-i18n="ar_h_side">Homes &amp; services together</h3><p data-i18n-html="ar_p_side">See every house for rent or sale <em>and</em> every local service provider listed in that area side by side.</p></div>
       </div>
       <div class="ar-intro-card">
         <div class="ar-intro-ic"></div>
-        <div><h3>Accurate to the ward</h3><p>We match against the real administrative boundary of the place you pick, so results are genuinely <b>there</b> not just nearby.</p></div>
+        <div><h3 data-i18n="ar_h_ward">Accurate to the ward</h3><p data-i18n-html="ar_p_ward">We match against the real administrative boundary of the place you pick, so results are genuinely <b>there</b> not just nearby.</p></div>
       </div>
     </div>
 
