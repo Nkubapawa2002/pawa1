@@ -78,6 +78,12 @@
     /* js/core/theme.js pins its own light/dark toggle at top-right, fixed, on
        every page. Reserve its width so the two controls sit side by side
        instead of on top of each other. */
+    /* Every control on this page clears 40px in its smallest dimension. The
+       chips were 30-37px, which is above the WCAG 2.2 minimum but below what
+       anyone can hit reliably one-handed on a moving daladala. */
+    .xp-lang, .xp-ex, .xp-scope, .xp-btn,
+    #xpViewList, #xpViewMap { min-height: 40px; }
+
     .xp-lang {
       flex: none; display: flex; align-items: center; gap: 5px;
       margin-right: 44px;

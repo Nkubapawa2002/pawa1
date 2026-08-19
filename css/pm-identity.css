@@ -74,4 +74,4 @@
   background: rgba(20, 20, 15, .04); border-color: rgba(20, 20, 15, .12); color: #1a1915;
 }
 :root[data-theme="light"] .pm-btn.ghost { background: rgba(20, 20, 15, .05); color: #1a1915; border-color: rgba(20, 20, 15, .12); }
-:root[data-theme="light"] .pm-big-fp { color: #0a7d57; background: rgba(10, 125, 87, .07); border-color: rgba(10, 125, 87, .22); }
+:root[data-theme="light"] .pm-big-fp { color: #0a6647; background: rgba(10, 102, 71, .07); border-color: rgba(10, 102, 71, .22); }

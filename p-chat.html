@@ -74,10 +74,15 @@
        same weight as the common one. Indented to the card's text column (14px card padding
        + 46px icon + 13px gap) so it reads as belonging to the card above it. */
     .pc-more {
+      position: relative;
       justify-self: start; display: inline-flex; align-items: center; gap: 5px;
       margin: -3px 0 2px 73px; font: inherit; font-size: 12px; font-weight: 700;
       color: #2EE6A6; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none;
     }
+    /* 12px text on one line is a 19px-tall target. The hit area is grown with a
+       pseudo-element rather than padding so the link stays tucked against the
+       card above it exactly as it looks now, and still clears 40px. */
+    .pc-more::after { content: ""; position: absolute; inset: -11px -10px; }
     .pc-more:hover { text-decoration: underline; }
 
     :root[data-theme="light"] body[data-page="p-chat"] {
@@ -86,7 +91,7 @@
     :root[data-theme="light"] .pc-title { color: var(--c-text); }
     :root[data-theme="light"] .pc-sub,
     :root[data-theme="light"] .pc-group-h { color: var(--c-text-muted); }
-    :root[data-theme="light"] .pc-more { color: #0a7d57; }
+    :root[data-theme="light"] .pc-more { color: #0a6647; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>

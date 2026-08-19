@@ -38,7 +38,14 @@
     .feedback-details { max-width: 640px; margin: 0 auto; text-align: center; }
     .feedback-toggle {
       list-style: none; cursor: pointer; user-select: none;
-      position: relative; z-index: 0; isolation: isolate;
+      /* position only — NO z-index/isolation. Making this a stacking context
+         reverses what the two pseudo-elements do: inside its own context they
+         paint AFTER the element background, so the ring and its blurred aura
+         covered the whole pill face instead of ringing it. White text ended up
+         on cyan at 2.1:1 on every page that carries the feedback pill. With no
+         stacking context they sit behind the pill background, which is the
+         effect this was written for. */
+      position: relative;
       display: inline-flex; align-items: center; gap: 9px;
       padding: 12px 22px; border-radius: 999px;
       border: 1.5px solid transparent;            /* the animated ring shows through */
@@ -128,16 +135,33 @@
     .ha-head { display: flex; align-items: flex-start; justify-content: space-between; }
     .ha-greet { font-size: 12.5px; color: rgba(231,241,236,.55); font-weight: 600; }
     .ha-greet #haGreetName { color: #EAF1EE; }
-    .ha-loc { display: flex; align-items: center; gap: 5px; margin-top: 3px; background: none; border: 0; padding: 0; cursor: pointer; color: #EAF1EE; font: inherit; }
+    .ha-loc { position: relative; display: flex; align-items: center; gap: 5px; margin-top: 3px; background: none; border: 0; padding: 0; cursor: pointer; color: #EAF1EE; font: inherit; }
+    /* The location line and the "See all" links are 20-26px tall, which is a
+       miss on a phone. The hit area is grown with a pseudo-element rather than
+       padding so the layout does not move by a single pixel — the homepage
+       looks exactly as it did, it is just catchable by a thumb. */
+    .ha-loc::after { content: ""; position: absolute; inset: -9px -8px; }
+    .ha-sec-head a { position: relative; }
+    .ha-sec-head a::after { content: ""; position: absolute; inset: -11px -10px; }
     .ha-loc span { font-size: 17px; font-weight: 800; }
     .ha-head-right { display: flex; align-items: center; gap: 10px; }
     .ha-lang { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 999px; padding: 7px 12px; cursor: pointer; color: #EAF1EE; font-weight: 800; font-size: 12.5px; }
     .ha-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,#2EE6A6,#13a679); display: grid; place-items: center; font-weight: 800; color: #06170F; font-size: 16px; text-decoration: none; }
     .ha-search { display: flex; gap: 10px; margin-top: 18px; }
     .ha-search-box { flex: 1; display: flex; align-items: center; gap: 10px; background: #141A18; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 13px 15px; }
-    .ha-search-box input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: #EAF1EE; font: 14px 'Plus Jakarta Sans', sans-serif; }
+    /* !important is not decoration here: premium.css styles every text field
+       on the site as a white pill with !important on background, border,
+       radius and padding. That is right for the desktop pages it was written
+       for and wrong inside a search box that already IS the field — it drew a
+       white box inside the dark one, in both themes. This is the only weight
+       that reaches it. */
+    .ha-search-box input { flex: 1; min-width: 0; outline: none; color: #EAF1EE; font: 14px 'Plus Jakarta Sans', sans-serif;
+      background: none !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; }
     .ha-search-box input::placeholder { color: rgba(231,241,236,.45); }
-    .ha-search-btn { width: 50px; height: 50px; border-radius: 16px; background: #2EE6A6; border: 0; display: grid; place-items: center; cursor: pointer; box-shadow: 0 10px 24px rgba(46,230,166,.28); }
+    /* flex: none — the search row squeezes this to 36px on a 320px Android
+       otherwise, which is the one control on the homepage nobody can afford to
+       miss. */
+    .ha-search-btn { width: 50px; min-width: 50px; flex: none; height: 50px; border-radius: 16px; background: #2EE6A6; border: 0; display: grid; place-items: center; cursor: pointer; box-shadow: 0 10px 24px rgba(46,230,166,.28); }
     .ha-chips { display: flex; gap: 9px; overflow-x: auto; margin: 18px -16px 0; padding: 0 16px 2px; scrollbar-width: none; }
     .ha-chips::-webkit-scrollbar { display: none; }
     .ha-chip { padding: 10px 17px; border-radius: 999px; font-weight: 700; font-size: 13px; border: 1px solid rgba(255,255,255,.08); cursor: pointer; white-space: nowrap; flex: none; background: rgba(255,255,255,.05); color: rgba(231,241,236,.72); font-family: inherit; }
@@ -194,7 +218,7 @@
     .ha-near-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(110,200,255,0) 0deg, rgba(110,200,255,.38) 55deg, rgba(110,200,255,0) 90deg); animation: ha-spin 3.4s linear infinite; }
     @keyframes ha-spin { to { transform: rotate(360deg); } }
     .ha-near-dot { position: relative; z-index: 1; width: 13px; height: 13px; border-radius: 50%; background: #7FD0FF; box-shadow: 0 0 14px 3px rgba(110,200,255,.7); }
-    .ha-near-text { flex: 1; min-width: 0; position: relative; }
+    .ha-near-text { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; }
     .ha-near-k { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(174,221,255,.85); }
     .ha-near-t { font-size: 16.5px; font-weight: 800; color: #fff; margin-top: 4px; line-height: 1.25; }
     .ha-near-s { font-size: 12.5px; color: rgba(220,236,248,.78); margin-top: 4px; line-height: 1.4; }
@@ -249,7 +273,9 @@
     .ha-earn-s { position: relative; font-size: 13px; color: rgba(255,255,255,.82); margin-top: 6px; max-width: 280px; line-height: 1.45; }
     .ha-earn-btns { position: relative; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
     .ha-earn-btns a { background: #fff; color: #0E5C45; border: 0; padding: 11px 19px; border-radius: 13px; font-weight: 800; font-size: 13.5px; text-decoration: none; }
-    .ha-earn-btns a.ghost { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); }
+    /* Was rgba(255,255,255,.16): white-on-that measured 4.06:1, under AA. A
+       dark translucent fill reads the same way — quiet, secondary — at ~7:1. */
+    .ha-earn-btns a.ghost { background: rgba(4,32,23,.30); color: #fff; border: 1px solid rgba(255,255,255,.55); }
     /* Frame band — the strategic "read an area as a room for business" lens */
     .ha-frame { position: relative; overflow: hidden; border-radius: 24px; padding: 22px; margin-top: 22px; background: linear-gradient(135deg, #2A1E5C 0%, #4326A6 55%, #6D3BD6 100%); }
     .ha-frame::after { content: ""; position: absolute; right: -40px; top: -40px; width: 170px; height: 170px; border-radius: 50%; background: rgba(246,196,90,.16); }

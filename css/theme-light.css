@@ -124,12 +124,17 @@
 :root[data-theme="light"] h6 { text-shadow: none; }
 
 /* ── App-shell tab bar (styles injected by js/core/app-shell.js, hardcoded dark) ─ */
+/* 0.82 let the feed show through the bar: whatever card happened to be under
+   it became the ground for the tab labels, so the active label measured
+   anywhere from 3.5:1 to 4.5:1 depending on where the page was scrolled. The
+   bar still reads as glass — the blur does that work — but its ground is now
+   a constant. */
 :root[data-theme="light"] .app-tabbar {
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.96);
   border-top-color: rgba(20, 18, 12, 0.08);
 }
 :root[data-theme="light"] .app-tabbar a { color: rgba(20, 18, 12, 0.45); }
-:root[data-theme="light"] .app-tabbar a.active { color: #0a7d57; }
+:root[data-theme="light"] .app-tabbar a.active { color: #0a6647; }
 
 /* ── Misc dark-glass surfaces that hardcode a near-black fill ──────────── */
 :root[data-theme="light"] .ha-card-photo { background: #eceae2; }
@@ -139,6 +144,16 @@
    #141A18 / rgba(255,255,255,.05) fills (built for the dark shell). Re-skin
    them to warm-cream cards with dark ink in light mode.
    ============================================================================ */
+/* The .ha wrapper lays a dark radial wash (#11231C) over the top 620px of the
+   feed. It was never overridden, so in light mode the whole top of the
+   homepage — greeting, location, search, category tabs — sat on a grey-green
+   veil instead of cream, and the muted ink on it measured 2.8:1. Same shape,
+   same job (lift the head of the page), in the light palette. */
+:root[data-theme="light"] .ha {
+  color: var(--c-text);
+  background: radial-gradient(900px 620px at 50% -12%, rgba(10,125,87,.10) 0%, rgba(250,249,245,0) 62%);
+}
+
 :root[data-theme="light"] .ha-greet { color: var(--c-text-muted); }
 :root[data-theme="light"] .ha-greet #haGreetName,
 :root[data-theme="light"] .ha-loc { color: var(--c-text); }
@@ -161,7 +176,7 @@
 }
 
 :root[data-theme="light"] .ha-sec-head h2 { color: var(--c-text); }
-:root[data-theme="light"] .ha-sec-head a { color: #0a7d57; }
+:root[data-theme="light"] .ha-sec-head a { color: #0a6647; }
 
 :root[data-theme="light"] .ha-card,
 :root[data-theme="light"] .ha-find-card {
@@ -179,7 +194,7 @@
 :root[data-theme="light"] .ha-empty { color: var(--c-text-muted); }
 :root[data-theme="light"] .ha-empty b { color: var(--c-text); }
 
-:root[data-theme="light"] .ha-stat-num { color: #0a7d57; }
+:root[data-theme="light"] .ha-stat-num { color: #0a6647; }
 :root[data-theme="light"] .ha-stat-num.gold { color: #b07d0a; }
 
 /* The bilingual manifesto stays a deliberate dark feature band (its gold/white
@@ -195,3 +210,27 @@
 }
 :root[data-theme="light"] .feedback-sub { color: var(--c-text-muted); }
 :root[data-theme="light"] .feedback-form label { color: var(--c-text-soft); }
+
+/* ---------------------------------------------------------------------------
+   Homepage category tabs + the trust band.
+
+   Both were dark-theme-only: .ha-tab paints its label #EAF1EE and .ha-trust
+   keeps a #121817 ground. On cream that made the five category labels
+   (Houses / Trucks / Near me / Services / Jobs) white-on-white — the row that
+   is the main way into the site, invisible — and put dark muted text on a dark
+   band. Found by tests/mobile_audit.mjs and confirmed by screenshot.
+   --------------------------------------------------------------------------- */
+:root[data-theme="light"] .ha-tab {
+  background: #ffffff;
+  border-color: var(--c-border);
+  color: var(--c-text);
+  box-shadow: 0 6px 16px rgba(20, 30, 25, 0.06);
+}
+:root[data-theme="light"] .ha-tab:hover { background: #ffffff; }
+
+:root[data-theme="light"] .ha-trust {
+  background: #ffffff;
+  border-color: var(--c-border);
+  box-shadow: 0 10px 26px rgba(20, 30, 25, 0.08);
+}
+:root[data-theme="light"] .ha-trust .vline { background: var(--c-border); }
