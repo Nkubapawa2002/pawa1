@@ -91,13 +91,15 @@ window.initHousesPage = async () => {
 
   // Transport modes + place kinds for "Match to my life" (declared up here so
   // setupMyPlaces(), which runs during init, is never in their dead zone).
-  const MODES = {
-    walk:     { label: "Walk",     icon: "", kmh: 4.5 },
-    bodaboda: { label: "Bodaboda", icon: "", kmh: 22 },
-    bajaji:   { label: "Bajaji",   icon: "", kmh: 18 },
-    daladala: { label: "Daladala", icon: "", kmh: 16 },
-    car:      { label: "Car",      icon: "", kmh: 26 }
-  };
+  //
+  // Speeds, the fixed cost of each mode, the trip weighting and the score
+  // itself live in js/lib/commute-score.js — pure functions a test can drive
+  // without a browser. Only the icon is presentation, so only the icon is
+  // here; duplicating a speed would be one more number to drift.
+  const MODE_ICON = { walk: "", bodaboda: "", bajaji: "", daladala: "", car: "" };
+  const MODES = Object.fromEntries(
+    Object.entries(window.pawaCommute.MODES)
+      .map(([k, v]) => [k, { ...v, icon: MODE_ICON[k] || "" }]));
   const PLACE_KINDS = {
     work:   { icon: "", label: "Workplace" },
     school: { icon: "", label: "School" },
@@ -1875,7 +1877,7 @@ window.initHousesPage = async () => {
   }
   function modeOf(m)  { return MODES[m] || MODES.car; }
   function kindOf(k)  { return PLACE_KINDS[k] || PLACE_KINDS.custom; }
-  function travelMin(km, mode) { return km / modeOf(mode).kmh * 60; }
+  function travelMin(km, mode) { return window.pawaCommute.travelMin(km, mode); }
   function fmtMin(min) {
     if (min < 1) return "<1 min";
     if (min < 60) return Math.round(min) + " min";
@@ -1893,23 +1895,25 @@ window.initHousesPage = async () => {
   //                         · undefined = not fetched yet (measuring)
   function commuteFor(h) {
     if (!myPlaces.length || !Number.isFinite(h.lat) || !Number.isFinite(h.lng)) return null;
-    let pending = false, knownMin = 0, knownLegs = 0;
     const legs = myPlaces.map(p => {
       const real = commuteRoadKm.get(p.id + "|" + h.id);
-      if (real === undefined) { pending = true; return { place: p, km: null, min: null, state: "measuring", ok: true }; }
-      if (real === null)      {                 return { place: p, km: null, min: null, state: "noroad",    ok: true }; }
+      if (real === undefined) return { place: p, km: null, min: null, state: "measuring", ok: true };
+      if (real === null)      return { place: p, km: null, min: null, state: "noroad",    ok: true };
       const min = travelMin(real, p.mode);
-      knownMin += min; knownLegs++;
       return { place: p, km: real, min, state: "road", ok: p.maxMin ? min <= p.maxMin : true };
     });
+    // The maths is pawaCommute's; see js/lib/commute-score.js for why it is a
+    // weighted mean against the worst trip rather than a plain sum, and why an
+    // unmeasured or unroutable leg becomes a TIER instead of zero minutes.
+    const s = window.pawaCommute.score(legs);
     return {
-      legs, pending,
-      // Only real road legs can fail the max-time gate; a listing is never hidden
-      // on the strength of a straight-line guess (or while still measuring).
-      pass: legs.every(l => l.state !== "road" || l.ok),
-      // Rank by total measured time; not-yet-measured listings sink to the bottom
-      // until their real legs arrive, then enrichCommuteRoad() re-ranks.
-      total: knownLegs ? knownMin : Infinity,
+      legs,
+      pending: legs.some(l => l.state === "measuring"),
+      pass: s.pass,        // only measured legs can bust a max-time limit
+      tier: s.tier,        // compared before score, so unknowns never win
+      score: s.score,      // the ranking number, in minutes
+      meanMin: s.meanMin, worstMin: s.worstMin,
+      weekMin: s.weekMin,  // what the card shows: minutes on the road per week
     };
   }
 
@@ -2147,17 +2151,32 @@ window.initHousesPage = async () => {
               ${[10, 15, 20, 30, 45, 60, 90].map(m => `<option value="${m}"${+p.maxMin === m ? " selected" : ""}>${m} min</option>`).join("")}
             </select>
           </label>
+          <!-- How often they go. This is the weight the whole ranking turns on,
+               so it is a control rather than something inferred silently: a
+               workplace and a favourite spot must not count the same, and only
+               the person knows which is which. Defaults from the kind. -->
+          <label class="mp-freq-lbl">Go
+            <select class="mp-freq" aria-label="How often you go there">
+              ${[1, 2, 3, 5, 7].map(n => `<option value="${n}"${window.pawaCommute.tripsFor(p) === n ? " selected" : ""}>${n}&times;/week</option>`).join("")}
+            </select>
+          </label>
           <span class="mp-status${p.lat != null ? " set" : ""}">${p.lat != null ? " " + esc(p.name || "location set") : "tap map / search →"}</span>
         </div>`;
 
       const labelIn = row.querySelector(".mp-label");
+      const freqSel = row.querySelector(".mp-freq");
       row.querySelector(".mp-kind").addEventListener("change", (e) => {
         p.kind = e.target.value;
         if (!labelIn.value.trim()) { labelIn.value = kindOf(p.kind).label; p.label = labelIn.value; }
+        // Follow the kind's default only while they have not set one themselves —
+        // switching Workplace to School should move 5x/week along with it, but
+        // must never overwrite a frequency they chose on purpose.
+        if (p.perWeek == null) freqSel.value = String(window.pawaCommute.tripsFor(p));
         refreshMarker(p);
       });
       labelIn.addEventListener("input", () => { p.label = labelIn.value; });
       row.querySelector(".mp-mode").addEventListener("change", (e) => { p.mode = e.target.value; });
+      freqSel.addEventListener("change", (e) => { p.perWeek = +e.target.value; });
       row.querySelector(".mp-max").addEventListener("change", (e) => { p.maxMin = e.target.value ? +e.target.value : null; });
       row.querySelector(".mp-remove").addEventListener("click", (e) => {
         e.stopPropagation();
@@ -2519,8 +2538,10 @@ window.initHousesPage = async () => {
     if (landmarkLoc) {
       visible.sort((a, b) => effDist(a) - effDist(b));
     } else if (myPlaces.length) {
-      const tot = id => (commuteScores.get(id) ? commuteScores.get(id).total : Infinity);
-      visible.sort((a, b) => tot(a.id) - tot(b.id));
+      // Tier first, then score — a fully measured home always outranks one we
+      // still know less about, however flattering its measured legs look.
+      visible.sort((a, b) => window.pawaCommute.compare(
+        commuteScores.get(a.id), commuteScores.get(b.id)));
     } else if (smartCriteria) {
       visible.sort((a, b) => (matchScores.get(b.id) || 0) - (matchScores.get(a.id) || 0));
     } else if (userLoc) {
@@ -2651,7 +2672,14 @@ window.initHousesPage = async () => {
           }${bills.length > 2 ? ` +${bills.length - 2}` : ""} ${bills.length === 1 ? "bill" : "bills"}</div>`
         : "";
       const commute = commuteScores.get(h.id);
-      const commuteHtml = commute ? `<div class="house-card-commute">${
+      // The weekly figure leads, because it is the only number here a person can
+      // feel: "3h 20m a week" answers "what does living here cost me" in a way
+      // that a per-leg minute count never does. It counts both directions and
+      // how often they actually go — see js/lib/commute-score.js.
+      const weekHtml = commute && commute.weekMin != null
+        ? `<span class="hc-week">≈ ${fmtMin(commute.weekMin)} a week on the road${commute.pending ? " so far" : ""}</span>`
+        : "";
+      const commuteHtml = commute ? `<div class="house-card-commute">${weekHtml}${
         commute.legs.map(l => {
           const head = `${kindOf(l.place.kind).icon} ${esc(l.place.label)}`;
           // Real road distance only — never a straight-line guess to your workplace.

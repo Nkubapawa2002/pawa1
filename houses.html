@@ -188,6 +188,9 @@
     .hp-place-chip.clear { background: #fff; cursor: pointer; font: inherit;
       font-size: .8rem; font-weight: 600; min-height: 40px; }
     .house-card-commute { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+    /* The weekly total leads the commute block — the per-leg lines below explain
+       it, but this is the line someone actually reads. */
+    .hc-week { font-size: .8rem; font-weight: 700; color: #0a6f4d; }
     .hc-leg { font-size: .78rem; color: #4b5563; }
     .hc-leg.over { color: #b91c1c; font-weight: 600; }
     .hc-leg.pending { color: #9ca3af; font-style: italic; }
@@ -1436,6 +1439,8 @@
   <script src="js/lib/find-mode.js"></script>
   <script src="js/lib/dialog.js"></script>
   <script src="js/lib/request-place.js"></script>
+  <!-- Before houses.js: it reads pawaCommute at module scope for MODES. -->
+  <script src="js/lib/commute-score.js"></script>
   <script src="js/pages/houses.js"></script>
   <script src="js/pages/houses-mobile.js"></script>
   <script>
