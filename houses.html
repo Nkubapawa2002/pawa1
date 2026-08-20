@@ -174,9 +174,19 @@
     .hp-place-chip { display: inline-flex; align-items: center; gap: 5px; background: #eef6f2;
       color: #0a6f4d; border: 1px solid #cfe6db; border-radius: 999px; padding: 4px 10px;
       font-size: .8rem; font-weight: 600; }
+    /* The × removes one of the places the whole ranking is built from, so it
+       gets a real 40px target rather than the 2px of padding it had. */
     .hp-place-chip button { background: transparent; border: none; color: #0a6f4d; cursor: pointer;
-      font-size: 1rem; line-height: 1; padding: 0 0 0 2px; }
-    .hp-place-chip.clear { background: #fff; cursor: pointer; }
+      font-size: 1rem; line-height: 1; padding: 0 0 0 2px;
+      min-width: 40px; min-height: 40px; }
+    /* The place name inside a chip — present but quieter than the person's own
+       label, and capped so one long name cannot push the row off a phone. */
+    .hp-chip-where { font-weight: 500; opacity: .78; max-width: 12ch;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* .clear is the Edit chip, a real <button> now, so it needs the font it
+       used to inherit as a <span> and a target a thumb can hit. */
+    .hp-place-chip.clear { background: #fff; cursor: pointer; font: inherit;
+      font-size: .8rem; font-weight: 600; min-height: 40px; }
     .house-card-commute { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
     .hc-leg { font-size: .78rem; color: #4b5563; }
     .hc-leg.over { color: #b91c1c; font-weight: 600; }
@@ -187,8 +197,13 @@
     .mp-row-top { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
     .mp-row-top .mp-kind { flex: 0 0 auto; max-width: 46%; }
     .mp-row-top .mp-label { flex: 1 1 auto; min-width: 0; }
+    /* 40px, not 30. This deletes one of the places the whole ranking is built
+       from, and it sits directly beside the text input for that same row — a
+       missed tap either loses the place or lands in the field. 40 is the floor
+       a thumb reliably hits, and it is what tests/pchat_life_test.mjs asserts
+       for every control in this sheet. */
     .mp-remove { flex: 0 0 auto; background: #fee2e2; color: #b91c1c; border: none; border-radius: 8px;
-      width: 30px; height: 30px; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+      width: 40px; height: 40px; font-size: 1.1rem; line-height: 1; cursor: pointer; }
     .mp-search-wrap { position: relative; display: flex; gap: 6px; }
     .mp-search-wrap .mp-place { flex: 1 1 auto; min-width: 0; }
     .mp-gps { flex: 0 0 auto; border: 1px solid #d1d5db; background: #fff; border-radius: 8px; padding: 0 10px; cursor: pointer; }

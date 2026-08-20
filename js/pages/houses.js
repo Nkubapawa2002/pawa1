@@ -443,12 +443,17 @@ window.initHousesPage = async () => {
     // Deep links from the home page helper cards: open the feature on arrival.
     //   houses.html?alert=1   -> area-alert modal
     //   houses.html?request=1 -> typed "tell us what you want" modal
+    //   houses.html?life=1    -> "match to my life" places modal (P-Chat's row)
     // Deferred to the next tick: setupGeoAlerts() runs during init, before the
     // module-level `let`s the modal reads (alertPicked etc.) are initialized, so
     // opening synchronously here would hit a temporal-dead-zone error.
     const dl = new URLSearchParams(location.search);
     if (dl.get("alert") === "1") setTimeout(() => openAlertModal(), 0);
     else if (dl.get("request") === "1" && window.pawaRequestPlace) setTimeout(() => window.pawaRequestPlace.open(), 0);
+    // Safe from here even though setupMyPlaces() runs AFTER this function: the
+    // same next-tick deferral the comment above describes puts this past the
+    // whole init sequence, so the modal opens against initialized state.
+    else if (dl.get("life") === "1") setTimeout(() => openPlacesModal(), 0);
   }
 
   // Human summary of an alert's criteria, e.g. "rent · apartment · 2+ beds · ≤300k".
@@ -1953,12 +1958,27 @@ window.initHousesPage = async () => {
     placesChips.hidden = false;
     placesChips.innerHTML =
       `<span style="font-size:.8rem;font-weight:600;color:var(--c-text-muted,#6b6960);align-self:center;margin-right:2px">Matching your life:</span>` +
-      myPlaces.map(p => `
-        <span class="hp-place-chip" title="${esc(p.name || "")}">
-          ${kindOf(p.kind).icon} ${esc(p.label)} <small>${modeOf(p.mode).icon}${p.maxMin ? ` ≤${p.maxMin}m` : ""}</small>
-          <button type="button" data-id="${esc(p.id)}" aria-label="Remove ${esc(p.label)}">&times;</button>
-        </span>`).join("") +
-      `<span class="hp-place-chip clear" id="mpEditChip">Edit </span>`;
+      myPlaces.map(p => {
+        // The place NAME, not just the label. "Work ≤60m" does not say where
+        // work is, and a week after pinning it that is the only thing the
+        // person needs to check. It used to live in a title="" tooltip, which
+        // on the phone this is built for cannot be opened at all. Shown only
+        // when it differs from the label, so "Mlimani City · Mlimani City"
+        // never happens.
+        const label = (p.label || "").trim();
+        const name  = (p.name  || "").trim();
+        const showName = name && name.toLowerCase() !== label.toLowerCase();
+        const full = showName ? `${label} — ${name}` : label;
+        return `
+        <span class="hp-place-chip" title="${esc(name)}">
+          ${kindOf(p.kind).icon} ${esc(label)}${showName ? ` <span class="hp-chip-where">· ${esc(name)}</span>` : ""} <small>${modeOf(p.mode).icon}${p.maxMin ? ` ≤${p.maxMin}m` : ""}</small>
+          <button type="button" data-id="${esc(p.id)}" aria-label="Remove ${esc(full)}">&times;</button>
+        </span>`;
+      }).join("") +
+      // A button, not a span. This opens the sheet that owns every place the
+      // ranking is built from, and as a <span> it was unreachable by keyboard
+      // and unannounced to a screen reader.
+      `<button type="button" class="hp-place-chip clear" id="mpEditChip">Edit </button>`;
     placesChips.querySelectorAll("button[data-id]").forEach(btn => {
       btn.addEventListener("click", () => {
         myPlaces = myPlaces.filter(x => x.id !== btn.dataset.id);
@@ -2064,6 +2084,19 @@ window.initHousesPage = async () => {
     const resultsEl= document.getElementById("mpSearchResults");
     const coordsEl = document.getElementById("mpCoords");
     if (!backdrop) return;
+    // Already up — a double tap, or the ?life=1 deep link firing on a page
+    // where the button was already pressed. Everything below rebuilds `draft`
+    // from scratch, so running it again would silently wipe the places the
+    // person has been typing in. Put their cursor back instead.
+    if (window.pawaDialog && window.pawaDialog.isOpen()) {
+      // If it is THIS sheet, put their cursor back: everything below rebuilds
+      // `draft` from scratch, so running again would silently wipe the places
+      // being typed in. If it is another sheet, refuse — pawaDialog's contract
+      // is one at a time, and revealing this backdrop anyway would leave a
+      // sheet on screen that the Escape key and the focus trap do not own.
+      if (!backdrop.hidden) window.pawaDialog.focusFirst(backdrop, "#mpSearchInput");
+      return;
+    }
 
     const blank = () => ({ id: "mp-" + Math.random().toString(36).slice(2, 8),
       kind: "work", label: "", name: "", lat: null, lng: null, mode: "daladala", maxMin: null });
@@ -2268,12 +2301,27 @@ window.initHousesPage = async () => {
       }
     };
 
-    const close = () => {
+    // Split in two, the same shape the area-alert sheet uses. `teardown` is the
+    // cleanup; `close` goes through pawaDialog so Escape, the focus trap, the
+    // scroll lock and focus-return all apply — this sheet claims
+    // role="dialog" aria-modal="true" and until now enforced none of it, which
+    // is exactly the gap js/lib/dialog.js was written to close. It was missed
+    // when the request and area-alert sheets were migrated.
+    const teardown = () => {
       isOpen = false; clearTimeout(initTimer);
       backdrop.hidden = true; listEl.innerHTML = "";
       Object.values(mpMarkers).forEach(m => m.remove()); mpMarkers = {};
       if (mpMap) { mpMap.remove(); mpMap = null; }
     };
+    const close = () => {
+      if (window.pawaDialog && window.pawaDialog.close(backdrop)) return;
+      teardown();
+    };
+    if (window.pawaDialog) {
+      window.pawaDialog.open(backdrop, {
+        onClose: teardown, focus: "#mpSearchInput", labelledBy: "placesModalTitle",
+      });
+    }
     addBtn.onclick    = () => { const b = blank(); draft.push(b); activeId = b.id; renderRows(); setActive(b.id); updateCoords(); };
     clearBtn.onclick  = () => { Object.values(mpMarkers).forEach(m => m.remove()); mpMarkers = {}; const b = blank(); draft = [b]; activeId = b.id; renderRows(); updateCoords(); };
     closeBtn.onclick  = close;

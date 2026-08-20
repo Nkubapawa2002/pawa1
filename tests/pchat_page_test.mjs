@@ -18,6 +18,7 @@ const BASE = "http://localhost:8080";
 // Every destination the tab promises, in the order it presents them.
 const EXPECTED = [
   { kind: "modal", id: "pcRequestBtn", label: "Tell us what you want" },
+  { kind: "link", href: "houses.html?life=1", label: "Match homes to my life" },
   { kind: "link", href: "houses.html?alert=1", label: "Alert me about an area" },
   { kind: "link", href: "near-me.html", label: "Scan areas and services near you" },
   { kind: "link", href: "frame.html", label: "Read any area as a room for business" },

@@ -128,6 +128,8 @@ window.I18N = {
     pc_scan_more: "Or open any area by name",
     pc_frame_d: "Who gathers there, the roads that carry them, and where demand beats supply.",
     pc_meet_d: "See each other on a live map for a viewing or a service visit — one 6-character code.",
+    pc_life: "Match homes to my life",
+    pc_life_d: "Add your workplace, school or the places your week runs through — homes get ranked by how close they really are.",
     pc_live: "Share my live location",
     pc_live_d: "One tap — they watch you move on the map in real time, in WhatsApp. No app to install.",
     // Deliberately "still open", not "you are live". Broadcasting stops the
@@ -1734,6 +1736,8 @@ window.I18N = {
     pc_scan_more: "Au fungua eneo lolote kwa jina",
     pc_frame_d: "Nani hukusanyika hapo, barabara zinazowaleta, na wapi mahitaji yanazidi upatikanaji.",
     pc_meet_d: "Onaneni kwenye ramani ya moja kwa moja mnapoenda kuangalia nyumba au kutoa huduma — msimbo mmoja wa herufi 6.",
+    pc_life: "Linganisha nyumba na maisha yangu",
+    pc_life_d: "Ongeza mahali unapofanyia kazi, shule au maeneo wiki yako inapopita — nyumba zitapangwa kulingana na ukaribu halisi.",
     pc_live: "Shiriki mahali nilipo sasa hivi",
     pc_live_d: "Bonyeza mara moja — wanakuona ukitembea kwenye ramani papo hapo, ndani ya WhatsApp. Hakuna programu ya kusakinisha.",
     pc_live_open: "Chumba chako cha kukutana {code} bado kipo wazi",
