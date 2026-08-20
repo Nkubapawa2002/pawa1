@@ -9,6 +9,7 @@
   <meta name="theme-color" content="#0a120e" />
   <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.css" />
   <style>
     /* Twilight design (Claude) — dark emerald, mint accent, glass card. */
     * { box-sizing: border-box; }
@@ -18,8 +19,8 @@
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
     }
     .sl-card {
-      background: rgba(255,255,255,.04); color: #E9F3EE; max-width: 420px; width: 100%; border-radius: 22px;
-      padding: 30px 24px; text-align: center;
+      background: rgba(255,255,255,.04); color: #E9F3EE; max-width: 460px; width: 100%; border-radius: 22px;
+      padding: 26px 22px; text-align: center;
       border: 1px solid rgba(255,255,255,.10);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 26px 64px rgba(0,0,0,.5);
       -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
@@ -27,14 +28,31 @@
     .sl-card h1 { font-size: 1.3rem; font-weight: 700; margin: 6px 0 6px; color: #fff; }
     .sl-card p { color: rgba(233,243,238,.6); font-size: .95rem; line-height: 1.5; margin: 0 0 18px; }
     .sl-card p strong { color: #E9F3EE; }
-    #slBtn {
+    [hidden] { display: none !important; }
+
+    /* ---- the two doors --------------------------------------------------
+       Sending and receiving are opposite jobs done by opposite people, so
+       they are two tabs rather than one page that tries to guess. The tab
+       bar is hidden entirely in agent-link mode, where there is only ever
+       one thing to do. */
+    .sl-tabs { display: flex; gap: 6px; padding: 4px; margin: 0 0 18px;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; }
+    .sl-tab {
+      flex: 1; min-height: 42px; border: 0; border-radius: 10px; cursor: pointer;
+      background: none; color: rgba(233,243,238,.66); font-family: inherit;
+      font-size: .92rem; font-weight: 700;
+    }
+    .sl-tab.is-on { background: rgba(46,230,166,.16); color: #6FF3C4; }
+
+    #slBtn, .sl-go {
       width: 100%; padding: 16px; border: 0; border-radius: 14px;
       background: #2EE6A6; color: #06170F; font-family: inherit;
       font-size: 1.05rem; font-weight: 800; cursor: pointer;
       box-shadow: 0 12px 28px rgba(46,230,166,.28);
     }
-    #slBtn:disabled { opacity: .6; }
-    #slStatus { margin-top: 14px; font-size: .92rem; min-height: 1.2em; color: #2EE6A6; font-weight: 600; }
+    #slBtn:disabled, .sl-go:disabled { opacity: .6; cursor: default; }
+    #slStatus, .sl-msg { margin-top: 14px; font-size: .92rem; min-height: 1.2em; color: #2EE6A6; font-weight: 600; }
+    .sl-msg.is-bad { color: #FF9DB4; }
     #slResult { margin-top: 16px; }
     .sl-coords { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: .3px; }
     .sl-acc { font-size: .8rem; color: rgba(233,243,238,.55); margin-top: 3px; }
@@ -50,6 +68,56 @@
       margin-top: 10px; min-height: 44px; width: 100%; padding: 10px; border: 0; border-radius: 12px;
       background: none; color: rgba(233,243,238,.6); font-family: inherit; font-size: .9rem; cursor: pointer;
     }
+
+    /* ---- the map --------------------------------------------------------
+       Small, and present the moment there is a fix: a pair of numbers is not
+       something a person can check, and "is that my street?" is the only
+       question they actually want to answer before reading a code aloud. */
+    .sl-map { height: 190px; border-radius: 14px; margin-top: 14px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.10); background: #0f1714; }
+    .sl-map.leaflet-container { font-family: inherit; }
+
+    /* ---- the code -------------------------------------------------------
+       Big, monospaced and letter-spaced, because its whole job is to be read
+       out loud correctly by someone on a bad line. */
+    .sl-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 2.05rem; font-weight: 800; letter-spacing: .12em; color: #fff;
+      margin: 4px 0 2px; word-break: break-all;
+    }
+    .sl-code-note { font-size: .82rem; color: rgba(233,243,238,.55); line-height: 1.5; }
+    .sl-code-box { margin-top: 16px; padding: 16px 12px; border-radius: 16px;
+      border: 1px solid rgba(46,230,166,.30); background: rgba(46,230,166,.07); }
+
+    .sl-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; text-align: left; }
+    .sl-opt { font-size: .78rem; color: rgba(233,243,238,.6); font-weight: 700; }
+    .sl-opt select, .sl-in {
+      width: 100%; margin-top: 4px; min-height: 44px; padding: 10px 12px; border-radius: 11px;
+      border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05);
+      color: #E9F3EE; font-family: inherit; font-size: .93rem;
+    }
+    .sl-check { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 9px;
+      font-size: .82rem; color: rgba(233,243,238,.66); font-weight: 600; line-height: 1.45; cursor: pointer; }
+    .sl-check input { margin-top: 2px; width: 18px; height: 18px; accent-color: #2EE6A6; flex: none; }
+
+    /* The code entry box. One field, not three: three boxes look tidy and are
+       hostile to a paste, to a screen reader and to a thumb. It formats itself
+       as you type instead. */
+    #slCodeInput {
+      text-align: center; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 1.5rem; font-weight: 800; letter-spacing: .1em; min-height: 60px; text-transform: uppercase;
+    }
+    .sl-mine { margin-top: 20px; text-align: left; border-top: 1px solid rgba(255,255,255,.08); padding-top: 14px; }
+    .sl-mine-h { font-size: .72rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase;
+      color: rgba(233,243,238,.5); margin: 0 0 8px; }
+    .sl-mine-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: .86rem; }
+    .sl-mine-code { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 800; color: #E9F3EE;
+      letter-spacing: .06em; }
+    .sl-mine-when { color: rgba(233,243,238,.5); font-size: .78rem; margin-left: auto; }
+    .sl-mine-kill { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255,157,180,.3);
+      background: none; color: #FF9DB4; font-family: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+
+    .sl-fine { margin-top: 16px; font-size: .76rem; line-height: 1.55; color: rgba(233,243,238,.44); text-align: left; }
 
     /* ---- light theme -----------------------------------------------------
        Same cream palette as css/theme-light.css (--n-bg #faf9f5, --n-text
@@ -69,7 +137,8 @@
     :root[data-theme="light"] .sl-card h1 { color: #14201a; }
     :root[data-theme="light"] .sl-card p { color: #5a5850; }
     :root[data-theme="light"] .sl-card p strong { color: #1a1915; }
-    :root[data-theme="light"] #slStatus { color: #0a6647; }
+    :root[data-theme="light"] #slStatus, :root[data-theme="light"] .sl-msg { color: #0a6647; }
+    :root[data-theme="light"] .sl-msg.is-bad { color: #a3123c; }
     :root[data-theme="light"] .sl-coords { color: #14201a; }
     :root[data-theme="light"] .sl-acc { color: #6b6960; }
     :root[data-theme="light"] .sl-act {
@@ -77,22 +146,84 @@
     }
     :root[data-theme="light"] .sl-act-primary { background: #0a6647; color: #ffffff; border-color: transparent; }
     :root[data-theme="light"] .sl-again { color: #6b6960; }
+    :root[data-theme="light"] .sl-tabs { background: #f2f1eb; border-color: rgba(20,30,25,.10); }
+    :root[data-theme="light"] .sl-tab { color: #5a5850; }
+    :root[data-theme="light"] .sl-tab.is-on { background: #ffffff; color: #0a6647; }
+    :root[data-theme="light"] .sl-code { color: #14201a; }
+    :root[data-theme="light"] .sl-code-note { color: #6b6960; }
+    :root[data-theme="light"] .sl-code-box { background: #e9f7f1; border-color: #9fd9c2; }
+    :root[data-theme="light"] .sl-opt { color: #5a5850; }
+    :root[data-theme="light"] .sl-opt select, :root[data-theme="light"] .sl-in {
+      background: #ffffff; color: #1a1915; border-color: rgba(20,30,25,.16);
+    }
+    :root[data-theme="light"] .sl-check { color: #5a5850; }
+    :root[data-theme="light"] .sl-map { border-color: rgba(20,30,25,.12); background: #eceae2; }
+    :root[data-theme="light"] .sl-mine { border-top-color: rgba(20,30,25,.10); }
+    :root[data-theme="light"] .sl-mine-h, :root[data-theme="light"] .sl-mine-when { color: #6b6960; }
+    :root[data-theme="light"] .sl-mine-code { color: #1a1915; }
+    :root[data-theme="light"] .sl-mine-kill { color: #a3123c; border-color: rgba(163,18,60,.28); }
+    :root[data-theme="light"] .sl-fine { color: #6b6960; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
 <body>
   <div class="sl-card">
-    <h1 id="slTitle" data-i18n="sl_agent_title">Share this place's location</h1>
-    <p id="slLead" data-i18n-html="sl_agent_lead">An agent is registering this house. Tap the button below <strong>while you are at the property</strong> to send its exact location. Nothing else is shared.</p>
-    <button id="slBtn" type="button" data-i18n="sl_agent_btn">Share my current location</button>
-    <div id="slStatus" role="status" aria-live="polite"></div>
-    <div id="slResult" hidden></div>
+
+    <!-- Hidden by the script in agent-link mode (?c=…), where the person was
+         sent here to do exactly one thing and a choice would only confuse. -->
+    <div class="sl-tabs" id="slTabs" role="tablist" hidden>
+      <button type="button" class="sl-tab is-on" id="slTabSend" role="tab" aria-selected="true"
+              data-i18n="sl_tab_send">Share a place</button>
+      <button type="button" class="sl-tab" id="slTabRecv" role="tab" aria-selected="false"
+              data-i18n="sl_tab_recv">Enter a code</button>
+    </div>
+
+    <!-- ── SEND ──────────────────────────────────────────────────────────── -->
+    <section id="slSend">
+      <h1 id="slTitle" data-i18n="sl_agent_title">Share this place's location</h1>
+      <p id="slLead" data-i18n-html="sl_agent_lead">An agent is registering this house. Tap the button below <strong>while you are at the property</strong> to send its exact location. Nothing else is shared.</p>
+      <button id="slBtn" type="button" data-i18n="sl_agent_btn">Share my current location</button>
+      <div id="slStatus" role="status" aria-live="polite"></div>
+      <div id="slMapSend" class="sl-map" hidden></div>
+      <div id="slResult" hidden></div>
+
+      <!-- Codes minted on this device that are still alive. Rendered only when
+           there are some; an empty heading is a promise of nothing. -->
+      <div class="sl-mine" id="slMine" hidden>
+        <p class="sl-mine-h" data-i18n="sl_mine_h">Codes you gave out</p>
+        <div id="slMineList"></div>
+      </div>
+    </section>
+
+    <!-- ── RECEIVE ───────────────────────────────────────────────────────── -->
+    <section id="slRecv" hidden>
+      <h1 data-i18n="sl_recv_title">Enter a location code</h1>
+      <p data-i18n-html="sl_recv_lead">Someone standing at the place read you nine characters. Type them here and the pin appears on the map. <strong>You need to be signed in</strong>, and a code usually works once.</p>
+      <label class="sl-opt" for="slCodeInput">
+        <span data-i18n="sl_recv_label">The code</span>
+        <input id="slCodeInput" class="sl-in" type="text" inputmode="latin" autocomplete="off"
+               autocapitalize="characters" spellcheck="false" maxlength="11" placeholder="K7M-2Q9-F3T"
+               aria-describedby="slRecvMsg" />
+      </label>
+      <button id="slRecvGo" class="sl-go" type="button" style="margin-top:12px" disabled
+              data-i18n="sl_recv_go">Show me the place</button>
+      <div id="slRecvMsg" class="sl-msg" role="status" aria-live="polite"></div>
+      <div id="slMapRecv" class="sl-map" hidden></div>
+      <div id="slRecvOut" hidden></div>
+    </section>
+
+    <p class="sl-fine" id="slFine" hidden data-i18n-html="sl_fine">A code is encrypted on your phone before it is stored, so the coordinates cannot be read by us or by anyone with our database — only by someone who can say the nine characters. It expires, it can be used a set number of times, and you can kill it early.</p>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.js"></script>
   <script src="js/core/config.js"></script>
   <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
   <script src="js/lib/geolocate.js"></script>
+  <script src="js/lib/loc-code.js"></script>
+  <script src="js/lib/loc-share.js"></script>
   <script>window.applyTranslations && window.applyTranslations();</script>
   <script src="js/pages/share-location.js"></script>
 </body>
