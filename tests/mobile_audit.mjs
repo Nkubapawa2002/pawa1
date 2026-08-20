@@ -72,6 +72,11 @@ const PAGES = [
 
 let pass = 0, fail = 0;
 const findings = [];
+// Frames where the renderer refused the pixel buffer. Not failures — the run
+// still scores every element it can from the cascade — but they are the reason
+// a page can come back clean on one run and flag on the next, so they are
+// printed rather than swallowed.
+const noPixels = [];
 const ok = (cond, msg, detail) => {
   if (cond) pass++;
   else { fail++; findings.push(msg + (detail ? "\n        " + detail : "")); }
@@ -370,18 +375,42 @@ const SETTLE = async () => {
     lastY = y; lastH = h;
   }
 };
+// Turn the shot into a buffer SCORE can sample.
+//
+// Two things this has to survive. The screenshot arrives at deviceScaleFactor
+// 2, so a 430x932 phone is a 860x1864 bitmap — 6.4 MB of RGBA per frame, six
+// frames a page, 144 page-loads a run. We only ever read a MEDIAN colour out
+// of it, which one device pixel per CSS pixel answers exactly as well, so it
+// is drawn down to CSS size: a quarter of the memory for the same answer.
+//
+// And it has to fail soft. getImageData throws RangeError when the renderer
+// cannot get the allocation, and that used to take the whole audit with it —
+// twelve pages of results thrown away because one frame on one phone ran out
+// of room. SCORE already treats a missing buffer as "no camera": elements that
+// paint their own opaque background are still scored from the cascade, the
+// translucent and gradient ones are skipped for that frame, and the run ends
+// with a report instead of a stack trace.
 const LOAD_PIXELS = async (b64) => {
-  const img = new Image();
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = "data:image/png;base64," + b64; });
-  const c = document.createElement("canvas");
-  c.width = img.naturalWidth; c.height = img.naturalHeight;
-  const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0);
-  window.__AUDIT_PIXELS = {
-    width: c.width, height: c.height,
-    data: ctx.getImageData(0, 0, c.width, c.height).data,
-    scale: c.width / window.innerWidth,
-  };
+  window.__AUDIT_PIXELS = null;            // release the previous frame first
+  try {
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = "data:image/png;base64," + b64; });
+    const w = window.innerWidth, h = window.innerHeight;
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    window.__AUDIT_PIXELS = {
+      width: w, height: h,
+      data: ctx.getImageData(0, 0, w, h).data,
+      scale: 1,
+    };
+    c.width = c.height = 0;                // let the backing store go now
+  } catch (e) {
+    window.__AUDIT_PIXELS = null;
+    return String((e && e.message) || e);
+  }
+  return null;
 };
 
 // ---- driver ----------------------------------------------------------------
@@ -482,14 +511,33 @@ try {
             await page.evaluate(() => { document.body.classList.add("audit-hide"); });
             await sleep(80);
             const cand = await page.evaluate(MEASURE);
-            const shot = await page.screenshot({ encoding: "base64" });
+            // The shot is the OTHER half of the allocation LOAD_PIXELS guards,
+            // and it was left unguarded. When the renderer cannot spare a frame
+            // buffer this throws ProtocolError, and an uncaught one here does
+            // not cost a frame — it ends the page: meet.html lost all twelve of
+            // its device runs to a single refused screenshot. Same treatment as
+            // a refused buffer, then: no camera for this band, score what the
+            // cascade can answer, and say so at the end.
+            let shot = null;
+            try {
+              shot = await page.screenshot({ encoding: "base64" });
+            } catch (e) {
+              noPixels.push(`${where} @${y}: ${(e && e.message) || e}`);
+            }
             const movedBy = await page.evaluate((was) => window.scrollY - was, cand.scrollY);
             if (movedBy !== 0 && tryN < 2) {
               await page.evaluate(() => { document.body.classList.remove("audit-hide"); });
               await sleep(300);
               continue;
             }
-            await page.evaluate(LOAD_PIXELS, shot);
+            // Clear the buffer when there is no shot. Leaving the PREVIOUS
+            // band's pixels in place would score this band's text against the
+            // backgrounds of the one above it — inventing failures, which is
+            // the one thing this audit must never do.
+            const pixErr = shot
+              ? await page.evaluate(LOAD_PIXELS, shot)
+              : await page.evaluate(() => { window.__AUDIT_PIXELS = null; return null; });
+            if (pixErr) noPixels.push(`${where} @${y}: ${pixErr}`);
             cand.contrast = await page.evaluate(SCORE, cand.contrast);
             await page.evaluate(() => { document.body.classList.remove("audit-hide"); });
             ok(movedBy === 0, `${where}: page moved ${movedBy}px between the measurement and the shot`);
@@ -526,6 +574,13 @@ try {
 if (findings.length) {
   process.stdout.write("\nFINDINGS\n");
   findings.forEach((f) => process.stdout.write("  · " + f + "\n"));
+}
+// Sibling of the block above, not nested inside it. A run that drops frames
+// and still passes is precisely the run that needs to say so - that is the
+// case where a missing screenshot silently narrowed what got checked.
+if (noPixels.length) {
+  process.stdout.write(`\n${noPixels.length} frame(s) scored without a screenshot:\n`);
+  noPixels.slice(0, 12).forEach((f) => process.stdout.write("  · " + f + "\n"));
 }
 process.stdout.write(`\n${pass} checks passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

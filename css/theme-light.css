@@ -51,6 +51,7 @@
   --c-bg:           #faf9f5;
   --c-bg-elev:      #f1f0ea;
   --c-surface:      #ffffff;
+  --c-surface-2:    #f6f5f0;
   --c-surface-soft: #fbfaf6;
   --c-overlay:      rgba(26, 25, 21, 0.55);
   --c-text:         #1a1915;
@@ -58,6 +59,13 @@
   --c-text-muted:   #6b6960;
   --c-text-faint:   #9e9b91;
   --c-text-on-brand:#ffffff;
+  /* --c-muted is the OLDER spelling of --c-text-muted and twelve per-page dark
+     blocks still set it (`--c-muted: rgba(233,243,238,.55)`). It was never
+     re-asserted here, so every one of those pages kept near-white muted ink and
+     printed it on cream — meet's "or" divider and its WhatsApp hint both
+     measured 1.13:1. Same value as --c-text-muted, on purpose: they are the
+     same idea and drifting them apart is how this happens again. */
+  --c-muted:        #6b6960;
   --c-border:       #e7e4dd;
   --c-border-strong:#d6d2c8;
   --c-border-focus: #0a6f4d;

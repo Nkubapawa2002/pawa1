@@ -446,7 +446,7 @@
       text-decoration: none;
     }
     .hd-cta-call { background: var(--c-brand, #0a6f4d); color: #fff; }
-    .hd-cta-wa   { background: #25D366; color: #fff; }
+    .hd-cta-wa   { background: var(--wa-green, #25d366); color: var(--wa-on, #06170F); }
     .hd-cta-meet { background: var(--c-accent, #bc5c00); color: #fff; grid-column: span 2; }
     .hd-cta:active { transform: scale(.97); }
     .hd-cta:hover { text-decoration: none; opacity: .94; }
@@ -536,7 +536,6 @@
     body[data-page="house"] .hd-commute-msg.warn { background: rgba(246,196,90,.10); border-color: rgba(246,196,90,.3); color: #f6d79a; }
     /* CTAs: keep vivid, dark text for contrast on bright fills */
     body[data-page="house"] .hd-cta-call { color: #06170F; }
-    body[data-page="house"] .hd-cta-wa { background: #25D366; color: #06170F; }
     /* sticky bottom bar → dark glass (this is the only bottom chrome here) */
     body[data-page="house"] .hd-sticky { background: rgba(10,18,13,.94); border-top: 1px solid rgba(255,255,255,.1); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
     /* hide the empty shared-nav / footer slots (native pushed view) */

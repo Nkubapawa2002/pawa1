@@ -197,8 +197,12 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
     top: calc(8px + var(--safe-top, 0px)) !important;
     padding: 0 !important;
     border-radius: 50% !important;
-    width: 36px !important;
-    height: 36px !important;
+    /* 44px, not 36. This is the only way out of a full-screen live map — if
+       the tap misses, the user is stuck on a page that is broadcasting their
+       location. 44 is the minimum a thumb reliably hits and it still clears
+       the room topbar's Leave button. */
+    width: 44px !important;
+    height: 44px !important;
     justify-content: center;
     align-items: center;
     z-index: 9999 !important;

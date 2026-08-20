@@ -85,6 +85,33 @@
     .pc-more::after { content: ""; position: absolute; inset: -11px -10px; }
     .pc-more:hover { text-decoration: underline; }
 
+    /* ── The open-room banner ─────────────────────────────────────────────
+       Shown only when sessionStorage still carries a meet room. The wording is
+       "still open", never "you are live", and that distinction is the whole
+       point: broadcasting your position is a property of the meet PAGE being
+       open, and it stopped the instant this tab replaced it. A banner saying
+       "LIVE NOW" here would tell someone their location is going out when it
+       is not — the one lie a location feature must never tell. What actually
+       survives is the room, so that is what it offers to take you back to. */
+    .pc-live-open {
+      margin: 0 0 22px; padding: 14px 16px;
+      border: 1px solid rgba(46,230,166,.34); border-radius: 14px;
+      background: rgba(46,230,166,.09);
+    }
+    .pc-live-open[hidden] { display: none; }
+    .pc-live-t { font-size: 14px; font-weight: 800; color: #6FF3C4; margin: 0; }
+    .pc-live-d { font-size: 12.5px; line-height: 1.5; color: rgba(233,243,238,.72); margin: 5px 0 0; }
+    .pc-live-acts { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+    /* 40px floors, not padding that happens to land near it — these two sit
+       under a live map and the "forget it" one is destructive. */
+    .pc-live-acts a, .pc-live-acts button {
+      min-height: 40px; display: inline-flex; align-items: center; justify-content: center;
+      padding: 0 16px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700;
+      cursor: pointer; text-decoration: none;
+    }
+    .pc-live-go { background: #2EE6A6; color: #06170F; border: 0; }
+    .pc-live-no { background: none; color: rgba(233,243,238,.72); border: 1px solid rgba(255,255,255,.16); }
+
     :root[data-theme="light"] body[data-page="p-chat"] {
       background: var(--c-bg, #F7F5EF); color: var(--c-text);
     }
@@ -92,6 +119,14 @@
     :root[data-theme="light"] .pc-sub,
     :root[data-theme="light"] .pc-group-h { color: var(--c-text-muted); }
     :root[data-theme="light"] .pc-more { color: #0a6647; }
+    /* The banner's dark palette is mint-on-near-black; on cream every one of
+       those pairs inverts, so all five are restated rather than left to a
+       token that happens to agree. */
+    :root[data-theme="light"] .pc-live-open { background: #e6f6ef; border-color: #9fd9c2; }
+    :root[data-theme="light"] .pc-live-t { color: #08553c; }
+    :root[data-theme="light"] .pc-live-d { color: #3f4a45; }
+    :root[data-theme="light"] .pc-live-go { background: #0a6f4d; color: #fff; }
+    :root[data-theme="light"] .pc-live-no { color: #3f4a45; border-color: #c9d3ce; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
@@ -104,6 +139,18 @@
   </header>
 
   <main class="pc-groups">
+
+    <!-- Rendered only by the script below, and only when a meet room survived
+         in sessionStorage. Static markup carries no room code and stays
+         hidden, so a failed script shows nothing rather than an empty claim. -->
+    <section class="pc-live-open" id="pcLiveOpen" hidden>
+      <p class="pc-live-t" id="pcLiveOpenT"></p>
+      <p class="pc-live-d" data-i18n="pc_live_open_d">You stopped broadcasting when you left the map. Rejoin to go live again.</p>
+      <div class="pc-live-acts">
+        <a class="pc-live-go" id="pcLiveGo" href="meet.html?code=" data-i18n="pc_live_rejoin">Rejoin</a>
+        <button type="button" class="pc-live-no" id="pcLiveForget" data-i18n="pc_live_forget">Forget it</button>
+      </div>
+    </section>
 
     <!-- ── Pull it to you ──────────────────────────────────────────────────
          For the seeker who does not see what they want in the catalogue and
@@ -167,6 +214,20 @@
     <section class="pc-group">
       <h2 class="pc-group-h" data-i18n="pc_g_meet">Meet and work</h2>
       <div class="ha-find">
+        <!-- The headline live action, which until now lived two taps inside
+             meet.html's lobby. It is a second door onto the same page rather
+             than a second implementation: ?live=1 lands on the lobby with the
+             one-tap WhatsApp share raised as the primary action. It is NOT
+             fired automatically — that would spring a geolocation prompt and a
+             popup on someone who only opened a tab. -->
+        <a class="ha-find-card" href="meet.html?live=1">
+          <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="#2EE6A6" stroke-width="1.7"/><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 18.4a9 9 0 0 0 0-12.8" stroke="#2EE6A6" stroke-width="1.7" stroke-linecap="round"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 15.5a5 5 0 0 0 0-7" stroke="#2EE6A6" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="pc_live">Share my live location</span>
+            <span class="ha-find-d" data-i18n="pc_live_d">One tap — they watch you move on the map in real time, in WhatsApp. No app to install.</span>
+          </span>
+        </a>
+
         <a class="ha-find-card" href="meet.html">
           <span class="ha-find-ic ic-sky" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z" stroke="#5EB7FF" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="10.3" r="2.5" stroke="#5EB7FF" stroke-width="1.7"/></svg></span>
           <span class="ha-find-tx">
@@ -223,6 +284,29 @@
       if (window.pawaRequestPlace) window.pawaRequestPlace.openMine();
       else location.href = "houses.html?request=1";
     });
+    // The open-room banner. meet.js persists the room it entered under
+    // sessionStorage "meet_active_room"; sessionStorage survives a same-tab
+    // navigation, so arriving here from the map still sees it. Read-only — the
+    // room is meet.html's to own, and "Forget it" drops only this local marker.
+    (function () {
+      const box = document.getElementById("pcLiveOpen");
+      if (!box) return;
+      let room = null;
+      try { room = JSON.parse(sessionStorage.getItem("meet_active_room") || "null"); }
+      catch (_) { room = null; }
+      const code = room && typeof room.code === "string" ? room.code.trim() : "";
+      if (!code) return;                       // no room, no claim
+
+      document.getElementById("pcLiveOpenT").textContent =
+        window.t("pc_live_open").replace("{code}", code);
+      document.getElementById("pcLiveGo").href = "meet.html?code=" + encodeURIComponent(code);
+      document.getElementById("pcLiveForget").addEventListener("click", () => {
+        try { sessionStorage.removeItem("meet_active_room"); } catch (_) {}
+        box.hidden = true;
+      });
+      box.hidden = false;
+    })();
+
     window.applyTranslations();
   </script>
   <script src="js/core/app-shell.js"></script>

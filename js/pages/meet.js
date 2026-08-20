@@ -1374,6 +1374,21 @@ const _initMeetPageImpl = () => {
     (rememberedName ? joinRoomBtn : document.getElementById("joinName"))?.focus();
   }
 
+  // ?live=1 — arrived from P-Chat's "Share my live location" row, which exists
+  // because this button was two taps down inside a lobby nobody scrolled. It is
+  // RAISED, not pressed: firing it on load would spring a geolocation prompt and
+  // a popup on someone who only opened a tab, and the popup would be blocked
+  // anyway for want of a user gesture. So bring it into view, focus it, and let
+  // the ring say which control the other tab meant.
+  if (params.get("live") === "1") {
+    const liveBtn = document.getElementById("waLiveLobbyBtn");
+    if (liveBtn) {
+      liveBtn.classList.add("wa-live-called");
+      liveBtn.scrollIntoView({ block: "center", behavior: "smooth" });
+      try { liveBtn.focus({ preventScroll: true }); } catch (_) { liveBtn.focus(); }
+    }
+  }
+
   if (inviteHouseId) {
     // This room is a live viewing of a specific listing.
     const jr = document.getElementById("joinRole");
@@ -1891,7 +1906,7 @@ const _initMeetPageImpl = () => {
         ${distLine ? `<div class="peer-meta">${distLine}</div>` : ""}
         <div class="peer-meta muted">last seen ${seenAgo}</div>
         ${row.phone ? `<a class="btn btn-outline btn-xs" href="tel:${row.phone}">Call</a>` : ""}
-        ${row.phone ? `<a class="btn btn-xs" style="background:#25d366;color:#fff" target="_blank" rel="noopener" href="${waVideoHref(row.phone)}"> WhatsApp</a>` : ""}
+        ${row.phone ? `<a class="btn btn-xs" style="background:var(--wa-green,#25d366);color:var(--wa-on,#06170F)" target="_blank" rel="noopener" href="${waVideoHref(row.phone)}"> WhatsApp</a>` : ""}
         <a class="btn btn-primary btn-xs" target="_blank" rel="noopener"
            href="https://www.google.com/maps/dir/?api=1&destination=${row.lat},${row.lng}">Navigate</a>
       </div>`;
@@ -1969,7 +1984,7 @@ const _initMeetPageImpl = () => {
       <div class="muted small">ETA about ${eta} min</div>
       <div class="closest-actions">
         ${nearest.phone ? `<a class="btn btn-outline btn-xs" href="tel:${nearest.phone}">Call</a>` : ""}
-        ${nearest.phone ? `<a class="btn btn-xs" style="background:#25d366;color:#fff" target="_blank" rel="noopener" href="${waVideoHref(nearest.phone)}"> WhatsApp</a>` : ""}
+        ${nearest.phone ? `<a class="btn btn-xs" style="background:var(--wa-green,#25d366);color:var(--wa-on,#06170F)" target="_blank" rel="noopener" href="${waVideoHref(nearest.phone)}"> WhatsApp</a>` : ""}
         <a class="btn btn-primary btn-xs" target="_blank" rel="noopener"
            href="https://www.google.com/maps/dir/?api=1&destination=${nearest.lat},${nearest.lng}">Navigate</a>
       </div>`;

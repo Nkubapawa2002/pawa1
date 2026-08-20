@@ -16,6 +16,21 @@
   --border: #e5e7eb;
   --danger: #dc2626;
   --success: #16a34a;
+  /* WhatsApp brand green, and the ink that is actually legible on it.
+     #25d366 is a LIGHT colour (relative luminance 0.48), so the white text it
+     was paired with in eight different places across this app measured
+     1.98:1 — under AA in BOTH themes, on the buttons that hand a customer off
+     to WhatsApp. Dark ink on the same green is 9.4:1 and keeps the brand
+     recognition, which is the only reason to use their green at all. One pair,
+     one place: reach for these two rather than retyping the hex. */
+  --wa-green: #25d366;
+  --wa-green-deep: #1da851;
+  --wa-on: #06170F;
+  /* WhatsApp green as a FOREGROUND — an icon or a label on a pale surface —
+     needs the other end of their palette. #25d366 as ink on the #f1f5f9 chat
+     bar is 1.8:1, under even the 3:1 that WCAG asks of a meaningful icon.
+     #075E54 is WhatsApp's own dark brand teal and reads 7:1 there. */
+  --wa-ink: #075E54;
   --warn: #f59e0b;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
   --shadow: 0 4px 16px rgba(0,0,0,0.08);
@@ -437,8 +452,8 @@ img, svg { display: block; max-width: 100%; }
 .btn-danger { background: var(--danger); color: var(--white); }
 .btn-danger:hover { background: #b91c1c; color: var(--white); text-decoration: none; }
 
-.btn-whatsapp { background: #25d366; color: var(--white); }
-.btn-whatsapp:hover { background: #1da851; color: var(--white); text-decoration: none; }
+.btn-whatsapp { background: var(--wa-green); color: var(--wa-on); }
+.btn-whatsapp:hover { background: var(--wa-green-deep); color: var(--wa-on); text-decoration: none; }
 
 .btn-call { background: var(--green); color: var(--white); }
 .btn-call:hover { background: var(--green-dark, #075c3e); color: var(--white); text-decoration: none; }
@@ -2513,6 +2528,14 @@ body[data-bg] .container > .page-subtitle {
   font-weight: 800;
   letter-spacing: -0.02em;
   margin-bottom: 10px;
+  /* The card is a green gradient in BOTH themes, so its title is white in
+     both. It used to just inherit that from .fast-hero-card — but neon-pro
+     paints every h1 `var(--n-text)`, which out-specifies inheritance, and in
+     the dark theme --n-text is near-white so nothing looked wrong. Flip to
+     light and the same rule put #1a1915 ink on the green: 2.66:1 on meet,
+     jobs and book-fast. Say it here rather than leaving it to a token whose
+     value happens to agree. */
+  color: inherit;
 }
 .fast-hero-card p { font-size: 1rem; opacity: 0.95; max-width: 540px; margin: 0 auto; }
 
@@ -2911,9 +2934,16 @@ body[data-bg] .container > .page-subtitle {
 .leaflet-control-layers label,
 .leaflet-control-layers span { color: #1a1915; }
 
+/* --white and --border are FIXED palette entries, not theme tokens, so these
+   three surfaces (lobby card, in-room topbar, in-room side card) stayed
+   #ffffff when meet.html painted itself dark — and the near-white muted text
+   the dark block hands them landed on white: 1.1:1 on the lobby, on all six
+   phones. The surface has to follow the theme, and so does every ink sitting
+   on it, or fixing one just moves the failure to the other. Old palette entry
+   kept as the fallback so nothing changes where --c-* is undefined. */
 .meet-lobby-card {
-  background: var(--white);
-  border: 1px solid var(--border);
+  background: var(--c-surface, var(--white));
+  border: 1px solid var(--c-border, var(--border));
   border-radius: var(--radius-lg);
   padding: 18px 16px;
   display: flex;
@@ -2927,10 +2957,10 @@ body[data-bg] .container > .page-subtitle {
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
 }
-.meet-lobby-card h3 { color: var(--green-dark); }
+.meet-lobby-card h3 { color: var(--c-brand-deep, var(--green-dark)); }
 .meet-label {
   display: flex; flex-direction: column; gap: 4px;
-  font-size: 0.86rem; font-weight: 600; color: var(--green-dark);
+  font-size: 0.86rem; font-weight: 600; color: var(--c-text-soft, var(--green-dark));
 }
 .meet-label input, .meet-label select {
   padding: 10px 12px;
@@ -2965,8 +2995,8 @@ body[data-bg] .container > .page-subtitle {
   display: flex; justify-content: space-between; align-items: center;
   flex-wrap: wrap; gap: 10px;
   padding: 12px 14px;
-  background: var(--white);
-  border: 1px solid var(--border);
+  background: var(--c-surface, var(--white));
+  border: 1px solid var(--c-border, var(--border));
   border-radius: var(--radius-lg);
   margin-bottom: 12px;
 }
@@ -2980,7 +3010,7 @@ body[data-bg] .container > .page-subtitle {
   padding: 3px 10px;
   border-radius: 6px;
 }
-.meet-room-meta { font-size: 0.85rem; color: var(--gray); margin-top: 2px; }
+.meet-room-meta { font-size: 0.85rem; color: var(--c-text-muted, var(--gray)); margin-top: 2px; }
 .meet-room-actions { display: flex; gap: 6px; }
 
 /* Map + side panel layout */
@@ -3115,13 +3145,13 @@ body[data-bg] .container > .page-subtitle {
 }
 
 .meet-card {
-  background: var(--white);
-  border: 1px solid var(--border);
+  background: var(--c-surface, var(--white));
+  border: 1px solid var(--c-border, var(--border));
   border-radius: var(--radius-lg);
   padding: 12px 14px;
 }
 .meet-card h4 {
-  color: var(--green-dark);
+  color: var(--c-brand-deep, var(--green-dark));
   font-size: 0.92rem;
   margin-bottom: 8px;
   text-transform: uppercase;

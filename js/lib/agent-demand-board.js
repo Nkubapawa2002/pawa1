@@ -64,7 +64,7 @@
       .adb-by.urgent{background:#fde6e2;color:#b3261e}.adb-by.soon{background:#fff3d6;color:#946200}.adb-by.later{background:#e7f0ea;color:#41504a}
       .adb-cta{display:flex;gap:6px;flex-shrink:0}
       .adb-btn{display:inline-flex;align-items:center;gap:4px;padding:7px 11px;border-radius:9px;font-weight:700;font-size:.82rem;text-decoration:none;border:0;cursor:pointer}
-      .adb-btn.call{background:#0a6f4d;color:#fff}.adb-btn.wa{background:#25d366;color:#063}
+      .adb-btn.call{background:#0a6f4d;color:#fff}.adb-btn.wa{background:var(--wa-green,#25d366);color:var(--wa-on,#06170F)}
       .adb-more{margin-top:10px;font-size:.8rem;color:#9a3412;font-weight:600;text-align:center}`;
     document.head.appendChild(s);
   }

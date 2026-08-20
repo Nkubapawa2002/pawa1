@@ -21,6 +21,7 @@ const EXPECTED = [
   { kind: "link", href: "houses.html?alert=1", label: "Alert me about an area" },
   { kind: "link", href: "near-me.html", label: "Scan areas and services near you" },
   { kind: "link", href: "frame.html", label: "Read any area as a room for business" },
+  { kind: "link", href: "meet.html?live=1", label: "Share my live location" },
   { kind: "link", href: "meet.html", label: "Meet & Locate" },
   { kind: "link", href: "share-location.html", label: "Share a location" },
   { kind: "link", href: "jobs.html", label: "Jobs and staff" },

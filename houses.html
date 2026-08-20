@@ -649,7 +649,7 @@
     .house-popup .pop-actions { display: flex; gap: 6px; }
     .house-popup .pop-actions a { flex: 1; text-align: center; padding: 6px 8px; border-radius: 6px; font-size: .78rem; text-decoration: none; font-weight: 600; }
     .house-popup .pop-actions a.btn-call { background: var(--c-brand, #0a6f4d); color: #fff; }
-    .house-popup .pop-actions a.btn-wa   { background: #25D366; color: #fff; }
+    .house-popup .pop-actions a.btn-wa   { background: var(--wa-green, #25d366); color: var(--wa-on, #06170F); }
 
     /* Map markers — circular pin with price tag */
     .house-marker {
@@ -883,13 +883,64 @@
     body[data-page="houses"] .am-search-row input::placeholder { color: rgba(233,243,238,.4); }
     body[data-page="houses"] .am-search-results { background: #141A18; }
     body[data-page="houses"] .house-card-photo { background: #0f1714 center/cover no-repeat; }
-    /* dark text on the bright green/gold fills for AA contrast */
+    /* dark text on the bright green/gold fills for AA contrast.
+       These fills are --c-brand / --c-accent / --c-success, which are BRIGHT
+       only in the dark theme. Flip to light and the same four tokens resolve to
+       #0a6f4d, #bc5c00 and #0d8050 — dark colours — and this rule printed
+       near-black on them: the alert modal's active mode button measured 2.98:1
+       on all six phones. The ink has to flip with the fill, so both directions
+       are stated, below. */
     body[data-page="houses"] .houses-near-me,
     body[data-page="houses"] .houses-alert-btn,
     body[data-page="houses"] .am-mode.active,
     body[data-page="houses"] .hp-seg.active,
-    body[data-page="houses"] .hp-biz-chip.active,
     body[data-page="houses"] .house-card-photo .verified { color: #06170F; }
+    :root[data-theme="light"] body[data-page="houses"] .houses-near-me,
+    :root[data-theme="light"] body[data-page="houses"] .houses-alert-btn,
+    :root[data-theme="light"] body[data-page="houses"] .am-mode.active,
+    :root[data-theme="light"] body[data-page="houses"] .hp-seg.active,
+    :root[data-theme="light"] body[data-page="houses"] .house-card-photo .verified { color: #fff; }
+    /* .hp-biz-chip.active is NOT in that list. Its fill is a hardcoded #1e40af
+       that never changes with the theme, so the dark ink was wrong in BOTH —
+       #06170F on that navy is 1.6:1. Its own rule already says #fff (13.0:1);
+       the fix is to stop overriding it. */
+
+    /* ── Leaflet controls on the alert / map-picker modals ─────────────────
+       Leaflet ships 30px zoom buttons, a 13px radio and a 14px-tall attribution
+       link. All three are comfortable with a mouse and all three are under the
+       40px a thumb reliably hits — and this map is where someone draws the area
+       they want to be alerted about, so a missed tap costs them the alert. */
+    body[data-page="houses"] .leaflet-control-zoom a {
+      width: 40px; height: 40px; line-height: 40px; font-size: 19px;
+    }
+    body[data-page="houses"] .leaflet-control-layers label {
+      display: flex; align-items: center; min-height: 40px; margin: 0; cursor: pointer;
+    }
+    /* appearance:none is what lets the radio carry a ::before, so the control
+       can be a real 40x40 target with a 16px dot drawn inside it — rather than
+       a 40px radio, which is what sizing the native widget would give. */
+    body[data-page="houses"] .leaflet-control-layers-selector {
+      appearance: none; -webkit-appearance: none;
+      width: 40px; height: 40px; margin: 0; flex: 0 0 auto;
+      display: grid; place-items: center;
+      background: none; border: 0; cursor: pointer;
+    }
+    body[data-page="houses"] .leaflet-control-layers-selector::before {
+      content: ""; width: 15px; height: 15px; border-radius: 50%;
+      border: 2px solid #6b6960; background: #fff;
+    }
+    body[data-page="houses"] .leaflet-control-layers-selector:checked::before {
+      border-color: #0a6f4d; box-shadow: inset 0 0 0 3px #fff; background: #0a6f4d;
+    }
+    /* #0078A8 on Leaflet's #DDD strip is 3.64:1. An opaque strip and a deeper
+       blue give 6.7:1. The links get a padded box for the thumb, and an equal
+       negative margin so the strip itself does not grow over the map. */
+    body[data-page="houses"] .leaflet-control-attribution {
+      background: #f5f5f5; color: #3f3d36; font-size: 11px;
+    }
+    body[data-page="houses"] .leaflet-control-attribution a {
+      color: #0a5c80; display: inline-block; padding: 13px 7px; margin: -13px 0;
+    }
     /* hide the empty shared-nav / footer slots (app-shell provides the chrome) */
     body[data-page="houses"] #nav-slot, body[data-page="houses"] #footer-slot { display: none !important; }
   </style>
