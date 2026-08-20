@@ -1,0 +1,448 @@
+/* ============================================================================
+   login.css — the sign-in screen, and nothing else.
+
+   The old screen linked seven stylesheets (styles, mobile, premium,
+   claude-design, neon-pro, design-system, auth, theme-light) and then tried to
+   win the argument with a block of page-level overrides. It lost: pale field
+   slabs under pale ink, a light theme rendered in dark-theme tokens, field
+   icons sitting on top of the placeholder text. So this file owns the whole
+   surface. login.html links design-system.css (fonts + tokens) and this, and
+   nothing else fights it.
+
+   Both themes are defined here, in one place, off one set of variables:
+   :root is dark ("Twilight", the app default) and
+   :root[data-theme="light"] re-points the same names. Nothing below the token
+   block hard-codes a colour, so neither theme can be half-applied.
+   ============================================================================ */
+
+body[data-page="login"] {
+  /* ---- dark (default) ---- */
+  --lg-bg: #050806;
+  --lg-bg-glow: radial-gradient(1100px 760px at 50% -8%, #13241D 0%, #0a120e 58%, #050806 100%);
+  --lg-surface: rgba(255, 255, 255, .045);
+  --lg-surface-2: rgba(255, 255, 255, .028);
+  --lg-surface-hover: rgba(46, 230, 166, .10);
+  --lg-border: rgba(255, 255, 255, .095);
+  --lg-border-strong: rgba(255, 255, 255, .16);
+  --lg-text: #E9F3EE;
+  --lg-muted: rgba(233, 243, 238, .60);
+  --lg-faint: rgba(233, 243, 238, .42);
+  --lg-accent: #2EE6A6;
+  --lg-accent-ink: #06170F;
+  --lg-accent-soft: rgba(46, 230, 166, .13);
+  --lg-danger: #FF8A7A;
+  --lg-danger-soft: rgba(255, 138, 122, .12);
+  --lg-ok: #2EE6A6;
+  --lg-ok-soft: rgba(46, 230, 166, .12);
+  --lg-warn: #F6C45A;
+  --lg-warn-soft: rgba(246, 196, 90, .12);
+  --lg-field: rgba(255, 255, 255, .05);
+  --lg-field-focus: rgba(255, 255, 255, .075);
+  --lg-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  --lg-radius: 20px;
+
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--lg-bg-glow) var(--lg-bg) no-repeat fixed;
+  color: var(--lg-text);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root[data-theme="light"] body[data-page="login"] {
+  --lg-bg: #F6F4ED;
+  --lg-bg-glow: radial-gradient(1100px 720px at 50% -8%, #E4F1E9 0%, #F2F1E9 55%, #F6F4ED 100%);
+  --lg-surface: #FFFFFF;
+  --lg-surface-2: #FBFAF6;
+  --lg-surface-hover: rgba(10, 102, 71, .06);
+  --lg-border: rgba(20, 32, 27, .12);
+  --lg-border-strong: rgba(20, 32, 27, .20);
+  --lg-text: #14201B;
+  --lg-muted: rgba(20, 32, 27, .64);
+  --lg-faint: rgba(20, 32, 27, .48);
+  --lg-accent: #0A6647;
+  --lg-accent-ink: #FFFFFF;
+  --lg-accent-soft: rgba(10, 102, 71, .10);
+  --lg-danger: #B3251A;
+  --lg-danger-soft: rgba(179, 37, 26, .08);
+  --lg-ok: #0A6647;
+  --lg-ok-soft: rgba(10, 102, 71, .09);
+  --lg-warn: #8A5D00;
+  --lg-warn-soft: rgba(138, 93, 0, .10);
+  --lg-field: #FFFFFF;
+  --lg-field-focus: #FFFFFF;
+  --lg-shadow: 0 20px 48px rgba(20, 40, 32, .10);
+}
+
+body[data-page="login"] *,
+body[data-page="login"] *::before,
+body[data-page="login"] *::after { box-sizing: border-box; }
+
+body[data-page="login"] [hidden] { display: none !important; }
+
+body[data-page="login"] #nav-slot,
+body[data-page="login"] #footer-slot { display: none !important; }
+
+/* ---------------------------------------------------------------- layout -- */
+.lg-shell {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 4px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 26px 16px 0;
+}
+
+/* The story column. On a phone it is a compact header above the card; from
+   940px it becomes the left half of a split and grows into the full pitch. */
+.lg-story { text-align: center; padding: 6px 4px 4px; }
+
+.lg-mark {
+  width: 56px; height: 56px; margin: 0 auto 14px;
+  border-radius: 18px;
+  display: grid; place-items: center;
+  background: var(--lg-accent-soft);
+  color: var(--lg-accent);
+  border: 1px solid var(--lg-border);
+}
+.lg-mark svg { width: 28px; height: 28px; }
+
+.lg-wordmark {
+  margin: 0;
+  font-size: 25px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15;
+  color: var(--lg-text);
+}
+.lg-wordmark em { font-style: normal; color: var(--lg-accent); }
+
+.lg-lead {
+  margin: 8px auto 0;
+  max-width: 34ch;
+  font-size: 14px; line-height: 1.55;
+  color: var(--lg-muted);
+}
+
+.lg-points { display: none; list-style: none; margin: 26px 0 0; padding: 0; }
+.lg-points li {
+  display: flex; align-items: center; gap: 13px;
+  padding: 11px 0;
+  font-size: 14.5px; font-weight: 600; color: var(--lg-text);
+}
+.lg-points .lg-pt-ic {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 13px;
+  display: grid; place-items: center;
+  background: var(--lg-accent-soft); color: var(--lg-accent);
+}
+.lg-points .lg-pt-ic svg { width: 20px; height: 20px; }
+.lg-points small { display: block; font-size: 12.5px; font-weight: 500; color: var(--lg-muted); margin-top: 2px; }
+
+/* ------------------------------------------------------------------ card -- */
+.lg-card {
+  background: var(--lg-surface);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius);
+  box-shadow: var(--lg-shadow);
+  padding: 22px 18px;
+  margin: 18px auto 0;
+  width: 100%;
+  max-width: 460px;
+}
+
+.lg-card-h { margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -.015em; }
+.lg-card-sub { margin: 0 0 16px; font-size: 13.5px; line-height: 1.55; color: var(--lg-muted); }
+
+/* --------------------------------------------------------- method tabs ---- */
+.lg-tabs {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 3px; padding: 3px; margin-bottom: 18px;
+  background: var(--lg-surface-2);
+  border: 1px solid var(--lg-border);
+  border-radius: 13px;
+}
+.lg-tab {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 9px 4px; border-radius: 10px;
+  font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1.2;
+  background: transparent; color: var(--lg-muted);
+  transition: background .18s ease, color .18s ease;
+}
+.lg-tab:hover { color: var(--lg-text); }
+.lg-tab[aria-selected="true"] {
+  background: var(--lg-accent); color: var(--lg-accent-ink);
+}
+
+/* ----------------------------------------------------------------- form -- */
+.lg-form { display: grid; gap: 14px; }
+
+.lg-field { display: grid; gap: 6px; }
+.lg-field > label {
+  font-size: 12.5px; font-weight: 700; color: var(--lg-text);
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.lg-field > label .lg-opt { font-weight: 500; font-size: 11.5px; color: var(--lg-faint); }
+
+.lg-wrap { position: relative; display: block; }
+
+/* The icon is absolutely positioned and the input is padded to clear it.
+   The old screen padded neither, which is why the envelope sat on the "y"
+   of "you@example.com". */
+.lg-wrap .lg-ic {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; pointer-events: none;
+  color: var(--lg-faint);
+}
+.lg-input {
+  width: 100%; height: 50px;
+  padding: 0 14px 0 42px;
+  font-family: inherit; font-size: 15.5px; color: var(--lg-text);
+  background: var(--lg-field);
+  border: 1px solid var(--lg-border-strong);
+  border-radius: 13px;
+  outline: none;
+  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.lg-input::placeholder { color: var(--lg-faint); }
+.lg-input:hover { border-color: var(--lg-accent); }
+.lg-input:focus-visible,
+.lg-input:focus {
+  background: var(--lg-field-focus);
+  border-color: var(--lg-accent);
+  box-shadow: 0 0 0 3px var(--lg-accent-soft);
+}
+.lg-input[aria-invalid="true"] {
+  border-color: var(--lg-danger);
+  box-shadow: 0 0 0 3px var(--lg-danger-soft);
+}
+.lg-input:disabled { opacity: .55; cursor: not-allowed; }
+/* Chrome paints its own autofill slab; keep our colours. */
+.lg-input:-webkit-autofill,
+.lg-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--lg-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--lg-field) inset;
+  caret-color: var(--lg-text);
+}
+.lg-input--pw { padding-right: 48px; }
+
+.lg-eye {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 11px;
+  display: grid; place-items: center;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--lg-faint);
+}
+.lg-eye:hover { color: var(--lg-accent); background: var(--lg-accent-soft); }
+.lg-eye svg { width: 19px; height: 19px; }
+
+.lg-hint { font-size: 12px; line-height: 1.5; color: var(--lg-faint); }
+.lg-hint.is-warn { color: var(--lg-warn); font-weight: 600; }
+.lg-hint.is-error { color: var(--lg-danger); font-weight: 600; }
+
+/* --------------------------------------------------------- code entry ----- */
+.lg-code {
+  width: 100%; height: 62px; padding: 0 12px;
+  text-align: center;
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 27px; font-weight: 600; letter-spacing: .34em; text-indent: .34em;
+  color: var(--lg-text);
+  background: var(--lg-field);
+  border: 1px solid var(--lg-border-strong);
+  border-radius: 14px; outline: none;
+}
+.lg-code:focus {
+  border-color: var(--lg-accent);
+  box-shadow: 0 0 0 3px var(--lg-accent-soft);
+}
+.lg-code[aria-invalid="true"] { border-color: var(--lg-danger); box-shadow: 0 0 0 3px var(--lg-danger-soft); }
+
+/* ------------------------------------------------------ password meter ---- */
+.lg-meter { display: grid; gap: 7px; }
+.lg-meter-bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.lg-meter-bars i {
+  height: 4px; border-radius: 3px; background: var(--lg-border-strong);
+  transition: background .2s ease;
+}
+.lg-meter[data-score="1"] .lg-meter-bars i:nth-child(-n+1),
+.lg-meter[data-score="2"] .lg-meter-bars i:nth-child(-n+2) { background: var(--lg-warn); }
+.lg-meter[data-score="3"] .lg-meter-bars i:nth-child(-n+3),
+.lg-meter[data-score="4"] .lg-meter-bars i { background: var(--lg-ok); }
+.lg-meter-say { font-size: 12px; color: var(--lg-muted); }
+.lg-meter-say b { color: var(--lg-text); }
+
+.lg-reqs { display: flex; flex-wrap: wrap; gap: 5px 10px; margin: 0; padding: 0; list-style: none; }
+.lg-reqs li {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; color: var(--lg-faint);
+}
+.lg-reqs li::before {
+  content: ""; width: 13px; height: 13px; border-radius: 50%;
+  border: 1.5px solid currentColor; flex: 0 0 auto;
+}
+.lg-reqs li.is-met { color: var(--lg-ok); font-weight: 600; }
+.lg-reqs li.is-met::before {
+  border-color: var(--lg-ok); background: var(--lg-ok);
+  /* a tick, drawn with a mask so it inherits the theme colour */
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20 6 9 17l-5-5' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 10px no-repeat,
+           linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20 6 9 17l-5-5' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 10px no-repeat,
+         linear-gradient(#000, #000);
+  mask-composite: exclude;
+}
+
+/* --------------------------------------------------------------- buttons -- */
+.lg-btn {
+  appearance: none; width: 100%; min-height: 50px;
+  padding: 13px 18px; border: 1px solid transparent; border-radius: 13px;
+  font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1.2;
+  cursor: pointer; text-align: center; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--lg-accent); color: var(--lg-accent-ink);
+  transition: filter .16s ease, transform .1s ease, opacity .16s ease;
+}
+.lg-btn:hover { filter: brightness(1.07); }
+.lg-btn:active { transform: scale(.99); }
+.lg-btn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+.lg-btn.ghost {
+  background: transparent; color: var(--lg-text);
+  border-color: var(--lg-border-strong);
+}
+.lg-btn.ghost:hover { background: var(--lg-surface-hover); border-color: var(--lg-accent); }
+
+.lg-link {
+  appearance: none; background: none; border: 0; padding: 4px 2px;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  color: var(--lg-accent); cursor: pointer; text-decoration: none;
+}
+.lg-link:hover { text-decoration: underline; }
+.lg-link:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
+
+.lg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* A checkbox that is actually tappable. */
+.lg-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--lg-muted); cursor: pointer; }
+.lg-check input {
+  appearance: none; width: 19px; height: 19px; flex: 0 0 auto;
+  border: 1.5px solid var(--lg-border-strong); border-radius: 6px;
+  background: var(--lg-field); cursor: pointer;
+  display: grid; place-items: center;
+}
+.lg-check input:checked { background: var(--lg-accent); border-color: var(--lg-accent); }
+.lg-check input:checked::after {
+  content: ""; width: 11px; height: 11px; background: var(--lg-accent-ink);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20 6 9 17l-5-5' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20 6 9 17l-5-5' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / contain no-repeat;
+}
+
+/* ------------------------------------------------------------- messages --- */
+.lg-msg {
+  display: none;
+  gap: 9px; align-items: flex-start;
+  padding: 11px 13px; border-radius: 12px;
+  font-size: 13px; line-height: 1.5; font-weight: 600;
+  border: 1px solid transparent;
+}
+.lg-msg.is-show { display: flex; }
+.lg-msg .lg-msg-ic { flex: 0 0 auto; width: 17px; height: 17px; margin-top: 1px; }
+.lg-msg.is-error { background: var(--lg-danger-soft); border-color: var(--lg-danger); color: var(--lg-danger); }
+.lg-msg.is-ok { background: var(--lg-ok-soft); border-color: var(--lg-ok); color: var(--lg-ok); }
+.lg-msg.is-info { background: var(--lg-surface-2); border-color: var(--lg-border); color: var(--lg-muted); }
+.lg-msg.is-warn { background: var(--lg-warn-soft); border-color: var(--lg-warn); color: var(--lg-warn); }
+
+/* -------------------------------------------------------------- divider --- */
+.lg-div {
+  display: flex; align-items: center; gap: 12px;
+  margin: 18px 0 14px;
+  font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--lg-faint);
+}
+.lg-div::before, .lg-div::after {
+  content: ""; flex: 1 1 auto; height: 1px; background: var(--lg-border);
+}
+
+/* ------------------------------------------------------------ row links --- */
+.lg-routes { display: grid; gap: 8px; }
+.lg-route {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px; border-radius: 14px; text-decoration: none;
+  background: var(--lg-surface-2);
+  border: 1px solid var(--lg-border);
+  color: var(--lg-text);
+  font-size: 14px; font-weight: 700;
+  transition: background .16s ease, border-color .16s ease;
+  text-align: left; width: 100%; font-family: inherit; cursor: pointer;
+}
+.lg-route:hover { background: var(--lg-surface-hover); border-color: var(--lg-accent); }
+.lg-route .lg-route-ic {
+  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 12px;
+  display: grid; place-items: center;
+  background: var(--lg-accent-soft); color: var(--lg-accent);
+}
+.lg-route .lg-route-ic svg { width: 19px; height: 19px; }
+.lg-route span.lg-route-tx { flex: 1 1 auto; min-width: 0; }
+.lg-route small { display: block; font-size: 12px; font-weight: 500; color: var(--lg-muted); margin-top: 2px; }
+.lg-route .lg-route-go { flex: 0 0 auto; color: var(--lg-faint); }
+.lg-route .lg-route-go svg { width: 18px; height: 18px; display: block; }
+
+/* --------------------------------------------------------------- portal --- */
+.lg-who {
+  font-size: 13.5px; color: var(--lg-muted); margin: 0 0 14px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.lg-who strong { color: var(--lg-text); }
+
+.lg-spinner {
+  width: 24px; height: 24px; margin: 18px auto;
+  border: 2.5px solid var(--lg-border-strong); border-top-color: var(--lg-accent);
+  border-radius: 50%; animation: lg-spin .8s linear infinite;
+}
+@keyframes lg-spin { to { transform: rotate(360deg); } }
+
+.lg-btn .lg-spinner {
+  width: 16px; height: 16px; margin: 0;
+  border-width: 2px; border-color: rgba(0, 0, 0, .25); border-top-color: currentColor;
+}
+
+/* ---------------------------------------------------------------- footer -- */
+.lg-secure {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin: 18px auto 0; max-width: 460px;
+  font-size: 12px; color: var(--lg-faint); text-align: center;
+}
+.lg-secure svg { width: 14px; height: 14px; flex: 0 0 auto; }
+
+.lg-legal {
+  margin: 10px auto 0; max-width: 460px;
+  font-size: 11.5px; line-height: 1.55; color: var(--lg-faint); text-align: center;
+}
+
+/* ------------------------------------------------------------- desktop ---- */
+@media (min-width: 940px) {
+  .lg-shell {
+    grid-template-columns: 1fr minmax(0, 460px);
+    align-items: center;
+    gap: 60px;
+    padding: 48px 32px;
+    min-height: 100dvh;
+  }
+  .lg-story { text-align: left; padding: 0; }
+  .lg-mark { margin: 0 0 20px; width: 60px; height: 60px; }
+  .lg-wordmark { font-size: 42px; }
+  .lg-lead { margin: 14px 0 0; max-width: 44ch; font-size: 16px; }
+  .lg-points { display: block; }
+  .lg-card { margin: 0; }
+  .lg-secure, .lg-legal { grid-column: 2; margin-left: 0; margin-right: 0; }
+}
+
+/* ------------------------------------------------------ reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .lg-btn, .lg-input, .lg-tab, .lg-route, .lg-meter-bars i { transition: none; }
+  .lg-spinner { animation-duration: 2s; }
+}
+
+/* ------------------------------------------------------------- focus ------ */
+body[data-page="login"] :focus-visible {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: 2px;
+}

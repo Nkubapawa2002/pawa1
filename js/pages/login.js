@@ -1,101 +1,256 @@
-// =====================================================
-// Unified sign-in page (login.html)
-// One Supabase session works across every portal on this origin, so this
-// page signs the user in once, detects which portal(s) their account is
-// linked to, and routes them there:
-//   - admin    → admin.html          (email in APP_CONFIG.ADMIN_EMAILS)
-//   - houses   → agent-houses.html   (houses.owner_user_id)
-//   - trucks   → agent-trucks.html   (trucks.owner_user_id)
-//   - services → agent-services.html (services.owner_user_id)
-// Also handles "forgot password" + the recovery link flow (Supabase emits
-// PASSWORD_RECOVERY when the user lands here from the reset email).
-// =====================================================
+// ============================================================================
+//  login.js — one door into the whole app.
+//
+//  Three ways in, on one card:
+//    · Password       — email + password, the ordinary way.
+//    · Email code     — a six-digit code, for the (many) people who have no
+//                       idea what password they used and never will.
+//    · Create account — with a strength meter that says what is missing rather
+//                       than just colouring a bar red.
+//  Plus: forgot-password, the reset-link landing, a guest door, and the portal
+//  chooser that routes an account to whatever it actually owns.
+//
+//  Two rules run through all of it:
+//
+//  1. NOTHING RAW REACHES THE SCREEN. Every failure goes through
+//     AuthErrors.message(). A provider error string is a description of our
+//     infrastructure — which database, which auth server, which table, which
+//     policy failed — and a sign-in box is the last place to publish it. The
+//     only strings this file renders are ones we wrote.
+//
+//  2. THE PAGE SLOWS DOWN BEFORE THE SERVER HAS TO. AuthPolicy's throttle
+//     locks a repeatedly-failing address out locally, with a countdown, so an
+//     honest person sees words instead of collecting a silent provider block.
+// ============================================================================
 
 window.initLoginPage = () => {
-  const sb = window.SB || (window.DataStore && window.DataStore.sb);
+  "use strict";
 
-  const loginCard    = document.getElementById("loginCard");
-  const portalCard   = document.getElementById("portalCard");
-  const recoveryCard = document.getElementById("recoveryCard");
-  const form         = document.getElementById("loginForm");
-  const emailEl      = document.getElementById("loginEmail");
-  const passEl       = document.getElementById("loginPassword");
-  const loginBtn     = document.getElementById("loginBtn");
-  const statusEl     = document.getElementById("loginStatus");
-  const forgotBtn    = document.getElementById("forgotBtn");
-  const portalEmail  = document.getElementById("portalEmail");
-  const portalList   = document.getElementById("portalList");
-  const portalEmpty  = document.getElementById("portalEmpty");
-  const portalSpin   = document.getElementById("portalSpinner");
+  const $ = (id) => document.getElementById(id);
+  const A = window.Auth || {};
+  const E = window.AuthErrors;
+  const P = window.AuthPolicy;
+  const T = (key, en) => {
+    const got = window.t ? window.t(key) : key;
+    return got && got !== key ? got : en;
+  };
+  const store = (() => {
+    try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); return localStorage; }
+    catch (_) { return null; }
+  })();
 
-  if (!sb) {
-    showStatus("err", "Supabase is not configured — sign-in is unavailable.");
-    return;
-  }
+  const REMEMBER_KEY = "pawa-last-email";
+  const RESEND_COOLDOWN_S = 45;
 
-  // SVG icon markup (Lucide-style strokes) — no emoji, theme-aware.
-  const svg = (paths) =>
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ` +
-    `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  // ---- icons ---------------------------------------------------------------
+  const svg = (paths, w) =>
+    `<svg viewBox="0 0 24 24" ${w ? `width="${w}" height="${w}" ` : ""}fill="none" stroke="currentColor" ` +
+    `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
   const ICON = {
-    admin:    svg('<path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/>'),
-    houses:   svg('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/>'),
-    trucks:   svg('<path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/>'),
+    admin: svg('<path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/>'),
+    houses: svg('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/>'),
+    trucks: svg('<path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/>'),
     services: svg('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/>'),
-    parcel:   svg('<path d="M12 3 3 7.5V17l9 4 9-4V7.5z"/><path d="M3 7.5 12 12l9-4.5"/><path d="M12 12v9"/>'),
-    go:       svg('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'),
+    go: svg('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'),
+    err: svg('<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.2v.1"/>'),
+    ok: svg('<circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-4.9"/>'),
+    info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.8v.1"/>'),
   };
 
-  // The portals an account can be linked to, in redirect priority order.
-  const PORTALS = [
-    { key: "admin",    href: "admin.html",          icon: ICON.admin,    label: "System admin",
-      sub: "Agents, listings, tenants, day jobs" },
-    { key: "houses",   href: "agent-houses.html",   icon: ICON.houses,   label: "Houses portal",
-      sub: "Your property listings & tenants" },
-    { key: "trucks",   href: "agent-trucks.html",   icon: ICON.trucks,   label: "Trucks portal",
-      sub: "Your moving-truck listings" },
-    { key: "services", href: "agent-services.html", icon: ICON.services, label: "Services portal",
-      sub: "Your daily-services listings" },
-  ];
-
-  // Map a status kind ("err"/"ok") to the auth.css modifier class.
-  function showStatus(kind, msg) {
-    if (!statusEl) return;
-    const mod = kind === "err" ? "is-error" : kind === "ok" ? "is-ok" : "";
-    statusEl.className = "auth-msg" + (mod && msg ? " " + mod + " is-show" : "");
-    statusEl.textContent = msg || "";
-  }
-  function show(card) {
-    [loginCard, portalCard, recoveryCard].forEach((c) => { if (c) c.hidden = c !== card; });
+  // ---- status lines --------------------------------------------------------
+  // kind: "error" | "ok" | "info" | "warn" | "" (clear)
+  function say(el, kind, text) {
+    const node = typeof el === "string" ? $(el) : el;
+    if (!node) return;
+    const safe = E ? E.redact(text) : String(text || "");
+    if (!kind || !safe) { node.className = "lg-msg"; node.innerHTML = ""; return; }
+    const ic = kind === "error" ? ICON.err : kind === "ok" ? ICON.ok : ICON.info;
+    node.className = "lg-msg is-show is-" + kind;
+    node.innerHTML = `<span class="lg-msg-ic">${ic}</span><span></span>`;
+    node.lastElementChild.textContent = safe;     // textContent: never parse our own copy
   }
 
-  // ---- Show/hide password toggles -----------------------------------------
-  function wireToggle(btnId, inputEl) {
-    const btn = document.getElementById(btnId);
-    btn?.addEventListener("click", () => {
-      const show = inputEl.type === "password";
-      inputEl.type = show ? "text" : "password";
-      btn.setAttribute("aria-pressed", String(show));
-      btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+  // A hint under one field, tied to it by aria so a screen reader hears it.
+  function hint(inputId, hintId, kind, text) {
+    const input = $(inputId), node = $(hintId);
+    if (node) {
+      node.hidden = !text;
+      node.textContent = text ? (E ? E.redact(text) : text) : "";
+      node.className = "lg-hint" + (kind ? " is-" + kind : "");
+    }
+    if (input) {
+      if (kind === "error" && text) input.setAttribute("aria-invalid", "true");
+      else input.removeAttribute("aria-invalid");
+    }
+  }
+
+  // ---- button busy state ---------------------------------------------------
+  function busy(btn, on, label) {
+    if (!btn) return;
+    if (on) {
+      if (!btn.dataset.idle) btn.dataset.idle = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="lg-spinner"></span><span></span>`;
+      btn.lastElementChild.textContent = label || T("lg_working", "Working…");
+    } else {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.idle || btn.textContent;
+    }
+  }
+
+  // ---- cards ---------------------------------------------------------------
+  const CARDS = ["cardAuth", "cardSent", "cardRecovery", "cardPortal"];
+  function show(id) {
+    CARDS.forEach((c) => { const el = $(c); if (el) el.hidden = c !== id; });
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {}
+  }
+
+  // ---- method tabs ---------------------------------------------------------
+  const PANES = { password: "panePassword", code: "paneCode", signup: "paneSignup" };
+  const TITLES = {
+    password: ["lg_title_signin", "Sign in", "lg_sub_signin", "Welcome back. We'll take you straight to whatever is yours."],
+    code: ["lg_title_code", "Sign in with a code", "lg_sub_code", "No password to remember. We email you six digits that work once."],
+    signup: ["lg_title_signup", "Create your account", "lg_sub_signup", "One account covers houses, services and trucks — and your encrypted messages."],
+  };
+  let method = "password";
+
+  function setMethod(m) {
+    if (!PANES[m]) return;
+    method = m;
+    Object.keys(PANES).forEach((k) => {
+      const pane = $(PANES[k]);
+      if (pane) pane.hidden = k !== m;
+      const tab = document.querySelector(`.lg-tab[data-method="${k}"]`);
+      if (tab) tab.setAttribute("aria-selected", String(k === m));
+    });
+    const [tk, te, sk, se] = TITLES[m];
+    $("authTitle").textContent = T(tk, te);
+    $("authSub").textContent = T(sk, se);
+    say("authMsg", "", "");
+    // Move focus to the first empty field of the pane the person just chose.
+    const first = $(PANES[m]).querySelector("input:not([type=checkbox])");
+    if (first && !first.value) setTimeout(() => first.focus(), 30);
+  }
+
+  document.querySelectorAll(".lg-tab").forEach((tab) => {
+    tab.addEventListener("click", () => setMethod(tab.dataset.method));
+    // Arrow keys move between tabs, the way a tablist is supposed to.
+    tab.addEventListener("keydown", (e) => {
+      const order = ["password", "code", "signup"];
+      const i = order.indexOf(tab.dataset.method);
+      let next = -1;
+      if (e.key === "ArrowRight") next = (i + 1) % order.length;
+      if (e.key === "ArrowLeft") next = (i + order.length - 1) % order.length;
+      if (next < 0) return;
+      e.preventDefault();
+      setMethod(order[next]);
+      document.querySelector(`.lg-tab[data-method="${order[next]}"]`).focus();
+    });
+  });
+
+  document.querySelectorAll("[data-back]").forEach((b) => {
+    b.addEventListener("click", () => { show("cardAuth"); setMethod("password"); });
+  });
+
+  // ---- show/hide password + caps lock -------------------------------------
+  document.querySelectorAll(".lg-eye").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = $(btn.dataset.eye);
+      if (!input) return;
+      const reveal = input.type === "password";
+      input.type = reveal ? "text" : "password";
+      btn.setAttribute("aria-pressed", String(reveal));
+      btn.setAttribute("aria-label", reveal ? T("lg_hide_pw", "Hide password") : T("lg_show_pw", "Show password"));
+      input.focus();
+    });
+  });
+
+  // Caps Lock silently turning a correct password into a wrong one is one of
+  // the most common causes of "the login is broken".
+  function watchCaps(inputId, hintId) {
+    const input = $(inputId);
+    if (!input) return;
+    const check = (e) => {
+      const on = e.getModifierState && e.getModifierState("CapsLock");
+      const node = $(hintId);
+      if (!node) return;
+      if (on) hint(inputId, hintId, "warn", T("lg_caps", "Caps Lock is on."));
+      else if (node.classList.contains("is-warn")) hint(inputId, hintId, "", "");
+    };
+    input.addEventListener("keyup", check);
+    input.addEventListener("keydown", check);
+    input.addEventListener("blur", () => {
+      const node = $(hintId);
+      if (node && node.classList.contains("is-warn")) hint(inputId, hintId, "", "");
     });
   }
-  wireToggle("pwToggle", passEl);
-  wireToggle("pwToggle2", document.getElementById("newPassword"));
+  watchCaps("pwPassword", "pwPassHint");
 
-  // ---- Which portals does this account belong to? --------------------------
-  // Every probe is independent and failure-tolerant: a missing table or RLS
-  // denial simply means "not linked to that portal".
+  // ---- the local lockout ---------------------------------------------------
+  let tick = null;
+  function stopTick() { if (tick) { clearInterval(tick); tick = null; } }
+
+  function lockUI(seconds, btn, msgEl) {
+    stopTick();
+    let left = seconds;
+    const paint = () => {
+      if (left <= 0) {
+        stopTick();
+        if (btn) busy(btn, false);
+        say(msgEl, "", "");
+        return;
+      }
+      if (btn) { btn.disabled = true; }
+      say(msgEl, "warn", T("lg_locked", "Too many tries. Wait {s} seconds and try again.")
+        .replace("{s}", String(left)));
+      left--;
+    };
+    paint();
+    tick = setInterval(paint, 1000);
+  }
+
+  function throttleCheck(email, btn, msgEl) {
+    if (!P || !store) return true;
+    const st = P.attemptState(store, email);
+    if (st.locked) { lockUI(st.secondsLeft, btn, msgEl); return false; }
+    return true;
+  }
+
+  // ---- safe post-sign-in redirect -----------------------------------------
+  // Only a same-origin RELATIVE path is honoured. An absolute URL, or a
+  // protocol-relative "//evil.com", would turn this into an open redirect.
+  function nextTarget() {
+    const raw = new URLSearchParams(location.search).get("next") || "";
+    if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("//")) return "";
+    return /^[\w./-]+\.html(\?[\w=&%.-]*)?(#[\w-]*)?$/.test(raw) ? raw : "";
+  }
+
+  // ---- portal detection ----------------------------------------------------
+  const PORTALS = [
+    { key: "admin", href: "admin.html", icon: ICON.admin,
+      label: ["lg_p_admin", "System admin"], sub: ["lg_p_admin_d", "Agents, listings, tenants, day jobs"] },
+    { key: "houses", href: "agent-houses.html", icon: ICON.houses,
+      label: ["lg_p_houses", "Houses portal"], sub: ["lg_p_houses_d", "Your property listings & tenants"] },
+    { key: "trucks", href: "agent-trucks.html", icon: ICON.trucks,
+      label: ["lg_p_trucks", "Trucks portal"], sub: ["lg_p_trucks_d", "Your moving-truck listings"] },
+    { key: "services", href: "agent-services.html", icon: ICON.services,
+      label: ["lg_p_services", "Services portal"], sub: ["lg_p_services_d", "Your daily-services listings"] },
+  ];
+
   async function detectPortals(session) {
+    const sb = window.SB || (window.DataStore && window.DataStore.sb);
     const uid = session.user.id;
     const email = session.user.email || "";
     const found = new Set();
-    if (window.Auth && window.Auth.isAllowedEmail(email)) found.add("admin");
-    const probe = async (p, key) => {
+    if (A.isAllowedEmail && A.isAllowedEmail(email)) found.add("admin");
+    if (!sb) return PORTALS.filter((p) => found.has(p.key));
+    // Every probe is independent and failure-tolerant: a denial simply means
+    // "not linked to that portal", never an error on screen.
+    const probe = async (q, key) => {
       try {
-        const { data, error } = await p;
+        const { data, error } = await q;
         if (error) return;
-        const hit = Array.isArray(data) ? data.length > 0 : !!data;
-        if (hit) found.add(key);
+        if (Array.isArray(data) ? data.length > 0 : !!data) found.add(key);
       } catch (_) {}
     };
     await Promise.all([
@@ -106,173 +261,517 @@ window.initLoginPage = () => {
     return PORTALS.filter((p) => found.has(p.key));
   }
 
-  function renderPortalChooser(session, mine) {
-    show(portalCard);
-    if (portalEmail) portalEmail.textContent = session.user.email || "your account";
-    if (portalSpin) portalSpin.style.display = "none";
-    portalList.innerHTML = "";
-    const list = mine.length ? mine : PORTALS;
-    if (!mine.length && portalEmpty) {
-      portalEmpty.hidden = false;
-      portalEmpty.innerHTML =
-        "This account isn't linked to a portal yet. If you just registered, open the portal " +
-        "you signed up in; otherwise pick where you want to go:";
-    } else if (portalEmpty) {
-      portalEmpty.hidden = true;
-    }
-    for (const p of list) {
-      const a = document.createElement("a");
-      a.className = "auth-portal";
-      a.href = p.href;
-      a.innerHTML = `<span class="auth-route-ic">${p.icon}</span>
-        <span>${p.label}<small>${p.sub}</small></span>
-        <span class="auth-route-go">${ICON.go}</span>`;
-      portalList.appendChild(a);
-    }
-  }
+  function renderPortals(session, mine) {
+    const list = $("portalList");
+    const empty = $("portalEmpty");
+    $("portalSpinner").hidden = true;
+    list.innerHTML = "";
 
-  // Where to send someone after a fresh sign-in, when they arrived from a page
-  // that asked for one (e.g. the homepage video space: login.html?next=index.html).
-  // Only a same-origin RELATIVE path is honoured — an absolute URL or a
-  // protocol-relative "//evil.com" would turn this into an open redirect.
-  function nextTarget() {
-    const raw = new URLSearchParams(location.search).get("next") || "";
-    if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("//")) return "";
-    return /^[\w./-]+\.html(\?[\w=&%.-]*)?(#[\w-]*)?$/.test(raw) ? raw : "";
+    const isGuest = session.user && session.user.is_anonymous === true;
+    const shown = mine.length ? mine : PORTALS;
+
+    if (isGuest) {
+      empty.hidden = false;
+      say(empty, "warn", T("lg_portal_guest",
+        "You're browsing as a guest, so nothing is linked to you yet. Create an account to keep your listings and messages."));
+    } else if (!mine.length) {
+      empty.hidden = false;
+      say(empty, "info", T("lg_portal_none",
+        "This account isn't linked to a portal yet. If you just registered, open the portal you signed up in — otherwise pick where you want to go."));
+    } else {
+      empty.hidden = true;
+      say(empty, "", "");
+    }
+
+    // Always offer the ordinary way back into the app, first.
+    const home = document.createElement("a");
+    home.className = "lg-route";
+    home.href = "index.html";
+    home.innerHTML = `<span class="lg-route-ic">${ICON.houses}</span>` +
+      `<span class="lg-route-tx"><span></span><small></small></span>` +
+      `<span class="lg-route-go">${ICON.go}</span>`;
+    home.querySelector("span > span").textContent = T("lg_p_browse", "Browse the app");
+    home.querySelector("small").textContent = T("lg_p_browse_d", "Houses, services and trucks near you");
+    list.appendChild(home);
+
+    for (const p of shown) {
+      const a = document.createElement("a");
+      a.className = "lg-route";
+      a.href = p.href;
+      a.innerHTML = `<span class="lg-route-ic">${p.icon}</span>` +
+        `<span class="lg-route-tx"><span></span><small></small></span>` +
+        `<span class="lg-route-go">${ICON.go}</span>`;
+      a.querySelector("span > span").textContent = T(p.label[0], p.label[1]);
+      a.querySelector("small").textContent = T(p.sub[0], p.sub[1]);
+      list.appendChild(a);
+    }
   }
 
   async function routeSignedIn(session, { autoRedirect } = {}) {
+    if (!session) return;
     if (autoRedirect) {
-      const next = nextTarget();
       // An explicit destination beats the portal chooser: this person did not
       // come here to pick a portal, they came to finish something else.
+      const next = nextTarget();
       if (next) { location.href = next; return; }
     }
-    show(portalCard);
-    if (portalEmail) portalEmail.textContent = session.user.email || "your account";
-    if (portalSpin) portalSpin.style.display = "";
-    portalList.innerHTML = "";
-    if (portalEmpty) portalEmpty.hidden = true;
+    show("cardPortal");
+    $("portalEmail").textContent = session.user.email ||
+      (session.user.is_anonymous ? T("lg_guest_name", "a guest session") : T("lg_your_account", "your account"));
+    $("portalSpinner").hidden = false;
+    $("portalList").innerHTML = "";
+    $("portalEmpty").hidden = true;
+
     const mine = await detectPortals(session);
-    // Fresh sign-in with exactly one linked portal → go straight there.
-    if (autoRedirect && mine.length === 1) {
-      location.href = mine[0].href;
-      return;
-    }
-    renderPortalChooser(session, mine);
+    // Exactly one thing belongs to you and you just signed in → go there.
+    if (autoRedirect && mine.length === 1) { location.href = mine[0].href; return; }
+    renderPortals(session, mine);
   }
 
-  // ---- Sign in --------------------------------------------------------------
-  form?.addEventListener("submit", async (e) => {
+  // ============================ pane: password ============================
+  const pwForm = $("panePassword");
+  pwForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const email = emailEl.value.trim();
-    const pass  = passEl.value;
-    if (!email || !pass) { showStatus("err", "Enter your email and password."); return; }
-    loginBtn.disabled = true;
-    loginBtn.textContent = "Signing in…";
-    showStatus("", "");
-    try {
-      // signIn returns a session. Under Clerk, a new-device code / 2FA step is
-      // handled transparently by a shared modal inside Auth.signIn.
-      const session = await window.Auth.signIn(email, pass);
-      await routeSignedIn(session, { autoRedirect: true });
-    } catch (err) {
-      const msg = /invalid login/i.test(err.message || "")
-        ? "Wrong email or password. If you registered in an agent portal, use that same email."
-        : (err.message || "Could not sign in.");
-      showStatus("err", msg);
-    } finally {
-      loginBtn.disabled = false;
-      loginBtn.textContent = "Sign in";
-    }
-  });
+    const email = P.normalizeEmail($("pwEmail").value);
+    const pass = $("pwPassword").value;
+    const btn = $("pwSubmit");
 
-  // ---- Forgot password ------------------------------------------------------
-  forgotBtn?.addEventListener("click", async () => {
-    const email = emailEl.value.trim();
-    if (!email) {
-      showStatus("err", "Type your email above first, then tap “Forgot password?” again.");
-      emailEl.focus();
+    say("authMsg", "", "");
+    hint("pwEmail", "pwEmailHint", "", "");
+    if (!P.isEmail(email)) {
+      hint("pwEmail", "pwEmailHint", "error", T("lg_v_email", "Enter a complete email address."));
+      $("pwEmail").focus();
       return;
     }
-    forgotBtn.disabled = true;
+    if (!pass) {
+      hint("pwPassword", "pwPassHint", "error", T("lg_v_password", "Enter your password."));
+      $("pwPassword").focus();
+      return;
+    }
+    if (!throttleCheck(email, btn, "authMsg")) return;
+
+    busy(btn, true, T("lg_signing_in", "Signing you in…"));
     try {
-      if (window.Auth && window.Auth.resetPassword) {
-        // Clerk: emails a code; a modal collects code + new password and signs in.
-        const session = await window.Auth.resetPassword(email);
-        if (session) { showStatus("ok", "Password updated — signing you in…"); await routeSignedIn(session, { autoRedirect: true }); }
-        else showStatus("", "");   // user cancelled the modal
-      } else {
-        // Supabase Auth: email a reset link back to this page.
-        const redirectTo = location.origin + location.pathname;
-        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-        if (error) throw error;
-        showStatus("ok", `Reset link sent to ${email} — check your inbox (and spam), then follow the link back here.`);
+      const session = await A.signIn(email, pass);
+      if (store) {
+        P.recordSuccess(store, email);
+        if ($("rememberMe").checked) store.setItem(REMEMBER_KEY, email);
+        else store.removeItem(REMEMBER_KEY);
       }
+      busy(btn, false);
+      await routeSignedIn(session, { autoRedirect: true });
     } catch (err) {
-      showStatus("err", err.message || "Could not reset your password.");
-    } finally {
-      forgotBtn.disabled = false;
+      busy(btn, false);
+      const code = E.code(err);
+      // An unconfirmed address is not a wrong password; offer the fix.
+      if (code === "email_not_confirmed") {
+        pendingEmail = email;
+        showSent("confirm", email);
+        return;
+      }
+      const wait = E.retryAfter(err);
+      if (store && wait) P.lockFor(store, email, wait);
+      else if (store && code === "invalid_credentials") {
+        const st = P.recordFailure(store, email);
+        if (st.locked) { lockUI(st.secondsLeft, btn, "authMsg"); return; }
+        if (st.remaining <= 2) {
+          say("authMsg", "error", E.message(err) + " " +
+            T("lg_tries_left", "{n} tries left before a short pause.").replace("{n}", String(st.remaining)));
+          return;
+        }
+      }
+      say("authMsg", "error", E.message(err));
+      if (E.isUserFixable(err)) $("pwPassword").select();
     }
   });
 
-  // ---- Recovery flow (arrived from the reset email) -------------------------
-  let inRecovery = false;
-  sb.auth.onAuthStateChange((event, session) => {
-    if (event === "PASSWORD_RECOVERY") {
-      inRecovery = true;
-      show(recoveryCard);
-    }
-  });
+  // ============================ pane: email code ==========================
+  let codeEmail = "";
+  let resendLeft = 0, resendTick = null;
 
-  document.getElementById("recoveryForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const newPass = document.getElementById("newPassword").value;
-    const rBtn    = document.getElementById("recoveryBtn");
-    const rStatus = document.getElementById("recoveryStatus");
-    const say = (kind, msg) => {
-      const mod = kind === "err" ? "is-error" : kind === "ok" ? "is-ok" : "";
-      rStatus.className = "auth-msg" + (mod && msg ? " " + mod + " is-show" : "");
-      rStatus.textContent = msg || "";
+  function startResendCooldown(seconds) {
+    resendLeft = seconds;
+    const btn = $("codeResend");
+    const idle = T("lg_code_resend", "Send another code");
+    if (resendTick) clearInterval(resendTick);
+    const paint = () => {
+      if (resendLeft <= 0) {
+        clearInterval(resendTick); resendTick = null;
+        btn.disabled = false; btn.textContent = idle;
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = T("lg_code_wait", "Send another in {s}s").replace("{s}", String(resendLeft));
+      resendLeft--;
     };
-    if (newPass.length < 8) { say("err", "Use at least 8 characters."); return; }
-    rBtn.disabled = true;
-    rBtn.textContent = "Saving…";
+    paint();
+    resendTick = setInterval(paint, 1000);
+  }
+
+  async function sendCode(btn) {
+    const email = P.normalizeEmail($("codeEmail").value);
+    say("authMsg", "", "");
+    if (!P.isEmail(email)) {
+      hint("codeEmail", "codeAskHint", "error", T("lg_v_email", "Enter a complete email address."));
+      $("codeEmail").focus();
+      return;
+    }
+    if (!throttleCheck(email, btn, "authMsg")) return;
+
+    busy(btn, true, T("lg_sending", "Sending…"));
     try {
-      const { error } = await sb.auth.updateUser({ password: newPass });
-      if (error) throw error;
-      say("ok", "Password updated — taking you to your portal…");
-      const { data } = await sb.auth.getSession();
-      if (data.session) setTimeout(() => routeSignedIn(data.session, { autoRedirect: true }), 900);
+      await A.sendCode(email, { createUser: false });
+      codeEmail = email;
+      $("codeStepAsk").hidden = true;
+      $("codeStepEnter").hidden = false;
+      $("codeSentTo").textContent = T("lg_code_sent_to", "Sent to {email}. It works once, within the hour.")
+        .replace("{email}", email);
+      $("codeInput").value = "";
+      $("codeInput").focus();
+      startResendCooldown(RESEND_COOLDOWN_S);
+      say("authMsg", "ok", T("lg_code_sent", "Code sent. Check your inbox, and the spam folder."));
     } catch (err) {
-      say("err", err.message || "Could not update the password.");
+      const wait = E.retryAfter(err);
+      if (store && wait) P.lockFor(store, email, wait);
+      say("authMsg", "error", E.message(err));
     } finally {
-      rBtn.disabled = false;
-      rBtn.textContent = "Save new password";
+      busy(btn, false);
+    }
+  }
+
+  $("codeSend").addEventListener("click", () => sendCode($("codeSend")));
+  $("codeResend").addEventListener("click", async () => {
+    if (resendLeft > 0) return;
+    $("codeEmail").value = codeEmail;
+    await sendCode($("codeResend"));
+  });
+  $("codeChange").addEventListener("click", () => {
+    $("codeStepEnter").hidden = true;
+    $("codeStepAsk").hidden = false;
+    say("authMsg", "", "");
+    $("codeEmail").focus();
+  });
+
+  // Keep the field to digits and submit the moment six of them are there —
+  // typing a code then hunting for a button is a pointless extra step.
+  const codeInput = $("codeInput");
+  codeInput.addEventListener("input", () => {
+    const cleaned = codeInput.value.replace(/\D/g, "").slice(0, 6);
+    if (cleaned !== codeInput.value) codeInput.value = cleaned;
+    codeInput.removeAttribute("aria-invalid");
+    if (cleaned.length === 6) $("paneCode").requestSubmit
+      ? $("paneCode").requestSubmit()
+      : verifyCode();
+  });
+
+  async function verifyCode() {
+    const token = codeInput.value.replace(/\D/g, "");
+    const btn = $("codeVerify");
+    if (token.length !== 6) {
+      codeInput.setAttribute("aria-invalid", "true");
+      say("authMsg", "error", T("lg_v_code", "Enter all six digits."));
+      return;
+    }
+    busy(btn, true, T("lg_checking", "Checking…"));
+    try {
+      const session = await A.verifyCode(codeEmail, token, "email");
+      if (store) { P.recordSuccess(store, codeEmail); store.setItem(REMEMBER_KEY, codeEmail); }
+      busy(btn, false);
+      await routeSignedIn(session, { autoRedirect: true });
+    } catch (err) {
+      busy(btn, false);
+      codeInput.setAttribute("aria-invalid", "true");
+      codeInput.select();
+      say("authMsg", "error", E.message(err));
+      if (store) P.recordFailure(store, codeEmail);
+    }
+  }
+
+  $("paneCode").addEventListener("submit", (e) => { e.preventDefault(); verifyCode(); });
+
+  // ============================ pane: create account ======================
+  function paintMeter(pw, email, meterId, sayId, reqsId) {
+    const res = P.scorePassword(pw, email);
+    const meter = $(meterId);
+    if (meter) meter.setAttribute("data-score", String(res.score));
+    const sayEl = $(sayId);
+    if (sayEl) {
+      const LABEL = {
+        "": T("lg_pw_empty", "Pick something only you would type."),
+        weak: T("lg_pw_weak", "Weak"),
+        fair: T("lg_pw_fair", "Fair"),
+        good: T("lg_pw_good", "Good"),
+        strong: T("lg_pw_strong", "Strong"),
+      };
+      const WHY = {
+        length: T("lg_pw_why_length", "Make it at least 8 characters."),
+        common: T("lg_pw_why_common", "That one is on every guessing list."),
+        varied: T("lg_pw_why_varied", "A straight run of characters is easy to guess."),
+        email: T("lg_pw_why_email", "Don't put your email address in it."),
+        letter: T("lg_pw_why_letter", "Add a letter."),
+        number: T("lg_pw_why_number", "Add a number."),
+      };
+      sayEl.innerHTML = "";
+      const b = document.createElement("b");
+      b.textContent = pw ? LABEL[res.label] || "" : "";
+      sayEl.appendChild(b);
+      const tail = document.createTextNode(
+        pw ? (res.failed && WHY[res.failed] ? " — " + WHY[res.failed] : "") : LABEL[""]);
+      sayEl.appendChild(tail);
+    }
+    const reqs = $(reqsId);
+    if (reqs) {
+      reqs.querySelectorAll("li[data-req]").forEach((li) => {
+        li.classList.toggle("is-met", !!(pw && res.checks[li.dataset.req]));
+      });
+    }
+    return res;
+  }
+
+  $("suPassword").addEventListener("input", () => {
+    paintMeter($("suPassword").value, $("suEmail").value, "suMeter", "suMeterSay", "suReqs");
+    if ($("suConfirm").value) checkConfirm();
+  });
+  $("suEmail").addEventListener("input", () => {
+    if ($("suPassword").value) paintMeter($("suPassword").value, $("suEmail").value, "suMeter", "suMeterSay", "suReqs");
+  });
+
+  function checkConfirm() {
+    const a = $("suPassword").value, b = $("suConfirm").value;
+    if (b && a !== b) {
+      hint("suConfirm", "suConfirmHint", "error", T("lg_v_match", "The two passwords don't match."));
+      return false;
+    }
+    hint("suConfirm", "suConfirmHint", "", "");
+    return true;
+  }
+  $("suConfirm").addEventListener("input", checkConfirm);
+  watchCaps("suPassword", "suConfirmHint");
+
+  let pendingEmail = "";
+
+  $("paneSignup").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = P.normalizeEmail($("suEmail").value);
+    const pass = $("suPassword").value;
+    const btn = $("suSubmit");
+    say("authMsg", "", "");
+
+    if (!P.isEmail(email)) {
+      hint("suEmail", "suEmailHint", "error", T("lg_v_email", "Enter a complete email address."));
+      $("suEmail").focus();
+      return;
+    }
+    hint("suEmail", "suEmailHint", "", "");
+    const res = paintMeter(pass, email, "suMeter", "suMeterSay", "suReqs");
+    if (!res.ok) {
+      say("authMsg", "error", T("lg_v_weak", "Strengthen your password before continuing."));
+      $("suPassword").focus();
+      return;
+    }
+    if (!checkConfirm() || !$("suConfirm").value) {
+      hint("suConfirm", "suConfirmHint", "error", T("lg_v_match", "The two passwords don't match."));
+      $("suConfirm").focus();
+      return;
+    }
+
+    busy(btn, true, T("lg_creating", "Creating your account…"));
+    try {
+      const out = await A.signUp(email, pass);
+      if (store) store.setItem(REMEMBER_KEY, email);
+      busy(btn, false);
+      pendingEmail = email;
+      if (out && out.needsConfirmation) { showSent("confirm", email); return; }
+      if (out && out.session) { await routeSignedIn(out.session, { autoRedirect: true }); return; }
+      showSent("confirm", email);
+    } catch (err) {
+      busy(btn, false);
+      const code = E.code(err);
+      if (code === "user_already_exists") {
+        // Send them where they can actually get in, with the email carried over.
+        $("pwEmail").value = email;
+        setMethod("password");
+        say("authMsg", "info", E.message(err));
+        $("pwPassword").focus();
+        return;
+      }
+      say("authMsg", "error", E.message(err));
     }
   });
 
-  // ---- Sign out (from the portal chooser) -----------------------------------
-  document.getElementById("portalSignOut")?.addEventListener("click", async () => {
-    try { await window.Auth.signOut(); } catch (_) {}
-    show(loginCard);
-    passEl.value = "";
+  // ============================ "check your inbox" ========================
+  // One card, two reasons to be here: a new account awaiting confirmation, or
+  // a password reset that was requested. `sentMode` decides what resend does.
+  let sentMode = "confirm";
+
+  function showSent(mode, email) {
+    sentMode = mode;
+    pendingEmail = email;
+    show("cardSent");
+    $("sentBody").textContent = mode === "reset"
+      ? T("lg_sent_reset", "If {email} has an account, a reset link is on its way. Open it on this device and we'll take it from there.")
+          .replace("{email}", email)
+      : T("lg_sent_confirm", "We sent a confirmation link to {email}. Open it to finish creating your account, then come back and sign in.")
+          .replace("{email}", email);
+    say("sentMsg", "", "");
+    const btn = $("sentResend");
+    btn.disabled = false;
+    btn.textContent = T("lg_sent_resend", "Send it again");
+  }
+
+  $("sentResend").addEventListener("click", async () => {
+    const btn = $("sentResend");
+    if (!pendingEmail) return;
+    busy(btn, true, T("lg_sending", "Sending…"));
+    try {
+      if (sentMode === "reset") await sendResetFor(pendingEmail);
+      else if (A.resendConfirmation) await A.resendConfirmation(pendingEmail);
+      say("sentMsg", "ok", T("lg_sent_again", "Sent. Give it a minute, then check spam too."));
+      busy(btn, false);
+      btn.disabled = true;
+      setTimeout(() => { btn.disabled = false; }, RESEND_COOLDOWN_S * 1000);
+    } catch (err) {
+      busy(btn, false);
+      say("sentMsg", "error", E.message(err));
+    }
   });
 
-  // ---- Initial state ---------------------------------------------------------
-  // Already signed in (session persisted) → show the portal chooser. Recovery
-  // links are handled by the PASSWORD_RECOVERY event above; give it a moment
-  // to fire before deciding.
+  // ============================ forgot password ===========================
+  async function sendResetFor(email) {
+    // The Clerk facade does the whole thing in a modal and hands back a
+    // session; the ordinary path emails a link back to this page.
+    if (A.resetPassword) return await A.resetPassword(email);
+    return await A.sendReset(email);
+  }
+
+  $("forgotBtn").addEventListener("click", async (e) => {
+    e.preventDefault();
+    const email = P.normalizeEmail($("pwEmail").value);
+    if (!P.isEmail(email)) {
+      hint("pwEmail", "pwEmailHint", "error",
+        T("lg_v_email_first", "Type your email above first, then tap Forgot password."));
+      $("pwEmail").focus();
+      return;
+    }
+    const btn = $("forgotBtn");
+    btn.disabled = true;
+    try {
+      const maybeSession = await sendResetFor(email);
+      // Clerk's modal path resolves with a live session — the person is in.
+      if (maybeSession && maybeSession.user) {
+        await routeSignedIn(maybeSession, { autoRedirect: true });
+        return;
+      }
+      // Deliberately says "if it has an account". Confirming which addresses
+      // are registered hands an attacker a list of valid targets for free.
+      showSent("reset", email);
+    } catch (err) {
+      say("authMsg", "error", E.message(err));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ============================ recovery landing ==========================
+  $("recPassword").addEventListener("input", () => {
+    paintMeter($("recPassword").value, "", "recMeter", "recMeterSay", null);
+  });
+
+  $("formRecovery").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pass = $("recPassword").value;
+    const btn = $("recSubmit");
+    say("recMsg", "", "");
+    const res = P.scorePassword(pass, "");
+    if (!res.ok) {
+      say("recMsg", "error", T("lg_v_weak", "Strengthen your password before continuing."));
+      $("recPassword").focus();
+      return;
+    }
+    busy(btn, true, T("lg_saving", "Saving…"));
+    try {
+      await A.updatePassword(pass);
+      say("recMsg", "ok", T("lg_rec_ok", "Password updated. Taking you in…"));
+      const session = await A.getSession();
+      busy(btn, false);
+      setTimeout(() => routeSignedIn(session, { autoRedirect: true }), 700);
+    } catch (err) {
+      busy(btn, false);
+      say("recMsg", "error", E.message(err));
+    }
+  });
+
+  // ============================ passkeys ==================================
+  // Only drawn when this browser and this client can genuinely do it. A button
+  // that fails on tap is worse than no button.
+  if (A.supportsPasskeys && A.supportsPasskeys()) {
+    $("passkeyBlock").hidden = false;
+    $("passkeyBtn").addEventListener("click", async () => {
+      const btn = $("passkeyBtn");
+      busy(btn, true, T("lg_passkey_wait", "Waiting for your device…"));
+      try {
+        const sb = window.SB;
+        const { data, error } = await sb.auth.signInWithWebAuthn({ email: P.normalizeEmail($("pwEmail").value) || undefined });
+        if (error) throw error;
+        busy(btn, false);
+        await routeSignedIn(data && data.session, { autoRedirect: true });
+      } catch (err) {
+        busy(btn, false);
+        say("authMsg", "error", E.message(err));
+      }
+    });
+  }
+
+  // ============================ sign out ==================================
+  $("portalSignOut").addEventListener("click", async () => {
+    await A.signOut();
+    $("pwPassword").value = "";
+    show("cardAuth");
+    setMethod("password");
+    say("authMsg", "ok", T("lg_signed_out", "Signed out. Use any account below."));
+  });
+
+  // ============================ boot ======================================
+  // Remembered address, so the common case is one field and a tap.
+  if (store) {
+    const last = store.getItem(REMEMBER_KEY);
+    if (last && P.isEmail(last)) {
+      $("pwEmail").value = last;
+      $("codeEmail").value = last;
+      setTimeout(() => $("pwPassword").focus(), 60);
+    }
+  }
+  // ?m=signup / ?m=code lets other pages point straight at the right pane.
+  const wanted = new URLSearchParams(location.search).get("m");
+  if (PANES[wanted]) setMethod(wanted);
+
+  // No client at all (bad config, blocked script, first load offline). Say what
+  // the person can do, not what broke.
+  if (A.isReady && !A.isReady()) {
+    document.querySelectorAll("#cardAuth input, #cardAuth button.lg-btn").forEach((el) => { el.disabled = true; });
+    say("authMsg", "error", E.message("unavailable"));
+  }
+
+  // The reset-link landing. The provider fires PASSWORD_RECOVERY once it has
+  // exchanged the link for a session.
+  let inRecovery = false;
+  if (A.onAuthChange) {
+    const sb = window.SB;
+    try {
+      sb && sb.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY") { inRecovery = true; show("cardRecovery"); $("recPassword").focus(); }
+      });
+    } catch (_) {}
+  }
+
   (async () => {
-    const hashIsRecovery = /type=recovery/.test(location.hash || "");
-    if (hashIsRecovery) return;            // PASSWORD_RECOVERY handler takes over
-    const session = await window.Auth.getSession();
+    if (/type=recovery/.test(location.hash || "")) return;   // handler above takes over
+    const session = await A.getSession();
     if (session && !inRecovery) routeSignedIn(session, { autoRedirect: false });
   })();
 
-  // Clerk mode: window.Auth is replaced once Clerk finishes loading (async),
-  // so re-check then — routes an already-signed-in returning user without a
-  // manual refresh. No-op outside Clerk mode (the event never fires).
+  // Clerk mode replaces window.Auth once it finishes loading (async), so
+  // re-check then. No-op otherwise — the event never fires.
   window.addEventListener("clerk-ready", async () => {
     if (inRecovery) return;
     const session = await window.Auth.getSession();

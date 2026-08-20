@@ -69,12 +69,28 @@
       }
       .app-tabbar a {
         flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
-        text-decoration: none; padding: 4px 0; color: rgba(231,241,236,.4);
+        /* .4 painted these 10px labels at 3.44:1 on the bar's own background —
+           under the 4.5 the rest of the app holds itself to. .58 keeps the
+           inactive/active distinction while staying legible. */
+        text-decoration: none; padding: 4px 0; color: rgba(231,241,236,.58);
         -webkit-tap-highlight-color: transparent;
       }
       .app-tabbar a svg { width: 23px; height: 23px; }
       .app-tabbar a span { font-size: 10px; font-weight: 700; }
       .app-tabbar a.active { color: #2EE6A6; }
+
+      /* The bar rides on all 21 app-shell pages, so its colours were the one
+         thing a page's light theme could never reach: they are written here,
+         not in a stylesheet the page controls. Without this block the tab bar
+         stayed a dark slab across the foot of a fully light page. */
+      :root[data-theme="light"] .app-tabbar {
+        background: rgba(255,255,255,.88);
+        border-top: 1px solid rgba(20,32,27,.10);
+        box-shadow: 0 -2px 16px rgba(20,40,32,.07);
+      }
+      :root[data-theme="light"] .app-tabbar a { color: rgba(20,32,27,.65); }
+      :root[data-theme="light"] .app-tabbar a.active { color: #0A6647; }
+
       /* room so the last content clears the fixed bar */
       .app-shell-pad { height: calc(86px + env(safe-area-inset-bottom, 0px)); }
     `;

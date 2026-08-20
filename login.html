@@ -5,186 +5,306 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Sign in — Maisha na Lifeza</title>
-  <link rel="stylesheet" href="css/styles.css" />
-  <link rel="stylesheet" href="css/auth.css" />
+  <meta name="description" content="One account for houses, daily services and moving trucks across Tanzania." />
+  <meta name="robots" content="noindex" />
 
-    <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#0a6f4d" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="css/mobile.css" />
-<!-- pawa-mobile-bundle -->
-    <link rel="stylesheet" href="css/premium.css" />
-  <link rel="stylesheet" href="css/claude-design.css" />
-  <link rel="stylesheet" href="css/neon-pro.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+
+  <!-- Exactly two stylesheets: the design tokens + fonts, and this page.
+       The previous version linked seven and lost the cascade fight. -->
   <link rel="stylesheet" href="css/design-system.css" />
-
-  <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
-  <style>
-    /* =====================================================================
-       Twilight dark re-skin (Claude design) for the auth screen.
-       auth.css is token-driven, so re-pointing the design tokens + the few
-       --auth-* glass vars flips the whole split to the dark emerald look.
-       ===================================================================== */
-    body[data-page="login"] {
-      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.82); --c-text-muted: rgba(233,243,238,.55); --c-text-faint: rgba(233,243,238,.4);
-      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-brand-on: #06170F; --c-danger: #ff8a7a;
-      --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03);
-      --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
-      --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14);
-      --auth-ring: #2EE6A6;
-      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
-    }
-    body[data-page="login"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
-    body[data-page="login"] .auth-card::before { background: linear-gradient(135deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 42%); }
-    body[data-page="login"] .auth-input:focus, body[data-page="login"] .auth-input:focus-visible { background: rgba(255,255,255,.07); }
-    body[data-page="login"] .auth-route { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
-    body[data-page="login"] .auth-route:hover { background: rgba(46,230,166,.12); border-color: rgba(46,230,166,.4); }
-    body[data-page="login"] .auth-route small, body[data-page="login"] .auth-portal small, body[data-page="login"] .auth-empty { color: rgba(233,243,238,.5); }
-    body[data-page="login"] .login-brand__logo { background: rgba(255,255,255,.10); }
-    /* leave room above the bottom tab bar (Profile destination) */
-    body[data-page="login"] .login-split { padding-bottom: 96px; }
-  </style>
-  <link rel="stylesheet" href="css/theme-light.css" />
+  <link rel="stylesheet" href="css/login.css" />
 </head>
 <body data-page="login" data-app-shell="login.html">
   <div id="nav-slot"></div>
 
-  <div class="login-split">
-    <aside class="login-brand">
-      <span class="login-brand__logo" aria-hidden="true">
+  <div class="lg-shell">
+
+    <!-- ============================ the pitch ============================ -->
+    <section class="lg-story">
+      <span class="lg-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
       </span>
-      <h2 class="login-brand__name">Maisha na <em>Lifeza</em></h2>
-      <p class="login-brand__lead">Homes, daily services and moving trucks across Tanzania all in one trusted account.</p>
-      <ul class="login-brand__list">
+      <h1 class="lg-wordmark">Maisha na <em>Lifeza</em></h1>
+      <p class="lg-lead" data-i18n="lg_lead">One account for homes, daily services and moving trucks across Tanzania.</p>
+
+      <ul class="lg-points">
         <li>
-          <span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
-          Verified houses &amp; rooms to rent or buy
+          <span class="lg-pt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
+          <span><span data-i18n="lg_pt_houses">Houses and rooms to rent or buy</span>
+            <small data-i18n="lg_pt_houses_d">Photos, prices and the owner's own number.</small></span>
         </li>
         <li>
-          <span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
-          Trusted fundis, cleaners &amp; daily service pros
+          <span class="lg-pt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
+          <span><span data-i18n="lg_pt_services">Fundis, cleaners and daily help</span>
+            <small data-i18n="lg_pt_services_d">Trusted people working near you.</small></span>
         </li>
         <li>
-          <span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
-          Moving trucks near you when you relocate
+          <span class="lg-pt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
+          <span><span data-i18n="lg_pt_trucks">Moving trucks when you relocate</span>
+            <small data-i18n="lg_pt_trucks_d">By size, area and distance.</small></span>
         </li>
       </ul>
-    </aside>
+    </section>
 
-  <main class="auth-shell">
+    <!-- ======================== the account card ========================= -->
+    <main>
 
-    <!-- Sign-in form (default) -->
-    <section class="auth-card" id="loginCard" aria-labelledby="loginTitle">
-      <div class="auth-head">
-        <span class="auth-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
+      <!-- ---- sign in / code / create account ---- -->
+      <section class="lg-card" id="cardAuth" aria-labelledby="authTitle">
+        <h2 class="lg-card-h" id="authTitle" data-i18n="lg_title_signin">Sign in</h2>
+        <p class="lg-card-sub" id="authSub" data-i18n="lg_sub_signin">Welcome back. We'll take you straight to whatever is yours.</p>
+
+        <div class="lg-tabs" role="tablist" aria-label="Sign-in method" data-i18n-aria-label="lg_tabs_label">
+          <button type="button" class="lg-tab" role="tab" id="tabPassword" aria-selected="true"
+                  aria-controls="panePassword" data-method="password" data-i18n="lg_tab_password">Password</button>
+          <button type="button" class="lg-tab" role="tab" id="tabCode" aria-selected="false"
+                  aria-controls="paneCode" data-method="code" data-i18n="lg_tab_code">Email code</button>
+          <button type="button" class="lg-tab" role="tab" id="tabSignup" aria-selected="false"
+                  aria-controls="paneSignup" data-method="signup" data-i18n="lg_tab_signup">Create account</button>
+        </div>
+
+        <!-- shared status line for whichever pane is open -->
+        <div class="lg-msg" id="authMsg" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+        <!-- ---------- pane: password ---------- -->
+        <form class="lg-form" id="panePassword" role="tabpanel" aria-labelledby="tabPassword" novalidate>
+          <div class="lg-field">
+            <label for="pwEmail" data-i18n="lg_email">Email</label>
+            <div class="lg-wrap">
+              <svg class="lg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+              <input class="lg-input" id="pwEmail" name="email" type="email" inputmode="email"
+                     autocomplete="username" autocapitalize="none" spellcheck="false" required
+                     placeholder="you@example.com" aria-describedby="pwEmailHint" />
+            </div>
+            <div class="lg-hint" id="pwEmailHint" hidden></div>
+          </div>
+
+          <div class="lg-field">
+            <label for="pwPassword">
+              <span data-i18n="lg_password">Password</span>
+              <button type="button" class="lg-link lg-opt" id="forgotBtn" data-i18n="lg_forgot">Forgot password?</button>
+            </label>
+            <div class="lg-wrap">
+              <svg class="lg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="lg-input lg-input--pw" id="pwPassword" name="password" type="password"
+                     autocomplete="current-password" required placeholder="••••••••"
+                     aria-describedby="pwPassHint" />
+              <button type="button" class="lg-eye" data-eye="pwPassword"
+                      aria-label="Show password" data-i18n-aria-label="lg_show_pw" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="lg-hint" id="pwPassHint" hidden></div>
+          </div>
+
+          <div class="lg-row">
+            <label class="lg-check">
+              <input type="checkbox" id="rememberMe" checked />
+              <span data-i18n="lg_remember">Remember my email</span>
+            </label>
+          </div>
+
+          <button type="submit" class="lg-btn" id="pwSubmit" data-i18n="lg_signin_go">Sign in</button>
+        </form>
+
+        <!-- ---------- pane: email code ---------- -->
+        <form class="lg-form" id="paneCode" role="tabpanel" aria-labelledby="tabCode" novalidate hidden>
+          <!-- step 1: ask for the address -->
+          <div id="codeStepAsk">
+            <div class="lg-field">
+              <label for="codeEmail" data-i18n="lg_email">Email</label>
+              <div class="lg-wrap">
+                <svg class="lg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+                <input class="lg-input" id="codeEmail" name="email" type="email" inputmode="email"
+                       autocomplete="username" autocapitalize="none" spellcheck="false"
+                       placeholder="you@example.com" aria-describedby="codeAskHint" />
+              </div>
+              <div class="lg-hint" id="codeAskHint" data-i18n="lg_code_hint">No password needed — we email you a six-digit code that works once.</div>
+            </div>
+            <button type="button" class="lg-btn" id="codeSend" style="margin-top:14px" data-i18n="lg_code_send">Email me a code</button>
+          </div>
+
+          <!-- step 2: enter it -->
+          <div id="codeStepEnter" hidden>
+            <div class="lg-field">
+              <label for="codeInput" data-i18n="lg_code_label">Six-digit code</label>
+              <input class="lg-code" id="codeInput" type="text" inputmode="numeric" pattern="[0-9]*"
+                     maxlength="6" autocomplete="one-time-code" placeholder="······"
+                     aria-describedby="codeSentTo" />
+              <div class="lg-hint" id="codeSentTo"></div>
+            </div>
+            <button type="submit" class="lg-btn" id="codeVerify" style="margin-top:14px" data-i18n="lg_code_verify">Verify and sign in</button>
+            <div class="lg-row" style="margin-top:12px">
+              <button type="button" class="lg-link" id="codeResend" data-i18n="lg_code_resend">Send another code</button>
+              <button type="button" class="lg-link" id="codeChange" data-i18n="lg_code_change">Use a different email</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- ---------- pane: create account ---------- -->
+        <form class="lg-form" id="paneSignup" role="tabpanel" aria-labelledby="tabSignup" novalidate hidden>
+          <div class="lg-field">
+            <label for="suEmail" data-i18n="lg_email">Email</label>
+            <div class="lg-wrap">
+              <svg class="lg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+              <input class="lg-input" id="suEmail" name="email" type="email" inputmode="email"
+                     autocomplete="username" autocapitalize="none" spellcheck="false" required
+                     placeholder="you@example.com" aria-describedby="suEmailHint" />
+            </div>
+            <div class="lg-hint" id="suEmailHint" hidden></div>
+          </div>
+
+          <div class="lg-field">
+            <label for="suPassword" data-i18n="lg_new_password">Choose a password</label>
+            <div class="lg-wrap">
+              <svg class="lg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="lg-input lg-input--pw" id="suPassword" name="new-password" type="password"
+                     autocomplete="new-password" required minlength="8" placeholder="••••••••"
+                     aria-describedby="suMeterSay suReqs" />
+              <button type="button" class="lg-eye" data-eye="suPassword"
+                      aria-label="Show password" data-i18n-aria-label="lg_show_pw" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="lg-meter" id="suMeter" data-score="0">
+              <div class="lg-meter-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+              <div class="lg-meter-say" id="suMeterSay" role="status" aria-live="polite"></div>
+              <ul class="lg-reqs" id="suReqs">
+                <li data-req="length" data-i18n="lg_req_length">8+ characters</li>
+                <li data-req="letter" data-i18n="lg_req_letter">A letter</li>
+                <li data-req="number" data-i18n="lg_req_number">A number</li>
+                <li data-req="notCommon" data-i18n="lg_req_uncommon">Not a common password</li>
+                <li data-req="notEmail" data-i18n="lg_req_not_email">Not your email address</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="lg-field">
+            <label for="suConfirm" data-i18n="lg_confirm_password">Type it again</label>
+            <div class="lg-wrap">
+              <svg class="lg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="lg-input lg-input--pw" id="suConfirm" name="confirm-password" type="password"
+                     autocomplete="new-password" required placeholder="••••••••"
+                     aria-describedby="suConfirmHint" />
+              <button type="button" class="lg-eye" data-eye="suConfirm"
+                      aria-label="Show password" data-i18n-aria-label="lg_show_pw" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="lg-hint" id="suConfirmHint" hidden></div>
+          </div>
+
+          <button type="submit" class="lg-btn" id="suSubmit" data-i18n="lg_signup_go">Create my account</button>
+          <p class="lg-legal" style="text-align:left;margin:0" data-i18n="lg_legal">By creating an account you agree to keep your listings honest and your contact details real.</p>
+        </form>
+
+        <!-- ---------- passkey, only when the browser can actually do it ---------- -->
+        <div id="passkeyBlock" hidden>
+          <div class="lg-div" data-i18n="lg_or">or</div>
+          <button type="button" class="lg-btn ghost" id="passkeyBtn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="4"/><path d="M14.5 12.5 21 19v2h-3v-2h-2v-2h-1.5"/><path d="M2 21c0-3.3 3.1-6 7-6"/></svg>
+            <span data-i18n="lg_passkey">Use a passkey</span>
+          </button>
+        </div>
+
+        <!-- ---------- guest ---------- -->
+        <div class="lg-div" data-i18n="lg_no_account">Don't want an account?</div>
+        <a class="lg-route" href="p-message.html" id="guestLink">
+          <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 14a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><rect x="9.2" y="8.4" width="5.6" height="4" rx="1"/><path d="M10.6 8.4V7.2a1.4 1.4 0 0 1 2.8 0v1.2"/></svg></span>
+          <span class="lg-route-tx"><span data-i18n="lg_guest">Message an agent as a guest</span>
+            <small data-i18n="lg_guest_d">Encrypted the same way — but it lives on this device only.</small></span>
+          <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+        </a>
+
+        <!-- ---------- where to register as a professional ---------- -->
+        <div class="lg-div" data-i18n="lg_want_to_list">Want to list something?</div>
+        <div class="lg-routes">
+          <a class="lg-route" href="agent-houses.html">
+            <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
+            <span class="lg-route-tx"><span data-i18n="lg_route_houses">Houses &amp; rooms</span>
+              <small data-i18n="lg_route_houses_d">Free agent account, created in the portal.</small></span>
+            <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+          </a>
+          <a class="lg-route" href="agent-services.html">
+            <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
+            <span class="lg-route-tx"><span data-i18n="lg_route_services">A daily service</span>
+              <small data-i18n="lg_route_services_d">Fundi, cleaner, tutor, cook.</small></span>
+            <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+          </a>
+          <a class="lg-route" href="agent-trucks.html">
+            <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
+            <span class="lg-route-tx"><span data-i18n="lg_route_trucks">A moving truck</span>
+              <small data-i18n="lg_route_trucks_d">Registered in the trucks portal.</small></span>
+            <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ---- "check your inbox", after a sign-up or a reset request ---- -->
+      <section class="lg-card" id="cardSent" hidden aria-labelledby="sentTitle">
+        <span class="lg-mark" aria-hidden="true" style="margin-bottom:14px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
         </span>
-        <h1 id="loginTitle">Sign in</h1>
-        <p class="auth-lead">One account for everything — your house, service and truck listings. We'll take you to the right place.</p>
-      </div>
-
-      <form class="auth-form" id="loginForm" novalidate>
-        <div class="auth-field">
-          <label for="loginEmail">Email</label>
-          <div class="auth-input-wrap">
-            <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
-            <input class="auth-input" id="loginEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
-          </div>
+        <h2 class="lg-card-h" id="sentTitle" data-i18n="lg_sent_t">Check your inbox</h2>
+        <p class="lg-card-sub" id="sentBody"></p>
+        <div class="lg-msg" id="sentMsg" role="status" aria-live="polite"></div>
+        <button type="button" class="lg-btn ghost" id="sentResend" data-i18n="lg_sent_resend">Send it again</button>
+        <div class="lg-row" style="margin-top:12px;justify-content:center">
+          <button type="button" class="lg-link" data-back="auth" data-i18n="lg_back">Back to sign in</button>
         </div>
+      </section>
 
-        <div class="auth-field">
-          <label for="loginPassword">Password</label>
-          <div class="auth-input-wrap">
-            <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input class="auth-input auth-input--pw" id="loginPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Your password" />
-            <button type="button" class="auth-eye" id="pwToggle" aria-label="Show password" aria-pressed="false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
+      <!-- ---- set a new password (arrived from a reset link) ---- -->
+      <section class="lg-card" id="cardRecovery" hidden aria-labelledby="recTitle">
+        <h2 class="lg-card-h" id="recTitle" data-i18n="lg_rec_t">Set a new password</h2>
+        <p class="lg-card-sub" data-i18n="lg_rec_d">You followed a reset link. Choose a new password and we'll sign you in.</p>
+        <form class="lg-form" id="formRecovery" novalidate>
+          <div class="lg-field">
+            <label for="recPassword" data-i18n="lg_new_password">Choose a password</label>
+            <div class="lg-wrap">
+              <svg class="lg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input class="lg-input lg-input--pw" id="recPassword" type="password" autocomplete="new-password"
+                     required minlength="8" placeholder="••••••••" aria-describedby="recMeterSay" />
+              <button type="button" class="lg-eye" data-eye="recPassword"
+                      aria-label="Show password" data-i18n-aria-label="lg_show_pw" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="lg-meter" id="recMeter" data-score="0">
+              <div class="lg-meter-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+              <div class="lg-meter-say" id="recMeterSay" role="status" aria-live="polite"></div>
+            </div>
           </div>
+          <button type="submit" class="lg-btn" id="recSubmit" data-i18n="lg_rec_go">Save new password</button>
+          <div class="lg-msg" id="recMsg" role="alert" aria-live="assertive"></div>
+        </form>
+      </section>
+
+      <!-- ---- signed in: where do you want to go ---- -->
+      <section class="lg-card" id="cardPortal" hidden aria-labelledby="portalTitle">
+        <h2 class="lg-card-h" id="portalTitle" data-i18n="lg_welcome">Welcome back</h2>
+        <p class="lg-who"><span data-i18n="lg_signed_as">Signed in as</span> <strong id="portalEmail">—</strong></p>
+        <div class="lg-spinner" id="portalSpinner"></div>
+        <div class="lg-msg is-info" id="portalEmpty" hidden></div>
+        <div class="lg-routes" id="portalList"></div>
+        <div class="lg-row" style="margin-top:16px;justify-content:center">
+          <button type="button" class="lg-link" id="portalSignOut" data-i18n="lg_signout">Sign out / use another account</button>
         </div>
+      </section>
 
-        <button type="submit" class="auth-submit" id="loginBtn">Sign in</button>
-        <div class="auth-msg" id="loginStatus" role="alert" aria-live="polite"></div>
-      </form>
-
-      <div class="auth-aux">
-        <button type="button" class="auth-link-btn" id="forgotBtn">Forgot password?</button>
-      </div>
-
-      <div class="auth-divider">New here?</div>
-      <div class="auth-routes">
-        <a class="auth-route" href="agent-houses.html">
-          <span class="auth-route-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
-          <span>List houses &amp; rooms <small>Free agent account — create it right in the portal</small></span>
-          <span class="auth-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-        </a>
-        <a class="auth-route" href="agent-services.html">
-          <span class="auth-route-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
-          <span>Offer daily services <small>Fundi, cleaner, tutor… register in the services portal</small></span>
-          <span class="auth-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-        </a>
-        <a class="auth-route" href="agent-trucks.html">
-          <span class="auth-route-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
-          <span>List moving trucks <small>Register in the trucks portal</small></span>
-          <span class="auth-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-        </a>
-      </div>
-
-      <p class="auth-secure">
+      <p class="lg-secure">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Encrypted connection · one secure account
+        <span data-i18n="lg_secure">Encrypted connection · one account for the whole app</span>
       </p>
-    </section>
-
-    <!-- Signed-in: portal chooser -->
-    <section class="auth-card" id="portalCard" hidden aria-labelledby="portalTitle">
-      <div class="auth-head">
-        <span class="auth-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-        </span>
-        <h1 id="portalTitle">Welcome back</h1>
-      </div>
-      <p class="auth-who">Signed in as <strong id="portalEmail">—</strong></p>
-      <div class="auth-spinner" id="portalSpinner"></div>
-      <p class="auth-empty" id="portalEmpty" hidden></p>
-      <div class="auth-portals" id="portalList"></div>
-      <div class="auth-signout">
-        <button type="button" id="portalSignOut">Sign out / use another account</button>
-      </div>
-    </section>
-
-    <!-- Password recovery (arrived from a reset email) -->
-    <section class="auth-card" id="recoveryCard" hidden aria-labelledby="recoveryTitle">
-      <div class="auth-head">
-        <span class="auth-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </span>
-        <h1 id="recoveryTitle">Set a new password</h1>
-        <p class="auth-lead">You followed a password-reset link. Choose a new password for your account.</p>
-      </div>
-      <form class="auth-form" id="recoveryForm" novalidate>
-        <div class="auth-field">
-          <label for="newPassword">New password</label>
-          <div class="auth-input-wrap">
-            <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input class="auth-input auth-input--pw" id="newPassword" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters" />
-            <button type="button" class="auth-eye" id="pwToggle2" aria-label="Show password" aria-pressed="false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-        </div>
-        <button type="submit" class="auth-submit" id="recoveryBtn">Save new password</button>
-        <div class="auth-msg" id="recoveryStatus" role="alert" aria-live="polite"></div>
-      </form>
-    </section>
-
-  </main>
+    </main>
   </div>
 
   <div id="footer-slot"></div>
@@ -194,18 +314,14 @@
   <script src="js/core/i18n.js"></script>
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>
-  <script src="js/core/nav.js"></script>
+  <script src="js/lib/auth-errors.js"></script>
+  <script src="js/lib/auth-policy.js"></script>
   <script src="js/pages/login.js"></script>
   <script>
-    // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js) replaces the
-    // desktop top nav + footer. Login is the Profile-tab destination.
     window.applyTranslations && window.applyTranslations();
     window.initLoginPage && window.initLoginPage();
   </script>
-
-    <script src="js/core/app-shell.js"></script>
-    <script src="js/core/sw-register.js"></script>
-<!-- pawa-mobile-bundle -->
-  <script src="js/core/premium.js" defer></script>
+  <script src="js/core/app-shell.js"></script>
+  <script src="js/core/sw-register.js"></script>
 </body>
 </html>
