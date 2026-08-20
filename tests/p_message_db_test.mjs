@@ -226,6 +226,12 @@ try {
     ok(notAdminBlast !== null && /admins only/i.test(notAdminBlast.message),
        "and a normal user cannot broadcast to the country", notAdminBlast && notAdminBlast.message);
   }
+} catch (err) {
+  // Without this the finally block's process.exit() swallows the exception
+  // and the run reports a pass with exit 0 while having tested nothing.
+  fail++;
+  console.log("\n  THREW  " + (err && err.message ? err.message : String(err)));
+  if (err && err.stack) console.log(String(err.stack).split("\n").slice(1, 4).join("\n"));
 } finally {
   await cleanup();
   console.log("\n  (test rows removed)");

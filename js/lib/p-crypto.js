@@ -225,6 +225,150 @@
     return fromUtf8(plain);
   }
 
+  // ==========================================================================
+  //  SENDER KEYS — what makes a room of hundreds usable
+  // ==========================================================================
+  //  seal() costs the sender one ECDH per recipient PER MESSAGE. At 60 people
+  //  that is about half a second; at 900 it is minutes of phone CPU for one
+  //  line of text, which is not a feature, it is a hang.
+  //
+  //  A sender key moves that cost out of the message. Each person generates
+  //  one random key per room, hands it to every member ONCE (N wraps, paid
+  //  once), and every message after that is a single AES-GCM encryption. The
+  //  hundredth message costs exactly what the first did.
+  //
+  //  WHAT THIS COSTS, HONESTLY — this is not a free win
+  //   · Anyone who holds the sender key can read EVERY message sent under it.
+  //     So when the membership changes, the key must be replaced: otherwise
+  //     someone removed from a room could still read what is said afterwards.
+  //     That replacement is a "generation", and it is the caller's job to bump
+  //     it — nextGeneration() exists so it cannot be done by hand and got
+  //     wrong. This is the single rule that makes the scheme safe or unsafe.
+  //   · A per-message key is derived from the sender key and the message's
+  //     sequence number, so one message's key does not reveal another's. It
+  //     does NOT give forward secrecy against loss of the sender key itself.
+  //     Note that seal() does not give forward secrecy either — a stolen
+  //     device private key opens every wrap ever made to it — so this is not a
+  //     step down from what P-Message already promised. It is the same promise
+  //     at a size that works.
+  //   · Direct threads and small rooms keep using seal(). Fewer moving parts
+  //     wins wherever the cost does not bite.
+  // ==========================================================================
+
+  var SK_BYTES = 32;
+
+  /** A fresh sender key for a room. Generation 0 is the first. */
+  function newSenderKey(generation) {
+    return {
+      raw: b64u(randomBytes(SK_BYTES)),
+      generation: Number(generation) > 0 ? Math.floor(Number(generation)) : 0,
+    };
+  }
+
+  /**
+   * The next generation, for when the membership changed.
+   *
+   * A separate named function rather than `gen + 1` at the call site, because
+   * forgetting to bump is the one mistake in this scheme that is silent: the
+   * room keeps working perfectly for everyone, including the person who was
+   * just removed from it.
+   */
+  function nextGeneration(current) {
+    return newSenderKey((Number(current) || 0) + 1);
+  }
+
+  // The label a sender key is wrapped under. It names the room, the sender,
+  // the generation AND the recipient, so a wrap cannot be lifted into another
+  // room, replayed at another member, or reused after a rotation.
+  function skWrapInfo(threadId, senderId, generation, recipientId) {
+    return KDF_INFO + "|sk|" + threadId + "|" + senderId + "|" + generation + "|" + recipientId;
+  }
+  function skMsgInfo(threadId, senderId, generation, seq) {
+    return KDF_INFO + "|skmsg|" + threadId + "|" + senderId + "|" + generation + "|" + seq;
+  }
+  function skAad(threadId, senderId, generation, seq) {
+    return utf8(KDF_INFO + "|skbody|" + threadId + "|" + senderId + "|" + generation + "|" + seq);
+  }
+
+  /**
+   * Hand a sender key to every member. Paid once per generation, not per
+   * message — the whole point.
+   *
+   * Returns [{ user_id, epk, wrapped_key }], the same shape seal() produces,
+   * so the storage layer does not need a second idea of what a wrap is.
+   */
+  async function distributeSenderKey(opts) {
+    var recipients = opts.recipients || [];
+    if (!recipients.length) throw new Error("No recipients with a published key.");
+    var skRaw = unb64u(opts.senderKey);
+    var eph = await subtle().generateKey({ name: "ECDH", namedCurve: CURVE }, true, ["deriveBits"]);
+    var epk = b64u(await subtle().exportKey("spki", eph.publicKey));
+
+    var out = [];
+    for (var i = 0; i < recipients.length; i++) {
+      var r = recipients[i];
+      if (!r || !r.publicKey || !r.userId) continue;
+      out.push({
+        user_id: r.userId,
+        epk: epk,
+        wrapped_key: await wrapKeyFor(r.publicKey, eph.privateKey, skRaw,
+          skWrapInfo(opts.threadId, opts.senderId, opts.generation, r.userId)),
+      });
+    }
+    if (!out.length) throw new Error("No recipients with a published key.");
+    return out;
+  }
+
+  /** Open a sender key that was handed to me. Done once, then cached. */
+  async function openSenderKey(row, me) {
+    var raw = await unwrapKey(
+      row.epk, me.privateKey, row.wrapped_key,
+      skWrapInfo(row.thread_id, row.sender_id, row.generation, me.userId));
+    return b64u(raw);
+  }
+
+  // The per-message key. Derived from the sender key and the sequence number
+  // so that recovering one message's key tells you nothing about the next.
+  async function messageKeyFrom(senderKeyB64, threadId, senderId, generation, seq) {
+    var base = await subtle().importKey("raw", unb64u(senderKeyB64), "HKDF", false, ["deriveKey"]);
+    return subtle().deriveKey(
+      { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0),
+        info: utf8(skMsgInfo(threadId, senderId, generation, seq)) },
+      base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+
+  /** Encrypt one room message under a sender key. No ECDH at all. */
+  async function sealWithSenderKey(opts) {
+    var key = await messageKeyFrom(opts.senderKey, opts.threadId, opts.senderId,
+      opts.generation, opts.seq);
+    var iv = randomBytes(12);
+    var body = await subtle().encrypt(
+      { name: "AES-GCM", iv: iv,
+        additionalData: skAad(opts.threadId, opts.senderId, opts.generation, opts.seq) },
+      key, utf8(opts.plaintext));
+    return {
+      alg: "SK-A256GCM",
+      iv: b64u(iv),
+      ciphertext: b64u(body),
+      generation: opts.generation,
+      seq: opts.seq,
+    };
+  }
+
+  /**
+   * Decrypt one. `row` is { thread_id, sender_id, generation, seq, iv,
+   * ciphertext } and `senderKey` is what openSenderKey() returned.
+   */
+  async function openWithSenderKey(row, senderKey) {
+    var key = await messageKeyFrom(senderKey, row.thread_id, row.sender_id,
+      row.generation, row.seq);
+    var plain = await subtle().decrypt(
+      { name: "AES-GCM", iv: unb64u(row.iv),
+        additionalData: skAad(row.thread_id, row.sender_id, row.generation, row.seq) },
+      key, unb64u(row.ciphertext));
+    return fromUtf8(plain);
+  }
+
   // ---- passphrase backup ----------------------------------------------------
   // The device key is the whole account. Without this, a lost phone is a lost
   // history and there is nothing anyone can do about it — so the escape hatch
@@ -292,6 +436,12 @@
     fingerprint: fingerprint,
     seal: seal,
     open: open,
+    newSenderKey: newSenderKey,
+    nextGeneration: nextGeneration,
+    distributeSenderKey: distributeSenderKey,
+    openSenderKey: openSenderKey,
+    sealWithSenderKey: sealWithSenderKey,
+    openWithSenderKey: openWithSenderKey,
     backup: backup,
     restore: restore,
     load: load,

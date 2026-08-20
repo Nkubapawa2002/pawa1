@@ -299,6 +299,12 @@ try {
     select (select count(*)::int from public.pm_threads where title like 'pmtest %') as threads,
            (select count(*)::int from public.houses where id like 'pmtest_%') as houses;`);
   ok(strays[0].threads > 0, "the test's own rows are still there, about to be cleaned up");
+} catch (err) {
+  // Without this the finally block's process.exit() swallows the exception
+  // and the run reports a pass with exit 0 while having tested nothing.
+  fail++;
+  console.log("\n  THREW  " + (err && err.message ? err.message : String(err)));
+  if (err && err.stack) console.log(String(err.stack).split("\n").slice(1, 4).join("\n"));
 } finally {
   await cleanup();
   const left = await runSql(`

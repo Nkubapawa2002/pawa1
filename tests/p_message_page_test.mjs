@@ -49,6 +49,7 @@ window.supabase = { createClient: function () {
     threads: {},                    // id -> { kind, title, region, members: [] }
     messages: [],                   // { id, thread_id, sender_id, iv, ciphertext }
     wraps: {},                      // message_id -> { user_id: {epk, wrapped_key} }
+    senderKeys: {},                 // thread_id -> [{ sender_id, generation, recipient_id, epk, wrapped_key }]
   };
   // Two other people already on P-Message, one of them holding a key this
   // device has never seen — that is what makes the "cannot decrypt" path real.
@@ -133,12 +134,46 @@ window.supabase = { createClient: function () {
       var out = db.messages.filter(function (m) { return m.thread_id === args.p_thread; })
         .map(function (m) {
           var w = (db.wraps[m.id] || {})[me];
-          if (!w) return null;
+          // A sender-key message carries no per-recipient wrap at all, so
+          // requiring one here would hide every one of them — including from
+          // its own author. The real function makes the same distinction.
+          var isSk = m.generation !== undefined && m.generation !== null;
+          if (!w && !isSk) return null;
           return { id: m.id, thread_id: m.thread_id, sender_id: m.sender_id,
             sender_name: m.sender_id === me ? "You" : (db.keys[m.sender_id] || {}).display_name,
-            iv: m.iv, ciphertext: m.ciphertext, epk: w.epk, wrapped_key: w.wrapped_key, sent_at: m.sent_at };
+            alg: m.alg || null, iv: m.iv, ciphertext: m.ciphertext,
+            epk: w ? w.epk : null, wrapped_key: w ? w.wrapped_key : null,
+            generation: isSk ? m.generation : null, seq: isSk ? m.seq : null,
+            sent_at: m.sent_at };
         }).filter(Boolean);
       return Promise.resolve({ data: out, error: null });
+    }
+    // ---- sender keys ----
+    if (name === "pm_sender_key_put") {
+      db.senderKeys[args.p_thread] = db.senderKeys[args.p_thread] || [];
+      (args.p_keys || []).forEach(function (k) {
+        db.senderKeys[args.p_thread].push({ sender_id: me, generation: args.p_generation,
+          recipient_id: k.user_id, epk: k.epk, wrapped_key: k.wrapped_key });
+      });
+      return Promise.resolve({ data: (args.p_keys || []).length, error: null });
+    }
+    if (name === "pm_sender_keys_for") {
+      return Promise.resolve({
+        data: (db.senderKeys[args.p_thread] || []).filter(function (k) { return k.recipient_id === me; })
+          .map(function (k) {
+            return { sender_id: k.sender_id, generation: k.generation,
+              epk: k.epk, wrapped_key: k.wrapped_key };
+          }),
+        error: null,
+      });
+    }
+    if (name === "pm_send_sk") {
+      var smid = "m" + (db.messages.length + 1);
+      db.messages.push({ id: smid, thread_id: args.p_thread, sender_id: me,
+        alg: "SK-A256GCM", iv: args.p_iv, ciphertext: args.p_ciphertext,
+        generation: args.p_generation, seq: args.p_seq, sent_at: new Date().toISOString() });
+      db.wraps[smid] = {};   // deliberately none: that is the whole saving
+      return Promise.resolve({ data: smid, error: null });
     }
     if (name === "pm_inbox") {
       return Promise.resolve({ data: Object.keys(db.threads).map(function (id) {
@@ -167,7 +202,12 @@ window.supabase = { createClient: function () {
     b.in = function (col, vals) { b._ids = vals; return b; };
     b.then = function (res, rej) {
       var data = [];
-      if (name === "pm_members") {
+      if (name === "pm_threads") {
+        var tid = b._thread || b._eqId;
+        var th = db.threads[tid];
+        data = th ? [{ id: tid, kind: th.kind, key_generation: th.key_generation || 0,
+                       title: th.title || null, region: th.region || null, category: null }] : [];
+      } else if (name === "pm_members") {
         var t = db.threads[b._eq] || null;
         data = Object.keys(db.threads).reduce(function (acc, id) {
           (db.threads[id].members || []).forEach(function (u) { acc.push({ thread_id: id, user_id: u }); });
@@ -183,7 +223,7 @@ window.supabase = { createClient: function () {
     };
     // pm_members is always filtered by thread_id in pm-store.js.
     var origEq = b.eq;
-    b.eq = function (col, val) { if (col === "thread_id") b._thread = val; return b; };
+    b.eq = function (col, val) { if (col === "thread_id") b._thread = val; if (col === "id") b._eqId = val; return b; };
     return b;
   }
 
@@ -475,6 +515,75 @@ try {
   ok(!!invCall && invCall.args.p_token_hash !== tokenInLink && tokenInLink.length > 20,
      "which is NOT the token in the link — a stolen database yields no usable invites");
   await admin.page.close();
+
+  section("8d. A large room switches to sender keys by itself");
+  {
+    const big = await openPage("pawa4761@gmail.com");
+    await sleep(700);
+    // 30 members: past the threshold where one ECDH per member per message
+    // stops being affordable. They share one valid public key — the question
+    // here is which PATH the store takes, not whose key is whose.
+    const roomId = await big.page.evaluate(async () => {
+      const pair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+      const spki = await crypto.subtle.exportKey("spki", pair.publicKey);
+      const b = new Uint8Array(spki); let s = "";
+      for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+      const pub = btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const db = window.__PM_DB;
+      const members = ["user_self"];
+      for (let i = 0; i < 29; i++) {
+        const id = "crowd_" + i;
+        db.keys[id] = { public_key: pub, fingerprint: "0000", display_name: "Crowd " + i,
+          region: "Mwanza", is_agent: true };
+        members.push(id);
+      }
+      db.threads["bigroom"] = { kind: "group", title: "Nationwide", key_generation: 0, members };
+      return "bigroom";
+    });
+    ok(roomId === "bigroom", "a 30-person room exists");
+
+    const before = await big.page.evaluate(() => window.__PM_SENT.length);
+    const secret2 = "Hii ni siri ya chumba kizima.";
+    const sendErr = await big.page.evaluate(async (id, txt) => {
+      try { await window.PMStore.send(id, txt); return null; } catch (e) { return String(e.message || e); }
+    }, roomId, secret2);
+    ok(!sendErr, "sending to it works", sendErr || "");
+
+    const calls = await big.page.evaluate((n) => window.__PM_SENT.slice(n).map((c) => c.name), before);
+    ok(calls.includes("pm_sender_key_put"), "the key is handed out once", calls.join(", "));
+    ok(calls.includes("pm_send_sk"), "and the message goes by the sender-key path");
+    ok(!calls.includes("pm_send"),
+       "NOT by the per-recipient path — which is the entire point of the switch", calls.join(", "));
+
+    // The saving, asserted rather than assumed: a second message must not
+    // hand the key out again.
+    const mid = await big.page.evaluate(() => window.__PM_SENT.length);
+    await big.page.evaluate(async (id) => { await window.PMStore.send(id, "na hii ya pili"); }, roomId);
+    const second = await big.page.evaluate((n) => window.__PM_SENT.slice(n).map((c) => c.name), mid);
+    ok(!second.includes("pm_sender_key_put"),
+       "the second message does NOT redistribute — the cost really is paid once", second.join(", "));
+    ok(second.includes("pm_send_sk"), "it just sends");
+
+    const readBack = await big.page.evaluate(async (id) => {
+      const rows = await window.PMStore.messages(id);
+      return rows.map((r) => ({ text: r.text, failed: r.failed }));
+    }, roomId);
+    ok(readBack.length === 2 && readBack[0].text === secret2 && !readBack[0].failed,
+       "and the sender reads both messages back through the sender key",
+       JSON.stringify(readBack));
+
+    // The promise that holds for every path: plaintext never left the tab.
+    const leaked = await big.page.evaluate((txt) =>
+      (window.__PM_SENT || []).some((c) => JSON.stringify(c.args).includes(txt)), secret2);
+    ok(!leaked, "and no request body carried a word of it");
+
+    const smallPathStill = await big.page.evaluate(() => {
+      const db = window.__PM_DB;
+      return Object.keys(db.senderKeys).length;
+    });
+    ok(smallPathStill === 1, "only the big room grew a sender key");
+    await big.page.close();
+  }
 
   section("9. Someone with no account at all");
   // The signed-out screen is not a wall: a person looking at a room has no

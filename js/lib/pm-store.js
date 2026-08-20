@@ -263,11 +263,36 @@
   async function messages(threadId, limit) {
     if (!identity) throw new Error("NO_IDENTITY");
     var rows = await rpc("pm_thread_messages", { p_thread: threadId, p_limit: limit || 200 });
+
+    // A thread can hold both kinds at once — a room that grew past the
+    // threshold has per-recipient messages below and sender-key messages
+    // above. The row says which it is: a generation means a sender key.
+    var needsSk = (rows || []).some(function (r) { return r.generation !== null && r.generation !== undefined; });
+    var senderKeys = {};
+    if (needsSk) {
+      var handed = await rpc("pm_sender_keys_for", { p_thread: threadId });
+      for (var s = 0; s < (handed || []).length; s++) {
+        var h = handed[s];
+        try {
+          senderKeys[h.sender_id + "|" + h.generation] = await window.PMCrypto.openSenderKey({
+            thread_id: threadId, sender_id: h.sender_id, generation: h.generation,
+            epk: h.epk, wrapped_key: h.wrapped_key,
+          }, identity);
+        } catch (_) { /* a key we cannot open leaves its messages marked, below */ }
+      }
+    }
+
     var out = [];
     for (var i = 0; i < (rows || []).length; i++) {
       var r = rows[i], text = null, failed = false;
       try {
-        text = await window.PMCrypto.open(r, identity);
+        if (r.generation !== null && r.generation !== undefined) {
+          var key = senderKeys[r.sender_id + "|" + r.generation];
+          if (!key) throw new Error("no sender key for this generation");
+          text = await window.PMCrypto.openWithSenderKey(r, key);
+        } else {
+          text = await window.PMCrypto.open(r, identity);
+        }
       } catch (_) { failed = true; }
       out.push({
         id: r.id, at: r.sent_at, senderId: r.sender_id, senderName: r.sender_name,
@@ -278,6 +303,73 @@
   }
 
   // ---- writing --------------------------------------------------------------
+  // Above this many members a room switches to sender keys. Below it the
+  // simpler per-message path is cheap enough, and fewer moving parts wins.
+  var SK_THRESHOLD = 25;
+  var SK_STORE = "pm-sender-keys-v1";   // { "<thread>|<gen>": { raw, seq } }
+
+  function skAll() {
+    try { return JSON.parse(localStorage.getItem(SK_STORE) || "{}"); } catch (_) { return {}; }
+  }
+  function skLoad(threadId, generation) {
+    return skAll()[threadId + "|" + generation] || null;
+  }
+  function skSave(threadId, generation, rec) {
+    try {
+      var all = skAll();
+      all[threadId + "|" + generation] = rec;
+      localStorage.setItem(SK_STORE, JSON.stringify(all));
+    } catch (_) {}
+  }
+
+  // kind + key_generation, straight off the thread. RLS already restricts this
+  // to members, so there is no RPC to wrap it in.
+  async function threadMeta(threadId) {
+    var client = sb();
+    var r = await client.from("pm_threads")
+      .select("kind, key_generation, title, region, category").eq("id", threadId).limit(1);
+    if (r.error) throw new Error(r.error.message);
+    return (r.data && r.data[0]) || { kind: "direct", key_generation: 0 };
+  }
+
+  /**
+   * Send under a sender key.
+   *
+   * The generation comes from the SERVER, never from local memory: the room
+   * may have changed since this device last looked, and sending under a stale
+   * generation is exactly the mistake that would leak to someone who was
+   * removed. pm_send_sk() refuses it anyway — this just avoids the round trip
+   * that ends in an error.
+   */
+  async function sendWithSenderKey(threadId, body, generation, recipients) {
+    var mine = skLoad(threadId, generation);
+    if (!mine) {
+      // First message of this generation: pay the one-time distribution.
+      var fresh = window.PMCrypto.newSenderKey(generation);
+      var wraps = await window.PMCrypto.distributeSenderKey({
+        threadId: threadId, senderId: identity.userId,
+        generation: generation, senderKey: fresh.raw, recipients: recipients,
+      });
+      await rpc("pm_sender_key_put", {
+        p_thread: threadId, p_generation: generation, p_keys: wraps,
+      });
+      mine = { raw: fresh.raw, seq: 0 };
+      skSave(threadId, generation, mine);
+    }
+
+    var sealed = await window.PMCrypto.sealWithSenderKey({
+      threadId: threadId, senderId: identity.userId, generation: generation,
+      seq: mine.seq, senderKey: mine.raw, plaintext: body,
+    });
+    await rpc("pm_send_sk", {
+      p_thread: threadId, p_generation: generation, p_seq: mine.seq,
+      p_iv: sealed.iv, p_ciphertext: sealed.ciphertext,
+    });
+    mine.seq += 1;
+    skSave(threadId, generation, mine);
+    return { at: new Date().toISOString(), text: body, mine: true };
+  }
+
   async function send(threadId, plaintext) {
     if (!identity) throw new Error("NO_IDENTITY");
     var body = String(plaintext == null ? "" : plaintext).trim();
@@ -285,6 +377,13 @@
 
     var recipients = await threadKeys(threadId);
     if (!recipients.length) throw new Error("NOBODY_REACHABLE");
+
+    if (recipients.length > SK_THRESHOLD) {
+      var meta = await threadMeta(threadId);
+      if (meta.kind === "group") {
+        return sendWithSenderKey(threadId, body, meta.key_generation || 0, recipients);
+      }
+    }
 
     var sealed = await window.PMCrypto.seal({
       threadId: threadId, senderId: identity.userId,

@@ -219,6 +219,12 @@ try {
 
   const nosyTable = await asUser({ sub: OTHER }, `select count(*)::int as n from public.pm_invites;`);
   ok(nosyTable[0].n === 0, "and RLS hides the rows themselves, not just the function");
+} catch (err) {
+  // Without this the finally block's process.exit() swallows the exception
+  // and the run reports a pass with exit 0 while having tested nothing.
+  fail++;
+  console.log("\n  THREW  " + (err && err.message ? err.message : String(err)));
+  if (err && err.stack) console.log(String(err.stack).split("\n").slice(1, 4).join("\n"));
 } finally {
   await cleanup();
   const left = await runSql(`
