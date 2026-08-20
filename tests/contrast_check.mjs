@@ -106,7 +106,20 @@ for (const [path, sels] of Object.entries(PAGES)) {
           // Use the gradient's own first colour stop when it's substantial
           // (white frosted cards put their white IN the gradient string).
           const stop = parse(cs.backgroundImage);
-          if (stop && stop.a >= 0.5) return stop.rgb;
+          if (stop && stop.a >= 0.9) return stop.rgb;
+          // A HALF-transparent stop does not define the surface — it tints
+          // whatever is behind it. Reading it raw is how the agent sign-in
+          // aurora got judged against the pure mint of its own bloom
+          // (rgba(52,211,153,.5), the first stop of five layers over a
+          // near-black base): four headings and labels were reported at
+          // 1.19-1.92:1 when a pixel sample of the same text puts them at
+          // 3.74-6.06:1. Composite it over the surface behind instead, which
+          // lands within a few points of the real pixels.
+          if (stop) {
+            const behind = n.parentElement ? effBg(n.parentElement) : null;
+            if (!behind) return null;
+            return stop.rgb.map((c, i) => Math.round(c * stop.a + behind[i] * (1 - stop.a)));
+          }
           // Pure/translucent gradient (green hero cards) — skip judgment.
           return null;
         }

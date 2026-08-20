@@ -502,6 +502,14 @@ body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 1
 .auth-scene .login-brand__name em { color: #8ef0c4 !important; }
 .auth-scene .login-brand__lead { color: rgba(234, 255, 246, .85) !important; }
 .auth-scene .login-brand__list li { color: rgba(234, 255, 246, .96) !important; }
+/* Field labels light too, and stated HERE rather than left to the host page.
+   .auth-field label asks for --c-text-soft, whose fallback is the light-theme
+   ink #3f3d36. admin.html happens to repaint that token near-white in its own
+   dark re-skin, so its labels read; super-admin.html has no such block, so the
+   same markup put #3f3d36 on the aurora at 2.13:1. The panel is a dark green
+   aurora in BOTH themes, so what sits on it does not depend on the page's
+   palette and should not be borrowing one. */
+.auth-scene .auth-field label { color: rgba(233, 243, 238, .82); }
 @media (max-width: 860px) {
   .auth-scene { padding: clamp(20px, 5vw, 30px); border-radius: 22px; }
 }

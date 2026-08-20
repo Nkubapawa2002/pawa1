@@ -26,8 +26,13 @@
 
     /* Job cards */
     .job-list { display: flex; flex-direction: column; gap: 12px; }
+    /* --c-surface, not a hardcoded #fff. The page block below repaints
+       --c-text to the dark theme's near-white, so a card nailed to white
+       carried pale ink on white: every job title, company, description and
+       requirement line on the board measured 1.13:1. The surface has to move
+       with the ink or one of the two is always wrong. */
     .job-card {
-      background: #fff; border: 1px solid var(--c-border, #e7e4dd);
+      background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
       border-radius: 14px; padding: 14px 16px;
       box-shadow: 0 2px 10px rgba(0,0,0,.05);
     }
@@ -82,8 +87,10 @@
     }
     /* display:flex above would defeat the hidden attribute — restore it. */
     .jobs-modal-backdrop[hidden] { display: none !important; }
+    /* Same white-slab bug as .job-card, and this one is a form: its label,
+       sub-line and heading all read against it. */
     .jobs-modal {
-      background: #fff; border-radius: 16px; width: 100%; max-width: 560px;
+      background: var(--c-surface, #fff); border-radius: 16px; width: 100%; max-width: 560px;
       max-height: 92vh; overflow-y: auto; padding: 20px 20px 16px;
     }
     .jobs-modal h3 { margin: 0 0 4px; color: var(--c-brand-deep, #064a33); }
@@ -118,7 +125,7 @@
     /* My jobs & workers results */
     .jm-job {
       border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px;
-      padding: 12px 14px; margin-bottom: 10px; background: #fff;
+      padding: 12px 14px; margin-bottom: 10px; background: var(--c-surface, #fff);
     }
     .jm-job-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
     .jm-job-title { font-weight: 800; font-size: .94rem; }
@@ -167,8 +174,16 @@
   <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
   <style>
-    /* Twilight dark re-skin (Claude design) for the Day jobs board (Explore tab). */
-    body[data-page="jobs"] {
+    /* Twilight dark re-skin (Claude design) for the Day jobs board (Explore tab).
+       SCOPED to non-light. These are custom properties set on <body>, and a
+       property set on body beats one set on :root for everything inside body
+       no matter what the source order or specificity is - inheritance takes the
+       nearer ancestor. So while this block was unconditional, theme-light.css
+       could never reach the page: light mode kept the whole dark palette and
+       only the handful of elements with an explicit :root[data-theme="light"]
+       rule below ever flipped. :not([data-theme="light"]) covers both the
+       explicit dark attribute and the no-attribute default. */
+    :root:not([data-theme="light"]) body[data-page="jobs"] {
       --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
       --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
@@ -178,13 +193,23 @@
       color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
     }
     body[data-page="jobs"] .container { padding-bottom: 96px; }
-    body[data-page="jobs"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
-    body[data-page="jobs"] select, body[data-page="jobs"] textarea {
+    /* Dark-only for the same reason: a translucent white fill and near-white
+       ink are a dark-page treatment, and they were being applied on cream. */
+    :root:not([data-theme="light"]) body[data-page="jobs"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    :root:not([data-theme="light"]) body[data-page="jobs"] select,
+    :root:not([data-theme="light"]) body[data-page="jobs"] textarea {
       background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
     }
-    body[data-page="jobs"] input::placeholder, body[data-page="jobs"] textarea::placeholder { color: rgba(233,243,238,.4); }
-    /* dark text on the bright green fills for AA contrast */
-    body[data-page="jobs"] .jm-worker, body[data-page="jobs"] .job-mycode { color: #06170F; }
+    :root:not([data-theme="light"]) body[data-page="jobs"] input::placeholder,
+    :root:not([data-theme="light"]) body[data-page="jobs"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    /* No dark-ink override for .jm-worker / .job-mycode. Both are filled with
+       --c-brand-faint, which is a 10%-alpha TINT, not a bright green slab - in
+       the dark theme it resolves to a dark fill. The near-black ink that used
+       to be forced here only ever read because the .jm-job card behind it was
+       nailed to #fff; the moment that card started following the theme, the
+       pair measured 1.05:1. Left to their own declarations they are correct in
+       both themes: .job-mycode already asks for --c-brand-deep, and .jm-worker
+       inherits --c-text. */
     /* The empty state hardcodes a white card, so on the dark page it was a
        white slab carrying the page's pale text — 1.13:1, and it is the FIRST
        thing anyone sees when no jobs are posted. */

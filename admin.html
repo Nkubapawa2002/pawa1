@@ -31,7 +31,7 @@
     .aa-stat .num { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--c-brand, #0a6f4d); }
     .aa-stat .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted, #6b6960); margin-top: 5px; font-weight: 700; }
     .aa-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    .aa-controls input, .aa-controls select { padding: 9px 11px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 9px; font-size: 15px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915); }
+    .aa-controls input, .aa-controls select { padding: 9px 11px; border: 1px solid var(--c-border, #e7e4dd); border-radius: 9px; font-size: 15px; font-family: inherit; background: var(--c-surface, #fff); color: var(--c-text, #1a1915); }
     .aa-controls input { flex: 1; min-width: 180px; }
     .aa-role-tag { display: inline-block; font-size: .66rem; font-weight: 800; letter-spacing: .3px; padding: 2px 7px; border-radius: 999px; color: #fff; margin-right: 3px; }
     .aa-role-tag.house   { background: var(--c-brand, #0a6f4d); }
@@ -111,8 +111,12 @@
     }
     #adminPanel .tab-btn { color: var(--c-text, #1a1915) !important; }
     #adminPanel .tab-btn.active { color: #fff !important; }
+    /* --c-surface, not a near-opaque white. The page block below repaints the
+       ink to the dark theme's near-white, so this panel was a white slab
+       carrying pale text: the All-agents heading and its filter inputs both
+       measured 1.10:1. */
     #adminPanel .tab-panel {
-      background: rgba(255,255,255,.95);
+      background: var(--c-surface, rgba(255,255,255,.95));
       border-radius: 14px; padding: 16px 18px;
       box-shadow: 0 4px 16px rgba(0,0,0,.08);
     }
@@ -131,8 +135,13 @@
   <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
   <style>
-    /* Twilight dark re-skin (Claude design) — admin panel (pushed view; keeps its own Sign-out). */
-    body[data-page="admin"] {
+    /* Twilight dark re-skin (Claude design) — admin panel (pushed view; keeps its own Sign-out).
+       SCOPED to non-light: these are custom properties on <body>, and a property
+       set on body beats one set on :root for everything inside it regardless of
+       source order or specificity — inheritance takes the nearer ancestor. Left
+       unconditional, theme-light.css could never reach this page, and the
+       surfaces above that now follow --c-surface would stay dark on cream. */
+    :root:not([data-theme="light"]) body[data-page="admin"] {
       --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
       --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
@@ -144,11 +153,22 @@
       color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
     }
     body[data-page="admin"] .container { padding-bottom: 96px; }
-    body[data-page="admin"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
-    body[data-page="admin"] select, body[data-page="admin"] textarea {
-      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+    :root:not([data-theme="light"]) body[data-page="admin"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    :root:not([data-theme="light"]) body[data-page="admin"] select,
+    :root:not([data-theme="light"]) body[data-page="admin"] textarea {
+      /* !important because premium.css paints EVERY text input
+         `rgba(255,255,255,.78) !important` globally. Without matching that
+         weight this rule's background never applied at all, so the admin
+         filter inputs stayed 78%-opaque white while their text followed the
+         dark palette to near-white — 1.10:1, and it hid the field you type
+         the agent search into. Specificity cannot win against !important;
+         only !important can. */
+      background: rgba(255,255,255,.05) !important; color: #E9F3EE; border-color: rgba(255,255,255,.14) !important;
     }
-    body[data-page="admin"] input::placeholder, body[data-page="admin"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    :root:not([data-theme="light"]) body[data-page="admin"] input::placeholder,
+    :root:not([data-theme="light"]) body[data-page="admin"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    /* .auth-card stays unconditional: it sits on the aurora panel, which is a
+       dark green in BOTH themes, so its glass treatment is not theme-dependent. */
     body[data-page="admin"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
     body[data-page="admin"] .auth-input:focus { background: rgba(255,255,255,.07); }
     body[data-page="admin"] #nav-slot, body[data-page="admin"] #footer-slot { display: none !important; }
