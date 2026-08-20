@@ -157,19 +157,99 @@
    * never opened P-Message on any device, so there is no key to encrypt to and
    * nothing to be done about it here. The caller reports how many were reached.
    */
+  // One RPC, not two table reads. The old shape fetched pm_members and then
+  // pm_keys and joined them here, which is two round trips on a Tanzanian
+  // mobile network for every single message sent — and in a room of 200 the
+  // `.in(ids)` was a URL long enough to be worth worrying about.
   async function threadKeys(threadId) {
-    var client = sb();
-    var mem = await client.from("pm_members").select("user_id").eq("thread_id", threadId);
-    if (mem.error) throw new Error(mem.error.message);
-    var ids = (mem.data || []).map(function (m) { return m.user_id; });
-    if (!ids.length) return [];
-    var keys = await client.from("pm_keys").select("user_id, public_key").in("user_id", ids);
-    if (keys.error) throw new Error(keys.error.message);
-    return (keys.data || []).map(function (k) {
-      keyCache[k.user_id] = k.public_key;
-      return { userId: k.user_id, publicKey: k.public_key };
+    var rows = await rpc("pm_thread_keys", { p_thread: threadId });
+    return (rows || []).filter(function (k) { return k.public_key; })
+      .map(function (k) {
+        keyCache[k.user_id] = k.public_key;
+        return {
+          userId: k.user_id, publicKey: k.public_key,
+          name: k.display_name, role: k.role, isGuest: k.is_guest,
+        };
+      });
+  }
+
+  // ---- rooms ----------------------------------------------------------------
+  // The admin's "who would be in this" preview. Returns nothing at all to a
+  // non-admin, so the UI can simply not show the button rather than guard it.
+  function groupCandidates(category, region) {
+    return rpc("pm_group_candidates", {
+      p_category: category || null,
+      p_region: region || null,
+    }).then(function (r) { return r || []; });
+  }
+
+  function groupCreate(opts) {
+    return rpc("pm_group_create", {
+      p_title: String((opts && opts.title) || "").trim(),
+      p_category: (opts && opts.category) || null,
+      p_region: (opts && opts.region) || null,
+      p_members: (opts && opts.members) || [],
     });
   }
+
+  function groupAdd(threadId, members) {
+    return rpc("pm_group_add", { p_thread: threadId, p_members: members || [] });
+  }
+  function groupLeave(threadId) { return rpc("pm_group_leave", { p_thread: threadId }); }
+  function groupRemove(threadId, userId) {
+    return rpc("pm_group_remove", { p_thread: threadId, p_user: userId });
+  }
+  function groupMax() { return rpc("pm_group_max"); }
+
+  // ---- invite links ---------------------------------------------------------
+  // The token is generated here and NEVER sent to the server — only its
+  // sha256. That is the whole security property of the feature, so it is
+  // written once, here, rather than assembled at a call site.
+  function b64u(bytes) {
+    var s = "";
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  async function sha256Hex(str) {
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+    var b = new Uint8Array(buf), out = "";
+    for (var i = 0; i < b.length; i++) out += b[i].toString(16).padStart(2, "0");
+    return out;
+  }
+
+  /**
+   * Make an invite. Returns { token, link, expiresAt } — the token is the only
+   * copy that will ever exist, so a caller that loses it cannot recover it and
+   * must make another.
+   */
+  async function inviteCreate(label, days) {
+    var raw = new Uint8Array(32);
+    crypto.getRandomValues(raw);
+    var token = b64u(raw);
+    var rows = await rpc("pm_invite_create", {
+      p_token_hash: await sha256Hex(token),
+      p_label: label || null,
+      p_days: days || 14,
+    });
+    var row = (rows && rows[0]) || {};
+    return {
+      token: token,
+      hash: row.token_hash,
+      expiresAt: row.expires_at,
+      link: location.origin + location.pathname.replace(/[^/]*$/, "") +
+            "p-message.html?i=" + encodeURIComponent(token),
+    };
+  }
+
+  function invitePeek(token) {
+    return rpc("pm_invite_peek", { p_token: token })
+      .then(function (r) { return (r && r[0]) || null; });
+  }
+  function inviteAccept(token) { return rpc("pm_invite_accept", { p_token: token }); }
+  function invitesMine(limit) {
+    return rpc("pm_invites_mine", { p_limit: limit || 50 }).then(function (r) { return r || []; });
+  }
+  function inviteRevoke(hash) { return rpc("pm_invite_revoke", { p_token_hash: hash }); }
 
   // ---- reading --------------------------------------------------------------
   /**
@@ -288,5 +368,16 @@
     recipients: recipients,
     broadcast: broadcast,
     subscribe: subscribe,
+    groupCandidates: groupCandidates,
+    groupCreate: groupCreate,
+    groupAdd: groupAdd,
+    groupLeave: groupLeave,
+    groupRemove: groupRemove,
+    groupMax: groupMax,
+    inviteCreate: inviteCreate,
+    invitePeek: invitePeek,
+    inviteAccept: inviteAccept,
+    invitesMine: invitesMine,
+    inviteRevoke: inviteRevoke,
   };
 })();

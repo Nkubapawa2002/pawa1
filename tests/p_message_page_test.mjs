@@ -81,6 +81,46 @@ window.supabase = { createClient: function () {
       db.threads[id] = db.threads[id] || { kind: "direct", members: [me, args.p_other] };
       return Promise.resolve({ data: id, error: null });
     }
+    // pm-store.js used to build this from two table reads (pm_members then
+    // pm_keys); it is one RPC now, so the stub models the RPC. A member with
+    // no published key is omitted, exactly as the real function does — that
+    // omission is what makes "nobody reachable" reachable in a test.
+    if (name === "pm_group_candidates") {
+      return Promise.resolve({
+        data: Object.keys(db.keys).filter(function (k) { return k !== me && db.keys[k].public_key; })
+          .map(function (k) {
+            var v = db.keys[k];
+            return { user_id: k, public_key: v.public_key, display_name: v.display_name,
+              region: v.region, listings: 1 };
+          }),
+        error: null,
+      });
+    }
+    if (name === "pm_group_create") {
+      var gid = "room-" + (Object.keys(db.threads).length + 1);
+      db.threads[gid] = { kind: "group", title: args.p_title, members: (args.p_members || []).concat([me]) };
+      return Promise.resolve({ data: gid, error: null });
+    }
+    if (name === "pm_invite_create") {
+      return Promise.resolve({
+        data: [{ token_hash: args.p_token_hash,
+                 expires_at: new Date(Date.now() + 12096e5).toISOString() }],
+        error: null,
+      });
+    }
+    if (name === "pm_invites_mine") return Promise.resolve({ data: [], error: null });
+    if (name === "pm_thread_keys") {
+      var th = db.threads[args.p_thread];
+      var members = (th && th.members) || [];
+      return Promise.resolve({
+        data: members.map(function (u) {
+          var v = db.keys[u] || {};
+          return { user_id: u, public_key: v.public_key || "", display_name: v.display_name || null,
+            role: u === me ? "owner" : "member", is_guest: false };
+        }).filter(function (r) { return r.public_key; }),
+        error: null,
+      });
+    }
     if (name === "pm_send") {
       var mid = "m" + (db.messages.length + 1);
       db.messages.push({ id: mid, thread_id: args.p_thread, sender_id: me,
@@ -395,6 +435,45 @@ try {
   if (process.argv.includes("--shot")) {
     await admin.page.screenshot({ path: "tests/shot_pmessage_announce.png" });
   }
+
+  section("8b. Opening a room");
+  await admin.page.evaluate(() => { document.getElementById("pmModalBack").classList.remove("is-on"); });
+  ok(await admin.page.$eval("#pmRoomsBtn", (n) => getComputedStyle(n).display !== "none"),
+     "the admin gets a Rooms button");
+  await admin.page.evaluate(() => document.getElementById("pmRoomsBtn").click());
+  await sleep(400);
+  const cats = await admin.page.$$eval("#pmRoomCat option", (n) => n.map((o) => o.value));
+  ok(cats.join(",") === ",houses,services,trucks",
+     "a room is scoped by what people deal in — and 'jobs' is absent, because a day job has no owner to group by",
+     cats.join(","));
+  // The preview is the safety rail: you must SEE who a scope caught before a
+  // room you cannot un-send exists.
+  ok(await admin.page.$eval("#pmRoomGo", (n) => n.disabled),
+     "and the room cannot be opened until its scope has been previewed");
+  await admin.page.evaluate(() => document.getElementById("pmRoomWho").click());
+  await sleep(500);
+  const preview = await admin.page.$eval("#pmRoomMsg", (n) => n.textContent);
+  ok(preview.length > 0, "asking who is in scope answers", preview.slice(0, 70));
+
+  section("8c. Inviting a customer who has no account");
+  await admin.page.evaluate(() => { document.getElementById("pmModalBack").classList.remove("is-on"); });
+  ok(await admin.page.$eval("#pmInviteBtn", (n) => getComputedStyle(n).display !== "none"),
+     "an account holder gets an Invite button");
+  await admin.page.evaluate(() => document.getElementById("pmInviteBtn").click());
+  await sleep(400);
+  await admin.page.evaluate(() => document.getElementById("pmInvGo").click());
+  await sleep(600);
+  const link = await admin.page.$eval("#pmInvLink", (n) => n.value).catch(() => "");
+  ok(/[?&]i=/.test(link), "a link is produced, carrying the token", link.slice(0, 60));
+  // The property the whole feature rests on: what the server was told is the
+  // HASH, never the token in the link.
+  const invCall = await admin.page.evaluate(() =>
+    (window.__PM_SENT || []).filter((c) => c.name === "pm_invite_create").slice(-1)[0] || null);
+  const tokenInLink = decodeURIComponent((link.split("i=")[1] || ""));
+  ok(!!invCall && /^[0-9a-f]{64}$/.test(invCall.args.p_token_hash),
+     "and what went to the server is a sha256", invCall ? invCall.args.p_token_hash : "no call");
+  ok(!!invCall && invCall.args.p_token_hash !== tokenInLink && tokenInLink.length > 20,
+     "which is NOT the token in the link — a stolen database yields no usable invites");
   await admin.page.close();
 
   section("9. Someone with no account at all");

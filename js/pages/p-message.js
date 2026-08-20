@@ -24,7 +24,8 @@
   "use strict";
 
   var el = {};
-  ["pmLock", "pmLockText", "pmFpBtn", "pmBroadcastBtn", "segChats", "segPeople", "segAi",
+  ["pmLock", "pmLockText", "pmFpBtn", "pmBroadcastBtn", "pmRoomsBtn", "pmInviteBtn",
+   "segChats", "segPeople", "segAi",
    "pmGate", "paneChats", "panePeople", "paneAi", "pmInbox", "pmSearch", "pmRegion",
    "pmPeople", "pmAiRow", "pmConv", "pmBack", "pmConvName", "pmConvSub", "pmVerify",
    "pmLog", "pmConvNote", "pmComposeForm", "pmInput", "pmSendBtn", "pmModalBack", "pmModal"]
@@ -117,6 +118,11 @@
         el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
       }
       if (me.isAdmin && el.pmBroadcastBtn) el.pmBroadcastBtn.hidden = false;
+      // Rooms are the admin's to open. Invites belong to anyone with a real
+      // account -- an agent inviting a customer is the whole point -- but not
+      // to a guest, who would just be minting links from an anonymous tab.
+      if (me.isAdmin && el.pmRoomsBtn) el.pmRoomsBtn.hidden = false;
+      if (!me.isGuest && el.pmInviteBtn) el.pmInviteBtn.hidden = false;
       // A brand new device is the moment to say that the key lives HERE, while
       // there is still nothing to lose. Saying it after a lost phone is useless.
       if (res.isNewDevice) setTimeout(showBackup, 400);
@@ -222,10 +228,16 @@
 
     el.pmInbox.innerHTML = rows.map(function (r) {
       var broadcast = r.kind === "broadcast";
-      var name = broadcast
-        ? (r.title || t("pm_announcement", "Announcement"))
+      var group = r.kind === "group";
+      var name = (broadcast || group)
+        ? (r.title || t(group ? "pm_room" : "pm_announcement", group ? "Room" : "Announcement"))
         : (r.other_name || t("pm_someone", "Someone"));
-      var sub = broadcast
+      // A room says where it is and stops there. It deliberately does NOT say
+      // how many people are in it: that count is a live query per row, and a
+      // thread list that fires one request per line is how a list gets slow.
+      var sub = group
+        ? t("pm_room_sub", "Group room") + (r.region ? " · " + r.region : " · " + t("pm_nationwide", "Nationwide"))
+        : broadcast
         ? t("pm_from_admin", "From the team") + (r.region ? " · " + r.region : " · " + t("pm_nationwide", "Nationwide"))
         : [r.other_area, r.other_region].filter(Boolean).join(" · ");
       // Somebody with no account is worth marking. It is true, and an agent
@@ -234,9 +246,11 @@
         ? ' <span class="pm-badge off">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "";
       return '<button class="pm-row" data-thread="' + esc(r.thread_id) + '" data-kind="' + esc(r.kind) +
         '" data-name="' + esc(name) + '" data-sub="' + esc(sub) + '" data-other="' + esc(r.other_id || "") + '">' +
-        '<span class="pm-av' + (broadcast ? " is-cast" : "") + '">' + (broadcast ? "★" : esc(initials(name))) + "</span>" +
+        '<span class="pm-av' + (broadcast ? " is-cast" : group ? " is-room" : "") + '">' +
+          (broadcast ? "★" : group ? "◎" : esc(initials(name))) + "</span>" +
         '<span class="pm-rtx"><span class="pm-name">' + esc(name) + guestTag +
           (broadcast ? ' <span class="pm-badge">' + esc(t("pm_badge_cast", "Announcement")) + "</span>" : "") +
+          (group ? ' <span class="pm-badge">' + esc(t("pm_badge_room", "Room")) + "</span>" : "") +
         '</span><span class="pm-sub">' + esc(sub || clock(r.last_at)) + "</span></span>" +
         (r.unread ? '<span class="pm-unread">' + r.unread + "</span>" : "") + "</button>";
     }).join("");
@@ -311,6 +325,11 @@
     lock(true);
     el.pmConvNote.textContent = info.kind === "broadcast"
       ? t("pm_cast_note", "Sent to everyone in this scope. Only you can read your copy.")
+      : info.kind === "group"
+      // Both halves matter. The first is the promise; the second is the thing
+      // people are surprised by, and being surprised by it later feels like a
+      // fault rather than a design.
+      ? t("pm_room_note", "Encrypted to every member individually. Anything sent before you joined stays unreadable to you.")
       : t("pm_conv_note", "Encrypted on this device. Nobody else — not even us — can read it.");
 
     try {
@@ -498,6 +517,222 @@
     });
   }
 
+  // ---- rooms (admin) -------------------------------------------------------
+  // Two steps on purpose: pick a scope, SEE who it caught, then open it. A
+  // room is a thing you cannot un-send to people, so the preview is not a
+  // nicety — it is the difference between "Mwanza house agents" and "everyone,
+  // because I left the category blank".
+  function showRooms() {
+    var names = (window.TZ_REGION_CENTERS || []).map(function (r) { return r.name; })
+      .filter(Boolean).sort(function (a, b) { return a.localeCompare(b); });
+    var found = [];
+
+    modal("<h2>" + esc(t("pm_room_t", "Open a room")) + "</h2>" +
+      "<p>" + esc(t("pm_room_d", "Everyone in the scope can talk to each other, encrypted to each member individually. Announcements are one-way; a room is not.")) + "</p>" +
+      "<label>" + esc(t("pm_room_cat", "What they deal in")) + "</label>" +
+      '<select id="pmRoomCat"><option value="">' + esc(t("pm_room_anycat", "Anything")) + "</option>" +
+        '<option value="houses">' + esc(t("pm_cat_houses", "Houses & rooms")) + "</option>" +
+        '<option value="services">' + esc(t("pm_cat_services", "Daily services")) + "</option>" +
+        '<option value="trucks">' + esc(t("pm_cat_trucks", "Moving trucks")) + "</option></select>" +
+      "<label>" + esc(t("pm_room_where", "Where")) + "</label>" +
+      '<select id="pmRoomRegion"><option value="">' + esc(t("pm_cast_all", "Everyone in Tanzania")) + "</option>" +
+      names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("") + "</select>" +
+      "<label>" + esc(t("pm_room_name", "Name of the room")) + '</label><input id="pmRoomTitle" maxlength="80" />' +
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn ghost" id="pmRoomWho">' + esc(t("pm_room_who", "Who is in scope?")) + "</button>" +
+        '<button class="pm-btn" id="pmRoomGo" disabled>' + esc(t("pm_room_open", "Open room")) + "</button>" +
+        '<button class="pm-btn ghost" id="pmRoomCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmRoomMsg\"></div>");
+
+    var out = document.getElementById("pmRoomMsg");
+    var go = document.getElementById("pmRoomGo");
+    var cat = document.getElementById("pmRoomCat");
+    var reg = document.getElementById("pmRoomRegion");
+
+    // Changing the scope invalidates the preview. Leaving a stale "12 people"
+    // on screen while the selects say something else is how the wrong room
+    // gets opened.
+    function invalidate() {
+      found = []; go.disabled = true;
+      out.className = "pm-msg-out"; out.textContent = "";
+    }
+    cat.addEventListener("change", invalidate);
+    reg.addEventListener("change", invalidate);
+
+    document.getElementById("pmRoomCancel").addEventListener("click", closeModal);
+    document.getElementById("pmRoomWho").addEventListener("click", async function (e) {
+      e.currentTarget.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_room_looking", "Looking…");
+      try {
+        found = await window.PMStore.groupCandidates(cat.value || null, reg.value || null);
+        if (!found.length) {
+          out.className = "pm-msg-out bad";
+          out.textContent = t("pm_room_nobody", "Nobody in that scope uses P-Message yet.");
+        } else {
+          out.className = "pm-msg-out good";
+          out.textContent = t("pm_room_found", "{n} people: {who}", {
+            n: found.length,
+            who: found.slice(0, 6).map(function (p) { return p.display_name || p.user_id; }).join(", ") +
+                 (found.length > 6 ? "…" : ""),
+          });
+          go.disabled = false;
+        }
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+      } finally {
+        e.currentTarget.disabled = false;
+      }
+    });
+
+    document.getElementById("pmRoomGo").addEventListener("click", async function (e) {
+      if (!found.length) return;
+      e.currentTarget.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_room_opening", "Opening…");
+      try {
+        await window.PMStore.groupCreate({
+          title: document.getElementById("pmRoomTitle").value.trim() ||
+                 t("pm_room", "Room"),
+          category: cat.value || null,
+          region: reg.value || null,
+          members: found.map(function (p) { return p.user_id; }),
+        });
+        closeModal();
+        await refreshInbox();
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        e.currentTarget.disabled = false;
+      }
+    });
+  }
+
+  // ---- invite a customer ---------------------------------------------------
+  // The token is shown ONCE. It is not recoverable, by design — the server
+  // holds only its hash — so the copy button matters more than it looks.
+  function showInvite() {
+    modal("<h2>" + esc(t("pm_inv_t", "Invite a customer")) + "</h2>" +
+      "<p>" + esc(t("pm_inv_d", "Make a link and send it however you already talk to them. They can reply encrypted without making an account.")) + "</p>" +
+      "<label>" + esc(t("pm_inv_label", "Your note (only you see this)")) + '</label><input id="pmInvLabel" maxlength="60" />' +
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn" id="pmInvGo">' + esc(t("pm_inv_make", "Make a link")) + "</button>" +
+        '<button class="pm-btn ghost" id="pmInvCancel">' + esc(t("pm_close", "Close")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmInvMsg\"></div><div id=\"pmInvList\"></div>");
+
+    document.getElementById("pmInvCancel").addEventListener("click", closeModal);
+    renderInviteList();
+
+    document.getElementById("pmInvGo").addEventListener("click", async function (e) {
+      var out = document.getElementById("pmInvMsg");
+      e.currentTarget.disabled = true;
+      out.className = "pm-msg-out"; out.textContent = "";
+      try {
+        var inv = await window.PMStore.inviteCreate(
+          document.getElementById("pmInvLabel").value.trim() || null);
+        out.className = "pm-msg-out good";
+        out.innerHTML = '<input readonly id="pmInvLink" value="' + esc(inv.link) + '" />' +
+          '<button class="pm-btn" id="pmInvCopy" style="margin-top:8px">' +
+          esc(t("pm_inv_copy", "Copy link")) + "</button>" +
+          '<div style="margin-top:6px">' +
+          esc(t("pm_inv_once", "This link is shown once and cannot be shown again. It works for one person, and expires.")) +
+          "</div>";
+        document.getElementById("pmInvCopy").addEventListener("click", function () {
+          var f = document.getElementById("pmInvLink");
+          f.select();
+          try { navigator.clipboard.writeText(inv.link); } catch (_) { document.execCommand("copy"); }
+          this.textContent = t("pm_inv_copied", "Copied");
+        });
+        renderInviteList();
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+      } finally {
+        e.currentTarget.disabled = false;
+      }
+    });
+  }
+
+  async function renderInviteList() {
+    var box = document.getElementById("pmInvList");
+    if (!box) return;
+    try {
+      var rows = await window.PMStore.invitesMine(20);
+      if (!rows.length) { box.innerHTML = ""; return; }
+      box.innerHTML = "<h3>" + esc(t("pm_inv_yours", "Your links")) + "</h3>" +
+        rows.map(function (r) {
+          return '<div class="pm-inv-row"><span>' +
+            esc(r.label || t("pm_inv_nolabel", "(no note)")) +
+            '</span><span class="pm-badge' + (r.state === "used" ? " ok" : r.state === "open" ? "" : " off") + '">' +
+            esc(t("pm_inv_" + r.state, r.state)) + "</span>" +
+            (r.guest_name ? '<span class="pm-sub">' + esc(r.guest_name) + "</span>" : "") +
+            "</div>";
+        }).join("");
+    } catch (_) { box.innerHTML = ""; }
+  }
+
+  // ---- arriving on an invite link ------------------------------------------
+  // Runs before the normal boot decides what to show, because the answer to
+  // "who are you" is different when you arrived holding a link.
+  async function handleInviteLink() {
+    var token = new URLSearchParams(location.search).get("i");
+    if (!token) return false;
+    // Take it out of the address bar immediately. A bearer token sitting in a
+    // URL gets shared, screenshotted and put in a browser history that syncs.
+    try { history.replaceState({}, "", location.pathname); } catch (_) {}
+
+    var info = null;
+    try { info = await window.PMStore.invitePeek(token); } catch (_) {}
+    if (!info) {
+      modal("<h2>" + esc(t("pm_inv_bad_t", "That link does not work")) + "</h2><p>" +
+        esc(t("pm_inv_bad_d", "It may have been mistyped. Ask for a new one.")) + "</p>" +
+        '<div class="pm-modal-acts"><button class="pm-btn" id="pmInvX">' +
+        esc(t("pm_close", "Close")) + "</button></div>");
+      document.getElementById("pmInvX").addEventListener("click", closeModal);
+      return true;
+    }
+    if (info.state !== "open") {
+      var why = info.state === "used" ? t("pm_inv_used_d", "This link has already been used.")
+              : info.state === "expired" ? t("pm_inv_exp_d", "This link has expired.")
+              : t("pm_inv_rev_d", "This link was withdrawn.");
+      modal("<h2>" + esc(t("pm_inv_bad_t", "That link does not work")) + "</h2><p>" + esc(why) + "</p>" +
+        '<div class="pm-modal-acts"><button class="pm-btn" id="pmInvX">' +
+        esc(t("pm_close", "Close")) + "</button></div>");
+      document.getElementById("pmInvX").addEventListener("click", closeModal);
+      return true;
+    }
+
+    modal("<h2>" + esc(t("pm_inv_hi", "{who} wants to chat with you", { who: info.agent_name || t("pm_someone", "Someone") })) + "</h2>" +
+      "<p>" + esc(t("pm_inv_hi_d", "You do not need an account. Your messages are encrypted on this device — nobody else, including us, can read them.")) + "</p>" +
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn" id="pmInvOk">' + esc(t("pm_inv_start", "Start chatting")) + "</button>" +
+        '<button class="pm-btn ghost" id="pmInvNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmInvOut\"></div>");
+
+    document.getElementById("pmInvNo").addEventListener("click", closeModal);
+    document.getElementById("pmInvOk").addEventListener("click", async function (e) {
+      var out = document.getElementById("pmInvOut");
+      e.currentTarget.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_inv_setting", "Setting up encryption…");
+      try {
+        var who = await window.PMStore.me();
+        if (!who || !who.userId) await window.PMStore.signInAsGuest(null, null);
+        await window.PMStore.ensureIdentity({});
+        var threadId = await window.PMStore.inviteAccept(token);
+        closeModal();
+        await boot();
+        openThread({ threadId: threadId, kind: "direct", name: info.agent_name || t("pm_someone", "Someone"), sub: "" });
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        e.currentTarget.disabled = false;
+      }
+    });
+    return true;
+  }
+
   // ---- wiring --------------------------------------------------------------
   function wire() {
     el.segChats && el.segChats.addEventListener("click", function () { showSeg("chats"); });
@@ -558,6 +793,8 @@
     });
     el.pmFpBtn && el.pmFpBtn.addEventListener("click", function () { showBackup(); });
     el.pmBroadcastBtn && el.pmBroadcastBtn.addEventListener("click", showBroadcast);
+    el.pmRoomsBtn && el.pmRoomsBtn.addEventListener("click", showRooms);
+    el.pmInviteBtn && el.pmInviteBtn.addEventListener("click", showInvite);
 
     el.pmComposeForm && el.pmComposeForm.addEventListener("submit", function (e) {
       e.preventDefault();
@@ -583,6 +820,14 @@
     el.pmRegion && el.pmRegion.addEventListener("change", refreshPeople);
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else boot();
+  // An invite link changes what the page is for, so it is answered first: the
+  // arriving customer has no account and boot() would otherwise show them the
+  // sign-in gate instead of the invitation they were sent.
+  async function start() {
+    if (window.applyTranslations) window.applyTranslations();
+    try { if (await handleInviteLink()) return; } catch (_) {}
+    await boot();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
 })();
