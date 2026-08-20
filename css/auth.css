@@ -277,7 +277,10 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   background: none; border: 0; cursor: pointer; padding: 4px 0;
   color: var(--c-brand, #0a6f4d); font: inherit; font-weight: 600; font-size: .85rem;
 }
-.auth-link-btn:hover { text-decoration: underline; }
+/* The underline was this control's only hover feedback, so it is replaced
+   rather than simply deleted — a link that does nothing on hover reads as
+   dead. */
+.auth-link-btn:hover { opacity: .72; }
 
 /* ── Status / feedback ────────────────────────────────────────────── */
 .auth-msg {
@@ -357,7 +360,7 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   background: none; border: 0; cursor: pointer;
   color: var(--c-danger, #b91c1c); font: inherit; font-weight: 600; font-size: .85rem;
 }
-.auth-signout button:hover { text-decoration: underline; }
+.auth-signout button:hover { opacity: .72; }
 
 /* Spinner (portal detection) */
 .auth-spinner {

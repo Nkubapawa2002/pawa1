@@ -315,7 +315,7 @@ body[data-page="login"] #footer-slot { display: none !important; }
   font-family: inherit; font-size: 13px; font-weight: 700;
   color: var(--lg-accent); cursor: pointer; text-decoration: none;
 }
-.lg-link:hover { text-decoration: underline; }
+.lg-link:hover { opacity: .72; }
 .lg-link:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
 
 .lg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

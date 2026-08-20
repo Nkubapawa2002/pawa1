@@ -57,7 +57,7 @@ body {
 }
 
 a { color: var(--green); text-decoration: none; transition: color 0.15s; }
-a:hover { color: var(--green-dark); text-decoration: underline; }
+a:hover { color: var(--green-dark); }
 
 img, svg { display: block; max-width: 100%; }
 
@@ -481,7 +481,7 @@ img, svg { display: block; max-width: 100%; }
   color: var(--black, #0f172a); text-decoration: none;
   flex: 1 1 auto; min-width: 0;
 }
-.phone-num:hover { color: var(--green); text-decoration: underline; }
+.phone-num:hover { color: var(--green); }
 .phone-actions { display: inline-flex; gap: 6px; flex: 0 0 auto; }
 
 /* ============================================

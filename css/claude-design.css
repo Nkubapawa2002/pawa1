@@ -161,7 +161,7 @@ h3            { font-size: var(--c-fs-2xl); font-weight: 600; }
 }
 
 a { color: var(--c-brand-deep); text-decoration: none; transition: color var(--c-dur-1) var(--c-ease); }
-a:hover { color: var(--c-brand); text-decoration: underline; text-underline-offset: 3px; }
+a:hover { color: var(--c-brand); }
 
 hr, .c-divider {
   border: none;
