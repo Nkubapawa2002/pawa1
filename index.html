@@ -19,8 +19,6 @@
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
-  <!-- The video-space stage, shared with explore.html. -->
-  <link rel="stylesheet" href="css/video-space.css" />
   <!-- The helper-card styling, shared with p-chat.html. -->
   <link rel="stylesheet" href="css/action-cards.css" />
 
@@ -476,65 +474,11 @@
 
   </main>
 
-  <!-- Video space — one community video per region, live for 9 hours.
-       Starts in .is-loading so the stage is never a bare black rectangle;
-       js/pages/video-space-home.js swaps it for .is-empty or .is-playing. -->
-  <section class="video-space is-loading" id="videoSpace" aria-labelledby="vsKicker">
-    <div class="vs-card">
-      <div class="vs-head">
-        <p class="vs-kicker" id="vsKicker">
-          <span data-i18n="vs_kicker">Video ya</span>
-          <span aria-hidden="true">&middot;</span>
-          <button type="button" class="vs-region-btn" id="vsRegionBtn"
-                  aria-expanded="false" aria-controls="vsRegionPick"
-                  data-i18n-title="vs_change_region" title="Change region">
-            <span id="vsRegion">Tanzania</span>
-            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-        </p>
-        <span id="vsCountdown" aria-live="polite"></span>
-      </div>
-
-      <label class="vs-region-pick" id="vsRegionPick" hidden>
-        <span data-i18n="vs_region_label">Which region are you posting to?</span>
-        <select id="vsRegionSelect"></select>
-      </label>
-
-      <div class="vs-stage">
-        <video id="vsVideo" muted playsinline webkit-playsinline preload="metadata"
-               disablepictureinpicture disableremoteplayback
-               aria-label="Community video for your region"></video>
-
-        <div class="vs-skeleton" aria-hidden="true"></div>
-
-        <p class="vs-empty">
-          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-          <span data-i18n="vs_empty">No video here yet. Be the first &mdash; post a clip and everyone
-          browsing your region sees it for the next 9 hours.</span>
-        </p>
-
-        <button type="button" class="vs-mute" id="vsUnmute"
-                aria-pressed="false" aria-label="Toggle sound"
-                data-i18n-title="vs_sound" title="Sound">
-          <svg class="vs-off" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-          <svg class="vs-on" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
-        </button>
-      </div>
-
-      <div class="vs-foot">
-        <span id="vsBadge"></span>
-        <button type="button" class="vs-post" id="vsPost">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-          <span id="vsPostLabel" data-i18n="vs_post">Post yours</span>
-        </button>
-        <input type="file" id="vsFile" accept="video/mp4,video/webm,video/quicktime" hidden />
-      </div>
-
-      <div class="vs-bar" id="vsBar" hidden></div>
-      <p class="vs-status" id="vsStatus" role="status" aria-live="polite"></p>
-      <p class="vs-hint" id="vsHint" data-i18n="vs_hint">Up to 2 min 39 s &middot; longer clips are trimmed &middot; one video per region at a time</p>
-    </div>
-  </section>
+  <!-- Video space (one community video per region) is switched off for now: the
+       database side cannot carry it yet. The markup lives in git history; the
+       stylesheet css/video-space.css and the scripts js/lib/video-space.js and
+       js/pages/video-space-home.js are all still in the tree, so restoring it is
+       this block, its two script tags and the stylesheet link. -->
 
   <main class="container">
 
@@ -655,11 +599,8 @@
     })();
   </script>
 
-    <!-- tz-places supplies the region centres video-space.js uses to work out
-         which region's slot a visitor should see. -->
+    <!-- tz-places supplies the places request-place.js resolves against. -->
     <script src="js/lib/tz-places.js"></script>
-    <script src="js/lib/video-space.js"></script>
-    <script src="js/pages/video-space-home.js" defer></script>
     <script src="js/pages/home-app.js"></script>
     <script src="js/core/app-shell.js"></script>
     <script src="js/core/sw-register.js"></script>
