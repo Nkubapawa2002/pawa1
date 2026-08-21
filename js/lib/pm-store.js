@@ -146,6 +146,31 @@
     });
   }
 
+  /**
+   * The directory again, but carrying WHAT EACH PERSON DEALS IN.
+   *
+   * directory() answers "who is out there". This answers "who can help me
+   * move a fridge in Nyamagana", because it brings back the listing counts per
+   * category, the point the agent picked for their area, and when they last
+   * touched anything. js/lib/pm-match.js turns those columns into an order.
+   *
+   * Kept beside directory() rather than replacing it: the older callers and
+   * their stubs are built around that return shape, and a page that only needs
+   * names should not have to pay for three count sub-selects per row.
+   */
+  function finder(opts) {
+    opts = opts || {};
+    return rpc("pm_agent_finder", {
+      p_region: opts.region || null,
+      p_query: opts.query || null,
+      p_category: opts.category || null,
+      p_limit: opts.limit || 300,
+    }).then(function (rows) {
+      (rows || []).forEach(function (r) { if (r.public_key) keyCache[r.user_id] = r.public_key; });
+      return rows || [];
+    });
+  }
+
   function inbox() { return rpc("pm_inbox").then(function (r) { return r || []; }); }
 
   // A v2 safety number is six groups of five digits. Anything else on the
@@ -459,7 +484,15 @@
    */
   async function broadcast(opts) {
     if (!identity) throw new Error("NO_IDENTITY");
-    var people = await recipients(opts.region);
+    // An announcement can now be scoped by what people deal in as well as by
+    // where they are, and the screen shows WHO it caught before it is sent.
+    // The audience it previewed is therefore handed straight back here: if
+    // this function went and asked again, the preview would be a different
+    // query from the send, and the one thing a preview has to be is the same
+    // question. Without a preview it falls back to asking, exactly as before.
+    var people = (opts.members && opts.members.length)
+      ? opts.members
+      : await recipients(opts.region);
     var list = people.filter(function (p) { return p.public_key; })
       .map(function (p) { return { userId: p.user_id, publicKey: p.public_key }; });
     if (!list.length) throw new Error("NOBODY_REACHABLE");
@@ -507,6 +540,7 @@
     restoreIdentity: restoreIdentity,
     current: current,
     directory: directory,
+    finder: finder,
     inbox: inbox,
     peer: peer,
     startDirect: startDirect,

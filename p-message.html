@@ -100,8 +100,25 @@
     body[data-page="p-message"] #footer-slot { display: none !important; }
 
     .pm-shell { max-width: 640px; margin: 0 auto; padding: 18px 14px 0; }
-    /* Leaves the corner free for the floating theme toggle. */
-    .pm-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-right: 52px; }
+    /* The title block gets the whole width, minus the corner the floating
+       theme toggle occupies.
+
+       It used to share that row with up to three tool buttons. Three buttons
+       do not fit beside a title on a 390px phone, and `flex:0 0 auto` means
+       they do not shrink to try — they overflow, so the last one was drawn
+       UNDERNEATH the theme toggle and clipped by the viewport, while the
+       title was squeezed to "P-" / "Message" over two lines and the safety
+       number into a 99px column six lines deep. Every one of those is an item
+       hidden by another item. The tools moved to a row of their own below. */
+    .pm-h { padding-right: 52px; }
+    /* Wraps rather than overflowing, and each button keeps a tappable width.
+       The gap above sits on the BUTTONS, not on the row: most people see one
+       button here and a guest sees none, and a margin on the container would
+       leave that empty row taking up space on the screens with least to show.
+       (`:empty` would not help — the buttons are always present, just
+       hidden.) */
+    .pm-tools { display: flex; flex-wrap: wrap; gap: 7px; }
+    .pm-tools .pm-admin-btn { margin-top: 11px; }
     .pm-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 800; margin: 0; color: var(--pm-ink); }
     .pm-lock {
       display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
@@ -120,6 +137,8 @@
     .pm-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px;
       color: var(--pm-ink-faint); margin-top: 5px; letter-spacing: .02em;
       text-align: left; line-height: 1.6; max-width: 250px; }
+    /* The tools no longer compete for this row, so the number gets the width
+       its max-width always asked for and lands as three groups by two. */
 
     /* [hidden] is a UA display:none, and ANY author display wins over it.
        Several controls here set display, so the attribute is honoured
@@ -193,6 +212,66 @@
     .pm-filters { display: flex; gap: 8px; margin-bottom: 12px; }
     .pm-filters select { flex: 1; background: var(--pm-field); border: 1px solid var(--c-border);
       color: var(--pm-ink); border-radius: 13px; padding: 10px 12px; font: inherit; font-size: 13px; }
+
+    /* ---- what do you need? ------------------------------------------------
+       A scrolling strip rather than a wrapping block: four chips wrap to two
+       rows on a phone and push the whole list down before a single name is
+       visible. Scrolled sideways they cost one row, always. */
+    .pm-cats { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none;
+      margin: 0 -14px 10px; padding: 0 14px 2px; -webkit-overflow-scrolling: touch; }
+    .pm-cats::-webkit-scrollbar { display: none; }
+    .pm-cat { flex: 0 0 auto; background: var(--pm-field); border: 1px solid var(--c-border);
+      color: var(--pm-ink-soft); border-radius: 999px; padding: 8px 13px; font: inherit;
+      font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .pm-cat.is-on { background: var(--pm-brand-soft); border-color: var(--pm-brand-line); color: var(--pm-brand); }
+
+    /* ---- the shortlist ----------------------------------------------------
+       The one place a number is printed, because a COMBINATION is the whole
+       point of it — "these three together" is a different claim from three
+       separate rows and cannot be shown as a badge. The caveat is not small
+       print: it is the second half of the sentence. */
+    .pm-short { background: var(--pm-brand-soft); border: 1px solid var(--pm-brand-line);
+      border-radius: 14px; padding: 11px 13px; margin-bottom: 11px; font-size: 12.5px;
+      line-height: 1.5; color: var(--pm-ink); }
+    .pm-short b { color: var(--pm-brand); }
+    .pm-short small { display: block; margin-top: 5px; color: var(--pm-ink-faint); font-size: 11px; line-height: 1.45; }
+
+    /* ---- what a person deals in -------------------------------------------
+       Counts, not ticks. One truck and eleven trucks are different claims
+       about somebody and the row should say which. */
+    .pm-deals { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+    .pm-deal { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 7px;
+      background: var(--pm-field); border: 1px solid var(--c-border); color: var(--pm-ink-soft); }
+    .pm-deal.is-want { background: var(--pm-brand-soft); border-color: var(--pm-brand-line); color: var(--pm-brand); }
+    /* Why this person is where they are in the list. Without it the order is
+       an assertion; with it, it is an argument somebody can disagree with. */
+    .pm-why { font-size: 11px; color: var(--pm-ink-faint); margin-top: 4px; line-height: 1.45; }
+    .pm-fit { font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+      padding: 2px 6px; border-radius: 6px; white-space: nowrap; }
+    .pm-fit.strong { background: var(--pm-brand-soft); color: var(--pm-brand); }
+    .pm-fit.good { background: var(--pm-brand-soft); color: var(--pm-brand); opacity: .75; }
+    .pm-fit.possible { background: var(--pm-field); color: var(--pm-ink-soft); }
+    .pm-fit.weak { display: none; }   /* saying "weak match" on a row is noise */
+
+    /* A person is a stack now, not a line: name, where they work, what they
+       deal in, why they are here. align-items:flex-start keeps the avatar
+       against the name instead of floating to the middle of that stack. */
+    .pm-row.is-person { align-items: flex-start; }
+    .pm-row.is-person .pm-av { margin-top: 1px; }
+
+    /* ---- rooms and links --------------------------------------------------- */
+    .pm-mem { display: flex; align-items: center; gap: 9px; padding: 9px 0;
+      border-bottom: 1px solid var(--pm-line); }
+    .pm-mem:last-child { border-bottom: 0; }
+    .pm-mem-tx { flex: 1; min-width: 0; }
+    .pm-mem-nm { font-size: 13.5px; font-weight: 700; color: var(--pm-ink);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-mem .pm-btn { flex: 0 0 auto; padding: 6px 10px; font-size: 11.5px; }
+    /* Removing somebody is not an ordinary action and does not get an
+       ordinary-looking button. */
+    .pm-btn.danger { background: rgba(255,138,122,.16); color: #ffb9ae; border: 1px solid rgba(255,138,122,.34); }
+    :root[data-theme="light"] .pm-btn.danger { background: rgba(176,42,24,.08); color: #7d2113; border-color: rgba(176,42,24,.3); }
+    .pm-scroll { max-height: 42vh; overflow-y: auto; margin-top: 6px; }
 
     .pm-note { font-size: 12.5px; color: var(--pm-ink-soft); line-height: 1.55;
       background: var(--pm-field); border: 1px solid var(--c-border);
@@ -282,6 +361,12 @@
     @media (min-width: 900px) {
       .pm-conv { position: fixed; left: 50%; right: auto; width: 560px; margin-left: 24px;
         top: 60px; bottom: 40px; height: auto; border: 1px solid var(--c-border); border-radius: 22px; overflow: hidden; }
+      /* A desktop window has the width for two names side by side, and a
+         single 640px column of them means scrolling past six people to see
+         the seventh. The conversation still opens as its own panel, so this
+         only ever affects the list. */
+      #pmPeople, #pmInbox { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; align-content: start; }
+      .pm-cats { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
     }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
@@ -291,14 +376,17 @@
 
   <header class="pm-shell">
     <div class="pm-h">
-      <div>
-        <h1 class="pm-title" data-i18n="tab_pmessage">P-Message</h1>
-        <div class="pm-lock" id="pmLock">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.9"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-          <span id="pmLockText" data-i18n="pm_lock_on">End-to-end encrypted</span>
-        </div>
-        <button class="pm-fp" id="pmFpBtn" type="button" style="background:none;border:0;cursor:pointer;padding:0" hidden></button>
+      <h1 class="pm-title" data-i18n="tab_pmessage">P-Message</h1>
+      <div class="pm-lock" id="pmLock">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.9"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        <span id="pmLockText" data-i18n="pm_lock_on">End-to-end encrypted</span>
       </div>
+      <button class="pm-fp" id="pmFpBtn" type="button" style="background:none;border:0;cursor:pointer;padding:0" hidden></button>
+    </div>
+
+    <!-- A row of their own, below the title, so nothing here can be pushed
+         under the floating theme toggle or off the side of a phone. -->
+    <div class="pm-tools">
       <button class="pm-admin-btn" id="pmBroadcastBtn" type="button" hidden data-i18n="pm_broadcast">Announce</button>
       <button class="pm-admin-btn" id="pmRoomsBtn" type="button" hidden data-i18n="pm_rooms">Rooms</button>
       <button class="pm-admin-btn" id="pmInviteBtn" type="button" hidden data-i18n="pm_invite">Invite</button>
@@ -320,6 +408,17 @@
     </section>
 
     <section class="pm-pane" id="panePeople">
+      <!-- What you need comes FIRST, before who or where.
+           "I need a truck" is the thing a person arrives holding; the region
+           and the spelling of a ward are how they narrow it afterwards. The
+           chips also decide the ranking underneath — with no category chosen
+           there is no such thing as a best match, only a list. -->
+      <div class="pm-cats" id="pmCats" role="tablist" aria-label="What do you need?">
+        <button class="pm-cat is-on" data-cat="" role="tab" data-i18n="pm_cat_any">Anyone</button>
+        <button class="pm-cat" data-cat="houses" role="tab" data-i18n="pm_cat_houses">Rooms &amp; houses</button>
+        <button class="pm-cat" data-cat="services" role="tab" data-i18n="pm_cat_services">Daily services</button>
+        <button class="pm-cat" data-cat="trucks" role="tab" data-i18n="pm_cat_trucks">Moving trucks</button>
+      </div>
       <input class="pm-search" id="pmSearch" type="search" data-i18n-placeholder="pm_search_ph"
              placeholder="Search a name, ward or district" />
       <div class="pm-filters">
@@ -329,6 +428,9 @@
           <option value="all" data-i18n="pm_who_all">Everyone on P-Message</option>
         </select>
       </div>
+      <!-- Only drawn when a category is chosen, because "how likely is one of
+           them to help" is meaningless without knowing what help means. -->
+      <div class="pm-short" id="pmShort" hidden></div>
       <div class="pm-count" id="pmCount"></div>
       <div id="pmPeople"></div>
     </section>
@@ -367,6 +469,12 @@
         <div class="pm-conv-name" id="pmConvName">—</div>
         <div class="pm-conv-sub" id="pmConvSub"></div>
       </div>
+      <!-- A room needs a different question answered from a direct thread —
+           "who else is in here?" rather than "is this really you?" — so the
+           two buttons swap rather than sitting side by side and crowding a
+           header that already leaves 62px for the theme toggle. -->
+      <button class="pm-btn ghost" id="pmMembers" type="button" style="padding:7px 11px;font-size:11.5px"
+              data-i18n="pm_members" hidden>Members</button>
       <button class="pm-btn ghost" id="pmVerify" type="button" style="padding:7px 11px;font-size:11.5px"
               data-i18n="pm_verify">Verify</button>
     </div>
@@ -401,6 +509,10 @@
   <script src="js/lib/pm-trust.js"></script>
   <script src="js/lib/qr.js"></script>
   <script src="js/lib/pm-device-lock.js"></script>
+  <!-- Pure arithmetic, no DOM and no network: it decides the ORDER of the
+       agent list from what people actually list and where they work. Loaded
+       before the page script, which is its only caller. -->
+  <script src="js/lib/pm-match.js"></script>
   <script src="js/lib/pm-store.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
   <script src="js/pages/p-message.js"></script>

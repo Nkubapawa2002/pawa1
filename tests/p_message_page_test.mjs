@@ -53,10 +53,15 @@ window.supabase = { createClient: function () {
   };
   // Two other people already on P-Message, one of them holding a key this
   // device has never seen — that is what makes the "cannot decrypt" path real.
+  // The listing counts are what the category chips filter on and what the
+  // ranking ranks on, so the two agents deliberately deal in DIFFERENT things:
+  // a chip that quietly matched everybody would otherwise look like it worked.
   db.keys["agent_juma"] = { public_key: "", fingerprint: "1111 2222 3333",
-    display_name: "Juma Mwanga", region: "Mwanza", is_agent: true, area: "Nyamagana" };
+    display_name: "Juma Mwanga", region: "Mwanza", is_agent: true, area: "Nyamagana",
+    n_houses: 6, n_verified: 2, last_listed_at: new Date().toISOString() };
   db.keys["agent_neema"] = { public_key: "", fingerprint: "4444 5555 6666",
-    display_name: "Neema Kileo", region: "Mwanza", is_agent: true, area: "Ilemela" };
+    display_name: "Neema Kileo", region: "Mwanza", is_agent: true, area: "Ilemela",
+    n_trucks: 3, last_listed_at: new Date().toISOString() };
   // An agent who never filled in where they work, and a person who is not an
   // agent at all. Both are rows the directory has to render honestly.
   db.keys["agent_blank"] = { public_key: "", fingerprint: "7777 8888 9999",
@@ -81,6 +86,29 @@ window.supabase = { createClient: function () {
           return { user_id: k, display_name: v.display_name, region: v.region, area: v.area || null,
             area_kind: null, district: null, ward: null, is_agent: v.is_agent,
             reachable: !!v.public_key, public_key: v.public_key, fingerprint: v.fingerprint };
+        }), error: null });
+    }
+    // The directory plus what each person deals in — what the Agents pane
+    // asks for now, because the category chips and the ranking both need the
+    // counts. Filtering by category happens in the database for real, so the
+    // stub does it here too: a stub that returned everyone regardless would
+    // let a broken filter pass.
+    if (name === "pm_agent_finder") {
+      return Promise.resolve({ data: Object.keys(db.keys).filter(function (k) { return k !== me; })
+        .map(function (k) {
+          var v = db.keys[k];
+          return { user_id: k, display_name: v.display_name, region: v.region, area: v.area || null,
+            area_kind: null, district: null, ward: null, lat: null, lng: null,
+            is_agent: v.is_agent, reachable: !!v.public_key,
+            public_key: v.public_key, fingerprint: v.fingerprint,
+            n_houses: v.n_houses || 0, n_services: v.n_services || 0, n_trucks: v.n_trucks || 0,
+            n_verified: v.n_verified || 0, last_listed_at: v.last_listed_at || null };
+        })
+        .filter(function (r) {
+          if (!args.p_category) return true;
+          return (args.p_category === "houses" && r.n_houses > 0) ||
+                 (args.p_category === "services" && r.n_services > 0) ||
+                 (args.p_category === "trucks" && r.n_trucks > 0);
         }), error: null });
     }
     // pm_peer hands back the public key as well as the stored fingerprint
@@ -890,9 +918,10 @@ try {
     count = await dp.page.$eval("#pmCount", (n) => n.textContent);
     ok(/4 people/.test(count), "and counts them too", count);
 
-    // The whole country, not a page of it.
+    // The whole country, not a page of it. (pm_agent_finder is what the pane
+    // asks now — same question, plus what each person deals in.)
     const limits = await dp.page.evaluate(() =>
-      window.__PM_SENT.filter((c) => c.name === "pm_directory").map((c) => c.args.p_limit));
+      window.__PM_SENT.filter((c) => c.name === "pm_agent_finder").map((c) => c.args.p_limit));
     ok(limits.length > 0 && limits.every((l) => l >= 500),
        "the directory is asked for the whole country, not the first 200 of it", JSON.stringify(limits));
 

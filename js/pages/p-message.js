@@ -29,7 +29,7 @@
    "pmGate", "paneChats", "panePeople", "paneAi", "pmInbox", "pmSearch", "pmRegion",
    "pmPeople", "pmAiRow", "pmConv", "pmBack", "pmConvName", "pmConvSub", "pmVerify",
    "pmLog", "pmConvNote", "pmComposeForm", "pmInput", "pmSendBtn", "pmModalBack", "pmModal",
-   "pmTrustBar", "pmWho", "pmCount"]
+   "pmTrustBar", "pmWho", "pmCount", "pmCats", "pmShort", "pmMembers"]
     .forEach(function (id) { el[id] = document.getElementById(id); });
 
   var me = null;             // { userId, email, isAdmin }
@@ -42,6 +42,15 @@
 
   var AI_THREAD = "assistant";
   var AI_STORE = "pm-assistant-log-v1";
+
+  // What the person said they need. "" is a real value meaning "anyone" — with
+  // no category there is no such thing as a best match, so the list falls back
+  // to plain order and the shortlist line is not drawn at all.
+  var category = "";
+  // The shortlist target: how confident is confident enough to stop suggesting
+  // more people to write to. Four in five, not nine in ten — the difference is
+  // several more messages to several more strangers for a small gain.
+  var SHORTLIST_TARGET = 0.8;
 
   function t(key, fallback, vars) {
     var s = window.t ? window.t(key) : key;
@@ -364,14 +373,21 @@
     el.pmPeople.dataset.loaded = "1";
     el.pmPeople.innerHTML = '<div class="pm-empty">' + esc(t("pm_loading", "Loading…")) + "</div>";
     if (el.pmCount) el.pmCount.textContent = "";
+    if (el.pmShort) el.pmShort.hidden = true;
+
+    var region = el.pmRegion ? el.pmRegion.value : "";
+    var query = el.pmSearch ? el.pmSearch.value.trim() : "";
     var rows;
     try {
-      rows = await window.PMStore.directory({
-        region: el.pmRegion ? el.pmRegion.value : "",
-        query: el.pmSearch ? el.pmSearch.value.trim() : "",
-        // The directory is every registered agent in the country, not a
-        // sample of them. 200 was the default and quietly truncated the list
-        // once enough agents had signed up to make the tab worth opening.
+      // pm_agent_finder, not pm_directory: the same people, plus what each of
+      // them actually deals in. Without those counts the category chips would
+      // be a filter over nothing and the ranking would have no evidence to
+      // rank on.
+      rows = await window.PMStore.finder({
+        region: region, query: query, category: category || null,
+        // Every registered agent in the country, not a sample of them. 200 was
+        // the old default and quietly truncated the list once enough agents
+        // had signed up to make the tab worth opening.
         limit: 500,
       });
     } catch (err) {
@@ -386,26 +402,94 @@
     var wantAgents = !el.pmWho || el.pmWho.value !== "all";
     var shown = wantAgents ? rows.filter(function (p) { return p.is_agent; }) : rows;
 
-    if (el.pmCount) {
-      el.pmCount.textContent = shown.length
-        ? t(wantAgents ? "pm_count_agents" : "pm_count_people",
-            wantAgents ? "{n} agents" : "{n} people", { n: shown.length }) +
-          (el.pmRegion && el.pmRegion.value ? " · " + el.pmRegion.value : "")
-        : "";
-    }
-
     if (!shown.length) {
-      el.pmPeople.innerHTML = '<div class="pm-empty">' +
-        esc(rows.length && wantAgents
-          ? t("pm_no_agents", "No agents match that. Switch to Everyone to see other people on P-Message.")
-          : t("pm_no_people", "Nobody matches that yet.")) + "</div>";
+      el.pmPeople.innerHTML = '<div class="pm-empty">' + esc(emptyWhy(rows.length, wantAgents)) + "</div>";
       return;
     }
-    rows = shown;
 
-    el.pmPeople.innerHTML = rows.map(function (p) {
-      return personRow(p);
-    }).join("");
+    // The order is computed HERE, on the device, and not by the database:
+    // it depends on what this person is looking for, and the query that
+    // fetched the rows was never told. js/lib/pm-match.js explains every term.
+    var need = {
+      category: category || null,
+      query: query,
+      region: region || null,
+    };
+    var ranked = window.PMMatch.rank(shown, need);
+
+    if (el.pmCount) {
+      el.pmCount.textContent =
+        t(wantAgents ? "pm_count_agents" : "pm_count_people",
+          wantAgents ? "{n} agents" : "{n} people", { n: ranked.length }) +
+        (region ? " · " + region : "") +
+        (category ? " · " + catName(category) : "");
+    }
+
+    renderShortlist(ranked);
+    el.pmPeople.innerHTML = ranked.map(personRow).join("");
+  }
+
+  // Why the list is empty, said precisely. "Nobody matches" is four different
+  // situations wearing one sentence, and three of them have a way out that
+  // the fourth does not.
+  function emptyWhy(total, wantAgents) {
+    if (category && total) {
+      return t("pm_no_cat", "Nobody listing {what} matches that. Try Anyone, a wider region, or fewer words.",
+               { what: catName(category).toLowerCase() });
+    }
+    if (total && wantAgents) {
+      return t("pm_no_agents", "No agents match that. Switch to Everyone to see other people on P-Message.");
+    }
+    return t("pm_no_people", "Nobody matches that yet.");
+  }
+
+  function catName(cat) {
+    return cat === "houses" ? t("pm_cat_houses", "Rooms & houses")
+         : cat === "services" ? t("pm_cat_services", "Daily services")
+         : cat === "trucks" ? t("pm_cat_trucks", "Moving trucks")
+         : t("pm_cat_any", "Anyone");
+  }
+
+  /**
+   * "Write to these three and one of them can probably help."
+   *
+   * The only number this screen prints, and it is printed because a
+   * COMBINATION is the point of it: three separate badges saying 40% cannot
+   * be added up by eye, and the answer is not 120%. PMMatch.shortlist does it
+   * with a shared-failure factor — agents piled into one ward fail together —
+   * so the figure is deliberately lower than the naive one and can never
+   * reach certainty.
+   *
+   * Only drawn with a category chosen. "How likely is somebody to help" has
+   * no meaning until "help with what" has been answered, and printing a
+   * confident-looking number against an unstated question is the kind of
+   * thing this page does not do.
+   */
+  function renderShortlist(ranked) {
+    if (!el.pmShort) return;
+    if (!category || ranked.length < 2) { el.pmShort.hidden = true; return; }
+
+    var s = window.PMMatch.shortlist(ranked, SHORTLIST_TARGET, { max: 5 });
+    if (!s.picks.length) { el.pmShort.hidden = true; return; }
+
+    var names = s.picks.map(function (x) {
+      return x.agent.display_name || t("pm_someone", "Someone");
+    });
+    var pct = Math.round(s.p * 100);
+
+    el.pmShort.innerHTML =
+      "<span>" + esc(t("pm_short_lead", "Write to {who}", { who: joinNames(names) })) + " — <b>" +
+      esc(t("pm_short_odds", "about a {pct}% chance one of them can help", { pct: pct })) + "</b>.</span>" +
+      "<small>" + esc(s.capped
+        ? t("pm_short_capped", "That is as high as it goes here — messaging more people does not make a thing exist. Estimated from what they list and where they work, not from anyone's replies.")
+        : t("pm_short_note", "Estimated from what they list and where they work, not from anyone's replies. People working the same street tend to be out of the same things, so the figure allows for that.")) +
+      "</small>";
+    el.pmShort.hidden = false;
+  }
+
+  function joinNames(names) {
+    if (names.length === 1) return names[0];
+    return names.slice(0, -1).join(", ") + " " + t("pm_and", "and") + " " + names[names.length - 1];
   }
 
   var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
@@ -424,7 +508,8 @@
    * blank reads as "operates nowhere in particular", which is a claim about
    * them rather than about our data.
    */
-  function personRow(p) {
+  function personRow(scored) {
+    var p = scored.agent;
     var name = p.display_name || t("pm_someone", "Someone");
     var area = (p.area || "").trim();
 
@@ -445,16 +530,73 @@
     // single line rather than the marked-up version above.
     var sub = [area, rest].filter(Boolean).join(" · ");
 
-    return '<button class="pm-row" data-person="' + esc(p.user_id) + '" data-name="' + esc(name) +
+    // What they deal in, as counts. A tick would say "trucks: yes" for one
+    // truck and for forty, and those are different claims about a person.
+    // The wanted category is tinted so the eye can find it without reading.
+    var deals = [
+      { cat: "houses", n: p.n_houses | 0, label: t("pm_deal_houses", "{n} rooms") },
+      { cat: "services", n: p.n_services | 0, label: t("pm_deal_services", "{n} services") },
+      { cat: "trucks", n: p.n_trucks | 0, label: t("pm_deal_trucks", "{n} trucks") },
+    ].filter(function (d) { return d.n > 0; });
+    var dealsHtml = deals.length
+      ? '<span class="pm-deals">' + deals.map(function (d) {
+          return '<span class="pm-deal' + (d.cat === category ? " is-want" : "") + '">' +
+            esc(d.label.replace("{n}", d.n)) + "</span>";
+        }).join("") + "</span>"
+      : "";
+
+    // The band, and only when it says something. "Weak match" on a row is
+    // noise — the row's POSITION already said that.
+    var fit = (category && p.reachable)
+      ? ' <span class="pm-fit ' + esc(scored.band) + '">' + esc(fitWord(scored.band)) + "</span>"
+      : "";
+
+    var why = (category && p.reachable) ? whyLine(scored) : "";
+
+    return '<button class="pm-row is-person" data-person="' + esc(p.user_id) + '" data-name="' + esc(name) +
       '" data-sub="' + esc(sub) + '"' + (p.reachable ? "" : ' data-unreachable="1"') + ">" +
       '<span class="pm-av">' + esc(initials(name)) + "</span>" +
-      '<span class="pm-rtx"><span class="pm-name">' + esc(name) +
+      '<span class="pm-rtx"><span class="pm-name">' + esc(name) + fit +
         (p.is_agent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
         (p.reachable ? "" : ' <span class="pm-badge warn">' + esc(t("pm_badge_unreachable", "Not on P-Message")) + "</span>") +
       "</span>" +
       '<span class="pm-sub">' + areaHtml +
         (rest ? '<span class="pm-where">' + esc(rest) + "</span>" : "") +
-      "</span></span></button>";
+      "</span>" + dealsHtml +
+      (why ? '<span class="pm-why">' + esc(why) + "</span>" : "") +
+      "</span></button>";
+  }
+
+  function fitWord(b) {
+    return b === "strong" ? t("pm_fit_strong", "Strong match")
+         : b === "good" ? t("pm_fit_good", "Good match")
+         : b === "possible" ? t("pm_fit_possible", "Possible")
+         : t("pm_fit_weak", "Weak");
+  }
+
+  /**
+   * Why this person is where they are in the list.
+   *
+   * Without it the order is an assertion nobody can check; with it, it is an
+   * argument somebody can disagree with — and disagreeing with it is exactly
+   * what should happen when the ranking is wrong. Only the terms that HELPED
+   * are shown: a row that explained at length why it was ranked low would be
+   * a row arguing with itself.
+   */
+  function whyLine(scored) {
+    var bits = [];
+    scored.evidence.forEach(function (e) {
+      if (e.llr <= 0.15) return;                 // too small to be worth a word
+      if (e.why === "category_depth") bits.push(t("pm_why_depth", "lists {n} of these", { n: e.detail }));
+      else if (e.why === "category_focus") bits.push(t("pm_why_focus", "mostly this kind of work"));
+      else if (e.why === "place_area" || e.why === "place_ward") bits.push(t("pm_why_ward", "works right there"));
+      else if (e.why === "place_district") bits.push(t("pm_why_district", "same district"));
+      else if (e.why === "place_region") bits.push(t("pm_why_region", "same region"));
+      else if (e.why === "distance") bits.push(t("pm_why_near", "{km}km away", { km: Math.round(e.detail) }));
+      else if (e.why === "freshness") bits.push(t("pm_why_fresh", "listed recently"));
+      else if (e.why === "verified") bits.push(t("pm_why_verified", "verified listings"));
+    });
+    return bits.slice(0, 3).join(" · ");
   }
 
   // ---- conversation --------------------------------------------------------
@@ -1068,6 +1210,24 @@
     el.pmSearch && el.pmSearch.addEventListener("input", reload);
     el.pmRegion && el.pmRegion.addEventListener("change", refreshPeople);
     el.pmWho && el.pmWho.addEventListener("change", refreshPeople);
+
+    // The category chips. Delegated rather than bound one by one, so the strip
+    // stays a list of buttons in the markup rather than something JS has to
+    // build. Choosing one changes BOTH the query sent to the database and the
+    // ranking applied to what comes back — the same word means "only show me
+    // people who list these" and "rank them by how well they fit this".
+    el.pmCats && el.pmCats.addEventListener("click", function (e) {
+      var chip = e.target.closest("[data-cat]");
+      if (!chip) return;
+      var next = chip.dataset.cat || "";
+      if (next === category) return;
+      category = next;
+      Array.prototype.forEach.call(el.pmCats.querySelectorAll("[data-cat]"), function (b) {
+        b.classList.toggle("is-on", b === chip);
+        b.setAttribute("aria-selected", b === chip ? "true" : "false");
+      });
+      refreshPeople();
+    });
   }
 
   // An invite link changes what the page is for, so it is answered first: the
