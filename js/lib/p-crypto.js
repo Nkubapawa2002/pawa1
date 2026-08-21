@@ -12,9 +12,11 @@
 //   · Key distribution is trust-on-first-use. Public keys are served by the
 //     same database that stores the messages, so an attacker who controls it
 //     could hand you a key of their own. That is what fingerprint() is for:
-//     two people comparing the same 12 digits out of band (aloud, in person)
-//     detect the substitution. Until they do, the guarantee is "the server
-//     cannot read this passively", not "the server cannot ever read this".
+//     two people comparing the same 30 digits out of band — by camera, or read
+//     aloud — detect the substitution, and js/lib/pm-trust.js remembers the
+//     answer so a LATER substitution is caught too. Until they compare once,
+//     the guarantee is "the server cannot read this passively", not "the
+//     server cannot ever read this".
 //   · The private key lives in this browser. Clear the site data and the old
 //     messages are unreadable — by design, and worth saying out loud in the
 //     UI rather than discovering after the fact. backup()/restore() exist so
@@ -108,19 +110,51 @@
   }
 
   /**
-   * The safety number two people read to each other.
+   * The safety number two people compare out of band.
    *
-   * Twelve digits in groups of four: long enough that guessing one is hopeless
-   * (10^12), short enough to say over a phone call — which is the whole point,
-   * since the comparison has to happen somewhere the server cannot reach.
+   * THIRTY digits, not twelve. The first version took the SHA-256 of the
+   * public key and squeezed it into 12 digits, and 10^12 is about 2^40 — an
+   * attacker who can swap a key in the database can grind ECDH keypairs until
+   * one of them produces the victim's number, and 2^40 hashes is hours on a
+   * commodity GPU, not centuries. A safety number that can be forged is worse
+   * than none at all, because people compare it and then trust the result.
+   *
+   * So: 10^30 (~2^99.6), and the digits come out of PBKDF2 rather than a bare
+   * digest, which makes each grinding attempt a hundred thousand hashes
+   * instead of one. PBKDF2 iterates natively in a single call, so the honest
+   * side pays about 30ms, and only when a number is actually shown.
+   *
+   * Thirty digits is more than anyone will read aloud reliably — which is why
+   * verification is done by pointing one phone's camera at the other's
+   * screen. The digits are the fallback, not the plan.
+   *
+   * DERIVED, NEVER FETCHED. This must be computed from the public key you
+   * actually received. pm_keys also stores a fingerprint column, and trusting
+   * that one would defeat the entire exercise: whoever can hand you a
+   * substituted key can hand you the real key's number alongside it.
    */
+  var FP_SALT = "maisha-pm-safety-number-v2";
+  var FP_ROUNDS = 100000;
+  var FP_GROUPS = 6;                 // 6 x 5 digits = 30 digits = 10^30
+
   async function fingerprint(publicKeyB64) {
-    var hash = await subtle().digest("SHA-256", unb64u(publicKeyB64));
-    var b = new Uint8Array(hash), digits = "";
-    for (var i = 0; i < 6; i++) {
-      digits += String(((b[i * 2] << 8) | b[i * 2 + 1]) % 100).padStart(2, "0");
+    var base = await subtle().importKey(
+      "raw", unb64u(publicKeyB64), "PBKDF2", false, ["deriveBits"]);
+    var bits = await subtle().deriveBits(
+      { name: "PBKDF2", salt: utf8(FP_SALT), iterations: FP_ROUNDS, hash: "SHA-256" },
+      base, FP_GROUPS * 5 * 8);
+    var b = new Uint8Array(bits), out = [];
+    // NOT `g` as the loop variable: `g` is this module's alias for the global
+    // object, and shadowing it inside a function that later grows a call to
+    // g.localStorage or g.crypto is a trap waiting to be stepped in.
+    for (var gi = 0; gi < FP_GROUPS; gi++) {
+      // Five bytes (2^40) folded into five digits (10^5). The residual bias is
+      // about one part in ten million, which is nobody's way in.
+      var v = 0;
+      for (var j = 0; j < 5; j++) v = (v * 256) + b[gi * 5 + j];
+      out.push(String(v % 100000).padStart(5, "0"));
     }
-    return digits.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3");
+    return out.join(" ");
   }
 
   // ---- key agreement --------------------------------------------------------
@@ -410,7 +444,13 @@
   // localStorage, deliberately: sessionStorage would throw the key away on
   // every tab close, and IndexedDB buys nothing here — neither is protected
   // from a script running on this origin, so the honest line is "this device".
+  // An identity opened from the device lock (js/lib/pm-device-lock.js) lives
+  // here and nowhere else: in memory, for this session. Persisting it would
+  // undo the entire point of wrapping it in the first place.
+  var sessionIdentity = null;
+
   function load() {
+    if (sessionIdentity) return sessionIdentity;
     try {
       var raw = g.localStorage && g.localStorage.getItem(STORE_KEY);
       if (!raw) return null;
@@ -422,7 +462,12 @@
     try { g.localStorage.setItem(STORE_KEY, JSON.stringify(identity)); return true; }
     catch (_) { return false; }
   }
+  /** Hold an unwrapped identity for this page life without writing it down. */
+  function useForSession(identity) {
+    sessionIdentity = (identity && identity.publicKey && identity.privateKey) ? identity : null;
+  }
   function forget() {
+    sessionIdentity = null;
     try { g.localStorage.removeItem(STORE_KEY); } catch (_) {}
   }
 
@@ -446,6 +491,7 @@
     restore: restore,
     load: load,
     save: save,
+    useForSession: useForSession,
     forget: forget,
     STORE_KEY: STORE_KEY,
   };

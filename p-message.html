@@ -3,7 +3,7 @@
 <head>
   <script src="js/core/theme.js"></script>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>P-Message — encrypted chat with agents — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
 
@@ -99,17 +99,27 @@
     body[data-page="p-message"] #nav-slot,
     body[data-page="p-message"] #footer-slot { display: none !important; }
 
-    .pm-shell { max-width: 560px; margin: 0 auto; padding: 26px 16px 0; }
+    .pm-shell { max-width: 640px; margin: 0 auto; padding: 18px 14px 0; }
     /* Leaves the corner free for the floating theme toggle. */
     .pm-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-right: 52px; }
-    .pm-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; margin: 0; color: var(--pm-ink); }
+    .pm-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 800; margin: 0; color: var(--pm-ink); }
     .pm-lock {
       display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
       font-size: 11.5px; font-weight: 700; color: var(--pm-brand);
     }
     .pm-lock.is-open { color: var(--pm-gold); }
     .pm-lock svg { width: 13px; height: 13px; }
-    .pm-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--pm-ink-faint); margin-top: 3px; letter-spacing: .02em; }
+    /* Thirty digits, not twelve, so this line wraps now. It is a <button>, and
+       a button centres its text by default — which turned the second line into
+       a stray fragment floating under the first. Left-aligned and given a
+       width to wrap inside.
+
+       NOT truncated with an ellipsis, however tempting: a shortened safety
+       number is one people would compare the visible half of, and half of it
+       is 2^33, which is back to being grindable. */
+    .pm-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px;
+      color: var(--pm-ink-faint); margin-top: 5px; letter-spacing: .02em;
+      text-align: left; line-height: 1.6; max-width: 250px; }
 
     /* [hidden] is a UA display:none, and ANY author display wins over it.
        Several controls here set display, so the attribute is honoured
@@ -124,23 +134,23 @@
     }
 
     /* Segments */
-    .pm-segs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 16px;
-      background: var(--pm-field); border: 1px solid var(--c-border); border-radius: 14px; padding: 4px; }
-    .pm-seg { border: 0; background: none; color: var(--pm-ink-soft); font: inherit; font-size: 12.5px;
-      font-weight: 800; padding: 9px 4px; border-radius: 10px; cursor: pointer; }
+    .pm-segs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 12px;
+      background: var(--pm-field); border: 1px solid var(--c-border); border-radius: 13px; padding: 3px; }
+    .pm-seg { border: 0; background: none; color: var(--pm-ink-soft); font: inherit; font-size: 12px;
+      font-weight: 800; padding: 8px 4px; border-radius: 10px; cursor: pointer; }
     .pm-seg.is-on { background: var(--pm-brand-soft); color: var(--pm-brand); }
 
-    .pm-body { max-width: 560px; margin: 0 auto; padding: 14px 16px 0; }
+    .pm-body { max-width: 640px; margin: 0 auto; padding: 10px 14px 0; }
     .pm-pane { display: none; }
     .pm-pane.is-on { display: block; }
 
     /* Rows — one visual language for a chat, an agent and the assistant. */
-    .pm-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-      background: var(--pm-card); border: 1px solid var(--c-border); border-radius: 16px; padding: 12px;
-      font: inherit; color: inherit; cursor: pointer; margin-bottom: 9px; }
+    .pm-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      background: var(--pm-card); border: 1px solid var(--c-border); border-radius: 14px; padding: 9px 10px;
+      font: inherit; color: inherit; cursor: pointer; margin-bottom: 7px; }
     .pm-row:hover { border-color: var(--pm-brand-line); }
-    .pm-av { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center;
-      background: var(--pm-brand-soft); color: var(--pm-brand); font-weight: 800; font-size: 15px; }
+    .pm-av { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center;
+      background: var(--pm-brand-soft); color: var(--pm-brand); font-weight: 800; font-size: 13px; }
     .pm-av.is-ai { background: var(--pm-gold-soft); color: var(--pm-gold); }
     .pm-av.is-cast { background: var(--pm-violet-soft); color: var(--pm-violet); }
     /* A room reads as a place, not a person, so it gets the brand tint rather
@@ -154,6 +164,22 @@
     .pm-name { font-size: 14.5px; font-weight: 700; color: var(--pm-ink); display: flex; align-items: center; gap: 7px; }
     .pm-sub { font-size: 12px; color: var(--pm-ink-soft); margin-top: 2px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Where an agent actually works is the reason to message them at all, so
+       it is a labelled thing with a pin rather than one more grey clause in a
+       run-on subtitle. An agent who has not set one is SAID to have not set
+       one — silence there reads as "no area", which is a different claim. */
+    /* white-space is reset because the rule above set nowrap for a
+       single-line subtitle, and nowrap defeats flex-wrap. */
+    .pm-sub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+      white-space: normal; overflow: visible; }
+    .pm-area { display: inline-flex; align-items: center; gap: 3px; flex: 0 1 auto;
+      color: var(--pm-brand); font-weight: 700; min-width: 0; }
+    .pm-area svg { width: 11px; height: 11px; flex: 0 0 auto; }
+    .pm-area span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-area.is-none { color: var(--pm-ink-faint); font-weight: 500; font-style: italic; }
+    .pm-where { color: var(--pm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-count { font-size: 11.5px; color: var(--pm-ink-faint); margin: 0 2px 9px; }
+
     .pm-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
       padding: 2px 6px; border-radius: 6px; background: var(--pm-brand-soft); color: var(--pm-brand); }
     .pm-badge.warn { background: var(--pm-gold-soft); color: var(--pm-gold); }
@@ -180,8 +206,17 @@
     .pm-btn.ghost { background: var(--pm-field); color: var(--pm-ink); border: 1px solid var(--c-border); }
     .pm-btn[disabled] { opacity: .5; cursor: progress; }
 
-    /* Conversation — a screen of its own on a phone. */
-    .pm-conv { position: fixed; inset: 0; z-index: 950; display: none; flex-direction: column;
+    /* Conversation — a screen of its own on a phone.
+
+       Height is NOT inset:0. On Android and iOS the on-screen keyboard does
+       not shrink the layout viewport, so a fixed inset:0 panel keeps its full
+       height and the composer — the one thing you are looking at while you
+       type — ends up underneath the keyboard. --pm-vvh is the *visual*
+       viewport height, which is the only one that knows the keyboard is
+       there; js/pages/p-message.js keeps it current. 100vh is the fallback
+       for the first paint and for anything without visualViewport. */
+    .pm-conv { position: fixed; left: 0; right: 0; z-index: 950; display: none; flex-direction: column;
+      top: var(--pm-vvt, 0px); height: 100vh; height: var(--pm-vvh, 100vh);
       background: var(--pm-ground); }
     .pm-conv.is-on { display: flex; }
     /* The floating theme toggle sits fixed at the top right on every page, so the
@@ -194,21 +229,50 @@
     .pm-conv-name { font-size: 15px; font-weight: 800; color: var(--pm-ink); }
     .pm-conv-sub { font-size: 11.5px; color: var(--pm-ink-soft); margin-top: 1px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pm-log { flex: 1; overflow-y: auto; padding: 16px 14px 8px; display: flex; flex-direction: column; gap: 9px; }
-    .pm-msg { max-width: 78%; padding: 10px 13px; border-radius: 16px; font-size: 14px; line-height: 1.45;
+    /* min-height:0 or a flex child refuses to shrink below its content and
+       the log pushes the composer off the bottom instead of scrolling. */
+    .pm-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      padding: 12px 12px 6px; display: flex; flex-direction: column; gap: 7px; }
+    .pm-msg { max-width: 86%; padding: 9px 12px; border-radius: 15px; font-size: 14px; line-height: 1.45;
       background: var(--pm-bubble); border: 1px solid var(--c-border); color: var(--pm-ink); align-self: flex-start;
       white-space: pre-wrap; overflow-wrap: anywhere; }
     .pm-msg.mine { align-self: flex-end; background: var(--pm-brand-soft); border-color: var(--pm-brand-line); }
     .pm-msg.failed { border-style: dashed; color: var(--pm-ink-soft); font-style: italic; }
     .pm-msg-at { display: block; font-size: 10px; color: var(--pm-ink-faint); margin-top: 5px; }
-    .pm-compose { display: flex; gap: 9px; padding: 10px 12px calc(env(safe-area-inset-bottom,0px) + 12px);
+    /* flex-end so the send button stays beside the LAST line as the box grows
+       upwards, rather than floating in the middle of a six-line message. */
+    .pm-compose { display: flex; align-items: flex-end; gap: 9px;
+      padding: 9px 12px calc(env(safe-area-inset-bottom,0px) + 10px);
       border-top: 1px solid var(--c-border); background: var(--pm-bar); }
-    .pm-compose textarea { flex: 1; resize: none; height: 44px; min-height: 44px; max-height: 120px; background: var(--pm-field);
-      border: 1px solid var(--c-border); color: var(--pm-ink); border-radius: 13px; padding: 11px 13px; font: inherit; font-size: 14px; }
+    /* The height is set in JS from scrollHeight on every keystroke; max-height
+       clamps it at 40% of what is actually visible (not of 100vh — with the
+       keyboard open those are very different numbers) and the textarea scrolls
+       inside itself past that. Without this the box is one line forever and a
+       long message is typed blind. */
+    .pm-compose textarea { flex: 1; resize: none; height: 42px; min-height: 42px;
+      max-height: 160px; max-height: calc(var(--pm-vvh, 100vh) * .4);
+      overflow-y: auto; background: var(--pm-field);
+      border: 1px solid var(--c-border); color: var(--pm-ink); border-radius: 13px; padding: 10px 13px; font: inherit; font-size: 14px; }
     .pm-send { flex: 0 0 auto; background: var(--pm-brand); color: var(--pm-on-brand); border: 0; border-radius: 13px;
-      width: 46px; display: grid; place-items: center; cursor: pointer; }
+      width: 44px; height: 42px; display: grid; place-items: center; cursor: pointer; }
     .pm-send[disabled] { opacity: .45; cursor: default; }
     .pm-conv-note { font-size: 11px; text-align: center; padding: 7px 14px 0; color: var(--pm-ink-faint); }
+
+    /* The safety-number alarm. Loud on purpose: it is the only moment this
+       page can say the encryption may not be protecting you, and a polite
+       version of that sentence is a useless one. */
+    .pm-trust-bar { display: flex; align-items: center; gap: 10px; padding: 10px 13px;
+      background: rgba(255,138,122,.13); border-bottom: 1px solid rgba(255,138,122,.34);
+      color: #ffb9ae; font-size: 12.5px; line-height: 1.45; }
+    .pm-trust-bar .pm-btn { flex: 0 0 auto; padding: 8px 12px; font-size: 12px;
+      background: #ff8a7a; color: #2b0b06; }
+    :root[data-theme="light"] .pm-trust-bar {
+      background: rgba(176,42,24,.08); border-bottom-color: rgba(176,42,24,.3); color: #7d2113; }
+    :root[data-theme="light"] .pm-trust-bar .pm-btn { background: #b02a18; color: #fff; }
+    /* A blocked composer must LOOK unavailable, or the disabled attribute is
+       just a tap that does nothing and reads as a bug. */
+    .pm-compose.is-blocked textarea { opacity: .5; cursor: not-allowed; }
+    .pm-compose.is-blocked .pm-send { opacity: .35; cursor: not-allowed; }
 
     /* The modal shell, the buttons, the safety-number and backup-code blocks
        are all in css/pm-identity.css now — js/lib/pm-identity-ui.js draws that
@@ -216,8 +280,8 @@
        than being copied into each page. */
 
     @media (min-width: 900px) {
-      .pm-conv { position: fixed; left: 50%; right: auto; width: 520px; margin-left: 20px;
-        top: 60px; bottom: 40px; border: 1px solid var(--c-border); border-radius: 22px; overflow: hidden; }
+      .pm-conv { position: fixed; left: 50%; right: auto; width: 560px; margin-left: 24px;
+        top: 60px; bottom: 40px; height: auto; border: 1px solid var(--c-border); border-radius: 22px; overflow: hidden; }
     }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
@@ -260,7 +324,12 @@
              placeholder="Search a name, ward or district" />
       <div class="pm-filters">
         <select id="pmRegion" data-i18n-aria-label="pm_region_label" aria-label="Region"></select>
+        <select id="pmWho" data-i18n-aria-label="pm_who_label" aria-label="Who">
+          <option value="agents" data-i18n="pm_who_agents">Agents</option>
+          <option value="all" data-i18n="pm_who_all">Everyone on P-Message</option>
+        </select>
       </div>
+      <div class="pm-count" id="pmCount"></div>
       <div id="pmPeople"></div>
     </section>
 
@@ -301,6 +370,10 @@
       <button class="pm-btn ghost" id="pmVerify" type="button" style="padding:7px 11px;font-size:11.5px"
               data-i18n="pm_verify">Verify</button>
     </div>
+    <!-- Raised when the other side's key is not the one this device wrote
+         down. It sits above the log rather than below it because it is about
+         everything that follows, not about the last message. -->
+    <div class="pm-trust-bar" id="pmTrustBar" hidden></div>
     <div class="pm-log" id="pmLog"></div>
     <div class="pm-conv-note" id="pmConvNote"></div>
     <form class="pm-compose" id="pmComposeForm">
@@ -325,6 +398,9 @@
   <script src="js/lib/tz-places.js"></script>
   <script src="js/lib/ai.js"></script>
   <script src="js/lib/p-crypto.js"></script>
+  <script src="js/lib/pm-trust.js"></script>
+  <script src="js/lib/qr.js"></script>
+  <script src="js/lib/pm-device-lock.js"></script>
   <script src="js/lib/pm-store.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
   <script src="js/pages/p-message.js"></script>

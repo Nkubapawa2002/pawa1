@@ -178,7 +178,12 @@ section("6. Safety numbers");
   const f2 = await PM.fingerprint(asha.publicKey);
   ok(f1 === f2, "the same key always shows the same safety number");
   ok(f1 !== await PM.fingerprint(juma.publicKey), "a different key shows a different one");
-  ok(/^\d{4} \d{4} \d{4}$/.test(f1), "twelve digits in three groups — readable aloud", f1);
+  ok(/^(\d{5} ){5}\d{5}$/.test(f1), "thirty digits in six groups of five", f1);
+  // The old number was twelve digits: 10^12 ~ 2^40. Anyone who can substitute
+  // a key in the database could grind keypairs until one produced the
+  // victim's number, and 2^40 hashes is hours on a GPU, not centuries.
+  ok(f1.replace(/ /g, "").length === 30,
+     "10^30 of them, so a colliding key cannot be ground out");
 }
 
 section("7. Losing the phone");

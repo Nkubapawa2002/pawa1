@@ -75,3 +75,70 @@
 }
 :root[data-theme="light"] .pm-btn.ghost { background: rgba(20, 20, 15, .05); color: #1a1915; border-color: rgba(20, 20, 15, .12); }
 :root[data-theme="light"] .pm-big-fp { color: #0a6647; background: rgba(10, 102, 71, .07); border-color: rgba(10, 102, 71, .22); }
+
+/* ---------------------------------------------------------------------------
+   Trust state — added with js/lib/pm-trust.js.
+
+   The safety number went from 12 digits to 30 (10^12 is about 2^40, which is
+   grindable), so .pm-big-fp had to stop being 21px on one line. It wraps now,
+   and the groups stay legible rather than heroic.
+   --------------------------------------------------------------------------- */
+.pm-big-fp {
+  font-size: 15px; letter-spacing: .04em; line-height: 1.9;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 4px; padding: 12px 8px;
+}
+.pm-big-fp span { display: block; }
+
+/* A badge beside the other person's name: what this device remembers. */
+.pm-trust-badge {
+  display: inline-block; vertical-align: middle; margin-left: 6px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 6px;
+  background: rgba(255, 255, 255, .08); color: rgba(233, 243, 238, .7);
+}
+.pm-trust-badge.is-ok { background: rgba(46, 230, 166, .16); color: #2EE6A6; }
+.pm-trust-badge.is-changed { background: rgba(255, 138, 122, .18); color: #ff8a7a; }
+
+/* The alarm. Deliberately the loudest thing in the dialog: it is the only
+   moment the app can tell someone that the encryption may not be protecting
+   them, and a quiet version of that message is a useless one. */
+.pm-alarm {
+  background: rgba(255, 138, 122, .12); border: 1px solid rgba(255, 138, 122, .38);
+  color: #ffb9ae; border-radius: 13px; padding: 12px 13px; margin: 4px 0 12px;
+  font-size: 12.5px; line-height: 1.55;
+}
+.pm-alarm b { color: #ff8a7a; }
+
+:root[data-theme="light"] .pm-trust-badge { background: rgba(20, 20, 15, .07); color: #4b493f; }
+:root[data-theme="light"] .pm-trust-badge.is-ok { background: rgba(10, 102, 71, .12); color: #0a6647; }
+:root[data-theme="light"] .pm-trust-badge.is-changed { background: rgba(176, 42, 24, .12); color: #b02a18; }
+:root[data-theme="light"] .pm-alarm {
+  background: rgba(176, 42, 24, .07); border-color: rgba(176, 42, 24, .32); color: #7d2113;
+}
+:root[data-theme="light"] .pm-alarm b { color: #b02a18; }
+
+/* ---------------------------------------------------------------------------
+   The QR code and the camera.
+
+   The code is black on white in BOTH themes and keeps its quiet zone. That is
+   not a styling oversight: contrast and margin are part of the QR format, and
+   a code tinted to match the page is a code that does not scan.
+   --------------------------------------------------------------------------- */
+.pm-qr {
+  background: #ffffff; border-radius: 12px; padding: 10px; margin: 8px 0 4px;
+  max-width: 260px; margin-left: auto; margin-right: auto;
+}
+.pm-qr svg { display: block; }
+.pm-qr-cap { text-align: center; font-size: 12px; margin: 2px 0 0; }
+
+.pm-scan {
+  position: relative; background: #000; border-radius: 14px; overflow: hidden;
+  aspect-ratio: 1 / 1; margin: 10px 0 2px;
+}
+.pm-scan video { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A frame to aim with — the code should fill it, which is also roughly the
+   distance at which a phone screen resolves cleanly. */
+.pm-scan::after {
+  content: ""; position: absolute; inset: 16%; border: 2px solid rgba(255, 255, 255, .85);
+  border-radius: 12px; pointer-events: none;
+}

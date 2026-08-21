@@ -97,6 +97,13 @@
     if (!who.userId) throw new Error("SIGNED_OUT");
     if (!window.PMCrypto || !window.PMCrypto.available()) throw new Error("NO_CRYPTO");
 
+    // A locked device HAS an identity; it just has not been opened yet.
+    // Reaching the branch below in that state would mint a second keypair and
+    // publish it, and every message received under the first would become
+    // permanently unreadable. This is the only thing standing between a
+    // forgotten unlock and silent data loss.
+    if (window.PMDeviceLock && window.PMDeviceLock.isLocked()) throw new Error("LOCKED");
+
     var stored = window.PMCrypto.load();
     var fresh = false;
     if (!stored) {
@@ -141,11 +148,54 @@
 
   function inbox() { return rpc("pm_inbox").then(function (r) { return r || []; }); }
 
-  // The person on the other side of a thread, for the safety-number check.
-  // Not a directory lookup: guests are deliberately absent from the directory,
-  // so an agent verifying a guest would have found nobody.
-  function peer(userId) {
-    return rpc("pm_peer", { p_user_id: userId }).then(function (r) { return (r && r[0]) || null; });
+  // A v2 safety number is six groups of five digits. Anything else on the
+  // server is a leftover from the 12-digit scheme and carries no signal, so it
+  // is not compared — see the tamper note below.
+  var FP_V2 = /^\d{5}( \d{5}){5}$/;
+
+  /**
+   * The person on the other side of a thread, for the safety-number check.
+   *
+   * Not a directory lookup: guests are deliberately absent from the directory,
+   * so an agent verifying a guest would have found nobody.
+   *
+   * THE NUMBER IS DERIVED HERE, from the public key that actually arrived. It
+   * used to be read straight out of pm_keys.fingerprint, which made the whole
+   * safety-number ritual theatre: anybody able to substitute the key in that
+   * row can write the fingerprint column beside it, so the two phones would
+   * show matching numbers for a key neither person owned. A number supplied by
+   * the attacker cannot catch the attacker.
+   *
+   * Every call also pins the key (see js/lib/pm-trust.js), which is what makes
+   * a LATER substitution visible rather than merely a first one honest.
+   */
+  async function peer(userId) {
+    var rows = await rpc("pm_peer", { p_user_id: userId });
+    var row = (rows && rows[0]) || null;
+    if (!row) return null;
+    if (row.public_key) keyCache[userId] = row.public_key;
+
+    var derived = row.public_key ? await window.PMCrypto.fingerprint(row.public_key) : "";
+    var trust = (identity && row.public_key && window.PMTrust)
+      ? window.PMTrust.record(identity.userId, userId, row.public_key, row.display_name)
+      : null;
+
+    return {
+      userId: row.user_id,
+      displayName: row.display_name,
+      publicKey: row.public_key,
+      fingerprint: derived,
+      // Reported, never trusted, and nothing is decided by it: a disagreement
+      // means somebody wrote to that row. Only compared when the stored value
+      // is a v2 number at all, or every account still carrying a 12-digit one
+      // would raise a false alarm until its owner next opens the page.
+      tampered: !!(row.fingerprint && derived &&
+                   FP_V2.test(row.fingerprint) && row.fingerprint !== derived),
+      isAgent: row.is_agent,
+      isGuest: row.is_guest,
+      region: row.region,
+      trust: trust,
+    };
   }
   function startDirect(userId) { return rpc("pm_start_direct", { p_other: userId }); }
   function markRead(threadId) { return rpc("pm_mark_read", { p_thread: threadId }); }

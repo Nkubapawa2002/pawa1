@@ -212,6 +212,10 @@
         // back to, so the key is dead weight and keeping it would be a lie.
         var guest = me.isGuest;
         if (guest && window.PMCrypto) window.PMCrypto.forget();
+        // The pinned keys of everyone that guest identity ever spoke to go
+        // with it. Left behind they would be attached to a user id nothing
+        // can sign in as again, and a later guest could be handed them.
+        if (guest && window.PMTrust) window.PMTrust.forgetAll(me.userId);
         try { if (window.Auth) await window.Auth.signOut(); } catch (_) {}
         location.href = guest ? "index.html" : "profile.html";
       }
@@ -230,6 +234,7 @@
     window.PMIdentityUI.attach({
       backdrop: el.pfModalBack, panel: el.pfModal, t: t,
       fingerprint: function () { return fingerprint; },
+      userId: function () { return me && me.userId; },
       onChange: async function (res) { fingerprint = res.fingerprint; await render(); },
     });
 

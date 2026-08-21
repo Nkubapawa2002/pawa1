@@ -32,11 +32,15 @@ the promise.
   would mean a fundamentally different (and much slower) design.
 - **Key distribution is trust-on-first-use.** Public keys come from the same
   database that stores the messages. Someone who controls that database could
-  hand you a key of their own and read what you send from that moment on. The
-  defence is the **safety number**: twelve digits, shown on both sides, compared
-  out of band — aloud, on a call, in person. Until two people do that, the real
-  guarantee is "the server cannot read this passively", not "the server can
-  never read this".
+  hand you a key of their own and read what you send from that moment on.
+  Two things stand against that. The **safety number** — thirty digits derived
+  from the key, shown on both sides, compared out of band — closes the first
+  contact. **Pinning** (`js/lib/pm-trust.js`) closes every contact after it:
+  the key is written down the first time it is seen and compared on every
+  open, and a key that changes stops the conversation until a person deals
+  with it. Until two people compare the number once, the guarantee is "the
+  server cannot read this without being noticed", not "the server can never
+  read this".
 - **The key lives on one device.** Clearing the browser's data destroys the
   history, permanently. That is why a brand-new device is offered a passphrase
   backup code *before* it has anything to lose.
@@ -58,7 +62,7 @@ All WebCrypto primitives. No dependencies, no build step (`js/lib/p-crypto.js`).
 | body | `AES-GCM(content key, plaintext)`, **AAD = thread id + sender id** |
 | key wrapping | one ephemeral ECDH keypair per message; per recipient `ECDH(eph, their pub) → HKDF-SHA256 → AES-GCM` wrap of the content key |
 | backup | `PBKDF2-SHA256(210k)` over a passphrase, AES-GCM over the PKCS8 private key |
-| safety number | SHA-256 of the public key → 12 digits in three groups |
+| safety number | PBKDF2-SHA256(100k) over the public key → 30 digits in six groups |
 
 Three choices worth keeping:
 
@@ -71,6 +75,17 @@ Three choices worth keeping:
 - **The AAD binds thread and sender.** It is not secret, it is *authenticated* —
   a stored row replayed into a different conversation fails to decrypt instead
   of silently succeeding.
+- **The safety number is derived on the device, never fetched.** `pm_keys` has
+  a `fingerprint` column and reading it was the original bug: whoever can
+  substitute a public key in that row can write the number beside it, so both
+  phones would show matching digits for a key neither person owns. The party
+  being guarded against cannot be the one supplying the evidence. The column
+  survives as a tamper signal — reported when it disagrees, trusted for
+  nothing.
+- **Thirty digits, not twelve.** 10^12 is about 2^40. An attacker who can swap
+  a key can grind ECDH keypairs until one produces the victim's number, and
+  2^40 hashes is hours on a commodity GPU. 10^30 (~2^99.6) is not grindable,
+  and PBKDF2 makes each attempt a hundred thousand hashes rather than one.
 
 **One body, N wraps.** A message is encrypted once and its content key wrapped
 once per recipient. That is what makes an encrypted national broadcast
@@ -78,6 +93,54 @@ affordable: 60 recipients seal in about half a second, so the per-person cost is
 a small wrap rather than a whole re-encryption. The admin composer shows
 progress because a thousand wraps is several seconds of a phone's CPU, and a
 screen that looks frozen gets tapped twice.
+
+---
+
+## Verifying without reading digits
+
+Thirty digits is the honest length for a safety number and a hopeless length
+for a human comparison: people skim, agree, and have checked nothing. So the
+number is also a QR code, and one phone reads the other.
+
+`PM2|<user id>|<thirty digits>`
+
+The user id is in the payload so a scan can tell **"that is the wrong person's
+code"** from **"that is the right person with the wrong key"** — very different
+things to be told, and the second one is the attack.
+
+Reading is done by `BarcodeDetector`, the phone's own scanner. It does not
+exist on iOS Safari or on desktop Chrome, so the button is simply not drawn
+there and the digits carry the feature — which is why they were kept. Drawing
+is `js/lib/qr.js`, written here rather than installed because the site has no
+build step and this sits in the trust path of a verification screen. It is
+black on white in both themes: contrast and the quiet zone are part of the
+format, and a QR code tinted to match the page is one that does not scan.
+
+## The device lock
+
+Optional, off by default. The private key normally sits in localStorage in the
+clear, where any script on the origin — or anyone holding the unlocked phone —
+can read it. With the lock on, it is stored wrapped under 32 bytes that only
+the phone's secure hardware will produce, via WebAuthn's **PRF extension**, and
+getting them back needs a fingerprint, face or PIN.
+
+Three deliberate refusals, all in `js/lib/pm-device-lock.js`:
+
+- **It never turns itself on.** PRF is missing on plenty of real phones.
+  `supported()` is a real capability check, and nothing changes when the
+  answer is no.
+- **No plaintext fallback is left behind.** A second unwrapped copy would make
+  the whole thing decoration.
+- **It will not enrol without a backup code**, which follows from the previous
+  point: if the passkey is reset the sealed key is unopenable by anyone, us
+  included. The dialog makes the code first and will not proceed until it has.
+
+**The single most dangerous line in the feature** is the fence in
+`ensureIdentity()`: a locked device *has* an identity and simply has not
+opened it. Without that check it looks like a brand-new device, generates a
+second keypair, publishes it, and every message ever received becomes
+permanently unreadable. `p_message_lock_test.mjs` exists mostly to hold that
+line.
 
 ---
 
@@ -185,17 +248,42 @@ phone. Same privacy model the demand-pin RPCs already use.
 published key, so there is nothing to encrypt to. The UI says exactly that
 rather than offering a chat that would silently fail.
 
+**The area of operations is the row, not a footnote in it.** It is the only
+thing that makes one agent more use than another, and it used to be the first
+of up to four place names run together in one grey subtitle —
+indistinguishable from the ward, district and region behind it. It now has a
+pin, the brand colour and its own element, with the broader place kept
+separate and never repeated. An agent who has not set one is *said* to have
+not set one: a blank line there reads as "operates nowhere in particular",
+which is a claim about them rather than about our data.
+
+The pane asks for **500**, not the default 200 — it is every registered agent
+in the country, not a sample. The directory also returns anyone who has merely
+opened P-Message, which is right for "who wrote to me?" and wrong for "who can
+find me a room", so a second filter separates the two and agents are the
+default.
+
+Rooms scoped to nothing and nowhere are exactly **every agent in Tanzania**,
+and that was reachable only by knowing that leaving both selects alone meant
+it. One button now says so, fills in the name, and runs the roster preview
+immediately — the count is what makes a room of a thousand people safe to
+press.
+
 ---
 
 ## Files
 
 ```
 js/lib/p-crypto.js                      the scheme; pure, no DOM, no network
+js/lib/pm-trust.js                      pinned keys and the change alarm; device-only
+js/lib/qr.js                            a QR encoder; no dependency, no build step
+js/lib/pm-device-lock.js                WebAuthn PRF: the private key sealed by the phone
 js/lib/pm-store.js                      identity, calls, decryption; no DOM
 js/pages/p-message.js                   the screen
 p-message.html                          markup + styles
 supabase/features/message/p_message.sql        tables, RLS, RPCs   (APPLIED)
 supabase/features/message/p_message_guests.sql guests + the fence  (APPLIED)
+supabase/features/message/p_message_trust.sql  pm_peer returns the key (APPLIED)
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
 css/pm-identity.css                     their styling, so it travels with them
 profile.html · js/pages/profile.js      the account tab
@@ -216,9 +304,13 @@ for the same reason.
 
 | | |
 |---|---|
-| `tests/p_crypto_test.mjs` | 36 — the scheme, written as attacks: the wrong person opening it, a row moved to another thread, a reused key or IV, a wrong backup passphrase quietly succeeding |
+| `tests/p_crypto_test.mjs` | 37 — the scheme, written as attacks: the wrong person opening it, a row moved to another thread, a reused key or IV, a wrong backup passphrase quietly succeeding |
 | `tests/p_message_db_test.mjs` | 31 — against the **real database** with RLS actually on (`set local role authenticated` + JWT claims; as `postgres` every policy is bypassed and the test would prove nothing). Writes `pmtest_*` rows and deletes them at both ends |
-| `tests/p_message_page_test.mjs` | 47 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text**, and the whole guest path |
+| `tests/p_message_trust_test.mjs` | 29 — key pinning, written as the ways the alarm could fail to fire or quietly un-fire: re-fetching the substituted key, a reload, a changed key inheriting the old one's verified badge, and a guest session borrowing an account's verdict |
+| `tests/qr_test.mjs` | 22 — the QR encoder against a decoder written backwards from it. No decoder exists on this platform (BarcodeDetector is a phone API and the registry is unreachable), so the oracle is Reed-Solomon: if a single module is misplaced the syndromes stop vanishing, and passing that by luck is about 2^-80 |
+| `tests/p_message_lock_test.mjs` | 33 — the device lock against Chrome's virtual authenticator, which really does implement PRF. Written around data loss rather than the happy path: is the plaintext gone, is a LOCKED device mistaken for a NEW one, does unlocking return the same key |
+| `tests/p_message_layout_test.mjs` | 14 — the conversation as a thing you type into: the composer grows with the message, and the on-screen keyboard does not end up on top of it |
+| `tests/p_message_page_test.mjs` | 115 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text**, and the whole guest path |
 | `tests/p_message_guest_test.mjs` | 19 — against the real database: mostly proving the DOWNSIDE was closed (a guest cannot post a house, a service or an agent profile) rather than that the feature works |
 | `tests/profile_page_test.mjs` | 41 — Profile's three states, and that a guest is never offered a door the database will refuse |
 
@@ -234,9 +326,6 @@ Run the middle one only when you mean to — it writes to production.
 - **`chat.html` still has its own AI tab**, an older doorway to the same
   `js/lib/ai.js` engine. Not a second engine, but it is a second doorway —
   worth folding into P-Message when the voice agent moves.
-- **Safety numbers are shown but not remembered.** There is no "verified"
-  state that would warn you if a contact's key later changed. That warning is
-  the part that turns trust-on-first-use into something stronger.
 - **One device per person.** Adding a second device means restoring the backup
   code onto it; there is no multi-device key sync.
 - **A guest cannot upgrade in place.** Signing in after chatting as a guest

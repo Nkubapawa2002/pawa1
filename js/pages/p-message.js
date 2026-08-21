@@ -28,7 +28,8 @@
    "segChats", "segPeople", "segAi",
    "pmGate", "paneChats", "panePeople", "paneAi", "pmInbox", "pmSearch", "pmRegion",
    "pmPeople", "pmAiRow", "pmConv", "pmBack", "pmConvName", "pmConvSub", "pmVerify",
-   "pmLog", "pmConvNote", "pmComposeForm", "pmInput", "pmSendBtn", "pmModalBack", "pmModal"]
+   "pmLog", "pmConvNote", "pmComposeForm", "pmInput", "pmSendBtn", "pmModalBack", "pmModal",
+   "pmTrustBar", "pmWho", "pmCount"]
     .forEach(function (id) { el[id] = document.getElementById(id); });
 
   var me = null;             // { userId, email, isAdmin }
@@ -55,6 +56,49 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  // --------------------------------------------------------------------------
+  //  The keyboard problem.
+  //
+  //  On a phone the on-screen keyboard does NOT shrink the layout viewport.
+  //  A position:fixed conversation therefore keeps its full height, and the
+  //  composer sits behind the keyboard: you type and cannot see the words.
+  //  window.visualViewport is the one viewport that accounts for it, so its
+  //  height and offset are published as CSS variables and the panel is sized
+  //  from those. iOS also SCROLLS the layout viewport when the keyboard opens,
+  //  which is what --pm-vvt undoes.
+  // --------------------------------------------------------------------------
+  function trackViewport() {
+    var vv = window.visualViewport;
+    var root = document.documentElement;
+    var apply = function () {
+      var h = vv ? vv.height : window.innerHeight;
+      var top = vv ? vv.offsetTop : 0;
+      root.style.setProperty("--pm-vvh", Math.round(h) + "px");
+      root.style.setProperty("--pm-vvt", Math.round(top) + "px");
+    };
+    apply();
+    if (vv) {
+      vv.addEventListener("resize", apply);
+      vv.addEventListener("scroll", apply);
+    }
+    window.addEventListener("resize", apply);
+    window.addEventListener("orientationchange", function () { setTimeout(apply, 120); });
+  }
+
+  // Grow the composer with what is typed. Height is cleared first so
+  // scrollHeight reports the content rather than the box we last set; CSS
+  // max-height clamps the result and the textarea scrolls inside itself past
+  // that, so a very long message never eats the whole conversation.
+  function autosize() {
+    var ta = el.pmInput;
+    if (!ta) return;
+    var wasAtBottom = el.pmLog &&
+      el.pmLog.scrollHeight - el.pmLog.scrollTop - el.pmLog.clientHeight < 40;
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+    if (wasAtBottom && el.pmLog) el.pmLog.scrollTop = el.pmLog.scrollHeight;
+  }
+
   function initials(name) {
     var parts = String(name || "?").trim().split(/\s+/).slice(0, 2);
     return parts.map(function (p) { return p.charAt(0).toUpperCase(); }).join("") || "?";
@@ -128,6 +172,15 @@
       if (res.isNewDevice) setTimeout(showBackup, 400);
     } catch (err) {
       lock(false, t("pm_lock_none", "Encryption unavailable"));
+      // A locked device is not a broken one. It has a key; it just has not
+      // been opened yet, and saying "could not set up encryption" here would
+      // send somebody off to make a second identity and lose their history.
+      if (err && err.message === "LOCKED") {
+        lock(true);
+        showUnlockGate();
+        renderAiRow();
+        return;
+      }
       gate('<div class="pm-note warn">' + esc(t("pm_setup_failed", "Could not set up encryption on this device.")) +
         "<br><small>" + esc((err && err.message) || err) + "</small></div>");
       return;
@@ -135,6 +188,44 @@
 
     await refreshInbox();
     renderAiRow();
+  }
+
+  /**
+   * The key is sealed by this device and has not been opened yet.
+   *
+   * Deliberately not a modal and not automatic: WebAuthn refuses to prompt
+   * without a user gesture, so a page that tried to unlock itself on load
+   * would simply fail and look broken. A button is also the honest shape —
+   * the person decides when to open their key.
+   */
+  function showUnlockGate() {
+    gate('<div class="pm-note"><b>' + esc(t("pm_locked_t", "Your key is locked to this device")) + "</b><br>" +
+      esc(t("pm_locked_d", "Open it with your fingerprint, face or PIN to read and send messages.")) +
+      '<div style="margin-top:11px"><button class="pm-btn" id="pmUnlockBtn" type="button">' +
+      esc(t("pm_unlock", "Unlock")) + "</button></div>" +
+      '<div class="pm-msg-out" id="pmUnlockMsg"></div></div>');
+
+    var btn = document.getElementById("pmUnlockBtn");
+    if (!btn) return;
+    btn.addEventListener("click", async function () {
+      var out = document.getElementById("pmUnlockMsg");
+      btn.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_lock_prompt", "Confirm with your fingerprint, face or PIN…");
+      try {
+        await window.PMDeviceLock.unlock();
+        await boot();                     // now that the key is in hand
+      } catch (err) {
+        btn.disabled = false;
+        out.className = "pm-msg-out bad";
+        var code = (err && err.message) || String(err);
+        out.textContent = /NotAllowed|AbortError/i.test(code)
+          ? t("pm_lock_cancelled", "Cancelled. Nothing has changed.")
+          : code === "WRONG_KEY"
+          ? t("pm_lock_wrong_key", "That is not the passkey this key was sealed with. If it was reset, restore from your backup code instead.")
+          : code;
+      }
+    });
   }
 
   /**
@@ -272,37 +363,98 @@
     }
     el.pmPeople.dataset.loaded = "1";
     el.pmPeople.innerHTML = '<div class="pm-empty">' + esc(t("pm_loading", "Loading…")) + "</div>";
+    if (el.pmCount) el.pmCount.textContent = "";
     var rows;
     try {
       rows = await window.PMStore.directory({
         region: el.pmRegion ? el.pmRegion.value : "",
         query: el.pmSearch ? el.pmSearch.value.trim() : "",
+        // The directory is every registered agent in the country, not a
+        // sample of them. 200 was the default and quietly truncated the list
+        // once enough agents had signed up to make the tab worth opening.
+        limit: 500,
       });
     } catch (err) {
       el.pmPeople.innerHTML = '<div class="pm-empty">' + esc((err && err.message) || err) + "</div>";
       return;
     }
 
-    if (!rows.length) {
-      el.pmPeople.innerHTML = '<div class="pm-empty">' + esc(t("pm_no_people", "Nobody matches that yet.")) + "</div>";
-      return;
+    // The pane is called Agents, but the directory also returns anyone who has
+    // simply opened P-Message — which is right for "who wrote to me?" and
+    // wrong for "who can help me find a room". Both lists are available; the
+    // agents are the default because that is what the tab is for.
+    var wantAgents = !el.pmWho || el.pmWho.value !== "all";
+    var shown = wantAgents ? rows.filter(function (p) { return p.is_agent; }) : rows;
+
+    if (el.pmCount) {
+      el.pmCount.textContent = shown.length
+        ? t(wantAgents ? "pm_count_agents" : "pm_count_people",
+            wantAgents ? "{n} agents" : "{n} people", { n: shown.length }) +
+          (el.pmRegion && el.pmRegion.value ? " · " + el.pmRegion.value : "")
+        : "";
     }
 
+    if (!shown.length) {
+      el.pmPeople.innerHTML = '<div class="pm-empty">' +
+        esc(rows.length && wantAgents
+          ? t("pm_no_agents", "No agents match that. Switch to Everyone to see other people on P-Message.")
+          : t("pm_no_people", "Nobody matches that yet.")) + "</div>";
+      return;
+    }
+    rows = shown;
+
     el.pmPeople.innerHTML = rows.map(function (p) {
-      var name = p.display_name || t("pm_someone", "Someone");
-      // "Where they work" is the whole reason to message an agent, so the area
-      // of operations is the subtitle — not their region, which is coarse, and
-      // not their phone, which this page never sees.
-      var where = [p.area, p.ward, p.district, p.region].filter(Boolean);
-      var sub = where.length ? where.slice(0, 2).join(" · ") : (p.region || "");
-      return '<button class="pm-row" data-person="' + esc(p.user_id) + '" data-name="' + esc(name) +
-        '" data-sub="' + esc(sub) + '"' + (p.reachable ? "" : " data-unreachable=\"1\"") + ">" +
-        '<span class="pm-av">' + esc(initials(name)) + "</span>" +
-        '<span class="pm-rtx"><span class="pm-name">' + esc(name) +
-          (p.is_agent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
-          (p.reachable ? "" : ' <span class="pm-badge warn">' + esc(t("pm_badge_unreachable", "Not on P-Message")) + "</span>") +
-        '</span><span class="pm-sub">' + esc(sub) + "</span></span></button>";
+      return personRow(p);
     }).join("");
+  }
+
+  var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z" stroke="currentColor" stroke-width="2"/>' +
+    '<circle cx="12" cy="10" r="2.4" stroke="currentColor" stroke-width="2"/></svg>';
+
+  /**
+   * One agent, and above all WHERE THEY WORK.
+   *
+   * The area of operations is the only reason to pick one agent over another,
+   * and it used to be the first of up to four place names run together in a
+   * grey subtitle — indistinguishable from the ward, the district and the
+   * region behind it. It gets a pin, the brand colour and its own element now.
+   *
+   * An agent who has not set one is SAID to have not set one. Leaving the line
+   * blank reads as "operates nowhere in particular", which is a claim about
+   * them rather than about our data.
+   */
+  function personRow(p) {
+    var name = p.display_name || t("pm_someone", "Someone");
+    var area = (p.area || "").trim();
+
+    // The broader places, minus whatever already appears as the area — an
+    // agent whose area IS "Nyamagana" should not read "Nyamagana · Nyamagana".
+    var where = [p.ward, p.district, p.region].filter(function (v) {
+      return v && v.trim() && v.trim().toLowerCase() !== area.toLowerCase();
+    });
+    var rest = where.slice(0, 2).join(" · ");
+
+    var areaHtml = area
+      ? '<span class="pm-area" title="' + esc(t("pm_area_of", "Area of operation")) + '">' +
+          PIN_SVG + "<span>" + esc(area) + "</span></span>"
+      : '<span class="pm-area is-none"><span>' +
+          esc(t("pm_area_none", "Area not set")) + "</span></span>";
+
+    // data-sub is what the conversation header shows, so it stays a plain
+    // single line rather than the marked-up version above.
+    var sub = [area, rest].filter(Boolean).join(" · ");
+
+    return '<button class="pm-row" data-person="' + esc(p.user_id) + '" data-name="' + esc(name) +
+      '" data-sub="' + esc(sub) + '"' + (p.reachable ? "" : ' data-unreachable="1"') + ">" +
+      '<span class="pm-av">' + esc(initials(name)) + "</span>" +
+      '<span class="pm-rtx"><span class="pm-name">' + esc(name) +
+        (p.is_agent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
+        (p.reachable ? "" : ' <span class="pm-badge warn">' + esc(t("pm_badge_unreachable", "Not on P-Message")) + "</span>") +
+      "</span>" +
+      '<span class="pm-sub">' + areaHtml +
+        (rest ? '<span class="pm-where">' + esc(rest) + "</span>" : "") +
+      "</span></span></button>";
   }
 
   // ---- conversation --------------------------------------------------------
@@ -332,6 +484,11 @@
       ? t("pm_room_note", "Encrypted to every member individually. Anything sent before you joined stays unreadable to you.")
       : t("pm_conv_note", "Encrypted on this device. Nobody else — not even us — can read it.");
 
+    // Not awaited: the messages should not wait on it, and it guards its own
+    // staleness. It is started before the log so a substituted key is on
+    // screen at roughly the same moment the conversation is.
+    checkTrust(info);
+
     try {
       var rows = await window.PMStore.messages(info.threadId);
       renderLog(rows);
@@ -348,9 +505,84 @@
     });
   }
 
+  // ---- is this still the same person? --------------------------------------
+  //
+  //  Key distribution here is trust-on-first-use, and the failure it cannot
+  //  see on its own is a substitution made LATER: the right key for a month,
+  //  a different one on the day it matters. So the key is fetched on every
+  //  open and compared with what this device wrote down the first time.
+  //
+  //  When it does not match, the composer is switched off. That is a real
+  //  cost and it is the point — the alternative is a warning above a working
+  //  text box, which is a warning most people will type straight past. There
+  //  are two ways out and both require a person: compare the number, or say
+  //  the change was expected.
+  async function checkTrust(info) {
+    setComposerBlocked(false);
+    if (el.pmTrustBar) el.pmTrustBar.hidden = true;
+    if (!info || info.kind !== "direct" || !info.otherId || !me) return;
+
+    var hit = null;
+    try { hit = await window.PMStore.peer(info.otherId); } catch (_) { return; }
+    // The thread may have been closed or swapped while that was in flight.
+    if (!hit || !open || open.threadId !== info.threadId) return;
+
+    open.peerKey = hit.publicKey;
+    open.peerFp = hit.fingerprint;
+    open.trust = hit.trust || (window.PMTrust ? window.PMTrust.status(me.userId, info.otherId) : null);
+
+    if (!open.trust || !open.trust.changed) return;
+    if (!el.pmTrustBar) return;
+
+    el.pmTrustBar.innerHTML =
+      "<span>" + esc(t("pm_trust_bar",
+        "{name}'s safety number changed. Check it before sending anything private.",
+        { name: info.name || t("pm_someone", "Someone") })) + "</span>" +
+      '<button class="pm-btn" id="pmTrustGo" type="button">' + esc(t("pm_verify", "Verify")) + "</button>";
+    el.pmTrustBar.hidden = false;
+    setComposerBlocked(true);
+    var go = document.getElementById("pmTrustGo");
+    if (go) go.addEventListener("click", openVerify);
+  }
+
+  function setComposerBlocked(on) {
+    if (el.pmInput) {
+      el.pmInput.disabled = !!on;
+      el.pmInput.placeholder = on
+        ? t("pm_trust_blocked_ph", "Check their safety number first")
+        : t("pm_write_ph", "Write a message");
+    }
+    if (el.pmSendBtn) el.pmSendBtn.disabled = !!on;
+    if (el.pmComposeForm) el.pmComposeForm.classList.toggle("is-blocked", !!on);
+  }
+
+  // One entry point for the dialog, so the header button and the alarm bar
+  // cannot drift into showing two different things.
+  async function openVerify() {
+    var theirs = null, key = null;
+    if (open && open.otherId) {
+      // pm_peer, not the directory: a guest is deliberately absent from the
+      // directory, so verifying one there would silently find nobody.
+      try {
+        var hit = await window.PMStore.peer(open.otherId);
+        if (hit) { theirs = hit.fingerprint; key = hit.publicKey; }
+      } catch (_) {}
+    }
+    window.PMIdentityUI.safetyNumbers({
+      name: open && open.name,
+      theirs: theirs,
+      theirKey: key,
+      peerId: open && open.otherId,
+      meId: me && me.userId,
+      onChange: function () { if (open) checkTrust(open); },
+    });
+  }
+
   function closeThread() {
     open = null;
     if (live) { live.unsubscribe(); live = null; }
+    if (el.pmTrustBar) el.pmTrustBar.hidden = true;
+    setComposerBlocked(false);
     el.pmConv.classList.remove("is-on");
     el.pmConv.setAttribute("aria-hidden", "true");
     lock(ready);
@@ -459,13 +691,13 @@
   window.PMIdentityUI.attach({
     backdrop: el.pmModalBack, panel: el.pmModal, t: t,
     fingerprint: function () { return fingerprint; },
+    userId: function () { return me && me.userId; },
     onChange: async function (res) {
       fingerprint = res.fingerprint;
       if (el.pmFpBtn) el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
       await refreshInbox();
     },
   });
-  var showFingerprint = function (name, theirs) { window.PMIdentityUI.safetyNumbers(name, theirs); };
   var showBackup = function () { window.PMIdentityUI.backup(); };
 
   function showBroadcast() {
@@ -538,6 +770,11 @@
       '<select id="pmRoomRegion"><option value="">' + esc(t("pm_cast_all", "Everyone in Tanzania")) + "</option>" +
       names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("") + "</select>" +
       "<label>" + esc(t("pm_room_name", "Name of the room")) + '</label><input id="pmRoomTitle" maxlength="80" />' +
+      // The room the admin actually wants most of the time is "all of them",
+      // and it was reachable only by knowing that leaving both selects alone
+      // meant that. One button says it out loud and fills the name in too.
+      '<p style="margin-top:12px"><button class="pm-btn ghost" id="pmRoomEveryone" style="width:100%">' +
+        esc(t("pm_room_everyone", "Every agent in Tanzania")) + "</button></p>" +
       '<div class="pm-modal-acts">' +
         '<button class="pm-btn ghost" id="pmRoomWho">' + esc(t("pm_room_who", "Who is in scope?")) + "</button>" +
         '<button class="pm-btn" id="pmRoomGo" disabled>' + esc(t("pm_room_open", "Open room")) + "</button>" +
@@ -560,6 +797,17 @@
     reg.addEventListener("change", invalidate);
 
     document.getElementById("pmRoomCancel").addEventListener("click", closeModal);
+    document.getElementById("pmRoomEveryone").addEventListener("click", function () {
+      cat.value = "";
+      reg.value = "";
+      var title = document.getElementById("pmRoomTitle");
+      if (!title.value.trim()) title.value = t("pm_room_everyone", "Every agent in Tanzania");
+      invalidate();
+      // Run the preview straight away: the count is the thing that makes this
+      // safe to press, and an admin should see who is about to be added
+      // before the button that adds them becomes available.
+      document.getElementById("pmRoomWho").click();
+    });
     document.getElementById("pmRoomWho").addEventListener("click", async function (e) {
       e.currentTarget.disabled = true;
       out.className = "pm-msg-out";
@@ -779,18 +1027,7 @@
     });
 
     el.pmBack && el.pmBack.addEventListener("click", closeThread);
-    el.pmVerify && el.pmVerify.addEventListener("click", async function () {
-      var theirs = null;
-      if (open && open.otherId) {
-        // pm_peer, not the directory: a guest is deliberately absent from the
-        // directory, so verifying one there would silently find nobody.
-        try {
-          var hit = await window.PMStore.peer(open.otherId);
-          theirs = hit && hit.fingerprint;
-        } catch (_) {}
-      }
-      showFingerprint(open && open.name, theirs);
-    });
+    el.pmVerify && el.pmVerify.addEventListener("click", openVerify);
     el.pmFpBtn && el.pmFpBtn.addEventListener("click", function () { showBackup(); });
     el.pmBroadcastBtn && el.pmBroadcastBtn.addEventListener("click", showBroadcast);
     el.pmRoomsBtn && el.pmRoomsBtn.addEventListener("click", showRooms);
@@ -800,8 +1037,20 @@
       e.preventDefault();
       var text = el.pmInput.value.trim();
       if (!text) return;
+      // The disabled textarea is the visible gate; this is the one that holds
+      // if anything ever re-enables it without clearing the alarm.
+      if (open && open.trust && open.trust.changed) { openVerify(); return; }
       el.pmInput.value = "";
+      autosize();
       sendCurrent(text);
+    });
+    el.pmInput && el.pmInput.addEventListener("input", autosize);
+    // The keyboard opening is a viewport resize, not a scroll event, so the
+    // log has to be pulled back to the newest message by hand.
+    el.pmInput && el.pmInput.addEventListener("focus", function () {
+      setTimeout(function () {
+        if (el.pmLog) el.pmLog.scrollTop = el.pmLog.scrollHeight;
+      }, 260);
     });
     el.pmInput && el.pmInput.addEventListener("keydown", function (e) {
       // Enter sends, Shift+Enter breaks the line — the convention every other
@@ -818,6 +1067,7 @@
     };
     el.pmSearch && el.pmSearch.addEventListener("input", reload);
     el.pmRegion && el.pmRegion.addEventListener("change", refreshPeople);
+    el.pmWho && el.pmWho.addEventListener("change", refreshPeople);
   }
 
   // An invite link changes what the page is for, so it is answered first: the
@@ -825,6 +1075,7 @@
   // sign-in gate instead of the invitation they were sent.
   async function start() {
     if (window.applyTranslations) window.applyTranslations();
+    trackViewport();
     try { if (await handleInviteLink()) return; } catch (_) {}
     await boot();
   }

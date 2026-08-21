@@ -57,6 +57,12 @@ window.supabase = { createClient: function () {
     display_name: "Juma Mwanga", region: "Mwanza", is_agent: true, area: "Nyamagana" };
   db.keys["agent_neema"] = { public_key: "", fingerprint: "4444 5555 6666",
     display_name: "Neema Kileo", region: "Mwanza", is_agent: true, area: "Ilemela" };
+  // An agent who never filled in where they work, and a person who is not an
+  // agent at all. Both are rows the directory has to render honestly.
+  db.keys["agent_blank"] = { public_key: "", fingerprint: "7777 8888 9999",
+    display_name: "Rashid Omari", region: "Dodoma", is_agent: true, area: null };
+  db.keys["plain_amina"] = { public_key: "", fingerprint: "1212 3434 5656",
+    display_name: "Amina Hassan", region: "Mwanza", is_agent: false, area: null };
 
   function rpc(name, args) {
     window.__PM_SENT.push({ name: name, args: JSON.parse(JSON.stringify(args || {})) });
@@ -76,6 +82,18 @@ window.supabase = { createClient: function () {
             area_kind: null, district: null, ward: null, is_agent: v.is_agent,
             reachable: !!v.public_key, public_key: v.public_key, fingerprint: v.fingerprint };
         }), error: null });
+    }
+    // pm_peer hands back the public key as well as the stored fingerprint
+    // column, because the client derives the number it shows from the KEY and
+    // treats the column as nothing more than a tamper signal.
+    if (name === "pm_peer") {
+      var pr = db.keys[args.p_user_id];
+      if (!pr) return Promise.resolve({ data: [], error: null });
+      return Promise.resolve({ data: [{
+        user_id: args.p_user_id, display_name: pr.display_name,
+        public_key: pr.public_key, fingerprint: pr.fingerprint,
+        is_agent: pr.is_agent, is_guest: !!pr.is_guest, region: pr.region,
+      }], error: null });
     }
     if (name === "pm_start_direct") {
       var id = "thread-" + args.p_other;
@@ -256,7 +274,12 @@ const PNG = Buffer.from(
   "base64");
 
 const browser = await puppeteer.launch({
-  headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"], protocolTimeout: 120000,
+  headless: "new", protocolTimeout: 120000,
+  args: ["--no-sandbox", "--disable-dev-shm-usage",
+    // Chrome's own fake capture device: getUserMedia resolves with a real
+    // MediaStream and the <video> really plays, so the only thing the test has
+    // to invent is the barcode reader itself.
+    "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
 });
 
 async function openPage(email, opts) {
@@ -303,7 +326,7 @@ try {
   ok(await page.$eval("#pmLockText", (n) => n.textContent).then((t) => /encrypted/i.test(t)),
      "the header says the conversations are end-to-end encrypted");
   const fp = await page.$eval("#pmFpBtn", (n) => ({ hidden: n.hidden, text: n.textContent }));
-  ok(!fp.hidden && /\d{4} \d{4} \d{4}/.test(fp.text),
+  ok(!fp.hidden && /\d{5}( \d{5}){5}/.test(fp.text),
      "a safety number was generated and is on screen", fp.text);
 
   const published = await page.evaluate(() => (window.__PM_SENT || []).find((c) => c.name === "pm_publish_key"));
@@ -585,6 +608,341 @@ try {
     await big.page.close();
   }
 
+  section("8e. A key that changed under a conversation");
+  // The attack the safety number exists for, run end to end: the key in the
+  // database is swapped for one the attacker holds. Nothing about the
+  // messages looks different, and before pinning nothing anywhere noticed.
+  {
+    const LIE = "00000 00000 00000 00000 00000 00000";
+    const tp = await openPage("someone@example.com");
+    await sleep(900);
+    // Same setup as section 4: the agent's keypair is generated inside the
+    // page, so this test never holds a private half.
+    await tp.page.evaluate(async (lie) => {
+      // Pages in this run share one origin and therefore one localStorage,
+      // and every earlier section minted a different keypair for this agent.
+      // Left in place those pins are real changes and the alarm would fire
+      // before this section has done anything — so the slate is cleared and
+      // the substitution below is the only one on record.
+      localStorage.removeItem("pm-trust-v1");
+      const kp = await window.PMCrypto.generateIdentity();
+      window.__PM_DB.keys["agent_juma"].public_key = kp.publicKey;
+      // A server that substitutes a key can write the fingerprint column
+      // beside it. This is that column lying, in v2 shape so it cannot be
+      // dismissed as a leftover of the old 12-digit scheme.
+      window.__PM_DB.keys["agent_juma"].fingerprint = lie;
+    }, LIE);
+
+    await tp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(500);
+    await tp.page.evaluate(() => document.querySelector('#pmPeople [data-person="agent_juma"]').click());
+    await sleep(900);
+
+    await tp.page.evaluate(() => document.getElementById("pmVerify").click());
+    await sleep(700);
+    const dlg = await tp.page.$eval("#pmModal", (n) => n.textContent);
+    const derived = await tp.page.evaluate(() =>
+      window.PMCrypto.fingerprint(window.__PM_DB.keys["agent_juma"].public_key));
+
+    ok(/\d{5}( \d{5}){5}/.test(dlg), "the verify dialog shows a thirty-digit safety number");
+    ok(dlg.includes(derived),
+       "derived on this device from the key that actually arrived");
+    ok(!dlg.includes(LIE),
+       "NOT the fingerprint column the server sent beside it — which an attacker writes too");
+    ok(/Not verified/i.test(dlg), "and it says plainly that nobody has checked it yet");
+
+    await tp.page.evaluate(() => document.getElementById("pmFpMatch").click());
+    await sleep(300);
+    ok(/Verified/i.test(await tp.page.$eval("#pmModal", (n) => n.textContent)),
+       "comparing it out of band is recorded");
+    await tp.page.evaluate(() => document.getElementById("pmFpOk").click());
+    await sleep(300);
+
+    // Now the substitution.
+    await tp.page.evaluate(async () => {
+      const kp = await window.PMCrypto.generateIdentity();
+      window.__PM_DB.keys["agent_juma"].public_key = kp.publicKey;
+    });
+    await tp.page.evaluate(() => document.getElementById("pmBack").click());
+    await sleep(300);
+    ok(await tp.page.$eval("#pmTrustBar", (n) => n.hidden), "no alarm while nothing is open");
+
+    await tp.page.evaluate(() => document.querySelector('#pmPeople [data-person="agent_juma"]').click());
+    await sleep(1100);
+
+    const bar = await tp.page.$eval("#pmTrustBar", (n) => ({ hidden: n.hidden, text: n.textContent }));
+    ok(!bar.hidden, "reopening the thread raises the alarm", bar.text);
+    ok(/changed/i.test(bar.text), "and says the safety number changed", bar.text);
+    ok(await tp.page.$eval("#pmInput", (n) => n.disabled),
+       "the composer is switched OFF — a warning above a working text box is one people type past");
+    ok(await tp.page.$eval("#pmSendBtn", (n) => n.disabled), "and so is the send button");
+
+    // It must not be possible to wait it out.
+    await tp.page.evaluate(() => document.getElementById("pmBack").click());
+    await sleep(200);
+    await tp.page.evaluate(() => document.querySelector('#pmPeople [data-person="agent_juma"]').click());
+    await sleep(1000);
+    ok(await tp.page.$eval("#pmTrustBar", (n) => !n.hidden),
+       "reopening it again does NOT clear the alarm — doing nothing is the attacker's cheapest move");
+
+    await tp.page.evaluate(() => document.getElementById("pmTrustGo").click());
+    await sleep(700);
+    const alarmDlg = await tp.page.$eval("#pmModal", (n) => n.textContent);
+    ok(/has changed/i.test(alarmDlg), "the dialog leads with what happened, above the numbers");
+    ok(/verified their previous/i.test(alarmDlg),
+       "and says the old number HAD been checked, which is the worse case");
+
+    await tp.page.evaluate(() => document.getElementById("pmFpAccept").click());
+    await sleep(400);
+    ok(await tp.page.$eval("#pmTrustBar", (n) => n.hidden), "'they changed phone' releases the thread");
+    ok(await tp.page.$eval("#pmInput", (n) => !n.disabled), "and the composer comes back");
+    const after = await tp.page.evaluate(() =>
+      JSON.parse(localStorage.getItem("pm-trust-v1"))["user_self"]["agent_juma"].state);
+    ok(after === "seen",
+       "but the record lands on SEEN, never verified — this key has been checked by nobody");
+    await tp.page.close();
+  }
+
+  section("8f. Verifying with the camera instead of thirty digits");
+  // BarcodeDetector is a phone API — it does not exist in Chrome on Windows or
+  // Linux, so the reader is stubbed and everything around it is real: the QR
+  // is the one js/lib/qr.js drew, the camera is Chrome's fake device, and the
+  // comparison is the shipped code.
+  {
+    const tp = await openPage("someone@example.com");
+    await sleep(900);
+    const JUMA_KEY = await tp.page.evaluate(async () => {
+      localStorage.removeItem("pm-trust-v1");
+      const kp = await window.PMCrypto.generateIdentity();
+      window.__PM_DB.keys["agent_juma"].public_key = kp.publicKey;
+      return kp.publicKey;
+    });
+
+    // The reader returns whatever the test last queued.
+    await tp.page.evaluate(() => {
+      window.__SCANNED = null;
+      window.BarcodeDetector = function () {};
+      window.BarcodeDetector.prototype.detect = function () {
+        return Promise.resolve(window.__SCANNED ? [{ rawValue: window.__SCANNED }] : []);
+      };
+    });
+
+    await tp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(500);
+    await tp.page.evaluate(() => document.querySelector('#pmPeople [data-person="agent_juma"]').click());
+    await sleep(900);
+    await tp.page.evaluate(() => document.getElementById("pmVerify").click());
+    await sleep(600);
+
+    ok(await tp.page.$("#pmFpScan") !== null,
+       "where the phone can read a code, scanning is offered as the primary action");
+    ok(await tp.page.$("#pmQrToggle") !== null, "and my own code can be put on screen for them");
+
+    // My code must be the one THEIR phone expects to see.
+    const mine = await tp.page.evaluate(async () => {
+      document.getElementById("pmQrToggle").click();
+      const me = await window.PMStore.me();
+      const id = window.PMStore.current();
+      return { userId: me.userId, fp: await window.PMCrypto.fingerprint(id.publicKey) };
+    });
+    await sleep(200);
+    ok(await tp.page.$eval("#pmQrWrap", (n) => !n.hidden), "the code appears when asked for");
+    const svg = await tp.page.$eval("#pmQrWrap svg", (n) => n.getAttribute("viewBox"));
+    ok(/^0 0 \d+ \d+$/.test(svg), "drawn as an SVG with a real viewBox", svg);
+    const quiet = await tp.page.$eval("#pmQrWrap rect", (n) => n.getAttribute("fill"));
+    ok(quiet === "#ffffff", "on a white ground — a themed QR code is one that does not scan");
+
+    const expected = "PM2|" + mine.userId + "|" + mine.fp.replace(/ /g, "");
+
+    // 1. Somebody else's code.
+    await tp.page.evaluate(() => document.getElementById("pmFpScan").click());
+    await sleep(400);
+    await tp.page.evaluate(() => { window.__SCANNED = "PM2|somebody_else|123456789012345678901234567890"; });
+    await sleep(900);
+    let out = await tp.page.$eval("#pmFpMsg", (n) => n.textContent);
+    ok(/different account/i.test(out), "the wrong person's code is named as that", out);
+    ok(await tp.page.evaluate(() =>
+      JSON.parse(localStorage.getItem("pm-trust-v1"))["user_self"]["agent_juma"].state) === "seen",
+      "and nothing is marked verified");
+
+    // 2. The right person, the wrong key — the attack.
+    await tp.page.evaluate(() => { window.__SCANNED = null; });
+    await tp.page.evaluate(() => document.getElementById("pmFpScan").click());
+    await sleep(400);
+    await tp.page.evaluate(() => {
+      window.__SCANNED = "PM2|agent_juma|999999999999999999999999999999";
+    });
+    await sleep(900);
+    out = await tp.page.$eval("#pmFpMsg", (n) => n.textContent);
+    ok(/do NOT match/i.test(out), "a real mismatch is stated bluntly, not softened", out);
+    ok(await tp.page.evaluate(() =>
+      JSON.parse(localStorage.getItem("pm-trust-v1"))["user_self"]["agent_juma"].state) === "seen",
+      "and still nothing is verified");
+
+    // 3. The genuine article.
+    const theirCode = await tp.page.evaluate(async (key) =>
+      "PM2|agent_juma|" + (await window.PMCrypto.fingerprint(key)).replace(/ /g, ""), JUMA_KEY);
+    await tp.page.evaluate(() => { window.__SCANNED = null; });
+    await tp.page.evaluate(() => document.getElementById("pmFpScan").click());
+    await sleep(400);
+    await tp.page.evaluate((code) => { window.__SCANNED = code; }, theirCode);
+    await sleep(900);
+    out = await tp.page.$eval("#pmFpMsg", (n) => n.textContent);
+    ok(/Matched and verified/i.test(out), "a matching code verifies them", out);
+    ok(await tp.page.evaluate(() =>
+      JSON.parse(localStorage.getItem("pm-trust-v1"))["user_self"]["agent_juma"].state) === "verified",
+      "and THAT is written down, so a later key change will be caught");
+    ok(/Verified/.test(await tp.page.$eval("#pmModal", (n) => n.textContent)),
+       "the badge says so without being asked again");
+
+    ok(expected.startsWith("PM2|"), "my payload is the documented shape", expected.slice(0, 20) + "…");
+
+    // The camera must not outlive the dialog — including when the dialog is
+    // dismissed by tapping the backdrop rather than by a button.
+    // Scanning is only offered while someone is unverified — which they now
+    // are not — so the pin is cleared and the thread reopened to get the
+    // button back. Clearing it here also proves the offer really does depend
+    // on the recorded state rather than on the button always being drawn.
+    await tp.page.evaluate(() => {
+      window.__TRACKS = [];
+      const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = async function (c) {
+        const stream = await real(c);
+        window.__TRACKS.push.apply(window.__TRACKS, stream.getTracks());
+        return stream;
+      };
+      window.__SCANNED = null;
+      localStorage.removeItem("pm-trust-v1");
+      document.getElementById("pmModalBack").click();
+      document.getElementById("pmBack").click();
+    });
+    await sleep(300);
+    await tp.page.evaluate(() => document.querySelector('#pmPeople [data-person="agent_juma"]').click());
+    await sleep(900);
+    await tp.page.evaluate(() => document.getElementById("pmVerify").click());
+    await sleep(500);
+    ok(await tp.page.$("#pmFpScan") !== null,
+       "forgetting the pin puts them back to unverified and offers the scan again");
+    await tp.page.evaluate(() => document.getElementById("pmFpScan").click());
+    await sleep(700);
+    ok(await tp.page.evaluate(() =>
+      window.__TRACKS.length > 0 && window.__TRACKS.every((t) => t.readyState === "live")),
+      "the camera really is running while the scanner is open");
+
+    await tp.page.evaluate(() => document.getElementById("pmModalBack").click());
+    await sleep(500);
+    ok(await tp.page.evaluate(() => window.__TRACKS.every((t) => t.readyState === "ended")),
+       "and is switched off when the dialog is dismissed, not left on behind it");
+
+    await tp.page.close();
+  }
+
+  section("8g. The agent list, and where each of them works");
+  // The area of operations is the only thing that makes one agent more use
+  // than another, and it used to be the first of four place names run
+  // together in a grey subtitle.
+  {
+    const dp = await openPage("someone@example.com");
+    await sleep(900);
+    await dp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(700);
+
+    const rows = await dp.page.$$eval("#pmPeople .pm-row", (ns) => ns.map((r) => ({
+      id: r.dataset.person,
+      name: (r.querySelector(".pm-name") || {}).textContent.trim(),
+      area: (r.querySelector(".pm-area") || {}).textContent || null,
+      areaNone: !!r.querySelector(".pm-area.is-none"),
+      hasPin: !!(r.querySelector(".pm-area svg")),
+      where: (r.querySelector(".pm-where") || {}).textContent || "",
+      sub: r.dataset.sub,
+    })));
+
+    const juma = rows.find((r) => r.id === "agent_juma");
+    const blank = rows.find((r) => r.id === "agent_blank");
+    ok(!!juma && /Nyamagana/.test(juma.area), "an agent's area of operation is its own element", JSON.stringify(juma));
+    ok(juma && juma.hasPin, "marked with a pin rather than left as one more grey clause");
+    ok(juma && /Mwanza/.test(juma.where), "with the broader place kept separate from it");
+    ok(!!blank && blank.areaNone,
+       "an agent who never set one is SAID to have not set one, not left blank", JSON.stringify(blank));
+    ok(blank && !blank.hasPin, "and gets no pin, because there is nothing to point at");
+
+    // The area must not be repeated as its own parent.
+    ok(juma && !/Nyamagana[^]*Nyamagana/.test(juma.area + " " + juma.where),
+       "a place is never printed twice in one row");
+
+    ok(rows.every((r) => r.id !== "user_self"), "and you are never in your own directory");
+
+    // Agents by default; everyone on request.
+    ok(rows.some((r) => r.id === "agent_blank") && !rows.some((r) => r.id === "plain_amina"),
+       "the Agents pane shows agents — including ones with no listings yet",
+       JSON.stringify(rows.map((r) => r.id)));
+    let count = await dp.page.$eval("#pmCount", (n) => n.textContent);
+    ok(/3 agents/.test(count), "and says how many there are", count);
+
+    await dp.page.evaluate(() => {
+      document.getElementById("pmWho").value = "all";
+      document.getElementById("pmWho").dispatchEvent(new Event("change"));
+    });
+    await sleep(600);
+    const all = await dp.page.$$eval("#pmPeople .pm-row", (ns) => ns.map((r) => r.dataset.person));
+    ok(all.indexOf("plain_amina") >= 0,
+       "switching to Everyone reveals people who are on P-Message but not agents", JSON.stringify(all));
+    count = await dp.page.$eval("#pmCount", (n) => n.textContent);
+    ok(/4 people/.test(count), "and counts them too", count);
+
+    // The whole country, not a page of it.
+    const limits = await dp.page.evaluate(() =>
+      window.__PM_SENT.filter((c) => c.name === "pm_directory").map((c) => c.args.p_limit));
+    ok(limits.length > 0 && limits.every((l) => l >= 500),
+       "the directory is asked for the whole country, not the first 200 of it", JSON.stringify(limits));
+
+    await dp.page.close();
+  }
+
+  section("8h. One room for every agent");
+  {
+    // The same address the other admin sections use: APP_CONFIG.ADMIN_EMAILS
+    // is what the page checks, and the database checks is_admin() again anyway.
+    const ap = await openPage("pawa4761@gmail.com");
+    await sleep(900);
+    // pm_group_candidates only returns people with a published key — the same
+    // rule the real function uses, since there is nothing to encrypt to
+    // otherwise. On a fresh page nobody has one yet.
+    await ap.page.evaluate(async () => {
+      for (const id of ["agent_juma", "agent_neema", "agent_blank"]) {
+        const kp = await window.PMCrypto.generateIdentity();
+        window.__PM_DB.keys[id].public_key = kp.publicKey;
+      }
+      document.getElementById("pmModalBack").classList.remove("is-on");
+    });
+    ok(await ap.page.$eval("#pmRoomsBtn", (n) => !n.hidden), "an admin is offered Rooms");
+    await ap.page.evaluate(() => document.getElementById("pmRoomsBtn").click());
+    await sleep(400);
+    ok(await ap.page.$("#pmRoomEveryone") !== null,
+       "with a one-tap room for every agent in the country");
+
+    await ap.page.evaluate(() => {
+      document.getElementById("pmRoomCat").value = "houses";
+      document.getElementById("pmRoomRegion").value = "Mwanza";
+      document.getElementById("pmRoomEveryone").click();
+    });
+    await sleep(900);
+    const state = await ap.page.evaluate(() => ({
+      cat: document.getElementById("pmRoomCat").value,
+      region: document.getElementById("pmRoomRegion").value,
+      title: document.getElementById("pmRoomTitle").value,
+      msg: document.getElementById("pmRoomMsg").textContent,
+      canOpen: !document.getElementById("pmRoomGo").disabled,
+    }));
+    ok(state.cat === "" && state.region === "",
+       "it widens the scope rather than quietly leaving a narrower one set", JSON.stringify(state));
+    ok(/every agent/i.test(state.title), "and names the room", state.title);
+    ok(/\d+ people/.test(state.msg),
+       "the roster is counted before the button that adds them turns on", state.msg);
+    ok(state.canOpen, "and only then can it be opened");
+    await ap.page.close();
+  }
+
   section("9. Someone with no account at all");
   // The signed-out screen is not a wall: a person looking at a room has no
   // reason to make an account before asking whether it is still available, and
@@ -617,7 +975,7 @@ try {
   ok(/encrypted/i.test(guestLock) && !/not/i.test(guestLock),
      "the guest gets the same end-to-end lock as everyone else", guestLock);
   const guestFp = await guest.page.$eval("#pmFpBtn", (n) => n.textContent);
-  ok(/\d{4} \d{4} \d{4}/.test(guestFp), "and their own safety number", guestFp);
+  ok(/\d{5}( \d{5}){5}/.test(guestFp), "and their own safety number", guestFp);
 
   const guestPub = await guest.page.evaluate(() =>
     (window.__PM_SENT || []).find((c) => c.name === "pm_publish_key"));

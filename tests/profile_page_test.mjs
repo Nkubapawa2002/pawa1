@@ -174,7 +174,7 @@ try {
     ok(new Set(hrefs).size === hrefs.length, "and no destination appears twice", JSON.stringify(hrefs));
 
     const fp = r.find((x) => x.act === "fingerprint");
-    ok(fp && /\d{4} \d{4} \d{4}/.test(fp.value),
+    ok(fp && /\d{5}( \d{5}){5}/.test(fp.value),
        "the safety number is read from the key already on the device", fp && fp.value);
     ok(r.some((x) => x.act === "backup") && r.some((x) => x.act === "restore"),
        "with backup and restore beside it");
@@ -193,7 +193,7 @@ try {
     await sleep(400);
     ok(await page.$eval("#pfModalBack", (n) => n.classList.contains("is-on")), "the safety-number dialog opens");
     const big = await page.$eval(".pm-big-fp", (n) => n.textContent.trim());
-    ok(/\d{4} \d{4} \d{4}/.test(big), "showing the number large enough to read aloud", big);
+    ok(/\d{5}( \d{5}){5}/.test(big), "showing the full thirty digits, not a truncation", big);
     ok(await page.$eval(".pm-modal", (n) => getComputedStyle(n).backgroundColor !== "rgba(0, 0, 0, 0)"),
        "and it is styled — css/pm-identity.css travelled with the library");
     await page.evaluate(() => document.getElementById("pmFpOk").click());
