@@ -207,6 +207,10 @@
     await refreshInbox();
     watchInbox();
     renderAiRow();
+    // Last, because it opens a conversation over the inbox it needs drawn
+    // first — and because everything above must work whether or not the link
+    // carried a person.
+    try { await openRequestedPeer(); } catch (_) {}
   }
 
   /**
@@ -314,6 +318,10 @@
         await refreshInbox();
         watchInbox();
         showSeg("people");           // a guest came here to find an agent
+        // Unless they arrived on a ?to= link, in which case they came here
+        // for one particular person and the gate was in the way, not the
+        // destination.
+        try { await openRequestedPeer(); } catch (_) {}
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) === "SHORT_NAME"
@@ -1565,6 +1573,62 @@
       var out = document.getElementById("pmInvMsg");
       if (out) { out.className = "pm-msg-out bad"; out.textContent = (err && err.message) || String(err); }
     }
+  }
+
+  // ---- arriving from somewhere that knows who you want ---------------------
+  /**
+   * `p-message.html?to=<user id>` — open a conversation with one person.
+   *
+   * jobs.html sends people here: a day job carries a poster, and "message the
+   * person hiring" is a different act from "browse the agent directory and
+   * find them". Nothing else about the page changes; this is the Agents-row
+   * tap performed for somebody who already knew who they meant.
+   *
+   * The URL carries ONLY the id. The name, where they work and their key all
+   * come from pm_peer, so a doctored link cannot put a borrowed name on the
+   * conversation header — which, on a screen whose whole job is telling you
+   * who you are talking to, is the one thing it must not be able to do.
+   *
+   * Failure is quiet. Someone who followed a stale link lands on the inbox,
+   * which is a page that works, rather than on an error about a user id they
+   * never saw.
+   */
+  async function openRequestedPeer() {
+    if (!ready) return false;
+    var want = null;
+    try { want = new URLSearchParams(location.search).get("to"); } catch (_) { return false; }
+    if (!want || want === (me && me.userId)) return false;
+
+    var info = null;
+    try { info = await window.PMStore.peer(want); } catch (_) { return false; }
+    // No such account. A stale bookmark or a hand-typed id lands on the inbox
+    // and nothing is said, because there is nobody to say anything about — an
+    // apology naming a user id the reader has never seen explains nothing.
+    if (!info) return false;
+    if (!info.publicKey) {
+      // Somebody real who has never opened P-Message. No key means no way to
+      // encrypt, which is a dead end and is said as one — the same sentence
+      // the directory uses for an unreachable agent.
+      modal("<h2>" + esc(info.displayName || t("pm_someone", "Someone")) + "</h2><p>" +
+        esc(t("pm_unreachable_d", "They have not opened P-Message yet, so there is no key to encrypt to. Their listings still carry a phone number.")) +
+        '</p><div class="pm-modal-acts"><button class="pm-btn" id="pmToOk">' + esc(t("pm_close", "Close")) + "</button></div>");
+      var ok = document.getElementById("pmToOk");
+      if (ok) ok.addEventListener("click", closeModal);
+      return false;
+    }
+
+    try {
+      var threadId = await window.PMStore.startDirect(want);
+      showSeg("chats");
+      await refreshInbox();
+      openThread({
+        threadId: threadId, kind: "direct",
+        name: info.displayName || t("pm_someone", "Someone"),
+        sub: whereOf({ area: info.area, ward: info.ward, district: info.district, region: info.region }).line,
+        otherId: want,
+      });
+      return true;
+    } catch (_) { return false; }
   }
 
   // ---- arriving on an invite link ------------------------------------------

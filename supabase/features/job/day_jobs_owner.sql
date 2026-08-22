@@ -35,12 +35,47 @@
 --  somebody's P-Message profile. Legacy rows keep owner_user_id null, count
 --  toward nobody, and are exactly as messageable as they were yesterday.
 --
---  Idempotent. Safe to re-run. Depends on day_jobs.sql.
+--  SUPERSEDED IN PART by day_jobs_owner_table.sql, which moved owner_user_id
+--  off the world-readable day_jobs row and into public.day_job_owners. Apply
+--  this file FIRST on a fresh database — updated_at and the touch trigger are
+--  still only created here — then that one. It refuses to run a second time
+--  once the correction is in place; see the guard below for why.
+--
+--  Idempotent until superseded. Depends on day_jobs.sql.
 --
 --    usage:  node scripts/db/apply_sql.mjs supabase/features/job/day_jobs_owner.sql
 -- ============================================================================
 
 begin;
+
+-- ---------------------------------------------------------------------------
+-- 0. Stop if the correction has already been applied
+-- ---------------------------------------------------------------------------
+-- This file put owner_user_id ON public.day_jobs, which is world-readable and
+-- read with `select *` everywhere, so the column published "account X posted
+-- this job" beside a public phone number. day_jobs_owner_table.sql moved
+-- ownership into public.day_job_owners for that reason.
+--
+-- Everything else here still stands and is still needed: updated_at, the touch
+-- trigger, and the reasoning below about guests, backfill and what ownership
+-- does not grant. So the file is kept and still runs FIRST on a fresh database.
+-- What it must not do is run again AFTERWARDS: `add column if not exists` would
+-- put the leaking column back, and the two `create or replace` bodies below
+-- would quietly revert post_day_job() and day_job_workers() to reading it.
+--
+-- Re-running is how that would happen — this file is listed as a dependency in
+-- three other headers, and "apply the dependencies first" is exactly the habit
+-- that would undo the fix. An error is the honest answer.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'day_job_owners'
+  ) then
+    raise exception
+      'superseded: public.day_job_owners already exists — day_jobs_owner_table.sql moved ownership off the public row. Re-applying this file would restore the leaking day_jobs.owner_user_id column. Apply supabase/features/job/day_jobs_owner_table.sql instead.';
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- 1. The column

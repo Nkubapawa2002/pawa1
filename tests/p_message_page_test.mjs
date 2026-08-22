@@ -22,6 +22,19 @@
 //           node tests/p_message_page_test.mjs
 // ============================================================================
 import puppeteer from "puppeteer";
+import { webcrypto } from "crypto";
+
+// A real SPKI public key, generated here so a peer can be REACHABLE from the
+// first paint of a fresh page. The ?to= handler runs during boot, long before
+// the sections below hand the agents keys of their own. Only the PUBLIC half
+// exists in this file; the private half is discarded on the next line and was
+// never anybody’s identity.
+const PEER_KEY = await (async () => {
+  const kp = await webcrypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const spki = Buffer.from(await webcrypto.subtle.exportKey("spki", kp.publicKey));
+  return spki.toString("base64")
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+})();
 
 const BASE = "http://localhost:8080";
 const SECRET = "Bei ya mwisho 240000 usimwambie mtu";
@@ -85,7 +98,10 @@ window.supabase = { createClient: function () {
   // The listing counts are what the category chips filter on and what the
   // ranking ranks on, so the two agents deliberately deal in DIFFERENT things:
   // a chip that quietly matched everybody would otherwise look like it worked.
-  db.keys["agent_juma"] = { public_key: "", fingerprint: "1111 2222 3333",
+  // A caller that wants the deep-link path needs Juma REACHABLE from the first
+  // paint, and keys are normally minted in-page later on. opts.peerKey is a
+  // real SPKI public key generated in Node for exactly that.
+  db.keys["agent_juma"] = { public_key: ${JSON.stringify(opts && opts.peerKey || "")}, fingerprint: "1111 2222 3333",
     display_name: "Juma Mwanga", region: "Mwanza", is_agent: true, area: "Nyamagana",
     n_houses: 6, n_verified: 2, last_listed_at: new Date().toISOString() };
   db.keys["agent_neema"] = { public_key: "", fingerprint: "4444 5555 6666",
@@ -449,7 +465,8 @@ async function openPage(email, opts) {
     }
     req.continue();
   });
-  await page.goto(`${BASE}/p-message.html`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.goto(`${BASE}/${(opts && opts.path) || "p-message.html"}`,
+                  { waitUntil: "domcontentloaded", timeout: 30000 });
   await sleep(1600);
   return { page, errs, bodies };
 }
@@ -1506,6 +1523,82 @@ try {
      "a guest gets no announce button");
   ok(guest.errs.length === 0, "no page errors on the guest path", guest.errs.slice(0, 3).join("\n        "));
   await guest.page.close();
+
+  section("10. Arriving from jobs.html — p-message.html?to=<user id>");
+  // The seam between the two pages. jobs.html knows WHO; it does not know
+  // their key, their name as P-Message stores it, or where they work, and it
+  // must not be the thing that decides any of those.
+  {
+    const dl = await openPage("worker@example.com", { path: "p-message.html?to=agent_juma", peerKey: PEER_KEY });
+    await sleep(1800);
+
+    ok(await dl.page.$eval("#pmConv", (n) => n.classList.contains("is-on")),
+       "the conversation opens straight away, without a search");
+    const dlName = await dl.page.$eval("#pmConvName", (n) => n.textContent);
+    ok(/Juma/.test(dlName), "with the right person", dlName);
+
+    // The name came from pm_peer. The URL never carried one, and this is what
+    // keeps it that way: a link able to name its own peer would let a doctored
+    // URL put a borrowed name on the one screen that exists to say who this is.
+    // The fixture's id (`agent_juma`) deliberately shares a word with the name
+    // it is stored under (`Juma Mwanga`), so asking whether the URL contains
+    // "Juma" would answer the wrong question. What matters is that there is
+    // exactly ONE parameter, and that the part of the name only pm_peer knows
+    // is on the header and nowhere in the link.
+    const dlUrl = await dl.page.evaluate(() => location.search);
+    const dlKeys = await dl.page.evaluate(() => [...new URLSearchParams(location.search).keys()]);
+    ok(dlKeys.length === 1 && dlKeys[0] === "to",
+       "and the URL carried one parameter, the id", JSON.stringify(dlKeys));
+    ok(/Mwanga/.test(dlName) && !/Mwanga/.test(dlUrl),
+       "with the name on the header coming from pm_peer, not from the link",
+       dlUrl + "  header=" + dlName);
+
+    const started = await dl.page.evaluate(() =>
+      window.__PM_SENT.filter((c) => c.name === "pm_start_direct").map((c) => c.args.p_other));
+    ok(started.length === 1 && started[0] === "agent_juma",
+       "one thread started, with the person the link named", JSON.stringify(started));
+    ok(await dl.page.$eval("#pmVerify", (n) => !n.hidden),
+       "and verification is offered, because this is a direct thread");
+    ok(dl.errs.length === 0, "no page errors on the deep link", dl.errs.slice(0, 3).join(" | "));
+    await dl.page.close();
+  }
+  {
+    // A link to somebody who has never opened P-Message. No key means nothing
+    // to encrypt to, so the page says so rather than opening an empty thread
+    // that could never carry a message.
+    const dead = await openPage("worker@example.com", { path: "p-message.html?to=agent_blank" });
+    await sleep(1800);
+    ok(!(await dead.page.$eval("#pmConv", (n) => n.classList.contains("is-on"))),
+       "a link to someone with no key opens no conversation");
+    ok(await dead.page.$eval("#pmModalBack", (n) => n.classList.contains("is-on")),
+       "it says why instead");
+    const said = await dead.page.$eval("#pmModal", (n) => n.textContent);
+    ok(/not opened P-Message/i.test(said), "in the same words the directory uses", said.slice(0, 90));
+    const startedDead = await dead.page.evaluate(() =>
+      window.__PM_SENT.filter((c) => c.name === "pm_start_direct"));
+    ok(startedDead.length === 0,
+       "and no thread was created for a chat that cannot happen", String(startedDead.length));
+    ok(dead.errs.length === 0, "no page errors", dead.errs.slice(0, 3).join(" | "));
+    await dead.page.close();
+  }
+  {
+    // A stale or hand-typed id must not break the page. The inbox is a screen
+    // that works; an error about a user id nobody has seen is not.
+    const junk = await openPage("worker@example.com", { path: "p-message.html?to=nobody_at_all" });
+    await sleep(1800);
+    ok(!(await junk.page.$eval("#pmConv", (n) => n.classList.contains("is-on"))),
+       "an unknown id opens no conversation");
+    const junkPage = await junk.page.evaluate(() => ({
+      segs: document.querySelectorAll(".pm-segs .pm-seg").length,
+      chatsOn: !!document.querySelector("#paneChats.is-on"),
+      modal: !!document.querySelector("#pmModalBack.is-on"),
+    }));
+    ok(junkPage.segs === 3 && junkPage.chatsOn && !junkPage.modal,
+       "and the page is still the page, not an error about an id nobody saw",
+       JSON.stringify(junkPage));
+    ok(junk.errs.length === 0, "with no page errors", junk.errs.slice(0, 3).join(" | "));
+    await junk.page.close();
+  }
 
   process.stdout.write(`\n${pass} passed, ${fail} failed\n`);
 } finally {

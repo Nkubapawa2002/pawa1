@@ -29,6 +29,12 @@ window.initJobsPage = () => {
   let activeId = null;
   const roadKm = new Map();     // job id -> real road km (OSRM upgrade)
   let claimJob = null;          // job being claimed in the modal
+  // job id -> { user_id, display_name } for posters who can be written to.
+  // Only ever filled for a signed-in visitor, and only with posters who
+  // already hold a P-Message key — see day_job_posters() for why that second
+  // condition is the one that keeps this from being a disclosure.
+  const posters = new Map();
+  const posterAsked = new Set();   // ids already looked up, hit or miss
 
   // ---- Boot ----------------------------------------------------------------
   initMap();
@@ -162,6 +168,8 @@ window.initJobsPage = () => {
     });
 
     renderMarkers(rows);
+    paintPosterButtons();
+    findPosters(rows);
   }
 
   // Jobs THIS device already claimed → { jobId: workerCode } so the worker
@@ -169,6 +177,75 @@ window.initJobsPage = () => {
   function myClaims() {
     try { return JSON.parse(localStorage.getItem("pawa_my_claims") || "{}"); }
     catch { return {}; }
+  }
+
+  /**
+   * Who, of the people on screen, can actually be written to.
+   *
+   * A day job posted before the board had owners belongs to a phone number and
+   * nobody else — there is no account to message and no button to draw. One
+   * lookup for the whole list rather than one per card, and each id is asked
+   * about once: a miss is an answer, and re-asking it on every redraw would be
+   * a request per card per render for a result that does not change.
+   *
+   * Skipped entirely for a signed-out visitor. day_job_posters() would return
+   * nothing for them anyway — that fence is in the database, not here — so
+   * this is about not making the request, not about trusting the client.
+   */
+  async function findPosters(rows) {
+    if (!sb) return;
+    const want = rows.map((j) => Number(j.id)).filter((id) => id && !posterAsked.has(id));
+    if (!want.length) return;
+    // Auth.getSession() resolves to the session itself, or null — not to a
+    // { data } envelope. Destructuring one out of it yields undefined, which
+    // reads as "signed out" for everybody and draws the button for nobody.
+    try {
+      if (!window.Auth || !(await window.Auth.getSession())) return;
+    } catch (_) { return; }
+
+    want.forEach((id) => posterAsked.add(id));
+    try {
+      const { data, error } = await sb.rpc("day_job_posters", { p_job_ids: want });
+      if (error) throw error;
+      (data || []).forEach((r) => posters.set(Number(r.job_id), r));
+    } catch (_) {
+      // A failed lookup means no Message buttons this time round, which is the
+      // board exactly as it was before this feature. Nothing to say to a
+      // worker about it, so nothing is said.
+      return;
+    }
+    paintPosterButtons();
+  }
+
+  // The link itself. Built in one place because it is drawn from two — once
+  // inline when the answer is already known, once injected when it arrives
+  // after the cards do.
+  function posterLinkHtml(p) {
+    return `<a class="btn btn-outline job-msg-btn" data-to="${esc(p.user_id)}"
+      href="p-message.html?to=${encodeURIComponent(p.user_id)}">${esc(T("jb_message"))}</a>`;
+  }
+
+  /**
+   * Put the button on cards that are already drawn.
+   *
+   * It goes immediately after Call, not at the end: Call and Message are the
+   * two ways to reach a person and belong together, while Navigate answers a
+   * different question and can sit after them both.
+   */
+  function paintPosterButtons() {
+    if (!listEl) return;
+    listEl.querySelectorAll(".job-card").forEach((card) => {
+      const p = posters.get(Number(card.dataset.id));
+      if (!p || card.querySelector(".job-msg-btn")) return;
+      const acts = card.querySelector(".job-actions");
+      if (!acts) return;
+      const wrap = document.createElement("div");
+      wrap.innerHTML = posterLinkHtml(p);
+      const link = wrap.firstElementChild;
+      const nav = acts.querySelector('a[href*="google.com/maps"]');
+      if (nav) acts.insertBefore(link, nav);
+      else acts.appendChild(link);
+    });
   }
 
   function cardHtml(j) {
@@ -212,6 +289,7 @@ window.initJobsPage = () => {
               ? `<span class="job-full-badge" style="align-self:center">FULL — team complete</span>`
               : `<button type="button" class="btn btn-primary job-claim-btn" data-id="${j.id}"> I'll do it</button>`}
           ${phone ? `<a class="btn btn-outline" href="tel:${esc(phone)}"> Call</a>` : ""}
+          ${posters.has(Number(j.id)) ? posterLinkHtml(posters.get(Number(j.id))) : ""}
           ${hasPin(j) ? `<a class="btn btn-outline" target="_blank" rel="noopener"
               href="https://www.google.com/maps/dir/?api=1&destination=${j.lat},${j.lng}"> Navigate</a>` : ""}
         </div>

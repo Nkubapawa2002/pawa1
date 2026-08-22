@@ -40,7 +40,8 @@
 --  right place for "how long ago" to live. Depth saturates at 8 either way.
 --
 --  Idempotent. Safe to re-run. Depends on p_message.sql, _guests, _groups,
---  _finder, _rooms, and job/day_jobs_owner.sql.
+--  _finder, _rooms, and job/day_jobs_owner.sql + job/day_jobs_owner_table.sql
+--  (the second moved the owner off the public row; apply both, in that order).
 --
 --    usage:  node scripts/db/apply_sql.mjs supabase/features/message/p_message_jobs.sql
 -- ============================================================================
@@ -57,11 +58,11 @@ do $$
 begin
   if not exists (
     select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'day_jobs'
+    where table_schema = 'public' and table_name = 'day_job_owners'
       and column_name = 'owner_user_id'
   ) then
     raise exception
-      'public.day_jobs has no owner_user_id — apply supabase/features/job/day_jobs_owner.sql first';
+      'public.day_job_owners is missing — apply supabase/features/job/day_jobs_owner.sql then day_jobs_owner_table.sql first';
   end if;
 end $$;
 
@@ -91,9 +92,14 @@ create view public.pm_owner_listings as
          coalesce(verified, false), updated_at
     from public.trucks   where owner_user_id is not null
   union all
-  select owner_user_id, 'jobs',
-         false, updated_at
-    from public.day_jobs where owner_user_id is not null;
+  -- Ownership lives in day_job_owners, NOT on the public day_jobs row: that
+  -- table is world-readable and every client selects * from it, so a column
+  -- there would publish "this account posted this job" beside a public phone
+  -- number — the exact join pm_directory refuses to make. See
+  -- job/day_jobs_owner_table.sql, which corrected it.
+  select o.owner_user_id, 'jobs', false, d.updated_at
+    from public.day_jobs d
+    join public.day_job_owners o on o.job_id = d.id;
 
 -- Not a security boundary, never queried by a client: only the two
 -- SECURITY DEFINER functions below read it, each with its own fence.
