@@ -1,5 +1,5 @@
 // =====================================================================
-// pawaDialog — the four things a modal has to do, in one place
+// pawaDialog — the five things a modal has to do, in one place
 // =====================================================================
 // `role="dialog" aria-modal="true"` is a CLAIM. It says: this is the only
 // thing on screen, you can get out of it, and your keyboard cannot wander off
@@ -21,6 +21,10 @@
 //   FOCUS            goes in when it opens and comes back to whatever opened it
 //                    when it closes, and Tab cycles inside rather than reaching
 //                    the page behind.
+//   IN FRONT         it is moved to <body> while it is up, because a big
+//                    z-index inside a parent's stacking context is not in front
+//                    of anything — see open() for the tab bar that ate a Save
+//                    button — and put back where it was on close.
 //
 // Two kinds of sheet, one API. Sheets that are BUILT on demand are removed on
 // close; sheets that live in the HTML and are revealed are re-hidden — say
@@ -86,6 +90,27 @@
     };
 
     if (opts.labelledBy) el.setAttribute("aria-labelledby", opts.labelledBy);
+
+    // IN FRONT. A sheet is `position:fixed; z-index:<big>` and everyone assumes
+    // that settles it. It doesn't: z-index is only ever compared against
+    // SIBLINGS inside the nearest ancestor that opened a stacking context. The
+    // houses page wraps its content in `main#housesMain{position:relative;
+    // z-index:1}`, so the area-alert sheet's 2000 competed only with things
+    // inside that <main>, and what actually met the bottom tab bar (z-index 900,
+    // a <body> child) was <main> itself — at 1. The sheet painted UNDER the tab
+    // bar and its "Save alert" button was not a button any more: a tap at those
+    // coordinates hit a nav link and left the page. Raising 2000 higher could
+    // never have fixed it; the number was in the wrong contest.
+    //
+    // So the sheet moves to <body> for as long as it is up, where its z-index
+    // finally means what its author meant. A fixed-position element takes its
+    // geometry from the viewport, not its parent, so nothing about it moves —
+    // and page CSS keys off `body[data-page=…]`, which is still an ancestor.
+    // Put back exactly where it was on close, so re-opening finds it in place.
+    entry.parent = el.parentNode;
+    entry.next = el.nextSibling;
+    if (entry.parent && entry.parent !== document.body) document.body.appendChild(el);
+
     document.body.style.overflow = "hidden";
 
     entry.onKey = (e) => {
@@ -129,6 +154,16 @@
     try { document.removeEventListener("keydown", entry.onKey, true); } catch (_) {}
     // Only the last sheet gives the page its scrolling back.
     if (!stack.length) document.body.style.overflow = entry.prevOverflow || "";
+    // Put it back where open() found it, BEFORE onClose runs — a sheet that was
+    // built on demand closes with .remove(), and restoring after that would
+    // resurrect it. If the original parent has since left the document (the
+    // page re-rendered underneath), leaving the sheet on <body> is the safe
+    // outcome: it stays reachable instead of being grafted onto an orphan.
+    try {
+      if (entry.parent && document.contains(entry.parent) && el.parentNode === document.body) {
+        entry.parent.insertBefore(el, entry.next && entry.next.parentNode === entry.parent ? entry.next : null);
+      }
+    } catch (_) {}
     try { if (entry.onClose) entry.onClose(); } catch (_) {}
     const opener = entry.opener;
     if (opener && document.contains(opener)) { try { opener.focus(); } catch (_) {} }

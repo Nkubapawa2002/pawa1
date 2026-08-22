@@ -85,7 +85,10 @@
     const tryGeo = async (q) => {
       try {
         const hits = await geo.suggest(q, { limit: 5 });
-        const hit = (hits || []).find((h) => Number.isFinite(h.lat) && Number.isFinite(h.lng));
+        // Not `fuzzy`: this answer becomes a point on a map with a label beside
+        // it, and returning null lets the caller say it couldn't place the
+        // question — better than answering confidently about the wrong town.
+        const hit = (hits || []).find((h) => !h.fuzzy && Number.isFinite(h.lat) && Number.isFinite(h.lng));
         return hit ? { lat: hit.lat, lng: hit.lng, label: hit.name, region, answer } : null;
       } catch (_) { return null; }
     };

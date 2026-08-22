@@ -488,7 +488,10 @@
       } else {
         const placeQ = (anchor && anchor.name) || q;
         const hits = await (window.pawaGeo ? window.pawaGeo.suggest(placeQ, { limit: 5 }) : Promise.resolve([])).catch(() => []);
-        const hit = (hits || []).find((h) => Number.isFinite(h.lat) && Number.isFinite(h.lng));
+        // `fuzzy` hits are the geocoder's spelling guess, and nobody gets to
+        // approve this one before the map jumps to it. "Couldn't find that
+        // place" is the better answer than the wrong town, silently.
+        const hit = (hits || []).find((h) => !h.fuzzy && Number.isFinite(h.lat) && Number.isFinite(h.lng));
         if (!hit) { setMsg("Couldn't find that place — try a town or area name."); return; }
         userLoc = { lat: hit.lat, lng: hit.lng }; userApprox = false;
         if (map) {

@@ -1273,7 +1273,9 @@
       }
       if (!hit) {
         const hits = await (window.pawaGeo ? window.pawaGeo.suggest(q, { limit: 5 }) : Promise.resolve([])).catch(() => []);
-        hit = (hits || []).find((h) => Number.isFinite(h.lat) && Number.isFinite(h.lng)) || null;
+        // Skip `fuzzy` — a spelling guess acted on without being offered. The
+        // hint below names what was typed and is the honest outcome here.
+        hit = (hits || []).find((h) => !h.fuzzy && Number.isFinite(h.lat) && Number.isFinite(h.lng)) || null;
       }
       if (!hit) { setHint(`Couldn't find “${esc(q)}” — try a town, ward or landmark name.`); return; }
       setCenter({ lat: hit.lat, lng: hit.lng });

@@ -1,5 +1,5 @@
 // =====================================================================
-// Request a place — TYPE it (or tap your location), no map needed
+// Request a place — TYPE it (or tap your location), and SEE where it lands
 // =====================================================================
 // The simplest way for a seeker to raise demand: pick their REGION (the hard
 // routing key), optionally name the area, say the PRICE and WHEN. We save it as
@@ -14,6 +14,24 @@
 //   • the typed area is an OPTIONAL label we try to geocode for precision, and
 //     if it can't be found we fall back to the GPS point, then the region
 //     centroid — sending never fails.
+//
+// Why there is now a MAP in here. That fallback chain is the whole point of
+// this modal and it was also completely invisible: someone typed "Mikocheni",
+// the geocoder missed, and the request silently went out on the centroid of Dar
+// es Salaam with a radius nobody chose. The seeker saw "Request sent" either
+// way. So the modal draws the point it is ABOUT to send, and the circle it will
+// be matched on (house_demand_near matches on `greatest(d.radius_m, …)`, so the
+// radius is a real number with real consequences, not decoration). Three rules
+// hold it honest:
+//   1. the map shows the point that will be SENT — the preview runs the same
+//      fallback chain, and submit sends the point the map is showing;
+//   2. the caption says WHICH step of the chain won, so "middle of the region"
+//      never masquerades as "your street";
+//   3. a pin the seeker drags beats every automatic step, and nothing later
+//      moves it back.
+// Leaflet is fetched only when the modal opens — two of the three pages that
+// include this file have no map of their own — and if it never arrives the
+// modal keeps working, with the caption saying so.
 //
 // It reuses the same house_demand_pins table + privacy model as the map-based
 // area alerts (the phone is only ever returned to agents via SECURITY DEFINER
@@ -36,7 +54,27 @@
   let picked = null;      // { lat, lng, name, region } chosen from suggestions
   let gpsPoint = null;    // { lat, lng } from "use my location"
   let gpsDistrict = null; // district reverse-geocoded from the GPS point
+  let pinned = null;      // { lat, lng } the seeker placed BY HAND on the map
   let sugTimer = null;
+
+  // ---- map constants ------------------------------------------------------
+  // Same Leaflet build every other map page in this repo pins, so a seeker who
+  // has already opened houses.html gets it from cache instead of the network.
+  const LEAFLET_CSS = "https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.css";
+  const LEAFLET_JS  = "https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.js";
+  const LEAFLET_WAIT_MS = 9000;   // past this we show the modal without a map
+
+  // 3 km is what every request sent before this map existed used, so it stays
+  // the default — this change must not silently re-scope anybody's search.
+  const RADIUS_MIN_KM = 1, RADIUS_MAX_KM = 25, RADIUS_DEFAULT_KM = 3;
+  const MAP_DEBOUNCE_MS = 420;    // longer than the suggestion debounce (320ms)
+  // The view is FITTED to the circle rather than set to a fixed zoom: the
+  // circle is the thing the request is matched on, and at a zoom picked in
+  // advance it is either a dot behind the marker or larger than the box. These
+  // are only ceilings, so a 1 km circle cannot zoom into somebody's roof.
+  const FIT_MAX_ZOOM = 14;          // a pin, a picked place, a GPS fix
+  const FIT_MAX_ZOOM_REGION = 12;   // a centroid: keep some of the region in frame
+  const FIT_PAD = 16;
 
   // ---- text helpers -------------------------------------------------------
 
@@ -79,6 +117,24 @@
       .filter(Boolean)
       .filter((p) => { const k = p.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
     return parts.join(", ");
+  }
+
+  // Loose place-name equality. Geocoders and our own gazetteer disagree about
+  // punctuation and spacing for the same place — "Dar es Salaam" comes back as
+  // "Dar es-Salaam" — so compare the letters and digits and nothing else.
+  const normPlace = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+  // Put the hits that sit in the region the seeker already chose at the top.
+  // Tanzania reuses place names heavily — there is a Mikocheni in Dar and a
+  // Mikocheni in Arusha, 600 km apart — and the geocoder has no idea which one
+  // was meant. We do: the region is already on the form. Non-matching hits are
+  // kept, just lower, because the region can be the thing that is wrong.
+  function preferRegion(list, region) {
+    const want = normPlace(String(region || "").replace(/\s+region$/i, ""));
+    if (!want || !Array.isArray(list) || list.length < 2) return list || [];
+    const hit = (h) => normPlace([h.context, h.full, h.name].filter(Boolean).join(" ")).includes(want);
+    const inRegion = list.filter(hit), rest = list.filter((h) => !hit(h));
+    return inRegion.concat(rest);
   }
 
   // Region centroid from the bundled gazetteer (js/lib/tz-places.js) — the last-
@@ -126,7 +182,11 @@
         border-radius:18px 18px 0 0;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);
         font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
       @media(min-width:560px){.rp-card{border-radius:18px}}
-      .rp-card h2{margin:0 0 3px;font-size:1.18rem}
+      /* This sheet is opened from pages whose body sets its own text colour and
+         display face — p-chat.html paints #E9F3EE on a near-black ground. An
+         h2 that inherits either of those lands as pale serif on this white
+         card. The card is its own surface, so it states its own. */
+      .rp-card h2{margin:0 0 3px;font-size:1.18rem;color:#16201b;font-family:inherit}
       .rp-card .rp-lead{margin:0 0 15px;color:#52605a;font-size:.9rem}
       .rp-row{margin-bottom:12px;position:relative}
       .rp-row label{display:block;font-weight:700;font-size:.82rem;margin:0 0 5px;color:#34403a}
@@ -184,7 +244,40 @@
         min-height:40px;box-sizing:border-box;border:1px solid #cdd9d3;border-radius:999px;background:#fff;
         cursor:pointer;color:#34403a}
       .rp-amen input{width:auto;margin:0}
-      .rp-amen label:has(input:checked){border-color:#0a6f4d;background:#eafaf3;color:#0a6f4d;font-weight:600}`;
+      .rp-amen label:has(input:checked){border-color:#0a6f4d;background:#eafaf3;color:#0a6f4d;font-weight:600}
+      /* ---- the area map ------------------------------------------------
+         A short map: it has to sit between "where" and "what" inside a sheet
+         that already scrolls, so it earns its height by being glanceable, not
+         by being a map you work in. 190px still shows a few streets either
+         side of the circle at zoom 14. */
+      .rp-map-wrap{position:relative;height:190px;border-radius:12px;overflow:hidden;
+        border:1px solid #cdd9d3;background:#e8efec}
+      .rp-map{position:absolute;inset:0}
+      /* Leaflet writes its own z-index stack (400–800) and would otherwise sit
+         over the suggestion dropdown that hangs down from the field above. */
+      .rp-map-wrap .leaflet-pane,.rp-map-wrap .leaflet-top,.rp-map-wrap .leaflet-bottom{z-index:1}
+      /* Leaflet's own zoom buttons are 26px. On the phone this sheet is built
+         for, that is under half a fingertip — and they sit in a corner, where a
+         miss lands on the map and moves the pin. */
+      .rp-map-wrap .leaflet-bar a{width:40px;height:40px;line-height:40px;font-size:19px}
+      .rp-map-veil{position:absolute;inset:0;z-index:2;display:flex;align-items:center;
+        justify-content:center;text-align:center;padding:14px;background:#eef3f1;color:#52605a;
+        font-size:.82rem;line-height:1.45}
+      .rp-map-veil[hidden]{display:none}
+      .rp-map-cap{margin:6px 0 0;font-size:.78rem;line-height:1.45;color:#52605a;min-height:17px}
+      .rp-map-cap.rp-cap-soft{color:#8a5a12}   /* an approximate point, said plainly */
+      .rp-map-cap.rp-cap-firm{color:#0a6f4d;font-weight:600}
+      /* ---- radius ------------------------------------------------------ */
+      .rp-rad{margin-top:11px}
+      .rp-rad-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+      .rp-rad-top label{margin:0}
+      .rp-rad output{font-size:.82rem;font-weight:700;color:#0a6f4d;white-space:nowrap}
+      /* A native range track is ~4px tall and the thumb ~16px. Padding the
+         input up to 40px gives the thumb a row a finger can actually find,
+         without changing how the control looks. */
+      .rp-rad input[type=range]{width:100%;height:40px;margin:0;padding:0;background:none;
+        accent-color:#0a6f4d;cursor:pointer;box-sizing:border-box}
+      .rp-rad-help{margin:0;font-size:.76rem;line-height:1.45;color:#7a877f}`;
     document.head.appendChild(s);
   }
 
@@ -198,10 +291,25 @@
     return !!(window.pawaDialog && window.pawaDialog.isOpen());
   }
 
+  // A sheet may hold something with a lifetime of its own — the Leaflet map is
+  // the first: it registers listeners on window and document, so a modal opened
+  // and closed three times would leave three live maps redrawing behind the
+  // page. Whoever builds the sheet parks a teardown on it and every exit path
+  // (button, Escape, backdrop, dialog.js) runs it exactly once.
+  function runCleanup(back) {
+    const fn = back && back.__rpCleanup;
+    if (!fn) return;
+    back.__rpCleanup = null;
+    try { fn(); } catch (_) {}
+  }
+
   function mount(back, titleId) {
     document.body.appendChild(back);
     if (window.pawaDialog) {
-      window.pawaDialog.open(back, { labelledBy: titleId, onClose: () => back.remove() });
+      window.pawaDialog.open(back, {
+        labelledBy: titleId,
+        onClose: () => { runCleanup(back); back.remove(); },
+      });
     } else if (titleId) {
       // dialog.js missing: the sheet still works, it just loses the trap.
       back.setAttribute("aria-labelledby", titleId);
@@ -210,6 +318,7 @@
 
   function close(back) {
     if (window.pawaDialog && window.pawaDialog.close(back)) return;
+    runCleanup(back);
     try { back.remove(); } catch (_) {}
   }
 
@@ -226,6 +335,50 @@
   }
 
   const GEO_CAP_MS = 3000;
+
+  // ---- Leaflet, on demand -------------------------------------------------
+  // Of the three pages that include this file, only houses.html already ships
+  // Leaflet; index.html and p-chat.html do not, and making all three carry a
+  // map library for a modal most visits never open would be a tax on every
+  // first paint. So we fetch it the first time the modal opens.
+  //
+  // Resolves TRUE/FALSE rather than rejecting: a missing map degrades this
+  // modal, it does not break it, and every caller treats false as "draw the
+  // caption, skip the canvas". A failure is not cached — the next open tries
+  // again, because the usual cause is a connection that has since come back.
+  let leafletPromise = null;
+  function ensureLeaflet() {
+    if (window.L && window.L.map) return Promise.resolve(true);
+    if (leafletPromise) return leafletPromise;
+    leafletPromise = new Promise((resolve) => {
+      let settled = false;
+      const done = (okFlag) => {
+        if (settled) return;
+        settled = true;
+        if (!okFlag) leafletPromise = null;      // let a later open retry
+        resolve(okFlag);
+      };
+      try {
+        if (!document.querySelector('link[data-rp-leaflet]')) {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = LEAFLET_CSS;
+          link.setAttribute("data-rp-leaflet", "1");
+          document.head.appendChild(link);
+        }
+        const s = document.createElement("script");
+        s.src = LEAFLET_JS;
+        s.async = true;
+        // A stub server can answer this URL with something that is not Leaflet,
+        // so onload is not proof — check for the API we are about to call.
+        s.onload = () => done(!!(window.L && window.L.map));
+        s.onerror = () => done(false);
+        document.head.appendChild(s);
+        setTimeout(() => done(!!(window.L && window.L.map)), LEAFLET_WAIT_MS);
+      } catch (_) { done(false); }
+    });
+    return leafletPromise;
+  }
 
   // Today, in the seeker's OWN timezone. toISOString() would hand back the UTC
   // date, which is yesterday for anyone east of Greenwich late in the evening —
@@ -347,14 +500,22 @@
   //   picked suggestion → geocoded typed text → GPS fix → region centroid.
   // District is reverse-geocoded from whatever point we land on (for precise
   // agent routing) unless GPS already gave us one.
-  async function resolveTarget({ region, text, gps, district }) {
+  //
+  // `at` is the point the MAP is currently showing. When it is present it wins
+  // outright: the modal draws a pin and a circle before you press send, and the
+  // request has to go where the picture said it would. The chain below is then
+  // only the path for a modal whose map never resolved anything at all.
+  async function resolveTarget({ region, text, gps, district, at }) {
     let lat = null, lng = null, area = text, dist = district || null, regOut = region;
 
-    if (picked && Number.isFinite(picked.lat) && Number.isFinite(picked.lng)) {
+    if (at && Number.isFinite(at.lat) && Number.isFinite(at.lng)) {
+      lat = +at.lat; lng = +at.lng;
+      if (!area && picked && picked.name) area = picked.name;
+    } else if (picked && Number.isFinite(picked.lat) && Number.isFinite(picked.lng)) {
       lat = +picked.lat; lng = +picked.lng; area = area || picked.name;
     } else if (text) {
-      const hits = await withCap(
-        window.pawaGeo ? window.pawaGeo.suggest(text, { limit: 5 }) : [], GEO_CAP_MS, []);
+      const hits = preferRegion(await withCap(
+        window.pawaGeo ? window.pawaGeo.suggest(text, { limit: 6 }) : [], GEO_CAP_MS, []), region);
       const h = (hits || []).find((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng));
       if (h) { lat = +h.lat; lng = +h.lng; area = area || h.name; }
     }
@@ -398,7 +559,7 @@
     opts = opts || {};
     if (alreadyOpen()) return;
     ensureStyles();
-    picked = null; gpsPoint = null; gpsDistrict = null;
+    picked = null; gpsPoint = null; gpsDistrict = null; pinned = null;
 
     const back = document.createElement("div");
     back.className = "rp-back";
@@ -420,6 +581,27 @@
           <input id="rpWhere" type="text" autocomplete="off" placeholder="${T("rp_where_ph")}" />
           <div id="rpSug" class="rp-sug" hidden></div>
           <div id="rpPicked" class="rp-picked" hidden></div>
+        </div>
+
+        <!-- The area the request will actually cover. Static markup carries no
+             point and no claim: the veil says "loading" until the script has a
+             map, and says so plainly if the library never arrives. -->
+        <div class="rp-row">
+          <label for="rpMap">${T("rp_map_label")} <small>${T("rp_map_small")}</small></label>
+          <div class="rp-map-wrap">
+            <div id="rpMap" class="rp-map"></div>
+            <div class="rp-map-veil" id="rpMapVeil">${T("rp_map_loading")}</div>
+          </div>
+          <p class="rp-map-cap" id="rpMapCap" role="status">${T("rp_map_cap_none")}</p>
+          <div class="rp-rad">
+            <div class="rp-rad-top">
+              <label for="rpRadius">${T("rp_radius_label")}</label>
+              <output id="rpRadiusOut" for="rpRadius">${T("rp_radius_out").replace("{km}", RADIUS_DEFAULT_KM)}</output>
+            </div>
+            <input id="rpRadius" type="range" min="${RADIUS_MIN_KM}" max="${RADIUS_MAX_KM}" step="1"
+                   value="${RADIUS_DEFAULT_KM}" aria-describedby="rpRadiusHelp" />
+            <p class="rp-rad-help" id="rpRadiusHelp">${T("rp_radius_help").replace("{km}", RADIUS_DEFAULT_KM)}</p>
+          </div>
         </div>
 
         <div class="rp-2">
@@ -555,6 +737,241 @@
     $("#rpMine").addEventListener("click", () => { close(back); openMine(); });
     if (opts.where) whereEl.value = opts.where;
 
+    // =====================================================================
+    // The area map
+    // =====================================================================
+    // Everything below keeps ONE fact — `shown`, the point this request will be
+    // sent on — and paints it three ways: the marker, the circle, and the
+    // caption that names which rule chose it. `shown` is also what submit reads,
+    // so there is no second resolution that could disagree with the picture.
+    const mapEl = $("#rpMap"), veilEl = $("#rpMapVeil"), capEl = $("#rpMapCap");
+    const radiusEl = $("#rpRadius"), radiusOutEl = $("#rpRadiusOut"), radiusHelpEl = $("#rpRadiusHelp");
+
+    let map = null, marker = null, circle = null, mapRO = null;
+    let shown = null;                // { lat, lng, src } — the point we will send
+    let gpsWins = false;             // a fresh fix outranks the label it wrote
+    // Two independent races, two counters: mapSeq guards which resolution owns
+    // the pin, labelSeq guards which reverse-geocode owns the area label. One
+    // shared counter had them cancelling each other, so moving the region
+    // picker could silently drop the name of a pin the seeker had just placed.
+    let mapTimer = null, mapSeq = 0, labelSeq = 0;
+    let radiusKm = RADIUS_DEFAULT_KM;
+
+    const radiusM = () => Math.round(radiusKm * 1000);
+
+    // Captions, one per step of the fallback chain. "firm" = a point somebody
+    // chose or measured; "soft" = a guess we are admitting to.
+    const CAPTION = {
+      pin:    { key: "rp_map_cap_pin",    tone: "rp-cap-firm" },
+      pick:   { key: "rp_map_cap_pick",   tone: "rp-cap-firm" },
+      gps:    { key: "rp_map_cap_gps",    tone: "rp-cap-firm" },
+      typed:  { key: "rp_map_cap_typed",  tone: "" },
+      region: { key: "rp_map_cap_region", tone: "rp-cap-soft" },
+      none:   { key: "rp_map_cap_none",   tone: "" },
+    };
+
+    function setCaption(src) {
+      const c = CAPTION[src] || CAPTION.none;
+      capEl.textContent = T(c.key).replace("{region}", regionEl.value || T("rp_region_label"));
+      capEl.classList.remove("rp-cap-soft", "rp-cap-firm");
+      if (c.tone) capEl.classList.add(c.tone);
+    }
+
+    // Frame the circle, not the point. Falls back to a plain setView if
+    // getBounds is unavailable for any reason — a map centred on the right
+    // place at the wrong zoom still beats a map that threw.
+    function fitCircle(pt) {
+      if (!map || !circle || !pt) return;
+      const cap = pt.src === "region" ? FIT_MAX_ZOOM_REGION : FIT_MAX_ZOOM;
+      try {
+        map.fitBounds(circle.getBounds(), { padding: [FIT_PAD, FIT_PAD], maxZoom: cap });
+      } catch (_) {
+        try { map.setView([pt.lat, pt.lng], cap); } catch (__) {}
+      }
+    }
+
+    // Draw (or move) the pin and its circle. Only re-centres when the POINT
+    // moved: re-fitting on every keystroke would undo a zoom the seeker just
+    // made to check which side of the road they are on.
+    function draw(pt, { recentre } = {}) {
+      if (!map || !pt) return;
+      const ll = [pt.lat, pt.lng];
+      if (!marker) {
+        marker = L.marker(ll, { draggable: true, keyboard: true,
+          title: T("rp_map_small"), alt: T("rp_map_label") }).addTo(map);
+        marker.on("dragend", () => {
+          const p = marker.getLatLng();
+          setPinned(p.lat, p.lng);
+        });
+      } else {
+        marker.setLatLng(ll);
+      }
+      if (!circle) {
+        circle = L.circle(ll, { radius: radiusM(), color: "#0a6f4d", weight: 2,
+          fillColor: "#0a6f4d", fillOpacity: 0.12, interactive: false }).addTo(map);
+      } else {
+        circle.setLatLng(ll); circle.setRadius(radiusM());
+      }
+      if (recentre) fitCircle(pt);
+    }
+
+    // A point the seeker placed by hand. It outranks every automatic step for
+    // the rest of this modal's life — the one thing a map like this must
+    // guarantee is that dragging the pin is not undone by a later keystroke.
+    function setPinned(lat, lng) {
+      pinned = { lat: +lat, lng: +lng };
+      shown = { lat: pinned.lat, lng: pinned.lng, src: "pin" };
+      draw(shown, { recentre: false });
+      setCaption("pin");
+      labelFromPoint(pinned.lat, pinned.lng);
+    }
+
+    // Name the spot the seeker dropped the pin on, and offer it as the area
+    // label if they haven't typed one. Best-effort and silent: the request is
+    // already routable without it.
+    async function labelFromPoint(lat, lng) {
+      if (!window.pawaGeo || whereEl.value.trim()) return;
+      const seq = ++labelSeq;
+      try {
+        const j = await withCap(
+          window.pawaGeo.reverse(`format=json&zoom=16&addressdetails=1&lat=${lat}&lon=${lng}`),
+          GEO_CAP_MS, null);
+        if (seq !== labelSeq) return;                     // a newer pin won
+        const a = (j && j.address) || {};
+        // `ward` is the unit Tanzanian addresses are actually given in, and
+        // Nominatim returns it where suburb/neighbourhood are both absent —
+        // which in Dar is most of the time. Without it the label falls through
+        // to the road name, and an agent gets "Msese Road" instead of
+        // "Hananasif", which is the half of the address they navigate by.
+        const label = simplifyArea([a.suburb || a.neighbourhood || a.ward || a.village || a.hamlet || a.road,
+          a.city || a.town || a.city_district].filter(Boolean).join(", "));
+        if (label && !whereEl.value.trim()) {
+          whereEl.value = label;
+          pickedEl.textContent = "📍 " + label;
+          pickedEl.hidden = false;
+        }
+      } catch (_) {}
+    }
+
+    // The fallback chain:
+    //   hand pin → fresh GPS fix → picked suggestion → geocoded text → an older
+    //   GPS point → region centroid.
+    // Whatever this returns is what submit sends, so the picture cannot drift
+    // from the payload. The one ordering that is NOT resolveTarget's is the
+    // fresh fix: "use my location" writes a neighbourhood name into the area
+    // box, and geocoding that name back would quietly replace a 20-metre GPS
+    // point with the centroid of a suburb. Typing over the box clears the flag
+    // and hands the lead back to the text, which is what typing means.
+    async function computePoint() {
+      if (pinned) return { lat: pinned.lat, lng: pinned.lng, src: "pin" };
+      if (gpsWins && gpsPoint) return { lat: gpsPoint.lat, lng: gpsPoint.lng, src: "gps" };
+      if (picked && Number.isFinite(+picked.lat) && Number.isFinite(+picked.lng)) {
+        return { lat: +picked.lat, lng: +picked.lng, src: "pick" };
+      }
+      const text = simplifyArea(whereEl.value);
+      if (text.length >= 2 && window.pawaGeo) {
+        const hits = preferRegion(
+          await withCap(window.pawaGeo.suggest(text, { limit: 6 }), GEO_CAP_MS, []), regionEl.value);
+        const h = (hits || []).find((x) => Number.isFinite(+x.lat) && Number.isFinite(+x.lng));
+        if (h) return { lat: +h.lat, lng: +h.lng, src: "typed" };
+      }
+      if (gpsPoint) return { lat: gpsPoint.lat, lng: gpsPoint.lng, src: "gps" };
+      const c = regionCentroid(regionEl.value);
+      if (c) return { lat: c.lat, lng: c.lng, src: "region" };
+      return null;
+    }
+
+    // Re-resolve and repaint. Returns the promise so submit can wait out an
+    // in-flight geocode instead of racing it, and sequence-numbered so a slow
+    // answer for an old query cannot overwrite a newer one.
+    function refreshMap() {
+      const seq = ++mapSeq;
+      return (async () => {
+        const pt = await computePoint();
+        if (seq !== mapSeq) return;
+        const moved = !shown || !pt ||
+          Math.abs(shown.lat - pt.lat) > 1e-6 || Math.abs(shown.lng - pt.lng) > 1e-6;
+        shown = pt;
+        setCaption(pt ? pt.src : "none");
+        if (pt) draw(pt, { recentre: moved });
+      })();
+    }
+
+    function scheduleRefresh() {
+      clearTimeout(mapTimer);
+      mapTimer = setTimeout(refreshMap, MAP_DEBOUNCE_MS);
+    }
+
+    // ---- radius ----
+    function paintRadius() {
+      radiusOutEl.textContent = T("rp_radius_out").replace("{km}", radiusKm);
+      radiusHelpEl.textContent = T("rp_radius_help").replace("{km}", radiusKm);
+      if (circle) { try { circle.setRadius(radiusM()); } catch (_) {} }
+    }
+    radiusEl.addEventListener("input", () => {
+      const v = Number(radiusEl.value);
+      radiusKm = Math.min(RADIUS_MAX_KM, Math.max(RADIUS_MIN_KM, Number.isFinite(v) ? v : RADIUS_DEFAULT_KM));
+      paintRadius();
+    });
+    // Re-frame on RELEASE, not on every step: the circle growing inside a still
+    // map is what makes the size legible, and a view that re-fits 24 times
+    // during one drag just looks broken.
+    radiusEl.addEventListener("change", () => fitCircle(shown));
+
+    // ---- bring the map up ----
+    // The modal is usable the whole time this is in flight; the veil says which
+    // of the two ends we are at. Nothing here can block sending.
+    (async () => {
+      const okL = await ensureLeaflet();
+      if (!back.isConnected) return;                      // closed while loading
+      if (!okL) {
+        veilEl.textContent = T("rp_map_offline");
+        refreshMap();                                     // caption still tells the truth
+        return;
+      }
+      try {
+        map = L.map(mapEl, { zoomControl: false, attributionControl: false })
+          .setView([-6.4, 35.0], 5);                      // Tanzania, until we know better
+        L.control.zoom({ position: "bottomright" }).addTo(map);
+        if (typeof window.addSatelliteHybrid === "function") {
+          window.addSatelliteHybrid(map, { control: false });
+        } else {
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(map);
+        }
+        // Tapping the map is the same act as dragging the pin, and on a phone
+        // it is the easier of the two.
+        map.on("click", (e) => setPinned(e.latlng.lat, e.latlng.lng));
+        // A Leaflet map created inside a sheet that is still sliding in
+        // measures 0×0 and paints grey. Re-measure across a few frames and
+        // whenever the container actually resizes.
+        const fixSize = () => { try { map && map.invalidateSize(); } catch (_) {} };
+        requestAnimationFrame(fixSize);
+        [120, 350, 700].forEach((d) => setTimeout(() => { if (back.isConnected) fixSize(); }, d));
+        try {
+          if ("ResizeObserver" in window) { mapRO = new ResizeObserver(fixSize); mapRO.observe(mapEl); }
+        } catch (_) {}
+        veilEl.hidden = true;
+        refreshMap();
+      } catch (err) {
+        try { console.error("[request-place] map failed:", err); } catch (_) {}
+        map = null;
+        veilEl.hidden = false;
+        veilEl.textContent = T("rp_map_offline");
+        refreshMap();
+      }
+    })();
+
+    // Leaflet holds listeners on window/document; a modal that is opened and
+    // closed a few times would otherwise leave one live map per open.
+    back.__rpCleanup = () => {
+      clearTimeout(mapTimer);
+      mapSeq++; labelSeq++;                      // orphan any in-flight geocode
+      try { mapRO && mapRO.disconnect(); } catch (_) {}
+      try { map && map.remove(); } catch (_) {}
+      map = marker = circle = mapRO = null;
+    };
+
     // ---- use my location → set region + district + point ----
     locEl.addEventListener("click", async () => {
       if (!window.pawaLocate || !window.pawaLocate.supported()) { setMsg(T("rp_loc_unavail")); return; }
@@ -562,6 +979,11 @@
       try {
         const fix = await window.pawaLocate.best({ maxWaitMs: 9000 });
         gpsPoint = { lat: fix.lat, lng: fix.lng };
+        // Asking for your location is a deliberate act, so it takes the map —
+        // over a hand pin and over a suggestion picked earlier. Only typing
+        // over the area box hands the lead back.
+        pinned = null; picked = null; gpsWins = true;
+        refreshMap();
         let reg = "", label = "";
         if (window.pawaGeo) {
           try {
@@ -569,7 +991,7 @@
             const a = (j && j.address) || {};
             reg = await canonRegion(a.state || a.region || a.county || "");
             gpsDistrict = canonDistrict(a.county || a.state_district || a.city_district || a.municipality || a.district || "");
-            label = simplifyArea([a.suburb || a.neighbourhood || a.village || a.hamlet, a.city || a.town || a.city_district].filter(Boolean).join(", "));
+            label = simplifyArea([a.suburb || a.neighbourhood || a.ward || a.village || a.hamlet, a.city || a.town || a.city_district].filter(Boolean).join(", "));
           } catch (_) {}
         }
         if (reg) { await fillRegions(regionEl, reg); }
@@ -595,6 +1017,11 @@
         pickedEl.textContent = "📍 " + (h.name || "") + (h.context ? " · " + h.context : "");
         pickedEl.hidden = false;
         sugEl.hidden = true;
+        // Choosing a place from the list is as deliberate as dropping a pin, so
+        // it replaces one — and the map jumps there immediately rather than
+        // waiting out the debounce.
+        pinned = null; gpsWins = false;
+        refreshMap();
         // Best-effort: set region from the suggestion if the user hasn't chosen one.
         if (!regionEl.value && picked.region) {
           const r = await canonRegion(picked.region);
@@ -604,14 +1031,26 @@
     }
     whereEl.addEventListener("input", () => {
       picked = null; pickedEl.hidden = true;
+      // Typing is the seeker describing the place in their own words, so the
+      // text gets the lead back from a GPS fix. It does NOT clear a hand pin:
+      // people drop the pin and then name it, and moving it out from under
+      // them while they type is the one thing a map like this must not do.
+      gpsWins = false;
+      scheduleRefresh();
       const q = whereEl.value.trim();
       clearTimeout(sugTimer);
       if (q.length < 2 || !window.pawaGeo) { sugEl.hidden = true; return; }
       sugTimer = setTimeout(async () => {
         const list = await window.pawaGeo.suggest(q, { limit: 6 }).catch(() => []);
-        showSug(list);
+        // Same ordering the map preview uses — a list whose first row is not
+        // the place the pin jumped to is worse than no list at all.
+        showSug(preferRegion(list, regionEl.value));
       }, 320);
     });
+
+    // The region is the routing key, so when nothing more precise has been said
+    // its centroid IS the request — moving the picker has to move the circle.
+    regionEl.addEventListener("change", () => refreshMap());
 
     // ---- submit ----
     goEl.addEventListener("click", async () => {
@@ -629,7 +1068,13 @@
 
       goEl.disabled = true; goEl.textContent = T("rp_sending"); setMsg("");
       try {
-        const place = await resolveTarget({ region, text, gps: gpsPoint, district: gpsDistrict });
+        // Send exactly what the map is showing. A geocode fired by the last
+        // keystroke may still be in flight — wait it out rather than race it,
+        // or the seeker watches the pin move a beat AFTER pressing send.
+        clearTimeout(mapTimer);
+        await refreshMap();
+        const place = await resolveTarget({
+          region, text, gps: gpsPoint, district: gpsDistrict, at: shown });
         if (place.lat == null || place.lng == null) {
           setMsg(T("rp_no_place")); goEl.disabled = false; goEl.textContent = T("rp_send"); return;
         }
@@ -651,7 +1096,7 @@
           area: place.area || text || region,
           region: place.region || region,
           district: place.district || null,
-          radius_m: 3000,
+          radius_m: radiusM(),
           listing: $("#rpListing").value === "sale" ? "sale" : "rent",
           type: typeVal || null,
           min_bedrooms: Number($("#rpBeds").value) || 0,
@@ -669,7 +1114,7 @@
         const mine = readMine();
         mine.push({ id: pin.id, area: pin.area, region: pin.region, listing: pin.listing,
           type: pin.type, max_budget_tzs: pin.max_budget_tzs, needed_by: pin.needed_by,
-          phone: pin.phone, lat: pin.lat, lng: pin.lng, at: Date.now() });
+          phone: pin.phone, lat: pin.lat, lng: pin.lng, radius_m: pin.radius_m, at: Date.now() });
         writeMine(mine);
 
         const whatTxt = pin.listing === "sale" ? T("rp_what_buy") : T("rp_what_rent");
@@ -720,7 +1165,7 @@
         const { data: { session } } = await sb.auth.getSession();
         if (session && session.user) {
           const { data } = await sb.from("house_demand_pins")
-            .select("id,area,region,listing,type,max_budget_tzs,needed_by,active,created_at,phone")
+            .select("id,area,region,listing,type,max_budget_tzs,needed_by,active,created_at,phone,radius_m")
             .eq("user_id", session.user.id).order("created_at", { ascending: false });
           (data || []).forEach((r) => byId.set(r.id, { ...r, at: new Date(r.created_at).getTime() }));
         }
@@ -734,6 +1179,9 @@
     const bits = [r.listing === "sale" ? T("rp_bit_buying") : T("rp_bit_renting")];
     if (r.type) bits.push(esc(r.type));
     if (r.max_budget_tzs) bits.push("≤ " + fmtTzs(r.max_budget_tzs) + " TZS");
+    // The radius the seeker chose decides which agents ever see this request,
+    // so it belongs in the row that explains why one is or is not getting calls.
+    if (r.radius_m) bits.push(T("rp_bit_within").replace("{km}", Math.round(r.radius_m / 1000) || 1));
     if (r.needed_by) bits.push(T("rp_by_word") + " " + esc(String(r.needed_by).slice(0, 10)));
     if (r.active === false) bits.push(T("rp_bit_closed"));
     return `<li data-id="${esc(r.id)}">

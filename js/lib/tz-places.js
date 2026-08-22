@@ -204,3 +204,63 @@ window.resolveTzPlace = function (query) {
   }
   return best;
 };
+
+// ----------------------------------------------------------------------------
+// closestTzPlaces(query, limit) — "did you mean…" for a search that found
+// nothing.
+//
+// resolveTzPlace above only answers when a token actually APPEARS in the query,
+// so one wrong letter ("Mikoceni", "Mbeya Mjini" typed as "Mbea") answers
+// nothing at all, and the search box dead-ends on "No matches in Tanzania."
+// That is the wrong answer to give someone in a country whose place names are
+// spelled several ways and rarely typed twice the same. This scores every
+// gazetteer entry by how much of it the query looks like and hands back the
+// nearest few, so the user is always offered somewhere to go.
+//
+// Dice coefficient over character bigrams: cheap, order-insensitive enough to
+// survive a transposition, and it does not need a matrix like Levenshtein.
+// Returns [{ name, lat, lng, kind, score }] best first, score in 0..1.
+// ----------------------------------------------------------------------------
+window.closestTzPlaces = function (query, limit) {
+  const norm = (s) => String(s || "").toLowerCase().replace(/[.,()]/g, " ").replace(/\s+/g, " ").trim();
+  const q = norm(query);
+  if (q.length < 3) return [];
+  const bigrams = (s) => {
+    const set = new Map();
+    for (let i = 0; i < s.length - 1; i++) {
+      const g = s.slice(i, i + 2);
+      set.set(g, (set.get(g) || 0) + 1);
+    }
+    return set;
+  };
+  const dice = (a, b) => {
+    if (!a.size || !b.size) return 0;
+    let shared = 0, total = 0;
+    a.forEach((n, g) => { shared += Math.min(n, b.get(g) || 0); total += n; });
+    b.forEach((n) => { total += n; });
+    return (2 * shared) / total;
+  };
+  const qg = bigrams(q);
+  const all = [...(window.TZ_UNIVERSITIES || []), ...(window.TZ_LANDMARKS || []), ...(window.TZ_REGION_CENTERS || [])];
+  const scored = [];
+  for (const p of all) {
+    if (!p || !p.name || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+    // Score against every name the place answers to and keep its best, so an
+    // abbreviation or alias is as good a way in as the full name.
+    const names = new Set([norm(p.name), norm(p.name.replace(/\s*\([^)]*\)\s*/g, " "))]);
+    // Same rule resolveTzPlace uses: an UPPERCASE parenthetical is an
+    // abbreviation the place answers to ("(UDSM)"), a Title-case one is a
+    // location qualifier ("(Mikocheni)") and must not become its name.
+    const abbr = (p.name.match(/\(([^)]+)\)/) || [])[1];
+    if (abbr && /^[A-Z0-9.\s/&-]{2,}$/.test(abbr.trim())) names.add(norm(abbr));
+    for (const a of (p.aliases || [])) names.add(norm(a));
+    let best = 0;
+    for (const n of names) {
+      if (!n || n.length < 2) continue;
+      best = Math.max(best, dice(qg, bigrams(n)));
+    }
+    if (best > 0.34) scored.push({ name: p.name, lat: p.lat, lng: p.lng, kind: p.kind, score: best });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit || 5);
+};

@@ -878,7 +878,12 @@ window.openAgentSubscribeModal = async (opts) => {
 // streets *and* aerial context. Uses Mapbox satellite-streets when a public
 // token is set (APP_CONFIG.MAPBOX_TOKEN); otherwise free Esri World Imagery
 // + Esri reference overlays (transport + boundaries/places) — no key needed.
-window.addSatelliteHybrid = (map, { maxZoom = 19 } = {}) => {
+// Pass `control: false` to skip Leaflet's own layer switcher and get the two
+// base layers back as { satellite, street } instead — for the small maps (a
+// phone sheet) where L.control.layers' 70x135 white panel covers the corner of
+// the map you are trying to draw on, and a caller wants a compact toggle of its
+// own. Default is unchanged: the switcher is added and nothing is returned.
+window.addSatelliteHybrid = (map, { maxZoom = 19, control = true } = {}) => {
   if (!window.L || !map) return;
   const token = window.APP_CONFIG?.MAPBOX_TOKEN || "";
   let satellite, street;
@@ -910,6 +915,7 @@ window.addSatelliteHybrid = (map, { maxZoom = 19 } = {}) => {
   }
 
   satellite.addTo(map);  // default view = satellite hybrid (unchanged)
+  if (!control) return { satellite, street };
   // Toggle so users can flip to a plain street map when they want crisp names.
   L.control.layers(
     { " Satellite": satellite, " Map": street },

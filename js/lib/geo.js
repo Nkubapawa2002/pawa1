@@ -228,16 +228,59 @@
     return "Place";
   }
 
+  // One geocoder round-trip. Split out so suggest() can run the query more than
+  // once with progressively looser terms.
+  async function rawSearch(q, limit) {
+    try {
+      const list = await call("search",
+        `format=jsonv2&limit=${limit}&countrycodes=tz&addressdetails=1&dedupe=0&accept-language=en&q=${encodeURIComponent(q)}`);
+      return Array.isArray(list) ? list : [];
+    } catch (_) { return []; }
+  }
+
+  // Progressively looser forms of a query that found nothing, most specific
+  // first. People type an address the way they'd say it — "Mbezi Beach kwa
+  // Ndege", "Sinza Mori near the mosque" — and a gazetteer holds only the
+  // administrative part of that. Dropping words from the end walks back toward
+  // the part it does hold, and the longest single word is the last resort
+  // (it's almost always the place; the rest is directions).
+  //
+  // Capped at MAX_LOOSENINGS, because each one is a real round trip: liqFetch
+  // holds calls 550 ms apart and retries a 429 three times, so an uncapped walk
+  // down a six-word address is six sequential lookups — seconds of waiting in a
+  // box the user is still typing in, and six hits on a quota shared by every
+  // visitor. The two kept are the two that pay: drop the last word (the
+  // commonest way a real place name is over-qualified) and the longest word
+  // alone (the last resort that most often lands). Anything past those is the
+  // gazetteer's job, and it runs locally.
+  const MAX_LOOSENINGS = 2;
+  function loosenings(q) {
+    const words = q.split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let n = words.length - 1; n >= 1; n--) out.push(words.slice(0, n).join(" "));
+    const longest = words.slice().sort((a, b) => b.length - a.length)[0];
+    const kept = out.filter((s) => s.length >= 3).slice(0, MAX_LOOSENINGS - 1);
+    if (longest && longest.length >= 3 && !kept.includes(longest)) kept.push(longest);
+    // A one-word query has no looser form: its "longest word" is itself, and
+    // asking the same question twice is a round trip that cannot answer
+    // differently. The gazetteer below is what handles that case.
+    return kept.filter((s) => s !== q);
+  }
+
   async function suggest(q, opts = {}) {
     q = String(q || "").trim();
     if (q.length < 2) return [];
     const limit = opts.limit || 25;
-    let list;
-    try {
-      list = await call("search",
-        `format=jsonv2&limit=${limit}&countrycodes=tz&addressdetails=1&dedupe=0&accept-language=en&q=${encodeURIComponent(q)}`);
-    } catch (_) {
-      return [];
+    let list = await rawSearch(q, limit);
+    // Nothing for what they typed — try the looser forms before giving up, and
+    // mark what came back so the caller can say "closest match" rather than
+    // presenting an approximation as the thing that was asked for.
+    let loosenedFrom = "";
+    if (!list.length) {
+      for (const alt of loosenings(q)) {
+        list = await rawSearch(alt, limit);
+        if (list.length) { loosenedFrom = alt; break; }
+      }
     }
     if (!Array.isArray(list)) return [];
     const out = [];
@@ -256,7 +299,29 @@
         `${name}|${context}|${lat.toFixed(3)}|${lng.toFixed(3)}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ name, tag: tagOf(it), context, lat, lng, full: it.display_name || name, id: key });
+      out.push({ name, tag: tagOf(it), context, lat, lng, full: it.display_name || name, id: key,
+                 approx: !!loosenedFrom, matchedOn: loosenedFrom || undefined });
+    }
+
+    // Still nothing the geocoder knows: fall back to the local gazetteer's
+    // nearest-looking places. A misspelling should cost a user a tap, not the
+    // whole feature — "No matches in Tanzania" was a dead end on a screen whose
+    // entire purpose is to pick somewhere.
+    //
+    // `fuzzy` marks these apart from the loosened hits above, and the two are
+    // not the same kind of answer. A loosened hit is a real geocoder result for
+    // words the user actually typed; a fuzzy one is a GUESS at a word they did
+    // not type. So a caller that hands its list to a person may show either —
+    // captioned as approximate — while a caller that acts on hits[0] with
+    // nobody watching must take neither. See the four such callers, each of
+    // which skips `fuzzy` rather than silently moving a map to a spelling
+    // guess: houses.js geocodeAreaFilter, near-me.js, frame.js, ai.js locate.
+    if (!out.length && typeof window.closestTzPlaces === "function") {
+      for (const c of window.closestTzPlaces(q, 5)) {
+        out.push({ name: c.name, tag: "Closest match", context: "", lat: c.lat, lng: c.lng,
+                   full: c.name, id: "near:" + c.name, approx: true, fuzzy: true, score: c.score });
+      }
+      return out;   // already ranked by similarity; the sort below would undo that
     }
 
     // ---- Advanced ranking: match the admin hierarchy the user searches by ----

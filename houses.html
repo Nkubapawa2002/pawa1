@@ -344,6 +344,11 @@
     .am-body {
       padding: 16px 20px;
       overflow-y: auto;
+      /* Nothing in a phone sheet may scroll sideways. Something inside always
+         eventually tries (see .am-filter-grid below); this makes that a bug
+         that shows as a squeezed control rather than as a whole sheet the
+         thumb can drag off-centre. */
+      overflow-x: hidden;
       flex: 1; min-height: 0;
       display: flex; flex-direction: column; gap: 14px;
     }
@@ -437,7 +442,13 @@
     .am-search-result:hover { background: var(--c-brand-faint, #f0f7f2); color: var(--c-brand-deep, #064a33); }
     .am-search-result strong { color: var(--c-text, #1a1915); display: block; font-weight: 600; }
     .am-search-result small  { font-size: .76rem; opacity: .75; }
-    .am-search-result.loading { font-style: italic; color: var(--c-text-muted, #6b6960); cursor: default; }
+    .am-search-note {
+      padding: 7px 12px; font-size: .76rem; font-weight: 600;
+      color: var(--c-accent, #bc5c00);
+      background: var(--c-bg-elev, #f4f3ee);
+      border-bottom: 1px solid var(--c-border, #e7e4dd);
+    }
+    .am-search-result.loading { font-style: italic; color: var(--c-text-muted, #6b6960); cursor: default; line-height: 1.45; }
     .am-search-result.loading:hover { background: transparent; color: var(--c-text-muted, #6b6960); }
 
     .am-map-wrap {
@@ -447,9 +458,38 @@
       border: 1px solid var(--c-border, #e7e4dd);
     }
     .am-map {
-      /* Big enough to comfortably pan/zoom and judge an area's boundary. */
-      height: clamp(360px, 50vh, 560px);
+      /* Big enough to judge an area's boundary, small enough that the controls
+         under it are still on screen. At the old clamp(360px,50vh,560px) the
+         map took 408 of the 601px body on a 812px phone — you set a radius you
+         could not see and the criteria below it were three scrolls away. */
+      height: clamp(230px, 34vh, 420px);
     }
+    @media (min-width: 700px) { .am-map { height: clamp(320px, 46vh, 520px); } }
+
+    /* Compact map tools, top-right, over the map */
+    .am-map-tools {
+      position: absolute; top: 8px; right: 8px; z-index: 500;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+    }
+    .am-base-seg { display: flex; border-radius: 9px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.28); }
+    .am-base-seg[hidden] { display: none; }
+    .am-base-seg button, .am-map-btn {
+      appearance: none; border: 0; cursor: pointer;
+      background: rgba(12,20,17,.88);
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      color: #E9F3EE;
+      font-family: inherit; font-weight: 600; font-size: .74rem;
+      /* 34px keeps these usable without becoming the Leaflet panel again. They
+         sit on top of a map whose whole job is to be looked at. */
+      min-height: 34px; padding: 0 11px; white-space: nowrap;
+    }
+    .am-base-seg button + button { border-left: 1px solid rgba(255,255,255,.14); }
+    .am-base-seg button.active { background: var(--c-brand, #0a6f4d); color: #06170F; }
+    .am-map-btn {
+      border-radius: 9px; box-shadow: 0 2px 10px rgba(0,0,0,.28);
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .am-map-btn:hover, .am-base-seg button:hover { filter: brightness(1.18); }
     .am-map-offline {
       position: absolute; inset: 0; z-index: 600;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -489,6 +529,27 @@
       font-weight: 600;
     }
 
+    /* Pin readout as a line under the map (area-alert sheet). */
+    .am-status {
+      display: flex; align-items: center; gap: 7px;
+      padding: 9px 12px; border-radius: 10px;
+      background: var(--c-bg-elev, #f4f3ee);
+      border: 1px solid var(--c-border, #e7e4dd);
+      font-size: .8rem; color: var(--c-text-muted, #6b6960);
+      margin-top: -4px;
+    }
+    .am-status::before {
+      content: ""; flex: 0 0 auto;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--c-text-faint, #b6b3a9);
+    }
+    .am-status.has-pin {
+      background: var(--c-brand-faint, #f0f7f2);
+      border-color: var(--c-brand-soft, #0a6f4d);
+      color: var(--c-brand-deep, #064a33); font-weight: 600;
+    }
+    .am-status.has-pin::before { background: var(--c-brand, #0a6f4d); }
+
     /* Modal body children keep their intrinsic size so the body scrolls *inside*
        the modal instead of squeezing them. CRITICAL for the map: in a flex
        column the default flex-shrink:1 collapses the map to ~0px on short/mobile
@@ -519,6 +580,13 @@
     .am-filter-grid label {
       display: flex; flex-direction: column; gap: 4px;
       font-size: .8rem; font-weight: 600; color: var(--c-text-soft, #3f3d36);
+      /* A grid item defaults to min-width:auto — it refuses to shrink below its
+         content's minimum. A date input's minimum is its "mm/dd/yyyy" plus the
+         calendar button (~150px once premium.css forces 14px side padding), so
+         two of them held the 1fr tracks open at 178px each: 366px of controls
+         in a 335px sheet, and the whole body scrolled sideways with the right
+         column cut off. min-width:0 lets the tracks be the halves they claim. */
+      min-width: 0;
     }
     .am-filter-grid label small { font-weight: 400; color: var(--c-text-muted, #6b6960); }
     .am-filter-grid select, .am-filter-grid input {
@@ -547,8 +615,13 @@
 
     .am-foot {
       padding: 12px 20px;
+      /* The sheet sits flush to the bottom edge, so on a phone with a home
+         indicator the last 34px of it are under the gesture bar. Save is in
+         there. */
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       border-top: 1px solid var(--c-border, #e7e4dd);
       display: flex; justify-content: flex-end; gap: 8px;
+      flex: 0 0 auto;
     }
     .am-btn {
       padding: 10px 18px;
@@ -899,6 +972,55 @@
     body[data-page="houses"] .houses-toolbar input::placeholder,
     body[data-page="houses"] .ss-row input::placeholder,
     body[data-page="houses"] .am-search-row input::placeholder { color: rgba(233,243,238,.4); }
+
+    /* ── Every control inside a sheet, in one rule ─────────────────────────
+       Half the area-alert form rendered as white boxes on the dark sheet:
+       "Max price", both dates, the phone and the alert name were near-white
+       while the four <select>s beside them were dark. Not a missed override —
+       a collision between two global sheets that both shout:
+
+         premium.css:380   input[type=text], … , select, textarea
+                           { background: rgba(255,255,255,.78) !important }
+         neon-pro.css:342  input, select, textarea
+                           { background: rgba(7,18,13,.7)     !important }
+
+       Against a TYPED input premium.css wins on specificity (0,1,1 beats
+       0,0,1) — white. Against a bare `select` the two tie at 0,0,1 and
+       neon-pro wins only because it is linked second — dark. That is the
+       whole pattern: it splits the form by whether the selector happened to
+       name an input type. The page's own `.am-filter-grid input` override had
+       no !important, so it was never in the running.
+
+       This rule names the sheet, so it outranks both, and it covers the
+       controls the old override forgot (the phone and name rows) rather than
+       listing them one by one and drifting again. color-scheme makes the
+       native date picker and its calendar glyph dark too — otherwise Chrome
+       paints a black-on-dark icon it inherits from the light default. */
+    body[data-page="houses"] .alert-modal { color-scheme: dark; }
+    body[data-page="houses"] .alert-modal input,
+    body[data-page="houses"] .alert-modal select,
+    body[data-page="houses"] .alert-modal textarea {
+      background: rgba(255,255,255,.05) !important;
+      color: #E9F3EE !important;
+      border: 1px solid rgba(255,255,255,.14) !important;
+      /* premium.css also forces 14px of side padding, which is what pushed the
+         two filter columns past the sheet's width. */
+      padding: 10px 12px !important;
+      min-width: 0;
+    }
+    body[data-page="houses"] .alert-modal input::placeholder,
+    body[data-page="houses"] .alert-modal textarea::placeholder { color: rgba(233,243,238,.45) !important; }
+    body[data-page="houses"] .alert-modal input:focus,
+    body[data-page="houses"] .alert-modal select:focus,
+    body[data-page="houses"] .alert-modal textarea:focus {
+      border-color: var(--c-brand, #2EE6A6) !important;
+      box-shadow: 0 0 0 3px rgba(46,230,166,.18);
+    }
+    /* The range slider is not a box — the rule above would draw a grey plate
+       behind the track. */
+    body[data-page="houses"] .alert-modal input[type="range"] {
+      background: transparent !important; border: 0 !important; padding: 0 !important;
+    }
     body[data-page="houses"] .am-search-results { background: #141A18; }
     body[data-page="houses"] .house-card-photo { background: #0f1714 center/cover no-repeat; }
     /* dark text on the bright green/gold fills for AA contrast.
@@ -1195,8 +1317,25 @@
               <span data-i18n="hal_offline_body">Connect to the internet to see the streets, then draw the area you want. (You can still search a place by name above.)</span>
             </div>
             <div class="am-dots-badge" id="alertDotsBadge" hidden></div>
-            <div class="am-coords" id="alertCoords" data-i18n="hal_no_pin">Pin not placed yet — search or tap the map</div>
+            <!-- Compact map tools, in the sheet's own styling. Leaflet's own
+                 layer switcher is a 70x135 white panel; on a map this small it
+                 covered the corner you were trying to draw on. -->
+            <div class="am-map-tools">
+              <div class="am-base-seg" id="alertBaseSeg" role="group" aria-label="Map style" data-i18n-aria-label="hal_base_label" hidden>
+                <button type="button" data-base="sat" class="active" aria-pressed="true" data-i18n="hal_base_sat">Satellite</button>
+                <button type="button" data-base="map" aria-pressed="false" data-i18n="hal_base_map">Map</button>
+              </div>
+              <button type="button" id="alertZoomOutAll" class="am-map-btn"
+                title="Zoom all the way out to the whole country" data-i18n-title="hal_zoom_out_all">
+                <span aria-hidden="true">⤢</span> <span data-i18n="hal_whole_country">All Tanzania</span>
+              </button>
+            </div>
           </div>
+          <!-- The pin readout used to float over the bottom of the map. On a
+               276px map that is a fourth overlay competing with the badge, the
+               tools and the attribution for the thing the user is trying to
+               look at. It says more, more legibly, as a line under the map. -->
+          <div class="am-status" id="alertCoords" data-i18n="hal_no_pin">Pin not placed yet — search or tap the map</div>
 
           <!-- Draw-area controls (only while in Draw mode) -->
           <div class="am-draw-tools" id="alertDrawTools" hidden>

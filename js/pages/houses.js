@@ -1088,8 +1088,20 @@ window.initHousesPage = async () => {
       } catch (e) {
         if (!combined.length) { resultsEl.innerHTML = `<div class="am-search-result loading">Search failed: ${esc(e.message)}</div>`; return; }
       }
-      if (!combined.length) { resultsEl.innerHTML = `<div class="am-search-result loading">No matches in Tanzania.</div>`; return; }
-      resultsEl.innerHTML = combined.map((it, i) =>
+      if (!combined.length) {
+        // Even now, don't dead-end: the map is still there and a tap on it is a
+        // perfectly good way to say where you mean.
+        resultsEl.innerHTML =
+          `<div class="am-search-result loading">Nothing found for “${esc(q)}”. Tap the spot on the map instead — anywhere in Tanzania works.</div>`;
+        return;
+      }
+      // When every hit came from a loosened or fuzzy match, say so once at the
+      // top rather than presenting an approximation as the thing they asked for.
+      const allApprox = combined.every((it) => it.approx);
+      const head = allApprox
+        ? `<div class="am-search-note">No exact match for “${esc(q)}” — closest places:</div>`
+        : "";
+      resultsEl.innerHTML = head + combined.map((it, i) =>
         `<div class="am-search-result" data-i="${i}">
           <strong>${esc(it.name)}</strong> <span class="am-tag${it._known ? " known" : ""}">${esc(it.tag || "Place")}</span>
           ${it.context ? `<small>${esc(it.context)}</small>` : ""}
@@ -1266,6 +1278,62 @@ window.initHousesPage = async () => {
       }
     }
 
+    // The map never leaves Tanzania: it is the only country this alert can
+    // watch, and a map that can wander is a map you can get lost on.
+    const TZ_BOUNDS = [[-11.75, 29.34], [-0.99, 40.45]];
+
+    // ---- Map tools ----------------------------------------------------
+    // The three things this map needs within thumb reach, in the sheet's own
+    // styling rather than Leaflet's: which base layer, zoom, and a way back
+    // out to the whole country when you have zoomed into a street and lost
+    // your bearings. That last one is what makes every corner of the country
+    // reachable by hand — one tap to the widest view, then in again anywhere.
+    function wireMapTools(bases) {
+      const seg   = document.getElementById("alertBaseSeg");
+      const outBtn = document.getElementById("alertZoomOutAll");
+      if (seg) {
+        seg.hidden = !bases;
+        if (bases) seg.querySelectorAll("button[data-base]").forEach((b) => {
+          b.onclick = () => {
+            const want = b.dataset.base;
+            const show = want === "sat" ? bases.satellite : bases.street;
+            const hide = want === "sat" ? bases.street : bases.satellite;
+            if (alertModalMap.hasLayer(hide)) alertModalMap.removeLayer(hide);
+            if (!alertModalMap.hasLayer(show)) show.addTo(alertModalMap);
+            seg.querySelectorAll("button[data-base]").forEach((o) => {
+              const on = o === b;
+              o.classList.toggle("active", on);
+              o.setAttribute("aria-pressed", on ? "true" : "false");
+            });
+          };
+        });
+      }
+      if (outBtn) outBtn.onclick = () => fitWholeCountry();
+      L.control.zoom({ position: "bottomright", zoomInTitle: "Zoom in", zoomOutTitle: "Zoom out" })
+        .addTo(alertModalMap);
+    }
+
+    // Widest useful view — the entire country in frame.
+    function fitWholeCountry() {
+      if (!alertModalMap) return;
+      alertModalMap.fitBounds(TZ_BOUNDS, { padding: [6, 6] });
+    }
+
+    // Open on the listings we actually have rather than on a hardcoded corner
+    // of Dar: someone browsing Mwanza should not have to drag across the
+    // country before they can drop their first pin. Falls back to the whole
+    // country when we have no located listing to aim at.
+    function fitToListings() {
+      if (!alertModalMap) return;
+      const pts = (Array.isArray(houses) ? houses : [])
+        .filter((h) => Number.isFinite(+h.lat) && Number.isFinite(+h.lng))
+        .map((h) => [+h.lat, +h.lng]);
+      if (!pts.length) return fitWholeCountry();
+      try {
+        alertModalMap.fitBounds(L.latLngBounds(pts).pad(0.15), { maxZoom: 12, padding: [6, 6] });
+      } catch (_) { fitWholeCountry(); }
+    }
+
     // ---- initAlertMap (Leaflet — Canvas2D, no WebGL) -----------------
     function initAlertMap() {
       if (alertModalMap) { alertModalMap.invalidateSize(); return; }
@@ -1281,23 +1349,36 @@ window.initHousesPage = async () => {
       }
       try {
         alertModalMap = L.map("alertModalMap", {
-          center: [-6.7924, 39.2789],
-          zoom: 11,
-          maxBounds: [[-11.75, 29.34], [-0.99, 40.45]],
-          zoomControl: false
+          maxBounds: TZ_BOUNDS,
+          // Hold the country in frame. Without viscosity the map is only
+          // *nudged* back, so a flick during a two-finger pan leaves you over
+          // the Indian Ocean with no landmark to recover by — on a 276px-tall
+          // sheet map that is genuinely disorienting.
+          maxBoundsViscosity: 1,
+          minZoom: 5,          // ~the whole of Tanzania: the furthest out that is still useful
+          zoomControl: false,
         });
-        // Satellite + crisp street-name labels, with a Map/Satellite toggle so
-        // the user can switch to a plain street map and read road names clearly
-        // when choosing the area to be alerted about. If the shared helper is
+        // Frame the whole country first, so nothing in Tanzania is off-screen
+        // before the user has told us anything. fitToCountry/fitToListings then
+        // narrow it to where the listings actually are.
+        alertModalMap.fitBounds(TZ_BOUNDS);
+        // Satellite + crisp street-name labels. We take the layers rather than
+        // Leaflet's switcher — its panel is a 70x135 white box in the top-right
+        // corner of a map this small — and drive them from the compact
+        // Sat/Map segment in .am-map-tools instead. If the shared helper is
         // missing, fall back to a plain OSM base so the map is never blank.
+        let bases = null;
         try {
-          if (window.addSatelliteHybrid) window.addSatelliteHybrid(alertModalMap);
-          else throw new Error("no hybrid");
+          bases = window.addSatelliteHybrid
+            ? window.addSatelliteHybrid(alertModalMap, { control: false })
+            : null;
+          if (!bases) throw new Error("no hybrid");
         } catch (_) {
+          bases = null;
           L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
             { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(alertModalMap);
         }
-        L.control.zoom({ position: "topright" }).addTo(alertModalMap);
+        wireMapTools(bases);
         alertModalMap.on("click", (e) => {
           if (mode === "draw") addDrawPoint(e.latlng.lat, e.latlng.lng);
           else setPin(e.latlng.lat, e.latlng.lng, null);   // circle + area both drop a locating pin
@@ -1317,7 +1398,14 @@ window.initHousesPage = async () => {
           }
         } catch (_) {}
         // Force layout recalc after Leaflet renders its tiles
-        alertModalMap.whenReady(() => { fixSize(); renderListingDots(); });
+        alertModalMap.whenReady(() => {
+          fixSize();
+          // Only claim the view while the user hasn't. A deep link or a fast
+          // GPS fix can drop a pin before the tiles are ready, and re-fitting
+          // over it would throw away the very place they asked for.
+          if (!alertPicked && !committedAreas.length) fitToListings();
+          renderListingDots();
+        });
         // If the base tiles can't load (offline), show a clear overlay instead of
         // a blank box — drawing needs the streets visible. Clears as soon as a
         // tile loads, so it self-heals when the connection returns.
@@ -3058,7 +3146,11 @@ window.initHousesPage = async () => {
     if (known) pt = { lat: known.lat, lng: known.lng, name: known.name };
     if (!pt && window.pawaGeo?.suggest) {
       try {
-        const hits = await pawaGeo.suggest(q, { limit: 1 });
+        // Not `fuzzy` ones. This runs on every keystroke and acts on the answer
+        // by itself — a half-typed "Mbe" on the way to "Mbezi Beach" would fuzzy
+        // -match Mbeya, and a 3 km circle 600 km away would quietly empty the
+        // list. A spelling guess belongs in a list somebody taps, not here.
+        const hits = (await pawaGeo.suggest(q, { limit: 1 })).filter((h) => !h.fuzzy);
         const h0 = hits && hits[0];
         if (h0 && Number.isFinite(+h0.lat) && Number.isFinite(+h0.lng))
           pt = { lat: +h0.lat, lng: +h0.lng, name: h0.name || q };
