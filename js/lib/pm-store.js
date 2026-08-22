@@ -156,7 +156,12 @@
    *
    * Kept beside directory() rather than replacing it: the older callers and
    * their stubs are built around that return shape, and a page that only needs
-   * names should not have to pay for three count sub-selects per row.
+   * names should not have to pay for four count sub-selects per row.
+   *
+   * `category` is one of houses / services / trucks / jobs, or null. Anything
+   * else matches NOBODY rather than everybody — the database says so and
+   * pm-match.js agrees — because a typo that silently widens a filter is a
+   * screen full of people who cannot help.
    */
   function finder(opts) {
     opts = opts || {};
@@ -219,6 +224,13 @@
       isAgent: row.is_agent,
       isGuest: row.is_guest,
       region: row.region,
+      // Where they work. The conversation header knew only a name until now,
+      // which is the one thing that does not help you decide whether this is
+      // the person who can find you a room in Nyamagana.
+      area: row.area || null,
+      areaKind: row.area_kind || null,
+      district: row.district || null,
+      ward: row.ward || null,
       trust: trust,
     };
   }
@@ -244,8 +256,21 @@
         return {
           userId: k.user_id, publicKey: k.public_key,
           name: k.display_name, role: k.role, isGuest: k.is_guest,
+          // The roster sheet is built from THIS call rather than a second one,
+          // so that the list of people a message is sealed to and the list the
+          // screen shows can never disagree about who is in the room.
+          isAgent: !!k.is_agent, region: k.region || null,
+          area: k.area || null, areaKind: k.area_kind || null,
+          district: k.district || null, ward: k.ward || null,
+          joinedAt: k.joined_at || null,
         };
       });
+  }
+
+  /** How many people are in a thread, without dragging the roster back. */
+  function threadSize(threadId) {
+    return rpc("pm_thread_size", { p_thread: threadId })
+      .then(function (n) { return Number(n) || 0; });
   }
 
   // ---- rooms ----------------------------------------------------------------
@@ -256,6 +281,27 @@
       p_category: category || null,
       p_region: region || null,
     }).then(function (r) { return r || []; });
+  }
+
+  /**
+   * Who an announcement would reach, resolved ONCE.
+   *
+   * The preview and the send have to be the same question or the preview is
+   * decoration: a screen that says "412 people" and then a call that asks the
+   * database again has shown a number about a different set. So this returns
+   * the rows, the screen counts them, and broadcast() is handed the very same
+   * array rather than a scope to re-resolve.
+   *
+   * Without a category it is everyone with a key (minus guests) — that is what
+   * an announcement is. With one it narrows to people who actually list in
+   * that category, which is a different and much smaller question, and
+   * pm_group_candidates is the function that already answers it.
+   */
+  function audience(opts) {
+    opts = opts || {};
+    return opts.category
+      ? groupCandidates(opts.category, opts.region)
+      : recipients(opts.region);
   }
 
   function groupCreate(opts) {
@@ -371,6 +417,11 @@
       } catch (_) { failed = true; }
       out.push({
         id: r.id, at: r.sent_at, senderId: r.sender_id, senderName: r.sender_name,
+        // In a room the name beside a message is one the sender chose for
+        // themselves. Saying which of those people never proved who they are
+        // is the difference between "the agent said so" and "somebody calling
+        // themselves that said so".
+        senderGuest: !!r.sender_guest,
         mine: r.sender_id === identity.userId, text: text, failed: failed,
       });
     }
@@ -533,6 +584,50 @@
     };
   }
 
+  /**
+   * Watch the WHOLE inbox, not one open conversation.
+   *
+   * subscribe() above is per-thread, and it was the only live delivery there
+   * was — so a message arriving in a conversation you did not currently have
+   * open was invisible until the page was reloaded. That is not a rough edge
+   * on a chat feature; it is the chat feature not working. Two people cannot
+   * talk to each other if neither one is told the other replied.
+   *
+   * Unfiltered, because RLS is the filter: `pm_messages member read` means a
+   * subscriber is only ever pushed rows from threads they belong to, and the
+   * payload is ciphertext either way. A new conversation somebody else started
+   * arrives the same way — its first message is an insert I can see the moment
+   * pm_start_direct put me in it.
+   *
+   * The poll is a fallback, not a duplicate: realtime needs a websocket, and
+   * on the networks this is for that connection is the first thing to go. A
+   * quiet 25-second poll costs one small query and means the worst case is a
+   * slow inbox rather than a silent one.
+   */
+  function watchInbox(onChange) {
+    var client = sb();
+    var ch = null, timer = null, stopped = false;
+    var fire = function () { if (!stopped) { try { onChange(); } catch (_) {} } };
+
+    if (client && client.channel) {
+      try {
+        ch = client.channel("pm_inbox_" + Math.random().toString(36).slice(2))
+          .on("postgres_changes",
+            { event: "INSERT", schema: "public", table: "pm_messages" }, fire)
+          .subscribe();
+      } catch (_) { ch = null; }
+    }
+    timer = setInterval(fire, 25000);
+
+    return {
+      unsubscribe: function () {
+        stopped = true;
+        clearInterval(timer);
+        if (ch) { try { client.removeChannel(ch); } catch (_) {} }
+      },
+    };
+  }
+
   window.PMStore = {
     me: me,
     signInAsGuest: signInAsGuest,
@@ -546,11 +641,14 @@
     startDirect: startDirect,
     markRead: markRead,
     threadKeys: threadKeys,
+    threadSize: threadSize,
     messages: messages,
     send: send,
     recipients: recipients,
+    audience: audience,
     broadcast: broadcast,
     subscribe: subscribe,
+    watchInbox: watchInbox,
     groupCandidates: groupCandidates,
     groupCreate: groupCreate,
     groupAdd: groupAdd,

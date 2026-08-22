@@ -34,6 +34,34 @@ const ok = (cond, msg, detail) => {
 const section = (s) => process.stdout.write("\n" + s + "\n");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Wait for a selector to appear, rather than sleeping long enough that it
+ * usually has.
+ *
+ * The camera-scan section needs this and a fixed sleep cannot give it: the scan
+ * modal starts a real MediaStream from Chrome's fake device and then polls the
+ * barcode reader every 220ms, so the moment the safety-number dialog comes back
+ * depends on how long the video took to start on this machine that day. A sleep
+ * tuned to a fast run fails on a slow one and reads as a broken feature.
+ * Returns false on timeout so the caller's own assertion is what reports it.
+ */
+async function waitFor(page, selector, ms) {
+  try {
+    await page.waitForSelector(selector, { timeout: ms || 8000 });
+    return true;
+  } catch (_) { return false; }
+}
+
+/** The same, for an element that exists all along and gets filled in later. */
+async function waitForText(page, selector, ms) {
+  try {
+    await page.waitForFunction(
+      (s) => { const n = document.querySelector(s); return !!n && n.textContent.trim() !== ""; },
+      { timeout: ms || 8000 }, selector);
+    return true;
+  } catch (_) { return false; }
+}
+
 // ---- the stub post office ---------------------------------------------------
 // Deliberately dumb, exactly like the real schema: it holds ciphertext and
 // wrapped keys and has no idea what any of it says.
@@ -50,6 +78,7 @@ window.supabase = { createClient: function () {
     messages: [],                   // { id, thread_id, sender_id, iv, ciphertext }
     wraps: {},                      // message_id -> { user_id: {epk, wrapped_key} }
     senderKeys: {},                 // thread_id -> [{ sender_id, generation, recipient_id, epk, wrapped_key }]
+    invites: [],                    // { token_hash, label, state, guest_name, ... }
   };
   // Two other people already on P-Message, one of them holding a key this
   // device has never seen — that is what makes the "cannot decrypt" path real.
@@ -68,6 +97,13 @@ window.supabase = { createClient: function () {
     display_name: "Rashid Omari", region: "Dodoma", is_agent: true, area: null };
   db.keys["plain_amina"] = { public_key: "", fingerprint: "1212 3434 5656",
     display_name: "Amina Hassan", region: "Mwanza", is_agent: false, area: null };
+  // A company that hires by the day. It is deliberately NOT an agent — almost
+  // no employer registers as one — which is exactly the row the Day jobs chip
+  // used to return and the "Agents" filter then threw away, leaving an empty
+  // screen with the right answer one dropdown behind it.
+  db.keys["co_kilimo"] = { public_key: "", fingerprint: "2323 4545 6767",
+    display_name: "Kilimo Contractors", region: "Mwanza", is_agent: false,
+    area: "Nyamagana", n_jobs: 12, last_listed_at: new Date().toISOString() };
 
   function rpc(name, args) {
     window.__PM_SENT.push({ name: name, args: JSON.parse(JSON.stringify(args || {})) });
@@ -102,13 +138,17 @@ window.supabase = { createClient: function () {
             is_agent: v.is_agent, reachable: !!v.public_key,
             public_key: v.public_key, fingerprint: v.fingerprint,
             n_houses: v.n_houses || 0, n_services: v.n_services || 0, n_trucks: v.n_trucks || 0,
+            n_jobs: v.n_jobs || 0,
             n_verified: v.n_verified || 0, last_listed_at: v.last_listed_at || null };
         })
         .filter(function (r) {
           if (!args.p_category) return true;
+          // Mirrors the CASE in pm_agent_finder, including its last arm: an
+          // unknown category matches NOBODY rather than quietly matching all.
           return (args.p_category === "houses" && r.n_houses > 0) ||
                  (args.p_category === "services" && r.n_services > 0) ||
-                 (args.p_category === "trucks" && r.n_trucks > 0);
+                 (args.p_category === "trucks" && r.n_trucks > 0) ||
+                 (args.p_category === "jobs" && r.n_jobs > 0);
         }), error: null });
     }
     // pm_peer hands back the public key as well as the stored fingerprint
@@ -121,6 +161,10 @@ window.supabase = { createClient: function () {
         user_id: args.p_user_id, display_name: pr.display_name,
         public_key: pr.public_key, fingerprint: pr.fingerprint,
         is_agent: pr.is_agent, is_guest: !!pr.is_guest, region: pr.region,
+        // Where they work, which the conversation header shows. It comes back
+        // here because pm_peer is the only call the header makes, and a header
+        // that knows only a name cannot answer "is this the right person?".
+        area: pr.area || null, area_kind: null, district: null, ward: pr.ward || null,
       }], error: null });
     }
     if (name === "pm_start_direct") {
@@ -137,11 +181,43 @@ window.supabase = { createClient: function () {
         data: Object.keys(db.keys).filter(function (k) { return k !== me && db.keys[k].public_key; })
           .map(function (k) {
             var v = db.keys[k];
+            // Where they work and what they deal in, because the admin now
+            // picks individuals out of the scope rather than taking all of it,
+            // and a list of bare names is not something anyone can pick from.
             return { user_id: k, public_key: v.public_key, display_name: v.display_name,
-              region: v.region, listings: 1 };
+              region: v.region, area: v.area || null, district: null, ward: null,
+              is_agent: !!v.is_agent, n_houses: v.n_houses || 0,
+              n_services: v.n_services || 0, n_trucks: v.n_trucks || 0,
+              n_jobs: v.n_jobs || 0, listings: 1 };
           }),
         error: null,
       });
+    }
+    if (name === "pm_group_add") {
+      var gt = db.threads[args.p_thread];
+      var before = (gt.members || []).length;
+      (args.p_members || []).forEach(function (u) {
+        if (gt.members.indexOf(u) < 0) gt.members.push(u);
+      });
+      return Promise.resolve({ data: gt.members.length - before, error: null });
+    }
+    if (name === "pm_group_remove") {
+      var rt = db.threads[args.p_thread];
+      rt.members = (rt.members || []).filter(function (u) { return u !== args.p_user; });
+      return Promise.resolve({ data: null, error: null });
+    }
+    if (name === "pm_group_leave") {
+      var lt = db.threads[args.p_thread];
+      if (lt) lt.members = (lt.members || []).filter(function (u) { return u !== me; });
+      return Promise.resolve({ data: null, error: null });
+    }
+    if (name === "pm_thread_size") {
+      var st = db.threads[args.p_thread];
+      return Promise.resolve({ data: st ? (st.members || []).length : 0, error: null });
+    }
+    if (name === "pm_invite_revoke") {
+      db.invites = (db.invites || []).filter(function (i) { return i.token_hash !== args.p_token_hash; });
+      return Promise.resolve({ data: null, error: null });
     }
     if (name === "pm_group_create") {
       var gid = "room-" + (Object.keys(db.threads).length + 1);
@@ -149,13 +225,21 @@ window.supabase = { createClient: function () {
       return Promise.resolve({ data: gid, error: null });
     }
     if (name === "pm_invite_create") {
+      db.invites = db.invites || [];
+      db.invites.unshift({ token_hash: args.p_token_hash, label: args.p_label || null,
+        state: "open", thread_id: null, guest_name: null,
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 12096e5).toISOString() });
       return Promise.resolve({
         data: [{ token_hash: args.p_token_hash,
                  expires_at: new Date(Date.now() + 12096e5).toISOString() }],
         error: null,
       });
     }
-    if (name === "pm_invites_mine") return Promise.resolve({ data: [], error: null });
+    // Returns the token HASH, which is what makes a Withdraw button possible
+    // at all: pm_invite_revoke takes it, and until the listing returned it no
+    // UI could name the link it wanted to withdraw.
+    if (name === "pm_invites_mine") return Promise.resolve({ data: db.invites || [], error: null });
     if (name === "pm_thread_keys") {
       var th = db.threads[args.p_thread];
       var members = (th && th.members) || [];
@@ -163,7 +247,10 @@ window.supabase = { createClient: function () {
         data: members.map(function (u) {
           var v = db.keys[u] || {};
           return { user_id: u, public_key: v.public_key || "", display_name: v.display_name || null,
-            role: u === me ? "owner" : "member", is_guest: false };
+            role: u === me ? "owner" : "member", is_guest: !!v.is_guest,
+            is_agent: !!v.is_agent, region: v.region || null, area: v.area || null,
+            area_kind: null, district: null, ward: null,
+            joined_at: new Date().toISOString() };
         }).filter(function (r) { return r.public_key; }),
         error: null,
       });
@@ -187,6 +274,7 @@ window.supabase = { createClient: function () {
           if (!w && !isSk) return null;
           return { id: m.id, thread_id: m.thread_id, sender_id: m.sender_id,
             sender_name: m.sender_id === me ? "You" : (db.keys[m.sender_id] || {}).display_name,
+            sender_guest: !!(db.keys[m.sender_id] || {}).is_guest,
             alg: m.alg || null, iv: m.iv, ciphertext: m.ciphertext,
             epk: w ? w.epk : null, wrapped_key: w ? w.wrapped_key : null,
             generation: isSk ? m.generation : null, seq: isSk ? m.seq : null,
@@ -291,7 +379,26 @@ window.supabase = { createClient: function () {
       signOut: function () { return Promise.resolve({ error: null }); },
       onAuthStateChange: function () { return { data: { subscription: { unsubscribe: function () {} } } }; },
     },
-    channel: function () { return { on: function () { return this; }, subscribe: function () { return this; } }; },
+    // Realtime, recorded rather than faked away. Which channels were opened is
+    // the only evidence that the page watches the whole inbox and not just the
+    // conversation in front of it, and __PM_FIRE_INSERT lets a test play the
+    // part of somebody else sending a message.
+    channel: function (name) {
+      window.__PM_CHANNELS = window.__PM_CHANNELS || [];
+      window.__PM_CHANNELS.push(name);
+      var handlers = [];
+      var ch = {
+        on: function (_ev, _filter, fn) { handlers.push(fn); return ch; },
+        subscribe: function () { return ch; },
+      };
+      window.__PM_HANDLERS = (window.__PM_HANDLERS || []).concat([handlers]);
+      window.__PM_FIRE_INSERT = function (row) {
+        (window.__PM_HANDLERS || []).forEach(function (hs) {
+          hs.forEach(function (fn) { try { fn({ new: row || {} }); } catch (_) {} });
+        });
+      };
+      return ch;
+    },
     removeChannel: function () {},
     storage: { from: function () { return { getPublicUrl: function () { return { data: { publicUrl: "" } }; } }; } },
   };
@@ -395,6 +502,58 @@ try {
   ok(people.some((p) => /Nyamagana|Ilemela|Mwanza/.test(p.sub)),
      "with where they operate — the reason to message an agent at all", JSON.stringify(people.map((p) => p.sub)));
   ok(people.some((p) => /Agent/i.test(p.name)), "and marked as agents");
+
+  section("3b. The Day jobs chip — the fourth category, and the filter that hid it");
+  // The claim under test is not "a chip exists". It is that choosing a
+  // category returns the people who have evidence in THAT category and nobody
+  // else, and that the agent flag no longer subtracts from a measurement it
+  // was only ever a proxy for.
+  const pickCat = async (cat) => {
+    await page.evaluate((c) => {
+      document.querySelector('#pmCats [data-cat="' + c + '"]').click();
+    }, cat);
+    await sleep(900);
+    return page.$$eval("#pmPeople .pm-row", (n) => n.map((r) => ({
+      id: r.dataset.person || "",
+      name: (r.querySelector(".pm-name") || {}).textContent.trim(),
+      deals: Array.from(r.querySelectorAll(".pm-deal")).map((d) => d.textContent.trim()).join(" | "),
+    })));
+  };
+
+  ok(await page.$('#pmCats [data-cat="jobs"]'), "there is a Day jobs chip at all");
+
+  const jobRows = await pickCat("jobs");
+  ok(jobRows.some((r) => r.id === "co_kilimo"),
+     "a company that posts day jobs is found by the Day jobs chip",
+     JSON.stringify(jobRows.map((r) => r.name)));
+  ok(!jobRows.some((r) => r.id === "agent_juma" || r.id === "agent_neema"),
+     "and the house and truck agents are not, because they have posted none",
+     JSON.stringify(jobRows.map((r) => r.name)));
+  ok(/12/.test((jobRows.find((r) => r.id === "co_kilimo") || {}).deals || ""),
+     "the row says how many, not merely that there are some",
+     (jobRows.find((r) => r.id === "co_kilimo") || {}).deals);
+  ok(/post/i.test((jobRows.find((r) => r.id === "co_kilimo") || {}).deals || ""),
+     "worded as something they posted rather than something they own",
+     (jobRows.find((r) => r.id === "co_kilimo") || {}).deals);
+
+  // The regression this guards: "Agents" is the default in #pmWho, the company
+  // is not an agent, and before this change the two filters ANDed together to
+  // produce an empty list for a chip that had matches.
+  ok(await page.$eval("#pmWho", (n) => n.value) === "agents",
+     "with the Who filter still on its Agents default");
+  ok(jobRows.length > 0, "the chip is not silently emptied by that default");
+
+  const truckRows = await pickCat("trucks");
+  ok(truckRows.some((r) => r.id === "agent_neema") && !truckRows.some((r) => r.id === "co_kilimo"),
+     "the other categories still filter to their own people",
+     JSON.stringify(truckRows.map((r) => r.name)));
+
+  const anyRows = await pickCat("");
+  ok(anyRows.length >= truckRows.length,
+     "and Anyone is still the widest list", `${anyRows.length} >= ${truckRows.length}`);
+  ok(!anyRows.some((r) => r.id === "co_kilimo"),
+     "with the agent flag back in force once no category is chosen",
+     JSON.stringify(anyRows.map((r) => r.name)));
 
   section("4. Sending something private");
   // Give the agents real keys first — generated in the page, so this test never
@@ -534,8 +693,8 @@ try {
   await admin.page.evaluate(() => document.getElementById("pmRoomsBtn").click());
   await sleep(400);
   const cats = await admin.page.$$eval("#pmRoomCat option", (n) => n.map((o) => o.value));
-  ok(cats.join(",") === ",houses,services,trucks",
-     "a room is scoped by what people deal in — and 'jobs' is absent, because a day job has no owner to group by",
+  ok(cats.join(",") === ",houses,services,trucks,jobs",
+     "a room is scoped by what people deal in — all four categories, jobs included now that a day job has an owner to group by",
      cats.join(","));
   // The preview is the safety rail: you must SEE who a scope caught before a
   // room you cannot un-send exists.
@@ -784,9 +943,9 @@ try {
 
     // 1. Somebody else's code.
     await tp.page.evaluate(() => document.getElementById("pmFpScan").click());
-    await sleep(400);
+    await waitFor(tp.page, "#pmScanVid");
     await tp.page.evaluate(() => { window.__SCANNED = "PM2|somebody_else|123456789012345678901234567890"; });
-    await sleep(900);
+    ok(await waitForText(tp.page, "#pmFpMsg"), "the scan comes back with a verdict");
     let out = await tp.page.$eval("#pmFpMsg", (n) => n.textContent);
     ok(/different account/i.test(out), "the wrong person's code is named as that", out);
     ok(await tp.page.evaluate(() =>
@@ -796,11 +955,11 @@ try {
     // 2. The right person, the wrong key — the attack.
     await tp.page.evaluate(() => { window.__SCANNED = null; });
     await tp.page.evaluate(() => document.getElementById("pmFpScan").click());
-    await sleep(400);
+    await waitFor(tp.page, "#pmScanVid");
     await tp.page.evaluate(() => {
       window.__SCANNED = "PM2|agent_juma|999999999999999999999999999999";
     });
-    await sleep(900);
+    await waitForText(tp.page, "#pmFpMsg");
     out = await tp.page.$eval("#pmFpMsg", (n) => n.textContent);
     ok(/do NOT match/i.test(out), "a real mismatch is stated bluntly, not softened", out);
     ok(await tp.page.evaluate(() =>
@@ -812,9 +971,9 @@ try {
       "PM2|agent_juma|" + (await window.PMCrypto.fingerprint(key)).replace(/ /g, ""), JUMA_KEY);
     await tp.page.evaluate(() => { window.__SCANNED = null; });
     await tp.page.evaluate(() => document.getElementById("pmFpScan").click());
-    await sleep(400);
+    await waitFor(tp.page, "#pmScanVid");
     await tp.page.evaluate((code) => { window.__SCANNED = code; }, theirCode);
-    await sleep(900);
+    await waitForText(tp.page, "#pmFpMsg");
     out = await tp.page.$eval("#pmFpMsg", (n) => n.textContent);
     ok(/Matched and verified/i.test(out), "a matching code verifies them", out);
     ok(await tp.page.evaluate(() =>
@@ -916,7 +1075,9 @@ try {
     ok(all.indexOf("plain_amina") >= 0,
        "switching to Everyone reveals people who are on P-Message but not agents", JSON.stringify(all));
     count = await dp.page.$eval("#pmCount", (n) => n.textContent);
-    ok(/4 people/.test(count), "and counts them too", count);
+    // Four people plus the day-job company, which is on P-Message and not an
+    // agent — exactly what "Everyone" is supposed to reveal.
+    ok(/5 people/.test(count), "and counts them too", count);
 
     // The whole country, not a page of it. (pm_agent_finder is what the pane
     // asks now — same question, plus what each person deals in.)
@@ -969,6 +1130,335 @@ try {
     ok(/\d+ people/.test(state.msg),
        "the roster is counted before the button that adds them turns on", state.msg);
     ok(state.canOpen, "and only then can it be opened");
+    await ap.page.close();
+  }
+
+  section("8i. The admin chooses who is in the room, not just the scope");
+  {
+    // A room's membership used to BE its scope: the screen handed
+    // pm_group_create every candidate the selects returned, so an admin who
+    // wanted three of the four people in Mwanza had no way to say so. The RPC
+    // has always taken an explicit list; only the screen collapsed the two.
+    const ap = await openPage("pawa4761@gmail.com");
+    await sleep(900);
+    await ap.page.evaluate(async () => {
+      for (const id of ["agent_juma", "agent_neema", "agent_blank"]) {
+        const kp = await window.PMCrypto.generateIdentity();
+        window.__PM_DB.keys[id].public_key = kp.publicKey;
+      }
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("pmRoomsBtn").click();
+    });
+    await sleep(300);
+    await ap.page.evaluate(() => document.getElementById("pmRoomWho").click());
+    await sleep(900);
+
+    const picker = await ap.page.evaluate(() => ({
+      boxes: document.querySelectorAll("#pmRoomList .pm-pick input").length,
+      ticked: document.querySelectorAll("#pmRoomList .pm-pick input:checked").length,
+      count: (document.getElementById("pmRoomListCount") || {}).textContent || "",
+      areas: Array.from(document.querySelectorAll("#pmRoomList .pm-area span"))
+        .map((n) => n.textContent),
+    }));
+    ok(picker.boxes >= 3, "every candidate is a row that can be unticked", JSON.stringify(picker.boxes));
+    ok(picker.ticked === picker.boxes,
+       "all ticked to start with — the scope is a good default, not the only possibility");
+    ok(/\d+ of \d+/.test(picker.count), "and the screen says how many are chosen", picker.count);
+    // The reason a picker is usable at all: a list of bare names is not
+    // something anybody can make a decision about.
+    ok(picker.areas.some((a) => /Nyamagana|Ilemela/.test(a)),
+       "each row says where that person works", JSON.stringify(picker.areas));
+    ok(picker.areas.some((a) => /not set/i.test(a)),
+       "and somebody who never filled it in is SAID to have not filled it in");
+
+    // Untick one, open the room, and check the one that was unticked is not
+    // in the members the RPC was given.
+    const dropped = await ap.page.evaluate(() => {
+      const boxes = document.querySelectorAll("#pmRoomList .pm-pick input");
+      boxes[0].checked = false;
+      boxes[0].dispatchEvent(new Event("change", { bubbles: true }));
+      document.getElementById("pmRoomTitle").value = "Mwanza rooms";
+      return boxes[0].value;
+    });
+    await sleep(200);
+    const after = await ap.page.evaluate(() =>
+      (document.getElementById("pmRoomListCount") || {}).textContent || "");
+    ok(/\b(\d+) of \1?/.test(after) || after !== picker.count,
+       "unticking somebody changes the count", after);
+
+    await ap.page.evaluate(() => document.getElementById("pmRoomGo").click());
+    await sleep(900);
+    const created = await ap.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_group_create").pop());
+    ok(created && created.args.p_members.indexOf(dropped) < 0,
+       "and the person who was unticked is not put in the room",
+       JSON.stringify(created && created.args.p_members));
+    ok(created && created.args.p_members.length === picker.boxes - 1,
+       "while everyone still ticked is");
+    ok(ap.errs.length === 0, "no page errors while picking", ap.errs.slice(0, 3).join("\n        "));
+    await ap.page.close();
+  }
+
+  section("8j. A room you can see into — and change");
+  {
+    // #pmMembers has been in the markup since rooms shipped and was never
+    // wired to anything, so pm_group_add / _remove / _leave were unreachable:
+    // an admin could open a room of two hundred people and then never change
+    // it, and a member could never leave one.
+    const ap = await openPage("pawa4761@gmail.com");
+    await sleep(900);
+    await ap.page.evaluate(async () => {
+      window.confirm = () => true;          // the roster asks before it acts
+      for (const id of ["agent_juma", "agent_neema", "agent_blank"]) {
+        const kp = await window.PMCrypto.generateIdentity();
+        window.__PM_DB.keys[id].public_key = kp.publicKey;
+      }
+      window.__PM_DB.threads["room-x"] = { kind: "group", title: "Mwanza rooms",
+        members: ["agent_juma", "agent_neema", "user_self"] };
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("segChats").click();
+      // The list is live now, so the way to make a new thread appear is to let
+      // the page hear about it rather than to reload — which is also the thing
+      // 8m asserts in its own right.
+      if (window.__PM_FIRE_INSERT) window.__PM_FIRE_INSERT();
+    });
+    await sleep(900);
+    await ap.page.evaluate(() => {
+      const row = document.querySelector('#pmInbox [data-kind="group"]');
+      if (row) row.click();
+    });
+    await sleep(800);
+
+    const header = await ap.page.evaluate(() => ({
+      members: !document.getElementById("pmMembers").hidden,
+      verify: !document.getElementById("pmVerify").hidden,
+      label: document.getElementById("pmMembers").textContent,
+    }));
+    ok(header.members, "a room offers Members");
+    ok(!header.verify,
+       "and not Verify — a room has no single other person whose number could be compared");
+    ok(/\d+ members/.test(header.label), "the button says how many people are in it", header.label);
+
+    await ap.page.evaluate(() => document.getElementById("pmMembers").click());
+    await sleep(800);
+    const roster = await ap.page.evaluate(() => ({
+      rows: document.querySelectorAll("#pmMemList .pm-mem").length,
+      names: Array.from(document.querySelectorAll("#pmMemList .pm-mem-nm")).map((n) => n.textContent),
+      areas: Array.from(document.querySelectorAll("#pmMemList .pm-area span")).map((n) => n.textContent),
+      canRemove: document.querySelectorAll("#pmMemList [data-remove]").length,
+      canAdd: !!document.getElementById("pmMemAdd"),
+      canLeave: !!document.getElementById("pmMemLeave"),
+    }));
+    ok(roster.rows === 3, "the roster lists everybody in the room", String(roster.rows));
+    ok(roster.names.some((n) => /Juma/.test(n)), "by name", JSON.stringify(roster.names));
+    // The whole reason to open a roster in a room of eighty agents.
+    ok(roster.areas.some((a) => /Nyamagana/.test(a)),
+       "and by WHERE THEY WORK", JSON.stringify(roster.areas));
+    ok(roster.names.some((n) => /\(you\)/.test(n)), "marking which one is you");
+    ok(roster.canAdd && roster.canLeave, "the owner is offered Add people, and anyone can leave");
+    ok(roster.canRemove === 2,
+       "with Remove on everyone but the owner — pm_group_remove refuses an owner, so the button is not drawn",
+       String(roster.canRemove));
+
+    await ap.page.evaluate(() => document.querySelector("#pmMemList [data-remove]").click());
+    await sleep(900);
+    const removed = await ap.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_group_remove").pop());
+    ok(!!removed, "removing somebody calls pm_group_remove", JSON.stringify(removed && removed.args));
+    const shrunk = await ap.page.evaluate(() =>
+      document.querySelectorAll("#pmMemList .pm-mem").length);
+    ok(shrunk === 2, "and the roster is redrawn from the database, not from the page", String(shrunk));
+
+    await ap.page.evaluate(() => document.getElementById("pmMemAdd").click());
+    await sleep(400);
+    ok(await ap.page.$("#pmAddFind") !== null, "adding people opens the same picker");
+    await ap.page.evaluate(() => document.getElementById("pmAddFind").click());
+    await sleep(900);
+    const addable = await ap.page.evaluate(() =>
+      Array.from(document.querySelectorAll("#pmAddList .pm-pick input")).map((i) => i.value));
+    // agent_juma was the one just removed, so it SHOULD be offered again;
+    // agent_neema is still in the room and should not be. Ticking somebody
+    // already in it would end in "you added 4 people" and 2 actually added.
+    ok(addable.indexOf("agent_neema") < 0,
+       "and somebody already in the room is not offered again", JSON.stringify(addable));
+    ok(addable.indexOf("agent_juma") >= 0,
+       "while somebody who was removed can be put back");
+
+    await ap.page.evaluate(() => document.getElementById("pmAddGo").click());
+    await sleep(900);
+    const added = await ap.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_group_add").pop());
+    ok(!!added && added.args.p_members.length > 0, "the chosen people are added",
+       JSON.stringify(added && added.args.p_members));
+
+    await sleep(900);
+    await ap.page.evaluate(() => document.getElementById("pmMemLeave").click());
+    await sleep(900);
+    const left = await ap.page.evaluate(() => ({
+      called: (window.__PM_SENT || []).some((c) => c.name === "pm_group_leave"),
+      convOpen: document.getElementById("pmConv").classList.contains("is-on"),
+    }));
+    ok(left.called, "and leaving calls pm_group_leave");
+    ok(!left.convOpen, "closing the conversation, because it is not yours any more");
+    ok(ap.errs.length === 0, "no page errors in the roster", ap.errs.slice(0, 3).join("\n        "));
+    await ap.page.close();
+  }
+
+  section("8k. Withdrawing an invite link");
+  {
+    // pm_invite_revoke has existed since invites shipped and nothing could
+    // call it: pm_invites_mine did not return the token hash, so no UI could
+    // name the link it wanted to withdraw. It does now, and this is the button
+    // that was impossible to write.
+    const ap = await openPage("agent@example.com");
+    await sleep(900);
+    await ap.page.evaluate(() => {
+      window.__CONFIRMS = 0;
+      window.confirm = () => { window.__CONFIRMS++; return true; };
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("pmInviteBtn").click();
+    });
+    await sleep(300);
+    await ap.page.evaluate(() => document.getElementById("pmInvGo").click());
+    await sleep(900);
+
+    const listed = await ap.page.evaluate(() => ({
+      rows: document.querySelectorAll("#pmInvList .pm-inv-row").length,
+      revoke: document.querySelectorAll("#pmInvList [data-revoke]").length,
+    }));
+    ok(listed.rows === 1, "a new link is listed", JSON.stringify(listed));
+    ok(listed.revoke === 1, "with a way to withdraw it");
+
+    // A SECOND link, from the same open modal. This is what makes the listener
+    // question real rather than theoretical: the first render happens while the
+    // list is still empty and returns before binding anything, so one link can
+    // never reveal a handler bound per redraw. Two can, and an agent making a
+    // couple of links in one sitting is the ordinary case, not a stress test.
+    await ap.page.evaluate(() => document.getElementById("pmInvGo").click());
+    await sleep(900);
+    ok(await ap.page.evaluate(() =>
+         document.querySelectorAll("#pmInvList .pm-inv-row").length) === 2,
+       "a second link made in the same sitting is listed beside it");
+
+    await ap.page.evaluate(() => document.querySelector("#pmInvList [data-revoke]").click());
+    await sleep(900);
+    const gone = await ap.page.evaluate(() => ({
+      calls: (window.__PM_SENT || []).filter((c) => c.name === "pm_invite_revoke").length,
+      rows: document.querySelectorAll("#pmInvList .pm-inv-row").length,
+      confirms: window.__CONFIRMS,
+    }));
+    ok(gone.calls >= 1, "which calls pm_invite_revoke with the hash it was given");
+    ok(gone.rows === 1, "the withdrawn link stops being listed, and only that one",
+       "rows left: " + gone.rows);
+    // ONE tap, ONE revoke. #pmInvList outlives its own rows, so a handler bound
+    // per redraw accumulates: the modal renders the list on open and again
+    // after a link is made, and the next tap would then confirm twice and fire
+    // two revokes — the second failing on a hash that is already gone, which
+    // paints an error over a withdrawal that worked.
+    ok(gone.calls === 1,
+       "exactly once — the list is redrawn repeatedly and must not stack up listeners",
+       "revoke calls: " + gone.calls);
+    // And asked once. This is the half a person actually sees: pm_invite_revoke
+    // is an UPDATE that matches nothing the second time, so the extra calls are
+    // silent — what is not silent is being asked "withdraw this link?" twice for
+    // one tap, which reads as the button having failed.
+    ok(gone.confirms === 1,
+       "and asked for confirmation once, not once per redraw that had happened",
+       "confirm prompts: " + gone.confirms);
+    ok(ap.errs.length === 0, "no page errors withdrawing a link", ap.errs.slice(0, 3).join("\n        "));
+    await ap.page.close();
+  }
+
+  section("8l. An announcement says who would get it, before it goes");
+  {
+    // An announcement cannot be taken back and cannot be edited, so it gets
+    // the same treatment a room does. The audience is resolved ONCE and handed
+    // to broadcast(): if the send re-asked the database, the preview would be
+    // a different question from the send.
+    const ap = await openPage("pawa4761@gmail.com");
+    await sleep(900);
+    await ap.page.evaluate(async () => {
+      for (const id of ["agent_juma", "agent_neema"]) {
+        const kp = await window.PMCrypto.generateIdentity();
+        window.__PM_DB.keys[id].public_key = kp.publicKey;
+      }
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("pmBroadcastBtn").click();
+    });
+    await sleep(400);
+
+    ok(await ap.page.$("#pmCastCat") !== null,
+       "an announcement can be scoped by what people deal in, not only by where they are");
+    const before = await ap.page.evaluate(() => document.getElementById("pmCastGo").disabled);
+    ok(before, "and Send is off until the audience has been looked at");
+
+    await ap.page.evaluate(() => document.getElementById("pmCastWho").click());
+    await sleep(900);
+    const shown = await ap.page.evaluate(() => ({
+      msg: document.getElementById("pmCastMsg").textContent,
+      canSend: !document.getElementById("pmCastGo").disabled,
+    }));
+    ok(/\d+ people/.test(shown.msg), "the count and some names are shown first", shown.msg);
+    ok(shown.canSend, "and only then does Send mean anything");
+
+    // Changing the scope must invalidate it: a stale "412 people" beside
+    // selects that say something else is how the wrong announcement goes out.
+    await ap.page.evaluate(() => {
+      const r = document.getElementById("pmCastRegion");
+      r.value = "Mwanza";
+      r.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await sleep(200);
+    ok(await ap.page.evaluate(() => document.getElementById("pmCastGo").disabled),
+       "changing the scope turns Send back off rather than leaving a stale count on screen");
+
+    await ap.page.evaluate(() => {
+      document.getElementById("pmCastWho").click();
+    });
+    await sleep(900);
+    await ap.page.evaluate(() => {
+      document.getElementById("pmCastBody").value = "Bei mpya kuanzia Jumatatu.";
+      document.getElementById("pmCastGo").click();
+    });
+    await sleep(1800);
+    const sent = await ap.page.evaluate(() => ({
+      cast: (window.__PM_SENT || []).filter((c) => c.name === "pm_broadcast").length,
+      // The audience query must not have been run again by the send.
+      asked: (window.__PM_SENT || []).filter((c) => c.name === "pm_recipients").length,
+      msg: document.getElementById("pmCastMsg").textContent,
+    }));
+    ok(sent.cast === 1, "the announcement goes once", JSON.stringify(sent));
+    ok(sent.asked === 2,
+       "and the send used the very list that was previewed, rather than asking a second question",
+       String(sent.asked));
+    ok(/sent to \d+/i.test(sent.msg), "reporting how many it reached", sent.msg);
+    await ap.page.close();
+  }
+
+  section("8m. The thread list stays live");
+  {
+    // Until this existed the only live delivery was per-open-conversation, so
+    // a reply arriving while you looked at the list — or a whole new
+    // conversation somebody started with you — showed up only on reload. Two
+    // people cannot talk to each other if neither is told the other answered.
+    const ap = await openPage("watcher@example.com");
+    await sleep(900);
+    const watching = await ap.page.evaluate(() => ({
+      chans: (window.__PM_CHANNELS || []).slice(),
+    }));
+    ok(watching.chans.some((c) => /pm_inbox_/.test(c)),
+       "the page subscribes to the whole inbox, not only to an open conversation",
+       JSON.stringify(watching.chans));
+
+    const before = await ap.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_inbox").length);
+    await ap.page.evaluate(() => window.__PM_FIRE_INSERT && window.__PM_FIRE_INSERT());
+    await sleep(600);
+    const afterN = await ap.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_inbox").length);
+    ok(afterN > before,
+       "and a message landing anywhere refreshes it", before + " -> " + afterN);
+    ok(ap.errs.length === 0, "no page errors while watching", ap.errs.slice(0, 3).join("\n        "));
     await ap.page.close();
   }
 

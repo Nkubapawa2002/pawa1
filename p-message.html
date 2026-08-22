@@ -214,9 +214,10 @@
       color: var(--pm-ink); border-radius: 13px; padding: 10px 12px; font: inherit; font-size: 13px; }
 
     /* ---- what do you need? ------------------------------------------------
-       A scrolling strip rather than a wrapping block: four chips wrap to two
+       A scrolling strip rather than a wrapping block: five chips wrap to two
        rows on a phone and push the whole list down before a single name is
-       visible. Scrolled sideways they cost one row, always. */
+       visible. Scrolled sideways they cost one row, always — which is the
+       whole reason a fifth chip could be added without redesigning anything. */
     .pm-cats { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none;
       margin: 0 -14px 10px; padding: 0 14px 2px; -webkit-overflow-scrolling: touch; }
     .pm-cats::-webkit-scrollbar { display: none; }
@@ -273,6 +274,32 @@
     :root[data-theme="light"] .pm-btn.danger { background: rgba(176,42,24,.08); color: #7d2113; border-color: rgba(176,42,24,.3); }
     .pm-scroll { max-height: 42vh; overflow-y: auto; margin-top: 6px; }
 
+    /* Choosing who is in a room. The scope proposes and the admin decides, so
+       every candidate is a row you can untick rather than a number you have to
+       accept — and each row carries where that person works, because "eleven
+       people in Mwanza" is not a thing anyone can make a decision about. */
+    /* Scoped through .pm-modal on purpose: css/pm-identity.css styles every
+       `label` inside a modal as a block-level field caption, which outranks a
+       bare .pm-pick and turns each row into a stacked, bold, grey heading with
+       the tick box orphaned above it. */
+    .pm-modal .pm-pick { display: flex; align-items: flex-start; gap: 10px;
+      padding: 9px 0; margin: 0; border-bottom: 1px solid var(--pm-line);
+      cursor: pointer; font-size: inherit; font-weight: 400; color: var(--pm-ink); }
+    .pm-modal .pm-pick:last-child { border-bottom: 0; }
+    /* 18px, not the browser default 13: this is a phone and the whole row is
+       the target, but the box itself still has to be hittable on its own. */
+    .pm-modal .pm-pick input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px;
+      accent-color: var(--pm-brand); }
+    /* .pm-mem-tx and .pm-mem-nm are spans, so their ellipsis and their share
+       of the flex gap only apply once they are blocks. Without this the tick
+       box sits hard against the first letter of the name. */
+    .pm-pick .pm-mem-tx, .pm-mem .pm-mem-tx { display: block; }
+    .pm-pick .pm-mem-nm, .pm-mem .pm-mem-nm { display: block; }
+    .pm-pick-h { display: flex; align-items: center; gap: 8px; margin-top: 10px;
+      font-size: 12px; font-weight: 700; color: var(--pm-ink-soft); }
+    .pm-pick-h span { flex: 1; min-width: 0; }
+    .pm-pick-h .pm-btn { padding: 5px 10px; font-size: 11.5px; }
+
     .pm-note { font-size: 12.5px; color: var(--pm-ink-soft); line-height: 1.55;
       background: var(--pm-field); border: 1px solid var(--c-border);
       border-radius: 14px; padding: 13px; margin-bottom: 12px; }
@@ -306,8 +333,14 @@
     .pm-back { background: none; border: 0; color: var(--pm-ink); font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
     .pm-conv-tx { min-width: 0; flex: 1; }
     .pm-conv-name { font-size: 15px; font-weight: 800; color: var(--pm-ink); }
+    /* The header line carries the same pinned area the list does — it is the
+       fact that says whether this is the right person to be asking — so it is
+       a flex row like .pm-sub rather than a run of text, or the pin ends up
+       welded to the ward behind it. */
     .pm-conv-sub { font-size: 11.5px; color: var(--pm-ink-soft); margin-top: 1px;
+      display: flex; align-items: center; gap: 6px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-conv-sub .pm-area { flex: 0 1 auto; min-width: 0; }
     /* min-height:0 or a flex child refuses to shrink below its content and
        the log pushes the composer off the bottom instead of scrolling. */
     .pm-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
@@ -413,11 +446,12 @@
            and the spelling of a ward are how they narrow it afterwards. The
            chips also decide the ranking underneath — with no category chosen
            there is no such thing as a best match, only a list. -->
-      <div class="pm-cats" id="pmCats" role="tablist" aria-label="What do you need?">
+      <div class="pm-cats" id="pmCats" role="tablist" data-i18n-aria-label="pm_cats_label" aria-label="What do you need?">
         <button class="pm-cat is-on" data-cat="" role="tab" data-i18n="pm_cat_any">Anyone</button>
         <button class="pm-cat" data-cat="houses" role="tab" data-i18n="pm_cat_houses">Rooms &amp; houses</button>
         <button class="pm-cat" data-cat="services" role="tab" data-i18n="pm_cat_services">Daily services</button>
         <button class="pm-cat" data-cat="trucks" role="tab" data-i18n="pm_cat_trucks">Moving trucks</button>
+        <button class="pm-cat" data-cat="jobs" role="tab" data-i18n="pm_cat_jobs">Day jobs</button>
       </div>
       <input class="pm-search" id="pmSearch" type="search" data-i18n-placeholder="pm_search_ph"
              placeholder="Search a name, ward or district" />

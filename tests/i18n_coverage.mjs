@@ -26,9 +26,15 @@ import puppeteer from "puppeteer";
 
 const BASE = "http://localhost:8080";
 
-// The seven P-Chat destinations, plus the tab itself.
+// The seven P-Chat destinations, plus the tab itself — and P-Message, which
+// was missing here while 129 of its strings ran on their English fallback with
+// no Swahili at all. A coverage checker that does not look at a page cannot
+// report anything about it, and a page nobody checks is where the untranslated
+// strings collect.
 const PAGES = process.argv[2] ? [process.argv[2]] : [
   "p-chat.html",
+  "p-message.html",
+  "profile.html",
   "houses.html?alert=1",
   "near-me.html",
   "area.html",

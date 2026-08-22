@@ -97,10 +97,17 @@
   // than to make a formal statistical statement.
   var Z = 1.96;
 
-  // The three categories a person can be attached to. Day jobs are absent
-  // because public.day_jobs has no owner column — there is nobody to message
-  // about one. See supabase/features/message/p_message_finder.sql.
-  var CATEGORIES = ["houses", "services", "trucks"];
+  // The four categories a person can be attached to — the same four the site
+  // sells. Day jobs were absent from this list for one reason only:
+  // public.day_jobs had no owner column, so there was nobody to message about
+  // one. supabase/features/job/day_jobs_owner.sql gives it an owner and
+  // p_message_jobs.sql counts it, so "jobs" is evidence like any other now.
+  //
+  // The ORDER is not decorative: FOCUS below is measured against 1/len, so
+  // adding a category moves the point at which a mix stops being a
+  // speciality. With four, an agent who deals evenly in all of them sits at
+  // the neutral point and earns nothing from focus, which is the intent.
+  var CATEGORIES = ["houses", "services", "trucks", "jobs"];
 
   // ---- small mathematics ---------------------------------------------------
 
@@ -166,7 +173,7 @@
    * Normalised Shannon entropy of someone's category mix, 0..1.
    *
    * 0 means everything they list is one kind of thing; 1 means it is spread
-   * evenly across all three. This is NOT used in the score — for a chosen
+   * evenly across every category there is. This is NOT used in the score — for a chosen
    * category the focus term already says what is needed, and using both would
    * be counting one fact twice. It is used to LABEL a row ("mostly rooms",
    * "rooms, services and trucks"), which is a different job.
@@ -181,24 +188,41 @@
       var p = counts[i] / total;
       h -= p * Math.log(p);
     }
-    // Normalised against ALL the categories, not just the ones they use.
-    // Someone who splits evenly between houses and services is spread across
-    // two of three and comes out around 0.63 — not 1. Dividing by the used
-    // slots instead would call them as broad as someone doing all three,
-    // which is the opposite of what this is measuring.
+    // Normalised against ALL the categories passed in, not just the ones with
+    // a count. Someone who splits evenly between houses and services is spread
+    // across two slots of however many exist and comes out well short of 1.
+    // Dividing by the USED slots instead would call them as broad as someone
+    // doing all of them, which is the opposite of what this is measuring.
     return clamp(h / Math.log(counts.length), 0, 1);
   }
 
   // ---- reading a row -------------------------------------------------------
 
+  // Built by walking CATEGORIES rather than by naming each field, so a fifth
+  // category is one entry in one list instead of four edits in four places
+  // that have to agree. A row from an older pm_agent_finder simply has no
+  // n_jobs, which reads as 0 — the honest answer for a database that was not
+  // asked the question.
+  var COLUMN = {
+    houses: "n_houses", services: "n_services", trucks: "n_trucks", jobs: "n_jobs",
+  };
+
   function counts(a) {
-    return {
-      houses: Math.max(0, a.n_houses | 0),
-      services: Math.max(0, a.n_services | 0),
-      trucks: Math.max(0, a.n_trucks | 0),
-    };
+    var c = {};
+    for (var i = 0; i < CATEGORIES.length; i++) {
+      var cat = CATEGORIES[i];
+      c[cat] = Math.max(0, a[COLUMN[cat]] | 0);
+    }
+    return c;
   }
-  function totalOf(c) { return c.houses + c.services + c.trucks; }
+  function totalOf(c) {
+    var total = 0;
+    for (var i = 0; i < CATEGORIES.length; i++) total += c[CATEGORIES[i]] || 0;
+    return total;
+  }
+  function countList(c) {
+    return CATEGORIES.map(function (cat) { return c[cat] || 0; });
+  }
 
   function norm(s) {
     return String(s == null ? "" : s).trim().toLowerCase();
@@ -297,11 +321,12 @@
 
         // Focus: what share of everything they list is this category, floored
         // by Wilson so a single listing cannot claim to be a speciality. The
-        // baseline is 1/3 — an agent who deals equally in all three tells you
-        // nothing by also dealing in this one — so this term goes NEGATIVE
-        // for someone with one truck among eleven houses, which is right.
+        // baseline is 1/CATEGORIES.length — an agent who deals equally in all
+        // of them tells you nothing by also dealing in this one — so this term
+        // goes NEGATIVE for someone with one truck among eleven houses, which
+        // is right.
         var share = wilsonLower(n, total);
-        add(W.FOCUS * (share - 1 / 3), "category_focus", share);
+        add(W.FOCUS * (share - 1 / CATEGORIES.length), "category_focus", share);
       } else if (total > 0) {
         // They list things, and none of them are this. That is real evidence
         // against, unlike listing nothing at all.
@@ -337,7 +362,7 @@
       evidence: evidence,
       counts: c,
       total: total,
-      spread: entropy([c.houses, c.services, c.trucks]),
+      spread: entropy(countList(c)),
     };
   }
 

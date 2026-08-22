@@ -39,9 +39,11 @@
 -- and ask every agent to maintain it (and then rank a stale answer), a room's
 -- membership is derived from what an agent actually has listed: a house owner
 -- is in "houses". It is always current, and it costs no data entry.
--- NOTE: day_jobs has no owner column at all -- a day job records company_name
--- and a phone, not an account -- so "jobs" is NOT an available category. It
--- cannot be added without first giving day_jobs an owner.
+-- NOTE (superseded): day_jobs had no owner column at all -- a day job recorded
+-- company_name and a phone, not an account -- so "jobs" was NOT an available
+-- category and could not be added without first giving day_jobs an owner.
+-- job/day_jobs_owner.sql did exactly that, and p_message_jobs.sql widens the
+-- category check below to four. A room can be scoped to jobs now.
 --
 -- Idempotent. Safe to re-run. Depends on p_message.sql and p_message_guests.sql.
 -- ============================================================================

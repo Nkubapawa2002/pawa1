@@ -69,7 +69,8 @@ function asMember(sub, sql) {
      commit;`);
 }
 
-const GUEST = "pmtest_guest", GUEST2 = "pmtest_guest2", AGENT = "pmtest_agent";
+const GUEST = "pmtest_guest", GUEST2 = "pmtest_guest2";
+const AGENT = "pmtest_agent", AGENT2 = "pmtest_agent2";
 
 async function cleanup() {
   await runSql(`
@@ -183,13 +184,30 @@ try {
      "guests are not listed in the directory — it is for finding agents, not for a roll of every visitor");
 
   // The spam recipe is free accounts plus unlimited new threads, so the second
-  // half is capped.
+  // half is capped. A SECOND agent is needed to prove it: the cap is charged
+  // for opening a NEW conversation, and re-opening one that already exists is
+  // deliberately free — see the next assertion.
+  const agent2 = { userId: AGENT2, ...(await PM.generateIdentity()) };
+  await runSql(`insert into public.agent_profiles (user_id, name, region, area_of_operations)
+                values (${literal(AGENT2)}, 'Second Agent', 'Mwanza', 'Ilemela')
+                on conflict (user_id) do nothing;`);
+  await asMember(AGENT2, `select public.pm_publish_key(${literal(agent2.publicKey)},
+    ${literal(await PM.fingerprint(agent2.publicKey))}, null, 'Mwanza');`);
+
   await runSql(`insert into public.pm_threads (kind, created_by, created_at)
                 select 'direct', ${literal(GUEST)}, now() from generate_series(1, 5);`);
-  const capped = await threw(() => asGuest(GUEST, `select public.pm_start_direct(${literal(AGENT)});`));
+  const capped = await threw(() => asGuest(GUEST, `select public.pm_start_direct(${literal(AGENT2)});`));
   ok(capped !== null && /too many/i.test(capped.message),
      "and a guest who opens five conversations in an hour is asked to wait or sign in",
      capped && capped.message.slice(0, 90));
+
+  // Going back to a conversation you are already in is not opening one. The
+  // idempotent lookup happens BEFORE the limit is counted, or a guest who has
+  // hit the cap is locked out of the thread they are in the middle of — which
+  // punishes the person the feature exists for and stops no spammer at all.
+  const backIn = await threw(() => asGuest(GUEST, `select public.pm_start_direct(${literal(AGENT)}) as id;`));
+  ok(backIn === null, "while re-opening a conversation they already have is never charged against it",
+     backIn && backIn.message.slice(0, 90));
 
   const recips = await asMember("pmtest_admin", `select count(*)::int as n from public.pm_recipients(null);`);
   ok(recips[0].n === 0, "a non-admin still gets no recipient list");

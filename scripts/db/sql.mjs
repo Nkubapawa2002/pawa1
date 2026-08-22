@@ -39,7 +39,7 @@ export function token() {
  * Retries on a dropped connection: this network drops them often enough that a
  * single transient failure would otherwise read as "the migration is broken".
  */
-export async function runSql(sql, { retries = 3 } = {}) {
+export async function runSql(sql, { retries = 6 } = {}) {
   let lastErr;
   for (let attempt = 1; attempt <= retries; attempt++) {
     let res;
@@ -50,8 +50,11 @@ export async function runSql(sql, { retries = 3 } = {}) {
         body: JSON.stringify({ query: sql }),
       });
     } catch (err) {
+      // Six tries, not three: this link drops connections in bursts rather
+      // than one at a time, and a test that dies halfway through leaves rows
+      // behind in production for the next run to trip over.
       lastErr = err;
-      await new Promise((r) => setTimeout(r, 1500 * attempt));
+      await new Promise((r) => setTimeout(r, 1200 * attempt));
       continue;
     }
     const text = await res.text();

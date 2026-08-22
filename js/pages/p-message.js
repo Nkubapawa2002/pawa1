@@ -18,6 +18,14 @@
 //   3. NOTHING IS SENT BEFORE AN IDENTITY EXISTS. The gate at the top is not
 //      decoration; without a published key nobody can write to you, and you
 //      would never find out.
+//
+//  ONE DOM RULE, BECAUSE IT COST A DAY. Every button handler here is async,
+//  and `event.currentTarget` is only valid while the event is dispatching —
+//  past the first await it is null. So `e.currentTarget.disabled = false` in a
+//  finally block does not re-enable the button; it throws a TypeError and
+//  leaves the button dead until the page is reloaded, on precisely the failure
+//  path where somebody needs to press it again. Capture it into a local on the
+//  first line (`var btn = e.currentTarget`) and never read it again.
 // ============================================================================
 
 (function () {
@@ -38,6 +46,7 @@
   var seg = "chats";
   var open = null;           // { threadId, name, sub, kind, otherId }
   var live = null;           // realtime subscription for the open thread
+  var inboxLive = null;      // realtime + poll for the thread list itself
   var searchTimer = null;
 
   var AI_THREAD = "assistant";
@@ -196,7 +205,31 @@
     }
 
     await refreshInbox();
+    watchInbox();
     renderAiRow();
+  }
+
+  /**
+   * Keep the thread list live.
+   *
+   * Until this existed the only live delivery was per-open-conversation, so a
+   * reply that arrived while you were looking at the list — or a whole new
+   * conversation somebody started with you — showed up only if you reloaded
+   * the page. Two people cannot talk to each other if neither is told the
+   * other answered, and "reload to see if anyone wrote" is not a chat feature.
+   *
+   * Started once, after boot, and torn down before another is made: an unlock
+   * or a guest sign-in calls boot() again, and two live channels would mean
+   * two refreshes for every message.
+   */
+  function watchInbox() {
+    if (inboxLive) { inboxLive.unsubscribe(); inboxLive = null; }
+    if (!ready || !window.PMStore.watchInbox) return;
+    inboxLive = window.PMStore.watchInbox(function () {
+      // The open conversation has its own subscription and redraws itself; this
+      // one only has to keep the list behind it honest.
+      refreshInbox();
+    });
   }
 
   /**
@@ -279,6 +312,7 @@
           el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
         }
         await refreshInbox();
+        watchInbox();
         showSeg("people");           // a guest came here to find an agent
       } catch (err) {
         out.className = "pm-msg-out bad";
@@ -399,8 +433,21 @@
     // simply opened P-Message — which is right for "who wrote to me?" and
     // wrong for "who can help me find a room". Both lists are available; the
     // agents are the default because that is what the tab is for.
+    //
+    // EXCEPT when a category is chosen, and this is the fix day jobs forced.
+    // The agent flag is a proxy for "does this person deal in anything"; the
+    // category filter is the actual measurement, applied in the database
+    // against what they have listed. Running the proxy on top of the
+    // measurement can only subtract, and what it subtracted was exactly the
+    // people the chip was for: a company that posts day jobs almost never
+    // registers as an agent, so "Day jobs" plus the default "Agents" returned
+    // an empty screen while the right answers sat one dropdown away. The same
+    // was quietly true of a landlord who lists rooms without being an agent.
+    // Evidence beats a flag, so with a chip on, the flag stands down.
     var wantAgents = !el.pmWho || el.pmWho.value !== "all";
-    var shown = wantAgents ? rows.filter(function (p) { return p.is_agent; }) : rows;
+    var shown = (wantAgents && !category)
+      ? rows.filter(function (p) { return p.is_agent; })
+      : rows;
 
     if (!shown.length) {
       el.pmPeople.innerHTML = '<div class="pm-empty">' + esc(emptyWhy(rows.length, wantAgents)) + "</div>";
@@ -418,9 +465,12 @@
     var ranked = window.PMMatch.rank(shown, need);
 
     if (el.pmCount) {
+      // "12 agents" would be a lie about a list the agent flag no longer
+      // filtered. The word has to follow what is actually on screen.
+      var onlyAgents = wantAgents && !category;
       el.pmCount.textContent =
-        t(wantAgents ? "pm_count_agents" : "pm_count_people",
-          wantAgents ? "{n} agents" : "{n} people", { n: ranked.length }) +
+        t(onlyAgents ? "pm_count_agents" : "pm_count_people",
+          onlyAgents ? "{n} agents" : "{n} people", { n: ranked.length }) +
         (region ? " · " + region : "") +
         (category ? " · " + catName(category) : "");
     }
@@ -434,6 +484,13 @@
   // the fourth does not.
   function emptyWhy(total, wantAgents) {
     if (category && total) {
+      // Jobs get their own sentence rather than being forced through the
+      // listing one. Nobody "lists day jobs" — a company posts them — and the
+      // way out is different too: an employer who has never opened P-Message
+      // cannot be found here at all, so the advice has to say so.
+      if (category === "jobs") {
+        return t("pm_no_jobs", "Nobody here has posted day jobs in that scope. Try Anyone, a wider region, or the jobs board itself.");
+      }
       return t("pm_no_cat", "Nobody listing {what} matches that. Try Anyone, a wider region, or fewer words.",
                { what: catName(category).toLowerCase() });
     }
@@ -447,6 +504,7 @@
     return cat === "houses" ? t("pm_cat_houses", "Rooms & houses")
          : cat === "services" ? t("pm_cat_services", "Daily services")
          : cat === "trucks" ? t("pm_cat_trucks", "Moving trucks")
+         : cat === "jobs" ? t("pm_cat_jobs", "Day jobs")
          : t("pm_cat_any", "Anyone");
   }
 
@@ -497,6 +555,50 @@
     '<circle cx="12" cy="10" r="2.4" stroke="currentColor" stroke-width="2"/></svg>';
 
   /**
+   * Where somebody works, in the one shape it is drawn everywhere.
+   *
+   * The agent list, the room roster, the admin's picker and the conversation
+   * header all answer the same question, and until this existed only the first
+   * of them answered it at all. Four copies of the markup would have drifted
+   * within a week — and drifting here means the area is prominent in one place
+   * and a grey afterthought in another, which is exactly the bug that was
+   * fixed in the list and never fixed anywhere else.
+   *
+   * `p` is { area, ward, district, region }. Returns { html, line }: the
+   * marked-up version for a list, and the plain one for a header or a
+   * data-attribute, so the two cannot say different things.
+   */
+  function whereOf(p, opts) {
+    var area = String((p && p.area) || "").trim();
+    // The broader places, minus whatever already appears as the area — an
+    // agent whose area IS "Nyamagana" should not read "Nyamagana · Nyamagana".
+    var rest = [p && p.ward, p && p.district, p && p.region].filter(function (v) {
+      return v && String(v).trim() && String(v).trim().toLowerCase() !== area.toLowerCase();
+    }).slice(0, 2).join(" · ");
+
+    // An AGENT who has not set one is SAID to have not set one: a blank line
+    // reads as "operates nowhere in particular", which is a claim about them
+    // rather than about our data. Somebody who is not an agent has no area of
+    // operation to set, so telling them theirs is missing would be inventing
+    // an omission — `quiet` says which of the two this is.
+    var quiet = opts && opts.quiet;
+    var html = area
+      ? '<span class="pm-area" title="' + esc(t("pm_area_of", "Area of operation")) + '">' +
+          PIN_SVG + "<span>" + esc(area) + "</span></span>"
+      : quiet
+      ? ""
+      : '<span class="pm-area is-none"><span>' +
+          esc(t("pm_area_none", "Area not set")) + "</span></span>";
+
+    return {
+      area: area,
+      rest: rest,
+      html: html + (rest ? '<span class="pm-where">' + esc(rest) + "</span>" : ""),
+      line: [area, rest].filter(Boolean).join(" · "),
+    };
+  }
+
+  /**
    * One agent, and above all WHERE THEY WORK.
    *
    * The area of operations is the only reason to pick one agent over another,
@@ -511,24 +613,11 @@
   function personRow(scored) {
     var p = scored.agent;
     var name = p.display_name || t("pm_someone", "Someone");
-    var area = (p.area || "").trim();
-
-    // The broader places, minus whatever already appears as the area — an
-    // agent whose area IS "Nyamagana" should not read "Nyamagana · Nyamagana".
-    var where = [p.ward, p.district, p.region].filter(function (v) {
-      return v && v.trim() && v.trim().toLowerCase() !== area.toLowerCase();
-    });
-    var rest = where.slice(0, 2).join(" · ");
-
-    var areaHtml = area
-      ? '<span class="pm-area" title="' + esc(t("pm_area_of", "Area of operation")) + '">' +
-          PIN_SVG + "<span>" + esc(area) + "</span></span>"
-      : '<span class="pm-area is-none"><span>' +
-          esc(t("pm_area_none", "Area not set")) + "</span></span>";
+    var w = whereOf(p);
 
     // data-sub is what the conversation header shows, so it stays a plain
-    // single line rather than the marked-up version above.
-    var sub = [area, rest].filter(Boolean).join(" · ");
+    // single line rather than the marked-up version.
+    var sub = w.line;
 
     // What they deal in, as counts. A tick would say "trucks: yes" for one
     // truck and for forty, and those are different claims about a person.
@@ -537,6 +626,12 @@
       { cat: "houses", n: p.n_houses | 0, label: t("pm_deal_houses", "{n} rooms") },
       { cat: "services", n: p.n_services | 0, label: t("pm_deal_services", "{n} services") },
       { cat: "trucks", n: p.n_trucks | 0, label: t("pm_deal_trucks", "{n} trucks") },
+      // A day job is a thing somebody POSTED, not a thing they own and keep,
+      // so it is worded as an act: "12 jobs posted", never "12 jobs". The
+      // count is lifetime — see p_message_jobs.sql on why, and note the
+      // freshness term is what stops an employer who stopped hiring in 2023
+      // from sitting at the top of the list on the strength of it.
+      { cat: "jobs", n: p.n_jobs | 0, label: t("pm_deal_jobs", "{n} jobs posted") },
     ].filter(function (d) { return d.n > 0; });
     var dealsHtml = deals.length
       ? '<span class="pm-deals">' + deals.map(function (d) {
@@ -560,9 +655,7 @@
         (p.is_agent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
         (p.reachable ? "" : ' <span class="pm-badge warn">' + esc(t("pm_badge_unreachable", "Not on P-Message")) + "</span>") +
       "</span>" +
-      '<span class="pm-sub">' + areaHtml +
-        (rest ? '<span class="pm-where">' + esc(rest) + "</span>" : "") +
-      "</span>" + dealsHtml +
+      '<span class="pm-sub">' + w.html + "</span>" + dealsHtml +
       (why ? '<span class="pm-why">' + esc(why) + "</span>" : "") +
       "</span></button>";
   }
@@ -587,7 +680,11 @@
     var bits = [];
     scored.evidence.forEach(function (e) {
       if (e.llr <= 0.15) return;                 // too small to be worth a word
-      if (e.why === "category_depth") bits.push(t("pm_why_depth", "lists {n} of these", { n: e.detail }));
+      if (e.why === "category_depth") {
+        bits.push(category === "jobs"
+          ? t("pm_why_posted", "posted {n} day jobs", { n: e.detail })
+          : t("pm_why_depth", "lists {n} of these", { n: e.detail }));
+      }
       else if (e.why === "category_focus") bits.push(t("pm_why_focus", "mostly this kind of work"));
       else if (e.why === "place_area" || e.why === "place_ward") bits.push(t("pm_why_ward", "works right there"));
       else if (e.why === "place_district") bits.push(t("pm_why_district", "same district"));
@@ -606,7 +703,13 @@
     el.pmConv.setAttribute("aria-hidden", "false");
     el.pmConvName.textContent = info.name;
     el.pmConvSub.textContent = info.sub || "";
-    el.pmVerify.hidden = info.kind === "ai" || !info.otherId;
+    // The two header buttons answer different questions and swap rather than
+    // crowding a bar that already leaves room for the floating theme toggle:
+    // a direct thread asks "is this really you?", a room asks "who else is in
+    // here?". Neither applies to the assistant.
+    el.pmVerify.hidden = info.kind !== "direct" || !info.otherId;
+    if (el.pmMembers) el.pmMembers.hidden = info.kind !== "group";
+    if (info.kind === "group") countMembers(info);
     el.pmLog.innerHTML = '<div class="pm-empty">' + esc(t("pm_loading", "Loading…")) + "</div>";
 
     if (info.kind === "ai") {
@@ -673,6 +776,17 @@
     open.peerFp = hit.fingerprint;
     open.trust = hit.trust || (window.PMTrust ? window.PMTrust.status(me.userId, info.otherId) : null);
 
+    // The header opened with whatever the row that was tapped happened to know
+    // — which, from the inbox, is a name and sometimes a region. pm_peer knows
+    // where they actually work, and that is the fact worth having on screen
+    // while you decide what to ask them.
+    var w = whereOf(hit, { quiet: !hit.isAgent });
+    if (el.pmConvSub && (w.area || w.rest)) {
+      el.pmConvSub.innerHTML = w.html +
+        (hit.isGuest ? ' <span class="pm-badge off">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "");
+      open.sub = w.line;
+    }
+
     if (!open.trust || !open.trust.changed) return;
     if (!el.pmTrustBar) return;
 
@@ -720,6 +834,300 @@
     });
   }
 
+  // ---- who is in this room -------------------------------------------------
+  //
+  //  Rooms shipped with pm_group_add / _remove / _leave and no way to reach
+  //  any of them: #pmMembers existed in the markup and was never wired, so an
+  //  admin could open a room of two hundred people and then never change it,
+  //  and a member could never leave one. That is the gap this section closes.
+  //
+  //  The roster comes from pm_thread_keys — the SAME call the sender uses to
+  //  seal a message. One query means the list of people a message is encrypted
+  //  to and the list the screen shows can never disagree about who is in the
+  //  room, which is the only kind of disagreement that would matter here.
+
+  /** The member count, in the header, as soon as the room opens. */
+  async function countMembers(info) {
+    try {
+      var n = await window.PMStore.threadSize(info.threadId);
+      if (!open || open.threadId !== info.threadId || !n) return;
+      open.size = n;
+      if (el.pmMembers) {
+        el.pmMembers.textContent = t("pm_members_n", "{n} members", { n: n });
+      }
+    } catch (_) { /* the sheet still works; the count is a convenience */ }
+  }
+
+  async function showMembers() {
+    if (!open || open.kind !== "group") return;
+    var threadId = open.threadId, title = open.name;
+    modal("<h2>" + esc(title) + "</h2>" +
+      '<p>' + esc(t("pm_mem_d", "Everyone here can read what is sent from now on, and nothing that was sent before they joined.")) + "</p>" +
+      '<div id="pmMemList"><div class="pm-empty">' + esc(t("pm_loading", "Loading…")) + "</div></div>" +
+      '<div class="pm-modal-acts" id="pmMemActs">' +
+        '<button class="pm-btn ghost" id="pmMemClose">' + esc(t("pm_close", "Close")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmMemMsg\"></div>");
+    document.getElementById("pmMemClose").addEventListener("click", closeModal);
+
+    var rows;
+    try { rows = await window.PMStore.threadKeys(threadId); }
+    catch (err) {
+      document.getElementById("pmMemList").innerHTML =
+        '<div class="pm-empty">' + esc((err && err.message) || err) + "</div>";
+      return;
+    }
+    // Only the room's owner, or an admin, may change who is in it. Drawing the
+    // buttons for anyone else would be offering a door the database will shut:
+    // pm_group_add and pm_group_remove check the same thing again.
+    var mine = rows.filter(function (r) { return r.userId === (me && me.userId); })[0];
+    var canManage = !!(me && me.isAdmin) || (mine && mine.role === "owner");
+
+    document.getElementById("pmMemList").innerHTML =
+      '<div class="pm-count">' + esc(t("pm_members_n", "{n} members", { n: rows.length })) + "</div>" +
+      '<div class="pm-scroll">' + rows.map(function (r) { return memberRow(r, canManage); }).join("") + "</div>";
+
+    document.getElementById("pmMemActs").insertAdjacentHTML("afterbegin",
+      (canManage ? '<button class="pm-btn" id="pmMemAdd">' + esc(t("pm_mem_add", "Add people")) + "</button>" : "") +
+      '<button class="pm-btn danger" id="pmMemLeave">' + esc(t("pm_mem_leave", "Leave room")) + "</button>");
+
+    var add = document.getElementById("pmMemAdd");
+    if (add) add.addEventListener("click", function () { showAddMembers(threadId, rows); });
+
+    document.getElementById("pmMemLeave").addEventListener("click", async function (e) {
+      var out = document.getElementById("pmMemMsg");
+      // Leaving is not undoable by the person leaving — only the owner can put
+      // them back — so it asks once rather than acting on a tap.
+      if (!confirm(t("pm_mem_leave_q", "Leave this room? You will stop receiving what is said in it."))) return;
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
+      try {
+        await window.PMStore.groupLeave(threadId);
+        closeModal();
+        closeThread();
+        await refreshInbox();
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("pmMemList").addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-remove]");
+      if (!btn) return;
+      var who = btn.dataset.remove;
+      if (!confirm(t("pm_mem_remove_q", "Remove {name} from this room?", { name: btn.dataset.name }))) return;
+      var out = document.getElementById("pmMemMsg");
+      btn.disabled = true;
+      try {
+        await window.PMStore.groupRemove(threadId, who);
+        showMembers();                 // redraw from the database, not from here
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        btn.disabled = false;
+      }
+    });
+  }
+
+  /**
+   * One member: who they are, and WHERE THEY WORK.
+   *
+   * The second half is the reason a roster is worth opening at all. A list of
+   * names in a room of eighty agents tells you nothing you can act on; a list
+   * of names with "Nyamagana", "Ilemela", "Sengerema" beside them is a map of
+   * who to ask about what.
+   */
+  function memberRow(m, canManage) {
+    var name = m.name || t("pm_someone", "Someone");
+    var w = whereOf(m, { quiet: !m.isAgent });
+    var isMe = m.userId === (me && me.userId);
+    var tags =
+      (m.role === "owner" ? ' <span class="pm-badge">' + esc(t("pm_badge_owner", "Owner")) + "</span>" : "") +
+      (m.isAgent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
+      (m.isGuest ? ' <span class="pm-badge off">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "");
+
+    return '<div class="pm-mem">' +
+      '<span class="pm-av">' + esc(initials(name)) + "</span>" +
+      '<span class="pm-mem-tx"><span class="pm-mem-nm">' + esc(name) +
+        (isMe ? " " + esc(t("pm_you", "(you)")) : "") + tags + "</span>" +
+        '<span class="pm-sub">' + w.html + "</span></span>" +
+      // An owner cannot be removed — pm_group_remove refuses it — so the
+      // button is not drawn rather than drawn and then refused.
+      (canManage && !isMe && m.role !== "owner"
+        ? '<button class="pm-btn danger" data-remove="' + esc(m.userId) + '" data-name="' + esc(name) + '">' +
+          esc(t("pm_mem_remove", "Remove")) + "</button>"
+        : "") +
+      "</div>";
+  }
+
+  /**
+   * Adding people to a room that already exists.
+   *
+   * Same picker as opening one, and the same warning attached to it: they will
+   * see what is said from now on and nothing that was said before. That is the
+   * honest behaviour of per-message wraps rather than a limitation to
+   * apologise for, but somebody joining a room mid-conversation should be told
+   * it rather than discover it.
+   */
+  async function showAddMembers(threadId, existing) {
+    var already = {};
+    (existing || []).forEach(function (r) { already[r.userId] = true; });
+
+    modal("<h2>" + esc(t("pm_mem_add", "Add people")) + "</h2>" +
+      "<p>" + esc(t("pm_mem_add_d", "They will see what is said from now on. Nothing said before they join is readable to them.")) + "</p>" +
+      "<label>" + esc(t("pm_room_cat", "What they deal in")) + "</label>" + catSelect("pmAddCat") +
+      "<label>" + esc(t("pm_room_where", "Where")) + "</label>" + regionSelect("pmAddRegion") +
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn ghost" id="pmAddFind">' + esc(t("pm_room_who", "Who is in scope?")) + "</button>" +
+        '<button class="pm-btn" id="pmAddGo" disabled>' + esc(t("pm_mem_add_go", "Add selected")) + "</button>" +
+        '<button class="pm-btn ghost" id="pmAddCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmAddMsg\"></div><div id=\"pmAddList\"></div>");
+
+    var out = document.getElementById("pmAddMsg");
+    var go = document.getElementById("pmAddGo");
+    document.getElementById("pmAddCancel").addEventListener("click", function () { showMembers(); });
+
+    document.getElementById("pmAddFind").addEventListener("click", async function (e) {
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_room_looking", "Looking…");
+      try {
+        var found = (await window.PMStore.groupCandidates(
+          document.getElementById("pmAddCat").value || null,
+          document.getElementById("pmAddRegion").value || null))
+          // Somebody already in the room is not a candidate to add. Leaving
+          // them in the list with a tick beside them invites an admin to
+          // "add" eleven people and be told four were added.
+          .filter(function (p) { return !already[p.user_id]; });
+        out.textContent = "";
+        renderPicker("pmAddList", found, go, out, t("pm_mem_add_nobody",
+          "Everybody in that scope is already in this room."));
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+      } finally { btn.disabled = false; }
+    });
+
+    go.addEventListener("click", async function (e) {
+      var picked = pickedIds("pmAddList");
+      if (!picked.length) return;
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_working", "Working…");
+      try {
+        var n = await window.PMStore.groupAdd(threadId, picked);
+        out.className = "pm-msg-out good";
+        out.textContent = t("pm_mem_added", "{n} added.", { n: n });
+        setTimeout(function () { showMembers(); }, 700);
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        btn.disabled = false;
+      }
+    });
+  }
+
+  // ---- picking people ------------------------------------------------------
+  //
+  //  A room's membership used to BE its scope: the screen handed pm_group_create
+  //  every candidate the category and region returned, so an admin who wanted
+  //  eleven of the fourteen people in Mwanza had no way to say so. The RPC has
+  //  always taken an explicit list; only the screen was collapsing the two.
+  //
+  //  Everyone is ticked to start with, because the scope is a good default and
+  //  un-ticking three is less work than ticking eleven. What changes is that
+  //  it is now a default rather than the only possibility.
+  function renderPicker(boxId, found, goBtn, out, emptyMsg) {
+    var box = document.getElementById(boxId);
+    if (!box) return;
+    if (!found.length) {
+      box.innerHTML = '<div class="pm-empty">' +
+        esc(emptyMsg || t("pm_room_nobody", "Nobody in that scope uses P-Message yet.")) + "</div>";
+      goBtn.disabled = true;
+      return;
+    }
+
+    box.innerHTML =
+      '<div class="pm-pick-h"><span id="' + boxId + 'Count"></span>' +
+        '<button class="pm-btn ghost" type="button" data-all="1">' + esc(t("pm_pick_all", "All")) + "</button>" +
+        '<button class="pm-btn ghost" type="button" data-all="0">' + esc(t("pm_pick_none", "None")) + "</button>" +
+      "</div>" +
+      '<div class="pm-scroll">' + found.map(function (p) {
+        var w = whereOf({ area: p.area, ward: p.ward, district: p.district, region: p.region },
+                        { quiet: !p.is_agent });
+        var deals = [
+          { n: p.n_houses | 0, label: t("pm_deal_houses", "{n} rooms") },
+          { n: p.n_services | 0, label: t("pm_deal_services", "{n} services") },
+          { n: p.n_trucks | 0, label: t("pm_deal_trucks", "{n} trucks") },
+        ].filter(function (d) { return d.n > 0; });
+        return '<label class="pm-pick"><input type="checkbox" checked value="' + esc(p.user_id) + '" />' +
+          '<span class="pm-mem-tx"><span class="pm-mem-nm">' +
+            esc(p.display_name || p.user_id) +
+            (p.is_agent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
+          "</span>" +
+          '<span class="pm-sub">' + w.html + "</span>" +
+          (deals.length ? '<span class="pm-deals">' + deals.map(function (d) {
+            return '<span class="pm-deal">' + esc(d.label.replace("{n}", d.n)) + "</span>";
+          }).join("") + "</span>" : "") +
+          "</span></label>";
+      }).join("") + "</div>";
+
+    var count = function () {
+      var n = pickedIds(boxId).length;
+      var c = document.getElementById(boxId + "Count");
+      if (c) c.textContent = t("pm_pick_n", "{n} of {total} chosen", { n: n, total: found.length });
+      goBtn.disabled = n === 0;
+      if (out && n === 0) {
+        out.className = "pm-msg-out";
+        out.textContent = t("pm_pick_none_msg", "Choose at least one person.");
+      } else if (out) { out.textContent = ""; }
+    };
+    box.addEventListener("change", count);
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-all]");
+      if (!b) return;
+      e.preventDefault();
+      var on = b.dataset.all === "1";
+      Array.prototype.forEach.call(box.querySelectorAll('input[type="checkbox"]'),
+        function (i) { i.checked = on; });
+      count();
+    });
+    count();
+  }
+
+  function pickedIds(boxId) {
+    var box = document.getElementById(boxId);
+    if (!box) return [];
+    return Array.prototype.slice.call(box.querySelectorAll('input[type="checkbox"]'))
+      .filter(function (i) { return i.checked; })
+      .map(function (i) { return i.value; });
+  }
+
+  function regionSelect(id, allLabel) {
+    var names = (window.TZ_REGION_CENTERS || []).map(function (r) { return r.name; })
+      .filter(Boolean).sort(function (a, b) { return a.localeCompare(b); });
+    return '<select id="' + id + '"><option value="">' +
+      esc(allLabel || t("pm_cast_all", "Everyone in Tanzania")) + "</option>" +
+      names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("") +
+      "</select>";
+  }
+
+  // One list, four entries, used by the room scope, the announce scope and the
+  // add-member picker. They were three separate literals saying the same thing
+  // before; a category added to one of them and not the others is how a room
+  // ends up scoped to something the announcement cannot reach.
+  var CATS = ["houses", "services", "trucks", "jobs"];
+
+  function catSelect(id) {
+    return '<select id="' + id + '"><option value="">' + esc(t("pm_room_anycat", "Anything")) + "</option>" +
+      CATS.map(function (c) {
+        return '<option value="' + c + '">' + esc(catName(c)) + "</option>";
+      }).join("") + "</select>";
+  }
+
   function closeThread() {
     open = null;
     if (live) { live.unsubscribe(); live = null; }
@@ -736,14 +1144,20 @@
       el.pmLog.innerHTML = '<div class="pm-empty">' + esc(t("pm_say_first", "Say the first thing.")) + "</div>";
       return;
     }
+    var room = open && open.kind === "group";
     el.pmLog.innerHTML = rows.map(function (m) {
       // An unreadable message is reported, never dropped — see the header.
       var text = m.failed
         ? t("pm_unreadable", "This message was encrypted for another device.")
         : m.text;
+      // In a room the name beside a message is one its sender chose for
+      // themselves, and some of those people have proved nothing about who
+      // they are. Saying which is the difference between "the agent said so"
+      // and "somebody calling themselves that said so".
+      var who = m.mine ? "" : esc(m.senderName || t("pm_someone", "Someone")) +
+        (room && m.senderGuest ? " " + esc(t("pm_badge_guest", "Guest")) : "") + " · ";
       return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") + '">' +
-        esc(text) + '<span class="pm-msg-at">' +
-        (m.mine ? "" : esc(m.senderName || "") + " · ") + esc(clock(m.at)) + "</span></div>";
+        esc(text) + '<span class="pm-msg-at">' + who + esc(clock(m.at)) + "</span></div>";
     }).join("");
     el.pmLog.scrollTop = el.pmLog.scrollHeight;
   }
@@ -842,33 +1256,86 @@
   });
   var showBackup = function () { window.PMIdentityUI.backup(); };
 
+  // An announcement is the one thing on this screen that cannot be taken back
+  // and cannot be edited. So it gets the same treatment a room does: say who
+  // it would reach, from the SAME query that will send it, before the send
+  // button means anything. PMStore.broadcast() takes the resolved list for
+  // exactly that reason — if it re-asked the database, the preview would be a
+  // different question from the send, and the one thing a preview has to be is
+  // the same question.
   function showBroadcast() {
-    var names = (window.TZ_REGION_CENTERS || []).map(function (r) { return r.name; })
-      .filter(Boolean).sort(function (a, b) { return a.localeCompare(b); });
+    var audience = null;
+
     modal("<h2>" + esc(t("pm_cast_t", "Announce")) + "</h2>" +
       "<p>" + esc(t("pm_cast_d", "Goes to everyone in the scope who uses P-Message. It is encrypted to each of them individually — one sealed copy per person — so it stays unreadable to everyone else, including us.")) + "</p>" +
-      "<label>" + esc(t("pm_cast_scope", "Who")) + "</label>" +
-      '<select id="pmCastRegion"><option value="">' + esc(t("pm_cast_all", "Everyone in Tanzania")) + "</option>" +
-      names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("") + "</select>" +
+      "<label>" + esc(t("pm_cast_scope", "Where")) + "</label>" + regionSelect("pmCastRegion") +
+      // Scoping by what people deal in was missing entirely: a price change
+      // that only affects truck owners went to every person in the country,
+      // and the way to avoid that was not to send it.
+      "<label>" + esc(t("pm_cast_cat", "What they deal in")) + "</label>" + catSelect("pmCastCat") +
       "<label>" + esc(t("pm_cast_title", "Title")) + '</label><input id="pmCastTitle" maxlength="80" />' +
       "<label>" + esc(t("pm_cast_body", "Message")) + '</label><textarea id="pmCastBody"></textarea>' +
       '<div class="pm-modal-acts">' +
-        '<button class="pm-btn" id="pmCastGo">' + esc(t("pm_cast_send", "Send")) + "</button>" +
+        '<button class="pm-btn ghost" id="pmCastWho">' + esc(t("pm_cast_who", "Who would get this?")) + "</button>" +
+        '<button class="pm-btn" id="pmCastGo" disabled>' + esc(t("pm_cast_send", "Send")) + "</button>" +
         '<button class="pm-btn ghost" id="pmCastCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
       "</div><div class=\"pm-msg-out\" id=\"pmCastMsg\"></div>");
 
+    var out = document.getElementById("pmCastMsg");
+    var go = document.getElementById("pmCastGo");
+    var reg = document.getElementById("pmCastRegion");
+    var cat = document.getElementById("pmCastCat");
+
+    function invalidate() {
+      audience = null; go.disabled = true;
+      out.className = "pm-msg-out"; out.textContent = "";
+    }
+    reg.addEventListener("change", invalidate);
+    cat.addEventListener("change", invalidate);
     document.getElementById("pmCastCancel").addEventListener("click", closeModal);
-    document.getElementById("pmCastGo").addEventListener("click", async function (e) {
-      var btn = e.currentTarget, out = document.getElementById("pmCastMsg");
+
+    document.getElementById("pmCastWho").addEventListener("click", async function (e) {
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_room_looking", "Looking…");
+      try {
+        audience = (await window.PMStore.audience({
+          region: reg.value || null, category: cat.value || null,
+        })).filter(function (p) { return p.public_key; });
+        if (!audience.length) {
+          out.className = "pm-msg-out bad";
+          out.textContent = t("pm_cast_nobody", "Nobody in that scope uses P-Message yet.");
+          go.disabled = true;
+        } else {
+          out.className = "pm-msg-out good";
+          out.textContent = t("pm_cast_found", "{n} people: {who}", {
+            n: audience.length,
+            who: audience.slice(0, 6).map(function (p) { return p.display_name || p.user_id; }).join(", ") +
+                 (audience.length > 6 ? "…" : ""),
+          });
+          go.disabled = false;
+        }
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+      } finally { btn.disabled = false; }
+    });
+
+    go.addEventListener("click", async function (e) {
+      var btn = e.currentTarget;
       var body = document.getElementById("pmCastBody").value.trim();
       if (!body) { out.className = "pm-msg-out bad"; out.textContent = t("pm_cast_empty", "Write something first."); return; }
+      if (!audience || !audience.length) return;
       btn.disabled = true;
       out.className = "pm-msg-out";
       try {
         var res = await window.PMStore.broadcast({
-          region: document.getElementById("pmCastRegion").value || null,
+          region: reg.value || null,
           title: document.getElementById("pmCastTitle").value.trim() || null,
           text: body,
+          // The very list that was previewed, not the scope that produced it.
+          members: audience,
           // Sealing a thousand copies is seconds of CPU; a screen that looks
           // frozen gets tapped again, and then it is sent twice.
           onProgress: function (p) {
@@ -885,7 +1352,6 @@
         out.textContent = (err && err.message) === "NOBODY_REACHABLE"
           ? t("pm_cast_nobody", "Nobody in that scope uses P-Message yet.")
           : ((err && err.message) || String(err));
-      } finally {
         btn.disabled = false;
       }
     });
@@ -897,42 +1363,35 @@
   // nicety — it is the difference between "Mwanza house agents" and "everyone,
   // because I left the category blank".
   function showRooms() {
-    var names = (window.TZ_REGION_CENTERS || []).map(function (r) { return r.name; })
-      .filter(Boolean).sort(function (a, b) { return a.localeCompare(b); });
     var found = [];
 
     modal("<h2>" + esc(t("pm_room_t", "Open a room")) + "</h2>" +
-      "<p>" + esc(t("pm_room_d", "Everyone in the scope can talk to each other, encrypted to each member individually. Announcements are one-way; a room is not.")) + "</p>" +
-      "<label>" + esc(t("pm_room_cat", "What they deal in")) + "</label>" +
-      '<select id="pmRoomCat"><option value="">' + esc(t("pm_room_anycat", "Anything")) + "</option>" +
-        '<option value="houses">' + esc(t("pm_cat_houses", "Houses & rooms")) + "</option>" +
-        '<option value="services">' + esc(t("pm_cat_services", "Daily services")) + "</option>" +
-        '<option value="trucks">' + esc(t("pm_cat_trucks", "Moving trucks")) + "</option></select>" +
-      "<label>" + esc(t("pm_room_where", "Where")) + "</label>" +
-      '<select id="pmRoomRegion"><option value="">' + esc(t("pm_cast_all", "Everyone in Tanzania")) + "</option>" +
-      names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("") + "</select>" +
+      "<p>" + esc(t("pm_room_d", "Everyone you put in the room can talk to each other, encrypted to each member individually. Announcements are one-way; a room is not.")) + "</p>" +
+      "<label>" + esc(t("pm_room_cat", "What they deal in")) + "</label>" + catSelect("pmRoomCat") +
+      "<label>" + esc(t("pm_room_where", "Where")) + "</label>" + regionSelect("pmRoomRegion") +
       "<label>" + esc(t("pm_room_name", "Name of the room")) + '</label><input id="pmRoomTitle" maxlength="80" />' +
-      // The room the admin actually wants most of the time is "all of them",
-      // and it was reachable only by knowing that leaving both selects alone
-      // meant that. One button says it out loud and fills the name in too.
+      // The room the admin wants most of the time is "all of them", and it was
+      // reachable only by knowing that leaving both selects alone meant that.
+      // One button says it out loud and fills the name in too.
       '<p style="margin-top:12px"><button class="pm-btn ghost" id="pmRoomEveryone" style="width:100%">' +
         esc(t("pm_room_everyone", "Every agent in Tanzania")) + "</button></p>" +
       '<div class="pm-modal-acts">' +
         '<button class="pm-btn ghost" id="pmRoomWho">' + esc(t("pm_room_who", "Who is in scope?")) + "</button>" +
         '<button class="pm-btn" id="pmRoomGo" disabled>' + esc(t("pm_room_open", "Open room")) + "</button>" +
         '<button class="pm-btn ghost" id="pmRoomCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
-      "</div><div class=\"pm-msg-out\" id=\"pmRoomMsg\"></div>");
+      "</div><div class=\"pm-msg-out\" id=\"pmRoomMsg\"></div><div id=\"pmRoomList\"></div>");
 
     var out = document.getElementById("pmRoomMsg");
     var go = document.getElementById("pmRoomGo");
     var cat = document.getElementById("pmRoomCat");
     var reg = document.getElementById("pmRoomRegion");
 
-    // Changing the scope invalidates the preview. Leaving a stale "12 people"
-    // on screen while the selects say something else is how the wrong room
-    // gets opened.
+    // Changing the scope invalidates the preview. Leaving a stale list of
+    // twelve ticked names on screen while the selects say something else is
+    // how the wrong room gets opened, and a room cannot be un-sent.
     function invalidate() {
       found = []; go.disabled = true;
+      document.getElementById("pmRoomList").innerHTML = "";
       out.className = "pm-msg-out"; out.textContent = "";
     }
     cat.addEventListener("change", invalidate);
@@ -945,13 +1404,15 @@
       var title = document.getElementById("pmRoomTitle");
       if (!title.value.trim()) title.value = t("pm_room_everyone", "Every agent in Tanzania");
       invalidate();
-      // Run the preview straight away: the count is the thing that makes this
-      // safe to press, and an admin should see who is about to be added
-      // before the button that adds them becomes available.
+      // Run the preview straight away: the roster is what makes this safe to
+      // press, and an admin should see who is about to be added before the
+      // button that adds them becomes available.
       document.getElementById("pmRoomWho").click();
     });
+
     document.getElementById("pmRoomWho").addEventListener("click", async function (e) {
-      e.currentTarget.disabled = true;
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
       out.className = "pm-msg-out";
       out.textContent = t("pm_room_looking", "Looking…");
       try {
@@ -959,42 +1420,48 @@
         if (!found.length) {
           out.className = "pm-msg-out bad";
           out.textContent = t("pm_room_nobody", "Nobody in that scope uses P-Message yet.");
+          go.disabled = true;
         } else {
           out.className = "pm-msg-out good";
-          out.textContent = t("pm_room_found", "{n} people: {who}", {
-            n: found.length,
-            who: found.slice(0, 6).map(function (p) { return p.display_name || p.user_id; }).join(", ") +
-                 (found.length > 6 ? "…" : ""),
-          });
-          go.disabled = false;
+          out.textContent = t("pm_room_found2",
+            "{n} people are in scope. Untick anyone who should not be in the room.", { n: found.length });
+          // The scope proposes; the admin decides. Everyone starts ticked
+          // because the scope is a good default, and un-ticking three is less
+          // work than ticking eleven.
+          renderPicker("pmRoomList", found, go, null);
         }
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
       } finally {
-        e.currentTarget.disabled = false;
+        btn.disabled = false;
       }
     });
 
     document.getElementById("pmRoomGo").addEventListener("click", async function (e) {
-      if (!found.length) return;
-      e.currentTarget.disabled = true;
+      var picked = pickedIds("pmRoomList");
+      if (!picked.length) {
+        out.className = "pm-msg-out bad";
+        out.textContent = t("pm_pick_none_msg", "Choose at least one person.");
+        return;
+      }
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
       out.className = "pm-msg-out";
       out.textContent = t("pm_room_opening", "Opening…");
       try {
         await window.PMStore.groupCreate({
-          title: document.getElementById("pmRoomTitle").value.trim() ||
-                 t("pm_room", "Room"),
+          title: document.getElementById("pmRoomTitle").value.trim() || t("pm_room", "Room"),
           category: cat.value || null,
           region: reg.value || null,
-          members: found.map(function (p) { return p.user_id; }),
+          members: picked,
         });
         closeModal();
         await refreshInbox();
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
-        e.currentTarget.disabled = false;
+        btn.disabled = false;
       }
     });
   }
@@ -1012,11 +1479,20 @@
       "</div><div class=\"pm-msg-out\" id=\"pmInvMsg\"></div><div id=\"pmInvList\"></div>");
 
     document.getElementById("pmInvCancel").addEventListener("click", closeModal);
+    // Bound HERE, once, and not inside renderInviteList — that function only
+    // rewrites #pmInvList's innerHTML, so the element itself survives every
+    // redraw. Re-binding per redraw would leave one extra listener behind each
+    // time a link was made or withdrawn, and the next Withdraw would then ask
+    // for confirmation N times and fire N revokes: the first succeeds and the
+    // rest fail on a hash that is already gone, so a withdrawal that WORKED
+    // reports an error.
+    document.getElementById("pmInvList").addEventListener("click", onRevokeClick);
     renderInviteList();
 
     document.getElementById("pmInvGo").addEventListener("click", async function (e) {
       var out = document.getElementById("pmInvMsg");
-      e.currentTarget.disabled = true;
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
       out.className = "pm-msg-out"; out.textContent = "";
       try {
         var inv = await window.PMStore.inviteCreate(
@@ -1039,11 +1515,16 @@
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
       } finally {
-        e.currentTarget.disabled = false;
+        btn.disabled = false;
       }
     });
   }
 
+  // A link is a bearer credential: whoever opens it first becomes the customer
+  // in that thread. Withdrawing one that went to the wrong number is therefore
+  // the whole point of listing them — and pm_invite_revoke has existed since
+  // invites shipped with nothing able to call it, because pm_invites_mine did
+  // not return the hash the RPC needs to name a link. It does now.
   async function renderInviteList() {
     var box = document.getElementById("pmInvList");
     if (!box) return;
@@ -1057,9 +1538,33 @@
             '</span><span class="pm-badge' + (r.state === "used" ? " ok" : r.state === "open" ? "" : " off") + '">' +
             esc(t("pm_inv_" + r.state, r.state)) + "</span>" +
             (r.guest_name ? '<span class="pm-sub">' + esc(r.guest_name) + "</span>" : "") +
+            // Only an unused link can be withdrawn. A used one has already
+            // become a conversation, and pm_invite_revoke says so by refusing
+            // it — offering the button anyway would be offering a door that
+            // is locked on the other side.
+            (r.state === "open" && r.token_hash
+              ? '<button class="pm-btn danger" data-revoke="' + esc(r.token_hash) + '">' +
+                esc(t("pm_inv_revoke", "Withdraw")) + "</button>"
+              : "") +
             "</div>";
         }).join("");
-    } catch (_) { box.innerHTML = ""; }
+    } catch (_) { box.innerHTML = ""; return; }
+  }
+
+  // Delegated from #pmInvList, which outlives the rows inside it.
+  async function onRevokeClick(e) {
+    var btn = e.target.closest("[data-revoke]");
+    if (!btn) return;
+    if (!confirm(t("pm_inv_revoke_q", "Withdraw this link? Anyone holding it will no longer be able to use it."))) return;
+    btn.disabled = true;
+    try {
+      await window.PMStore.inviteRevoke(btn.dataset.revoke);
+      renderInviteList();
+    } catch (err) {
+      btn.disabled = false;
+      var out = document.getElementById("pmInvMsg");
+      if (out) { out.className = "pm-msg-out bad"; out.textContent = (err && err.message) || String(err); }
+    }
   }
 
   // ---- arriving on an invite link ------------------------------------------
@@ -1103,7 +1608,8 @@
     document.getElementById("pmInvNo").addEventListener("click", closeModal);
     document.getElementById("pmInvOk").addEventListener("click", async function (e) {
       var out = document.getElementById("pmInvOut");
-      e.currentTarget.disabled = true;
+      var btn = e.currentTarget;      // captured, never read after an await
+      btn.disabled = true;
       out.className = "pm-msg-out";
       out.textContent = t("pm_inv_setting", "Setting up encryption…");
       try {
@@ -1117,7 +1623,7 @@
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
-        e.currentTarget.disabled = false;
+        btn.disabled = false;
       }
     });
     return true;
@@ -1170,6 +1676,7 @@
 
     el.pmBack && el.pmBack.addEventListener("click", closeThread);
     el.pmVerify && el.pmVerify.addEventListener("click", openVerify);
+    el.pmMembers && el.pmMembers.addEventListener("click", showMembers);
     el.pmFpBtn && el.pmFpBtn.addEventListener("click", function () { showBackup(); });
     el.pmBroadcastBtn && el.pmBroadcastBtn.addEventListener("click", showBroadcast);
     el.pmRoomsBtn && el.pmRoomsBtn.addEventListener("click", showRooms);
@@ -1226,6 +1733,15 @@
         b.classList.toggle("is-on", b === chip);
         b.setAttribute("aria-selected", b === chip ? "true" : "false");
       });
+      // Pull the chosen chip fully into view. The strip scrolls sideways so
+      // five chips cost one row, and the cost of that is that the chip at the
+      // end can sit half off the screen — the state of the whole list below is
+      // then set by something the person cannot see. "nearest" so a chip
+      // already fully visible does not jump.
+      if (chip.scrollIntoView) {
+        try { chip.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" }); }
+        catch (_) { chip.scrollIntoView(); }
+      }
       refreshPeople();
     });
   }

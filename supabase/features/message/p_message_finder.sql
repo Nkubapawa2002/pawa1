@@ -28,10 +28,17 @@
 --     to `agent_id = app_uid()`, and pm_invite_revoke re-checks that ownership
 --     itself rather than trusting whoever presents a hash.
 --
---  Categories are houses / services / trucks and DELIBERATELY not jobs:
---  public.day_jobs has no owner column at all — only company_name and
---  company_phone — so there is nobody to attribute a day job to and nobody to
---  message about it. Adding 'jobs' here would mean inventing an owner.
+--  Categories here are houses / services / trucks. That was never a choice:
+--  public.day_jobs had no owner column at all — only company_name and
+--  company_phone — so there was nobody to attribute a day job to and nobody to
+--  message about one, and adding 'jobs' would have meant inventing an owner.
+--
+--  SUPERSEDED. day_jobs has an owner now (job/day_jobs_owner.sql) and jobs is
+--  the fourth category (message/p_message_jobs.sql), which redefines both the
+--  view and the function below with an n_jobs column. This file is kept
+--  because it is the history of how the finder came to exist and because it is
+--  still the correct thing to apply FIRST on a fresh database — but on a live
+--  one, p_message_jobs.sql is what is running.
 --
 --  Apply with:  node scripts/db/apply_sql.mjs supabase/features/message/p_message_finder.sql
 -- ============================================================================
@@ -243,7 +250,9 @@ commit;
 --    js/lib/pm-match.js where it can be read, argued with and unit-tested
 --    without a database.
 --
---  · It does not count day jobs. See the header: day_jobs has no owner.
+--  · It did not count day jobs, because day_jobs had no owner. That is fixed
+--    in p_message_jobs.sql, which supersedes both objects above; the reasoning
+--    for the fix, and for what it deliberately leaves alone, lives there.
 --
 --  · It does not report a reply rate, which is the signal that would beat all
 --    of these — "does this person answer" is the actual question. It is not

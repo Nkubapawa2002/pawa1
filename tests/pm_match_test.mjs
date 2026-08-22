@@ -39,7 +39,7 @@ const M = sandbox.window.PMMatch;
 const agent = (over) => Object.assign({
   user_id: "u", display_name: "Agent", region: null, area: null, area_kind: null,
   district: null, ward: null, lat: null, lng: null, is_agent: true, reachable: true,
-  n_houses: 0, n_services: 0, n_trucks: 0, n_verified: 0, last_listed_at: null,
+  n_houses: 0, n_services: 0, n_trucks: 0, n_jobs: 0, n_verified: 0, last_listed_at: null,
 }, over || {});
 
 // ---------------------------------------------------------------------------
@@ -197,6 +197,69 @@ section("Freshness and verification");
   const verified = M.score(agent({ n_houses: 6, n_verified: 6 }), { category: "houses" });
   const unverified = M.score(agent({ n_houses: 6, n_verified: 0 }), { category: "houses" });
   ok(verified.p > unverified.p, "verified listings help", `${verified.p.toFixed(3)} > ${unverified.p.toFixed(3)}`);
+}
+
+// ---------------------------------------------------------------------------
+section("Day jobs are a category like any other, not a special case");
+{
+  ok(M.CATEGORIES.length === 4 && M.CATEGORIES.indexOf("jobs") >= 0,
+     "jobs is one of the four categories", M.CATEGORIES.join(", "));
+
+  const need = { category: "jobs" };
+  const blank = M.score(agent(), need);
+  const hirer = M.score(agent({ n_jobs: 9 }), need);
+  const landlord = M.score(agent({ n_houses: 9 }), need);
+
+  ok(near(blank.p, M.PRIOR, 1e-9),
+     "a company that has posted nothing scores exactly the prior", blank.p.toFixed(4));
+  ok(hirer.p > blank.p, "nine day jobs beats no information",
+     `${hirer.p.toFixed(3)} > ${blank.p.toFixed(3)}`);
+  ok(landlord.p < blank.p,
+     "nine rooms and no jobs is evidence against, exactly as it is for trucks",
+     `${landlord.p.toFixed(3)} < ${blank.p.toFixed(3)}`);
+  ok(hirer.evidence.some((e) => e.why === "category_depth"),
+     "and the depth term fires on n_jobs rather than being silently skipped");
+  ok(hirer.counts.jobs === 9 && hirer.total === 9,
+     "day jobs count toward the denominator too", `total ${hirer.total}`);
+}
+{
+  // The bug this guards against: reading n_jobs from a row that has none must
+  // read as zero, not as NaN. An older pm_agent_finder returns exactly that
+  // row, and a NaN here would poison the whole score into never sorting.
+  const legacy = { user_id: "u", display_name: "Old", reachable: true, is_agent: true,
+                   n_houses: 3, n_services: 0, n_trucks: 0, n_verified: 0 };
+  const s = M.score(legacy, { category: "houses" });
+  ok(isFinite(s.p) && s.p > 0 && s.p < 1,
+     "a row from a finder that never heard of jobs still scores", String(s.p));
+  ok(s.counts.jobs === 0 && s.total === 3, "with jobs read as none, not as unknown");
+}
+{
+  // Focus is measured against 1/4 now. The claim that has to survive the move
+  // is the one the term exists for: a token listing in a category is not a
+  // speciality in it, however the baseline is set.
+  const need = { category: "jobs" };
+  const only = M.score(agent({ n_jobs: 1 }), need);
+  const token = M.score(agent({ n_jobs: 1, n_houses: 11 }), need);
+  ok(token.p < only.p,
+     "one day job among eleven rooms is weaker than one day job alone",
+     `${token.p.toFixed(3)} < ${only.p.toFixed(3)}`);
+
+  const even = M.score(agent({ n_houses: 6, n_services: 6, n_trucks: 6, n_jobs: 6 }), need);
+  const focused = M.score(agent({ n_jobs: 24 }), need);
+  ok(focused.p > even.p,
+     "twenty-four day jobs beats six of everything — same depth, different focus",
+     `${focused.p.toFixed(3)} > ${even.p.toFixed(3)}`);
+  ok(even.spread > 0.99, "and the even mix is described as fully spread", even.spread.toFixed(3));
+  ok(focused.spread === 0, "while the focused one has no spread at all");
+}
+{
+  // An unknown category must not quietly behave like "any". The database says
+  // the same thing (an unmatched p_category matches nobody); the client has to
+  // agree, or the two disagree about who is on the screen.
+  const s = M.score(agent({ n_jobs: 40 }), { category: "vibarua" });
+  ok(!s.evidence.some((e) => e.why.startsWith("category")),
+     "a category nobody has heard of produces no category evidence");
+  ok(near(s.p, M.PRIOR, 1e-9), "and scores the prior rather than a guess");
 }
 
 // ---------------------------------------------------------------------------
