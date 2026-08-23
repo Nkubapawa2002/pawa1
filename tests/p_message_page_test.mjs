@@ -92,7 +92,20 @@ window.supabase = { createClient: function () {
     wraps: {},                      // message_id -> { user_id: {epk, wrapped_key} }
     senderKeys: {},                 // thread_id -> [{ sender_id, generation, recipient_id, epk, wrapped_key }]
     invites: [],                    // { token_hash, label, state, guest_name, ... }
+    listings: {},                   // user_id -> [ storefront rows ]
   };
+  // What agent.html draws. Kept beside the keys rather than derived from the
+  // counts, because the counts and the catalogue come from two different
+  // functions in the real database and a stub that computed one from the
+  // other could not catch them disagreeing.
+  db.listings["agent_juma"] = [
+    { cat: "houses", listing_id: "h-1", title: "Two rooms in Nyamagana", kind: "apartment",
+      price_tzs: 250000, unit: "month", photo: null, region: "Mwanza", area: "Nyamagana",
+      verified: true, active: true, created_at: new Date().toISOString() },
+    { cat: "houses", listing_id: "h-2", title: "Shop on the main road", kind: "shop",
+      price_tzs: 900000, unit: "month", photo: null, region: "Mwanza", area: "Nyamagana",
+      verified: false, active: true, created_at: new Date().toISOString() },
+  ];
   // Two other people already on P-Message, one of them holding a key this
   // device has never seen — that is what makes the "cannot decrypt" path real.
   // The listing counts are what the category chips filter on and what the
@@ -103,10 +116,20 @@ window.supabase = { createClient: function () {
   // real SPKI public key generated in Node for exactly that.
   db.keys["agent_juma"] = { public_key: ${JSON.stringify(opts && opts.peerKey || "")}, fingerprint: "1111 2222 3333",
     display_name: "Juma Mwanga", region: "Mwanza", is_agent: true, area: "Nyamagana",
-    n_houses: 6, n_verified: 2, last_listed_at: new Date().toISOString() };
+    n_houses: 6, n_verified: 2, last_listed_at: new Date().toISOString(),
+    // What KIND of work, not just how much of it. The two agents deal in
+    // different kinds for the same reason they deal in different categories:
+    // a label that matched everybody would look like it worked.
+    kinds: ["apartment", "house"],
+    // Beating right now. Presence is a claim about a person, so the states
+    // are seeded rather than derived — one online, one hours ago, one never
+    // seen — and the never-seen row must draw NOTHING.
+    last_seen_at: new Date().toISOString() };
   db.keys["agent_neema"] = { public_key: "", fingerprint: "4444 5555 6666",
     display_name: "Neema Kileo", region: "Mwanza", is_agent: true, area: "Ilemela",
-    n_trucks: 3, last_listed_at: new Date().toISOString() };
+    n_trucks: 3, last_listed_at: new Date().toISOString(),
+    kinds: ["canter", "7ton"],
+    last_seen_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() };
   // An agent who never filled in where they work, and a person who is not an
   // agent at all. Both are rows the directory has to render honestly.
   db.keys["agent_blank"] = { public_key: "", fingerprint: "7777 8888 9999",
@@ -155,7 +178,8 @@ window.supabase = { createClient: function () {
             public_key: v.public_key, fingerprint: v.fingerprint,
             n_houses: v.n_houses || 0, n_services: v.n_services || 0, n_trucks: v.n_trucks || 0,
             n_jobs: v.n_jobs || 0,
-            n_verified: v.n_verified || 0, last_listed_at: v.last_listed_at || null };
+            n_verified: v.n_verified || 0, last_listed_at: v.last_listed_at || null,
+            kinds: v.kinds || null, last_seen_at: v.last_seen_at || null };
         })
         .filter(function (r) {
           if (!args.p_category) return true;
@@ -181,7 +205,32 @@ window.supabase = { createClient: function () {
         // here because pm_peer is the only call the header makes, and a header
         // that knows only a name cannot answer "is this the right person?".
         area: pr.area || null, area_kind: null, district: null, ward: pr.ward || null,
+        last_seen_at: pr.last_seen_at || null,
       }], error: null });
+    }
+    // ---- presence and the storefront ----
+    if (name === "pm_online_window") return Promise.resolve({ data: 150, error: null });
+    if (name === "pm_touch_seen") {
+      db.keys[me] = db.keys[me] || {};
+      db.keys[me].last_seen_at = new Date().toISOString();
+      return Promise.resolve({ data: db.keys[me].last_seen_at, error: null });
+    }
+    if (name === "pm_agent_card") {
+      var c = db.keys[args.p_user];
+      if (!c) return Promise.resolve({ data: [], error: null });
+      return Promise.resolve({ data: [{
+        user_id: args.p_user, display_name: c.display_name, is_agent: c.is_agent,
+        is_guest: !!c.is_guest, reachable: !!c.public_key, region: c.region,
+        area: c.area || null, area_kind: null, district: null, ward: null,
+        lat: null, lng: null, bio: c.bio || null,
+        n_houses: c.n_houses || 0, n_services: c.n_services || 0,
+        n_trucks: c.n_trucks || 0, n_jobs: c.n_jobs || 0, n_verified: c.n_verified || 0,
+        kinds: c.kinds || null, last_seen_at: c.last_seen_at || null,
+        joined_at: new Date(Date.now() - 40 * 86400000).toISOString(),
+      }], error: null });
+    }
+    if (name === "pm_agent_listings") {
+      return Promise.resolve({ data: (db.listings[args.p_user] || []), error: null });
     }
     if (name === "pm_start_direct") {
       var id = "thread-" + args.p_other;
@@ -274,7 +323,11 @@ window.supabase = { createClient: function () {
     if (name === "pm_send") {
       var mid = "m" + (db.messages.length + 1);
       db.messages.push({ id: mid, thread_id: args.p_thread, sender_id: me,
-        iv: args.p_iv, ciphertext: args.p_ciphertext, sent_at: new Date().toISOString() });
+        iv: args.p_iv, ciphertext: args.p_ciphertext,
+        // Only the id. The stub stores what the real column stores, so a page
+        // that started shipping the quoted TEXT to the server would have
+        // nowhere to put it and the assertion below would catch it.
+        reply_to: args.p_reply_to || null, sent_at: new Date().toISOString() });
       db.wraps[mid] = {};
       (args.p_keys || []).forEach(function (k) { db.wraps[mid][k.user_id] = k; });
       return Promise.resolve({ data: mid, error: null });
@@ -294,6 +347,7 @@ window.supabase = { createClient: function () {
             alg: m.alg || null, iv: m.iv, ciphertext: m.ciphertext,
             epk: w ? w.epk : null, wrapped_key: w ? w.wrapped_key : null,
             generation: isSk ? m.generation : null, seq: isSk ? m.seq : null,
+            reply_to: m.reply_to || null,
             sent_at: m.sent_at };
         }).filter(Boolean);
       return Promise.resolve({ data: out, error: null });
@@ -321,7 +375,8 @@ window.supabase = { createClient: function () {
       var smid = "m" + (db.messages.length + 1);
       db.messages.push({ id: smid, thread_id: args.p_thread, sender_id: me,
         alg: "SK-A256GCM", iv: args.p_iv, ciphertext: args.p_ciphertext,
-        generation: args.p_generation, seq: args.p_seq, sent_at: new Date().toISOString() });
+        generation: args.p_generation, seq: args.p_seq,
+        reply_to: args.p_reply_to || null, sent_at: new Date().toISOString() });
       db.wraps[smid] = {};   // deliberately none: that is the whole saving
       return Promise.resolve({ data: smid, error: null });
     }
@@ -1598,6 +1653,259 @@ try {
        JSON.stringify(junkPage));
     ok(junk.errs.length === 0, "with no page errors", junk.errs.slice(0, 3).join(" | "));
     await junk.page.close();
+  }
+
+  section("11. Is anyone there? — presence on the agent list");
+  // The question the list could not answer. A directory of forty names in
+  // which most have not opened the app since March is a queue with no server,
+  // and the only way to find that out was to write to each of them and wait.
+  {
+    const dp = await openPage("someone@example.com", { peerKey: PEER_KEY });
+    await sleep(900);
+    await dp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(700);
+
+    const rows = await dp.page.$$eval("#pmPeople .pm-row", (ns) => ns.map((r) => ({
+      id: r.dataset.person,
+      seen: (r.querySelector(".pm-seen") || {}).textContent || null,
+      state: (r.querySelector(".pm-seen") || { className: "" }).className,
+    })));
+    const juma = rows.find((r) => r.id === "agent_juma");
+    const neema = rows.find((r) => r.id === "agent_neema");
+    const blank = rows.find((r) => r.id === "agent_blank");
+
+    ok(!!juma && /Online/i.test(juma.seen || ""), "somebody beating right now reads as online", JSON.stringify(juma));
+    ok(!!juma && /is-online/.test(juma.state), "and gets the live dot, not a grey one");
+    // Neema has no key, so she is unreachable and the row draws no presence
+    // at all — a last-seen for somebody who cannot be written to is a fact
+    // with nothing to do.
+    ok(!!neema && !neema.seen, "an unreachable person gets no presence line, because there is nothing to say to them",
+       JSON.stringify(neema));
+    ok(!!blank && !blank.seen,
+       "and somebody never seen gets NOTHING rather than 'last seen never' — that would be a claim about them",
+       JSON.stringify(blank));
+
+    // The beat itself.
+    const beats = await dp.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_touch_seen").length);
+    ok(beats >= 1, "the page says it is here, once, on open", String(beats));
+    const win = await dp.page.evaluate(() =>
+      (window.__PM_SENT || []).some((c) => c.name === "pm_online_window"));
+    ok(win, "and takes the length of 'online' from the database rather than guessing it");
+
+    ok(dp.errs.length === 0, "no page errors", dp.errs.slice(0, 3).join(" | "));
+    await dp.page.close();
+  }
+
+  section("12. What kind of work, and somewhere to go and look");
+  // "4 services" is the count of a thing whose identity was thrown away one
+  // join earlier: a plumber, a hairdresser and a night guard all read the same.
+  {
+    const dp = await openPage("someone@example.com", { peerKey: PEER_KEY });
+    await sleep(900);
+    await dp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(700);
+
+    const rows = await dp.page.$$eval("#pmPeople .pm-person-wrap", (ns) => ns.map((w) => {
+      const r = w.querySelector(".pm-row");
+      const a = w.querySelector(".pm-open");
+      return {
+        id: r.dataset.person,
+        kinds: Array.from(w.querySelectorAll(".pm-kind")).map((k) => k.textContent.trim()),
+        href: a ? a.getAttribute("href") : null,
+      };
+    }));
+    const juma = rows.find((r) => r.id === "agent_juma");
+    const blank = rows.find((r) => r.id === "agent_blank");
+
+    ok(!!juma && juma.kinds.length > 0, "the row says what kind of work, in words", JSON.stringify(juma));
+    ok(!!juma && juma.kinds.some((k) => /Apartment/i.test(k)),
+       "labelled, not printed as the stored slug", JSON.stringify(juma && juma.kinds));
+    ok(!!blank && blank.kinds.length === 0,
+       "and somebody with nothing listed claims no kinds at all");
+
+    ok(!!juma && juma.href === "agent.html?u=agent_juma",
+       "a link to their storefront, carrying only the id", JSON.stringify(juma && juma.href));
+    ok(!!blank && !blank.href,
+       "and no link for somebody whose page would be empty");
+
+    // The link must not swallow the row's own tap.
+    await dp.page.evaluate(() => document.querySelector('[data-person="agent_juma"]').click());
+    await sleep(900);
+    ok(await dp.page.$eval("#pmConv", (n) => n.classList.contains("is-on")),
+       "tapping the row still opens the conversation");
+
+    ok(dp.errs.length === 0, "no page errors", dp.errs.slice(0, 3).join(" | "));
+    await dp.page.close();
+  }
+
+  section("13. Answering one message");
+  // In a room with thirty people "yes, 300,000" is an answer to a question
+  // nine messages back and unreadable without it.
+  {
+    const dp = await openPage("someone@example.com", { peerKey: PEER_KEY });
+    await sleep(900);
+    // Every page in this run shares one localStorage, and section 8e
+    // deliberately substituted this agent's key. Left in place, that pin is a
+    // real change: the alarm fires, the composer is BLOCKED, and nothing here
+    // could send anything — a section that tested the reply feature would
+    // instead be testing the trust fence, silently.
+    await dp.page.evaluate(() => localStorage.removeItem("pm-trust-v1"));
+    await dp.page.reload({ waitUntil: "domcontentloaded" });
+    await sleep(1700);
+    await dp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(600);
+    await dp.page.evaluate(() => document.querySelector('[data-person="agent_juma"]').click());
+    await sleep(900);
+
+    const FIRST = "Nyumba ya vyumba viwili Nyamagana iko wapi?";
+    await dp.page.evaluate((txt) => {
+      const i = document.getElementById("pmInput");
+      i.value = txt;
+      document.getElementById("pmComposeForm").dispatchEvent(new Event("submit"));
+    }, FIRST);
+    await sleep(1200);
+
+    const bubbles = await dp.page.$$eval("#pmLog .pm-msg", (ns) => ns.map((n) => ({
+      id: n.dataset.msg, hasReply: !!n.querySelector("[data-reply]"),
+    })));
+    ok(bubbles.length >= 1 && bubbles[0].hasReply,
+       "every message offers a way to answer it", JSON.stringify(bubbles));
+
+    await dp.page.evaluate(() => document.querySelector("#pmLog [data-reply]").click());
+    await sleep(300);
+    const bar = await dp.page.evaluate(() => {
+      const b = document.getElementById("pmReplyBar");
+      return { hidden: b.hidden, text: b.textContent.trim() };
+    });
+    ok(!bar.hidden, "choosing one raises a strip above the composer");
+    ok(/Replying to/i.test(bar.text) && bar.text.indexOf(FIRST.slice(0, 20)) >= 0,
+       "which says who and what, so the answer cannot land on a message nobody remembers picking",
+       bar.text);
+
+    const REPLY = "Iko Mkuyuni, karibu na soko.";
+    await dp.page.evaluate((txt) => {
+      const i = document.getElementById("pmInput");
+      i.value = txt;
+      document.getElementById("pmComposeForm").dispatchEvent(new Event("submit"));
+    }, REPLY);
+    await sleep(1300);
+
+    const sends = await dp.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_send"));
+    ok(sends.length === 2, "the answer went as one ordinary message", String(sends.length));
+    ok(!!sends[1] && !!sends[1].args.p_reply_to,
+       "carrying the id of what it answers", JSON.stringify(sends[1] && sends[1].args.p_reply_to));
+    ok(!!sends[1] && sends[1].args.p_reply_to === bubbles[0].id,
+       "and it is the id of the message that was chosen");
+
+    // THE POINT: only an id. The quoted words must never leave the tab.
+    const leaked = dp.bodies.filter((b) => b.includes(FIRST) || b.includes(REPLY));
+    ok(leaked.length === 0,
+       "and neither message's words appear in ANY request body — the quote is never sent",
+       String(leaked.length));
+
+    const after = await dp.page.evaluate(() => document.getElementById("pmReplyBar").hidden);
+    ok(after, "sending clears the strip, or a second message answers the same thing again");
+
+    const quotes = await dp.page.$$eval("#pmLog .pm-quote", (ns) => ns.map((n) => ({
+      gone: n.classList.contains("is-gone"),
+      text: n.textContent.trim(),
+      goto: n.dataset.goto || null,
+    })));
+    ok(quotes.length === 1, "the answer is drawn with the question above it", String(quotes.length));
+    ok(!!quotes[0] && !quotes[0].gone && quotes[0].text.indexOf(FIRST.slice(0, 20)) >= 0,
+       "quoting what the original actually said, from this device's own copy", JSON.stringify(quotes[0]));
+    ok(!!quotes[0] && quotes[0].goto === bubbles[0].id,
+       "and pointing back at it, so a tap can go there");
+
+    await dp.page.evaluate(() => document.querySelector("#pmLog [data-reply]").click());
+    await sleep(250);
+    await dp.page.evaluate(() => document.getElementById("pmReplyX").click());
+    await sleep(250);
+    ok(await dp.page.evaluate(() => document.getElementById("pmReplyBar").hidden),
+       "and a chosen message can be un-chosen");
+
+    await dp.page.evaluate(() => document.querySelector("#pmLog [data-reply]").click());
+    await sleep(250);
+    await dp.page.evaluate(() => document.getElementById("pmBack").click());
+    await sleep(400);
+    ok(await dp.page.evaluate(() => document.getElementById("pmReplyBar").hidden),
+       "closing the conversation drops it too — a reply belongs to the room it was chosen in");
+
+    ok(dp.errs.length === 0, "no page errors", dp.errs.slice(0, 3).join(" | "));
+    await dp.page.close();
+  }
+
+  section("14. The storefront — agent.html?u=<user id>");
+  // The screen that did not exist: somebody could see "6 rooms" and had to
+  // open a conversation to find out what those six rooms were.
+  {
+    const dp = await openPage("someone@example.com", { path: "agent.html?u=agent_juma", peerKey: PEER_KEY });
+    await sleep(1800);
+
+    const card = await dp.page.evaluate(() => {
+      const q = (s) => document.querySelector(s);
+      const msg = q("#agMsg");
+      return {
+        name: (q(".ag-name") || {}).textContent || "",
+        area: (q(".ag-area") || {}).textContent || "",
+        seen: (q(".pm-seen") || {}).textContent || "",
+        kinds: Array.from(document.querySelectorAll(".ag-card .pm-kind")).map((k) => k.textContent.trim()),
+        bio: (q(".ag-bio") || {}).textContent || "",
+        bioNone: !!q(".ag-bio.is-none"),
+        msg: msg ? msg.getAttribute("href") : null,
+      };
+    });
+    ok(/Juma Mwanga/.test(card.name), "the page says who this is", card.name);
+    ok(/Nyamagana/.test(card.area), "and where they work", card.area);
+    ok(/Online/i.test(card.seen), "and whether they are there right now", card.seen);
+    ok(card.kinds.length > 0, "and what kind of work they do", JSON.stringify(card.kinds));
+    ok(card.bioNone && card.bio.trim().length > 0,
+       "a bio nobody wrote is SAID to be missing rather than left as a blank space", card.bio);
+    ok(card.msg === "p-message.html?to=agent_juma",
+       "and the one action leads back into an encrypted conversation", String(card.msg));
+
+    const items = await dp.page.$$eval(".ag-item", (ns) => ns.map((n) => ({
+      href: n.getAttribute("href"),
+      title: (n.querySelector(".ag-t") || {}).textContent || "",
+      kind: (n.querySelector(".pm-kind") || {}).textContent || "",
+      price: (n.querySelector(".ag-price") || {}).textContent || "",
+    })));
+    ok(items.length === 2, "their listings are on the page", String(items.length));
+    ok(!!items[0] && items[0].href === "house.html?id=h-1",
+       "each card leads to the listing's own page", items[0] && items[0].href);
+    ok(!!items[0] && /Two rooms/.test(items[0].title), "with its title", items[0] && items[0].title);
+    ok(!!items[0] && /Apartment/i.test(items[0].kind),
+       "and its kind in words, not as a slug", items[0] && items[0].kind);
+    ok(!!items[0] && /250k/.test(items[0].price),
+       "and a price you can read at a glance", items[0] && items[0].price);
+
+    // No phone number, anywhere. Every function behind this page returns where
+    // somebody works and never how to ring them.
+    const body = await dp.page.evaluate(() => document.body.textContent);
+    ok(!/\+255\d|\b07\d{8}\b/.test(body), "and no phone number, which is the whole point of the tab");
+
+    ok(dp.errs.length === 0, "no page errors", dp.errs.slice(0, 3).join(" | "));
+    await dp.page.close();
+  }
+
+  section("14b. A storefront for somebody who is not there");
+  {
+    const dp = await openPage("someone@example.com", { path: "agent.html?u=nobody_at_all" });
+    await sleep(1600);
+    const txt = await dp.page.evaluate(() => document.getElementById("agCard").textContent);
+    ok(/nobody here/i.test(txt), "an id nobody owns says so, plainly", txt.trim().slice(0, 90));
+    ok(!(await dp.page.$(".ag-item")), "and lists nothing");
+    ok(dp.errs.length === 0, "with no page errors", dp.errs.slice(0, 3).join(" | "));
+    await dp.page.close();
+
+    const none = await openPage("someone@example.com", { path: "agent.html" });
+    await sleep(1500);
+    const t2 = await none.page.evaluate(() => document.getElementById("agCard").textContent);
+    ok(/No agent chosen/i.test(t2), "and a link with no id says what to do instead", t2.trim().slice(0, 90));
+    ok(none.errs.length === 0, "with no page errors", none.errs.slice(0, 3).join(" | "));
+    await none.page.close();
   }
 
   process.stdout.write(`\n${pass} passed, ${fail} failed\n`);

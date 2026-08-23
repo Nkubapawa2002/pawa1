@@ -5,7 +5,15 @@
 import puppeteer from "puppeteer";
 
 const BASE = "http://localhost:8080";
-const PAGES = ["index.html", "houses.html", "login.html", "services.html", "chat.html"];
+// agent.html and p-message.html define their own palette ON THE BODY, which
+// beats theme-light.css on :root — the trap that has already shipped an
+// unreadable light screen once (dark-theme ink on a cream ground). They are on
+// this list because that mistake is invisible until somebody with a light
+// phone opens the page.
+const PAGES = process.argv[2]
+  ? [process.argv[2]]
+  : ["index.html", "houses.html", "login.html", "services.html", "chat.html",
+     "p-message.html", "agent.html?u=nobody"];
 
 function lum(c) {
   const m = c.match(/\d+(\.\d+)?/g);
@@ -55,7 +63,10 @@ for (const path of PAGES) {
     `toggle=${info.hasToggle} bodyBgLum=${bgL == null ? "?" : bgL.toFixed(2)} ` +
     `textContrast=${cr ? cr.toFixed(1) : "?"}  bg=${info.bodyBg} text=${info.bodyColor}`
   );
-  await page.screenshot({ path: `tests/_light_${path.replace(".html", "")}.png` });
+  // A page can now be listed with a query string, and "?" is not a filename
+  // on Windows — the run died on the write, not on the check.
+  const shot = path.replace(".html", "").replace(/[?=&]/g, "_");
+  await page.screenshot({ path: `tests/_light_${shot}.png` });
   await page.close();
 }
 

@@ -7,23 +7,13 @@
 (function () {
   "use strict";
 
-  const CATEGORY = {
-    cleaning: { label: "Cleaning", emoji: "" },
-    plumbing: { label: "Plumbing", emoji: "" },
-    electrical: { label: "Electrical", emoji: "" },
-    carpentry: { label: "Carpentry", emoji: "" },
-    painting: { label: "Painting", emoji: "" },
-    gardening: { label: "Gardening", emoji: "" },
-    moving_help: { label: "Moving help", emoji: "" },
-    laundry: { label: "Laundry", emoji: "" },
-    cooking: { label: "Cooking / Chef", emoji: "" },
-    tutoring: { label: "Tutoring", emoji: "" },
-    beauty: { label: "Beauty & Salon", emoji: "" },
-    security: { label: "Security", emoji: "" },
-    childcare: { label: "Childcare", emoji: "" },
-    appliance_repair: { label: "Appliance repair", emoji: "" },
-    other: { label: "Other", emoji: "" },
-  };
+  // The category words themselves live in js/lib/listing-kinds.js — the one
+  // map the agent list, the storefront and this page all read, so a service
+  // cannot be "Appliance repair" here and "appliance_repair" there. The
+  // emoji column stayed empty for every entry, so it is gone with the copy.
+  const CATEGORY_KEYS = ["cleaning", "plumbing", "electrical", "carpentry", "painting",
+    "gardening", "moving_help", "laundry", "cooking", "tutoring", "beauty", "security",
+    "childcare", "appliance_repair", "other"];
   const RATE_UNIT = { hourly: "hr", daily: "day", per_job: "job", monthly: "month" };
   const SERVICE_LABEL = { within_city: "Within city", region_wide: "Region-wide", cross_region: "Cross-region" };
 
@@ -58,8 +48,8 @@
     const p = s.photo || (Array.isArray(s.photos) && s.photos[0]) || "";
     return p && window.DataStore ? window.DataStore.servicePhotoUrl(p) : "";
   }
-  function catLabel(c) { return (CATEGORY[c] || CATEGORY.other).label; }
-  function catEmoji(c) { return (CATEGORY[c] || CATEGORY.other).emoji; }
+  function catLabel(c) { return window.ListingKinds.label("services", c) || window.ListingKinds.label("services", "other"); }
+  function catEmoji() { return ""; }
 
   function formatPrice(s) {
     const p = s.price_tzs || 0;
@@ -342,7 +332,7 @@
     const mk = (val, emoji, label) =>
       `<button type="button" class="svc-chip${fCat.value === val ? " active" : ""}" data-cat="${val}">${emoji} ${esc(label)}</button>`;
     chipsEl.innerHTML = mk("", "", "All") +
-      Object.entries(CATEGORY).map(([k, v]) => mk(k, v.emoji, v.label)).join("");
+      CATEGORY_KEYS.map((k) => mk(k, "", catLabel(k))).join("");
     chipsEl.querySelectorAll(".svc-chip").forEach((b) =>
       b.addEventListener("click", () => {
         fCat.value = b.dataset.cat;
@@ -361,7 +351,7 @@
 
     // Deep link from the homepage category chips: services.html?cat=cleaning
     const wantCat = new URLSearchParams(location.search).get("cat");
-    if (wantCat && CATEGORY[wantCat]) fCat.value = wantCat;
+    if (wantCat && CATEGORY_KEYS.includes(wantCat)) fCat.value = wantCat;
     buildChips();
 
     [fCat, fService, fRate].forEach((el) => el.addEventListener("change", () => { buildChips(); render(); }));

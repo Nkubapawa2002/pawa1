@@ -178,6 +178,36 @@
 
   function inbox() { return rpc("pm_inbox").then(function (r) { return r || []; }); }
 
+  // ---- presence -------------------------------------------------------------
+  // "This device has P-Message open." Called by js/lib/pm-presence.js on a
+  // one-minute beat and nowhere else — the claim on screen is "last opened
+  // P-Message", so a beat from any other page would silently weaken it.
+  // The RPC skips the write when the stored value is already fresh.
+  function touchSeen() { return rpc("pm_touch_seen"); }
+
+  // How long a beat counts for, straight from the database, so the dot and
+  // the thing keeping it lit cannot disagree.
+  function onlineWindow() { return rpc("pm_online_window"); }
+
+  /**
+   * One agent's storefront: who they are, and everything they list.
+   *
+   * Two calls rather than one because they fail differently and are drawn
+   * differently — the card is the page's identity and must be on screen
+   * before the catalogue finishes, and an agent with no listings still has
+   * a card. The page renders the first the moment it lands.
+   */
+  function agentCard(userId) {
+    return rpc("pm_agent_card", { p_user: userId }).then(function (rows) {
+      return (rows && rows[0]) || null;
+    });
+  }
+
+  function agentListings(userId, limit) {
+    return rpc("pm_agent_listings", { p_user: userId, p_limit: limit || 60 })
+      .then(function (r) { return r || []; });
+  }
+
   // A v2 safety number is six groups of five digits. Anything else on the
   // server is a leftover from the 12-digit scheme and carries no signal, so it
   // is not compared — see the tamper note below.
@@ -231,6 +261,10 @@
       areaKind: row.area_kind || null,
       district: row.district || null,
       ward: row.ward || null,
+      // Null when they have not opened P-Message since presence shipped.
+      // The header draws nothing for null rather than guessing — see
+      // js/lib/pm-presence.js.
+      lastSeenAt: row.last_seen_at || null,
       trust: trust,
     };
   }
@@ -417,6 +451,12 @@
       } catch (_) { failed = true; }
       out.push({
         id: r.id, at: r.sent_at, senderId: r.sender_id, senderName: r.sender_name,
+        // The message this one answers, as an ID and nothing more. The quoted
+        // WORDS are never sent from the server: the page pairs this with the
+        // copy it just decrypted, so a reply can never display text the
+        // original did not contain, and a reply to something this device may
+        // not read shows a neutral placeholder instead of leaking it.
+        replyTo: r.reply_to || null,
         // In a room the name beside a message is one the sender chose for
         // themselves. Saying which of those people never proved who they are
         // is the difference between "the agent said so" and "somebody calling
@@ -467,7 +507,7 @@
    * removed. pm_send_sk() refuses it anyway — this just avoids the round trip
    * that ends in an error.
    */
-  async function sendWithSenderKey(threadId, body, generation, recipients) {
+  async function sendWithSenderKey(threadId, body, generation, recipients, replyTo) {
     var mine = skLoad(threadId, generation);
     if (!mine) {
       // First message of this generation: pay the one-time distribution.
@@ -490,13 +530,22 @@
     await rpc("pm_send_sk", {
       p_thread: threadId, p_generation: generation, p_seq: mine.seq,
       p_iv: sealed.iv, p_ciphertext: sealed.ciphertext,
+      p_reply_to: replyTo || null,
     });
     mine.seq += 1;
     skSave(threadId, generation, mine);
-    return { at: new Date().toISOString(), text: body, mine: true };
+    return { at: new Date().toISOString(), text: body, mine: true, replyTo: replyTo || null };
   }
 
-  async function send(threadId, plaintext) {
+  /**
+   * @param {string} threadId
+   * @param {string} plaintext
+   * @param {{replyTo?: string}} [opts] the id of the message being answered.
+   *   Optional third argument rather than a fourth positional one so every
+   *   existing caller keeps working, and so the id has a name at the call
+   *   site — send(t, text, someUuid) would read as anybody's guess.
+   */
+  async function send(threadId, plaintext, opts) {
     if (!identity) throw new Error("NO_IDENTITY");
     var body = String(plaintext == null ? "" : plaintext).trim();
     if (!body) return null;
@@ -504,10 +553,12 @@
     var recipients = await threadKeys(threadId);
     if (!recipients.length) throw new Error("NOBODY_REACHABLE");
 
+    var replyTo = (opts && opts.replyTo) || null;
+
     if (recipients.length > SK_THRESHOLD) {
       var meta = await threadMeta(threadId);
       if (meta.kind === "group") {
-        return sendWithSenderKey(threadId, body, meta.key_generation || 0, recipients);
+        return sendWithSenderKey(threadId, body, meta.key_generation || 0, recipients, replyTo);
       }
     }
 
@@ -518,8 +569,9 @@
     await rpc("pm_send", {
       p_thread: threadId, p_iv: sealed.iv,
       p_ciphertext: sealed.ciphertext, p_keys: sealed.keys,
+      p_reply_to: replyTo,
     });
-    return { at: new Date().toISOString(), text: body, mine: true };
+    return { at: new Date().toISOString(), text: body, mine: true, replyTo: replyTo };
   }
 
   function recipients(region) {
@@ -638,6 +690,10 @@
     finder: finder,
     inbox: inbox,
     peer: peer,
+    touchSeen: touchSeen,
+    onlineWindow: onlineWindow,
+    agentCard: agentCard,
+    agentListings: agentListings,
     startDirect: startDirect,
     markRead: markRead,
     threadKeys: threadKeys,

@@ -28,8 +28,14 @@ the promise.
 **Not promised, and stated in the UI rather than buried here**
 
 - **Metadata is in the clear.** Who wrote to whom, when, how often, how long
-  the message was. The schema does not pretend otherwise, and encrypting this
-  would mean a fundamentally different (and much slower) design.
+  the message was, **which message a reply answers**, and **when somebody last
+  had P-Message open**. The schema does not pretend otherwise, and encrypting
+  this would mean a fundamentally different (and much slower) design. The last
+  two are newer than the rest and are listed here rather than left implied:
+  `pm_messages.reply_to` and `pm_presence.last_seen_at`. Both are held as
+  tightly as the design allows — presence is readable through no policy at all,
+  only through functions that already decide who may see whom — but "tightly
+  held" is not "encrypted" and this document does not blur the two.
 - **Key distribution is trust-on-first-use.** Public keys come from the same
   database that stores the messages. Someone who controls that database could
   hand you a key of their own and read what you send from that moment on.
@@ -269,6 +275,103 @@ it. One button now says so, fills in the name, and runs the roster preview
 immediately — the count is what makes a room of a thousand people safe to
 press.
 
+### Is anyone there?
+
+The directory could say what somebody deals in and where they work. It could
+not answer the question a person actually holds while deciding whether to type:
+**is anybody going to read this today.** A list of forty names in which most
+have not opened the app since March is a queue with no server, and the only way
+to find that out was to write to each of them and wait.
+
+`pm_presence` holds one timestamp per person: when they last had **P-Message
+open**. Not when they last loaded the site, not when they published a key —
+that exact claim is the only version of it that predicts a reply, and it is why
+`p-message.html` is the only page that beats. `js/lib/pm-presence.js` beats
+once a minute and again whenever the tab comes back to the front, because a
+phone suspends timers the moment the screen locks.
+
+**Where it is contained is the whole design.** `pm_presence` has RLS on and
+**not one policy** — the same pattern `day_job_owners` uses. Nothing reads it
+directly. It comes back only through functions that already decide who may see
+whom: `pm_agent_finder` (signed-in, never guests), `pm_peer` (only somebody you
+already share a thread with). There is no "when was this person last online"
+call, because no screen needs one and it would be a tracking API.
+
+Truncated to the minute on the way out: seconds would tell an observer when
+somebody put the phone down. Three states — online (150s, one number, in the
+database, so the dot and the beat keeping it lit cannot drift apart), recently,
+and a date past a week. **Null is not zero.** Somebody with no record has not
+been away for ever; they have not been seen since this shipped, and every
+screen draws *nothing* rather than "last seen never", which would be a claim
+about the person instead of about our data.
+
+### What kind of work, and a page to look at it on
+
+"4 services" is the count of a thing whose identity was thrown away one join
+earlier: a plumber, a hairdresser and a night guard all read the same on that
+row, and the only way to tell them apart was to open four conversations.
+`pm_owner_listings` now carries `kind` — `houses.type`, `services.category`,
+`trucks.truck_type` — and `pm_agent_finder` returns the top four, narrowed to
+the chosen category when there is one. A day job has no kind, because the board
+has no categories; guessing one from the title would be a guess printed as a
+fact.
+
+The words come from `js/lib/listing-kinds.js`, which is now the only copy —
+`services.js`, `trucks.js` and `houses.js` each carried their own, and three
+copies of a lookup table is three chances for the truck page to say "7-tonne
+lorry" while the agent list says "7ton". Two of the three columns are free
+text, so anything unrecognised is title-cased and shown **as typed**, never
+replaced with "Other": an unfamiliar kind is still the truest description of
+the work available.
+
+`agent.html?u=<user id>` is the storefront — the screen that did not exist.
+`pm_agent_card()` and `pm_agent_listings()` fill it, both signed-in only (a
+storefront that worked signed-out would enumerate every agent in the country),
+both refusing guests, and **neither returning a phone number**. That is the
+invariant every function on this directory holds and the easiest one to break
+by adding a column.
+
+**About the "link in the bio".** `agent_profiles.bio` is the agent's own words,
+plain text, escaped at render. The LINK is not stored anywhere: it is always
+`agent.html?u=<their own id>`, derived from the id. A free-text link field on a
+public directory row is a phishing surface with a marketing name — it puts an
+attacker-chosen destination behind a name the app appears to vouch for. The
+link people want is "take me to this agent's services", and that destination is
+knowable from the id alone. The URL carries only the id for the same reason
+`p-message.html?to=` does: name, area and catalogue all come from the database,
+so a doctored link cannot put a borrowed name on the one page whose job is
+saying who this is.
+
+An agent reaches the bio from **Profile → Your area and your bio**.
+`AgentProfile.ensure()` prompts only when something *required* is missing, so
+without `AgentProfile.edit()` the field would have been one nobody whose
+profile was already complete could ever fill in.
+
+### Answering one message
+
+A direct thread does not need this. A room does: with thirty agents talking,
+"yes, 300,000" answers a question nine messages back and is unreadable without
+it.
+
+One column, `pm_messages.reply_to`, pointing at another message **in the same
+thread** — checked by `pm_reply_target()`, which both send paths call so the
+rule cannot exist in two versions. The quoted text is **not** stored:
+
+- the quote is drawn from the copy the reading device already decrypted, so it
+  costs no second ciphertext and can never disagree with the original;
+- a stored quote would be a second, independent encryption of the same words —
+  twice the surface, and a place a client could put text the original never
+  contained;
+- somebody who cannot open the quoted message (they joined the room after it
+  was sent, or it is outside the page they loaded) sees a neutral "an earlier
+  message" and **not** a fabricated preview. A reply to something you are not
+  entitled to read must not leak it, and the only way to be sure is never to
+  have it to leak.
+
+Both send paths carry it. A room above the sender-key threshold is exactly the
+room where replies matter most, so wiring only the small-room path would have
+shipped the feature to the conversations that need it least.
+
 ---
 
 ## Files
@@ -279,11 +382,18 @@ js/lib/pm-trust.js                      pinned keys and the change alarm; device
 js/lib/qr.js                            a QR encoder; no dependency, no build step
 js/lib/pm-device-lock.js                WebAuthn PRF: the private key sealed by the phone
 js/lib/pm-store.js                      identity, calls, decryption; no DOM
+js/lib/pm-presence.js                   the heartbeat, and the words for a timestamp
+js/lib/listing-kinds.js                 the ONE map from a stored kind to a word
 js/pages/p-message.js                   the screen
 p-message.html                          markup + styles
-supabase/features/message/p_message.sql        tables, RLS, RPCs   (APPLIED)
-supabase/features/message/p_message_guests.sql guests + the fence  (APPLIED)
-supabase/features/message/p_message_trust.sql  pm_peer returns the key (APPLIED)
+agent.html · js/pages/agent.js          one agent's storefront
+css/pm-shared.css                       presence, kinds and the link — used by both pages
+supabase/features/message/p_message.sql          tables, RLS, RPCs   (APPLIED)
+supabase/features/message/p_message_guests.sql   guests + the fence  (APPLIED)
+supabase/features/message/p_message_trust.sql    pm_peer returns the key (APPLIED)
+supabase/features/message/p_message_presence.sql pm_presence + the beat (APPLIED)
+supabase/features/message/p_message_storefront.sql bio, kinds, agent card (APPLIED)
+supabase/features/message/p_message_replies.sql  reply_to on both send paths (APPLIED)
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
 css/pm-identity.css                     their styling, so it travels with them
 profile.html · js/pages/profile.js      the account tab
@@ -310,7 +420,8 @@ for the same reason.
 | `tests/qr_test.mjs` | 22 — the QR encoder against a decoder written backwards from it. No decoder exists on this platform (BarcodeDetector is a phone API and the registry is unreachable), so the oracle is Reed-Solomon: if a single module is misplaced the syndromes stop vanishing, and passing that by luck is about 2^-80 |
 | `tests/p_message_lock_test.mjs` | 33 — the device lock against Chrome's virtual authenticator, which really does implement PRF. Written around data loss rather than the happy path: is the plaintext gone, is a LOCKED device mistaken for a NEW one, does unlocking return the same key |
 | `tests/p_message_layout_test.mjs` | 14 — the conversation as a thing you type into: the composer grows with the message, and the on-screen keyboard does not end up on top of it |
-| `tests/p_message_page_test.mjs` | 115 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text**, and the whole guest path |
+| `tests/p_message_page_test.mjs` | 233 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text** — extended to replies, where neither the answer nor the message it quotes may appear in any body — plus presence, the work kinds, the storefront and the whole guest path |
+| `tests/p_message_presence_db_test.mjs` | 31 — against the **real database**: that `pm_presence` is readable through no policy at all, that the storefront refuses anon and guests and returns no phone number, and that a reply cannot name a message in another conversation |
 | `tests/p_message_guest_test.mjs` | 19 — against the real database: mostly proving the DOWNSIDE was closed (a guest cannot post a house, a service or an agent profile) rather than that the feature works |
 | `tests/profile_page_test.mjs` | 41 — Profile's three states, and that a guest is never offered a door the database will refuse |
 
@@ -332,6 +443,12 @@ Run the middle one only when you mean to — it writes to production.
   starts a fresh identity; the guest thread stays with the guest session. Moving
   a thread across would mean re-wrapping every message key to the new identity —
   doable, and not done.
+- **Presence is per person, not per device.** Two devices signed into one
+  account write to one row, so "online" means one of them is. Splitting it
+  would mean holding a row per device, which is more tracking, not less.
+- **Day jobs have no detail page**, so a job card on a storefront leads to the
+  jobs board rather than to the job. One line in `js/pages/agent.js`
+  (`listingHref`) when they grow one.
 - **No attachments and no push notifications.** A photo of a room is a natural
   next thing to send, and both are real work: encrypting a blob and storing it,
   and waking a phone without leaking who is talking to whom.

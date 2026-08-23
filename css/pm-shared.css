@@ -1,0 +1,55 @@
+/* =====================================================================
+   pm-shared.css — the three small things P-Message and an agent's
+   storefront both draw, in one file so they cannot drift apart.
+
+   Presence, the kind of work somebody does, and the link between the two
+   screens are the vocabulary that makes the agent list and agent.html
+   read as one feature rather than two. A green dot that is a different
+   green on the second page is not a smaller bug than a wrong word.
+
+   Every colour here is a --pm-* token. Both pages define the same token
+   names for both themes (see the palette block at the top of each), so
+   this file never names a colour of its own and never needs a light-mode
+   copy. Loading it on a page that has not defined the tokens gets you
+   unstyled text, not white-on-white — which is the honest failure.
+
+   Loaded by: p-message.html, agent.html.
+   ===================================================================== */
+
+/* ---- is anyone there? -----------------------------------------------
+   Three states, because "online" and "four hours ago" are not the only
+   two worth telling apart: somebody who closed the tab eight minutes ago
+   is, for the purpose of getting an answer, still there.
+
+   A person we have never seen gets NO badge at all — js/lib/pm-presence.js
+   returns "" for that case. A grey "last seen never" would be a claim
+   about the person rather than about our data. */
+.pm-seen { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto;
+  font-size: 11px; color: var(--pm-ink-faint); min-width: 0; }
+.pm-seen span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-seen i { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--pm-ink-faint); }
+.pm-seen.is-online { color: #2f9e63; font-weight: 700; }
+.pm-seen.is-online i { background: #2f9e63; box-shadow: 0 0 0 3px rgba(47,158,99,.16); }
+.pm-seen.is-recent i { background: var(--pm-gold); }
+:root[data-theme="light"] .pm-seen.is-online { color: #1c7a48; }
+
+/* ---- what kind of work ----------------------------------------------
+   "4 services" is the count of a thing whose identity was thrown away
+   one join earlier: a plumber, a hairdresser and a night guard all read
+   the same on that row. The kind is the word people scan for. */
+.pm-kinds { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px;
+  font-size: 11.5px; color: var(--pm-ink); font-weight: 600; }
+.pm-kind { background: var(--pm-brand-soft); color: var(--pm-brand);
+  border-radius: 7px; padding: 2px 7px; }
+
+/* ---- go and look before you write ------------------------------------
+   The link between the two screens, in both directions. Styled here,
+   POSITIONED by whichever page draws it — in the agent list it is pinned
+   to the corner of a row, in a conversation header it sits in the flow. */
+.pm-open { display: inline-flex; align-items: center; gap: 4px; text-decoration: none;
+  font-size: 11px; font-weight: 700; color: var(--pm-brand);
+  background: var(--pm-brand-soft); border: 1px solid var(--pm-brand-line);
+  border-radius: 999px; padding: 4px 9px; }
+.pm-open:hover { text-decoration: none; filter: brightness(1.08); }
+.pm-open svg { width: 11px; height: 11px; }

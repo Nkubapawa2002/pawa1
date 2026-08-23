@@ -24,6 +24,9 @@
   <link rel="stylesheet" href="css/design-system.css" />
   <!-- The key dialogs (safety number, backup, restore), shared with profile.html. -->
   <link rel="stylesheet" href="css/pm-identity.css" />
+  <!-- Presence, work kinds and the link to a storefront — shared with
+       agent.html so the two screens speak one visual language. -->
+  <link rel="stylesheet" href="css/pm-shared.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 
   <style>
@@ -260,6 +263,65 @@
     .pm-row.is-person { align-items: flex-start; }
     .pm-row.is-person .pm-av { margin-top: 1px; }
 
+    /* Presence, the kind of work somebody does, and the link out to their
+       storefront now live in css/pm-shared.css — agent.html draws the same
+       three things, and a green dot that is a different green on the second
+       page is not a smaller bug than a wrong word. What stays here is the
+       POSITIONING, which is this page's alone: an <a> cannot live inside the
+       row's <button>, so the two are siblings in a wrapper and the link is
+       pinned to the corner. It is a separate tap target on purpose —
+       "open a conversation" and "look at their work first" are different
+       intentions and one row should not guess which one a thumb meant. */
+    .pm-person-wrap { position: relative; }
+    .pm-person-wrap > .pm-open { position: absolute; right: 8px; bottom: 8px; z-index: 2; }
+    /* Room for the link so a long "why" line never runs under it. */
+    .pm-row.is-person { padding-bottom: 30px; }
+
+    /* ---- answering one message --------------------------------------------
+       In a room with thirty people "yes, 300,000" is an answer to a question
+       nine messages back and unreadable without it.
+
+       The quote is drawn from the copy THIS DEVICE decrypted, never from
+       anything the server sent: a preview supplied by the server could say
+       something the original never contained, and a reply to a message this
+       device may not read must not be able to leak it. When the original is
+       not in hand the quote says so in plain words instead of guessing. */
+    .pm-quote { display: block; border-left: 3px solid var(--pm-brand);
+      padding: 3px 0 3px 8px; margin: -1px 0 6px; font-size: 12px; line-height: 1.4;
+      color: var(--pm-ink-soft); cursor: pointer; background: none; border-top: 0;
+      border-right: 0; border-bottom: 0; text-align: left; font-family: inherit;
+      width: 100%; }
+    .pm-quote b { display: block; color: var(--pm-brand); font-size: 11px;
+      font-weight: 800; margin-bottom: 1px; }
+    .pm-quote span { display: block; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; }
+    .pm-quote.is-gone { font-style: italic; color: var(--pm-ink-faint);
+      border-left-color: var(--pm-line); cursor: default; }
+    /* The message the reader was sent to. A flash rather than a permanent
+       mark: it answers "which one" and then gets out of the way. */
+    .pm-msg.is-flash { animation: pmFlash 1.4s ease-out; }
+    @keyframes pmFlash {
+      0%, 40% { box-shadow: 0 0 0 3px var(--pm-brand-line); }
+      100% { box-shadow: 0 0 0 3px transparent; }
+    }
+    .pm-msg-act { background: none; border: 0; padding: 0 0 0 8px; margin: 0;
+      font: inherit; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--pm-brand); cursor: pointer; }
+    .pm-msg.failed .pm-msg-act { color: var(--pm-ink-faint); }
+
+    /* The strip above the composer. It has to be visible while typing or a
+       reply lands on a message nobody remembers choosing. */
+    .pm-replybar { display: flex; align-items: center; gap: 9px; padding: 8px 12px;
+      border-top: 1px solid var(--c-border); background: var(--pm-bar);
+      font-size: 12px; color: var(--pm-ink-soft); }
+    .pm-replybar .pm-rb-tx { flex: 1; min-width: 0; border-left: 3px solid var(--pm-brand);
+      padding-left: 8px; }
+    .pm-replybar b { display: block; color: var(--pm-brand); font-size: 11px; font-weight: 800; }
+    .pm-replybar .pm-rb-body { display: block; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; }
+    .pm-rb-x { flex: 0 0 auto; background: none; border: 0; color: var(--pm-ink-soft);
+      font-size: 19px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+
     /* ---- rooms and links --------------------------------------------------- */
     .pm-mem { display: flex; align-items: center; gap: 9px; padding: 9px 0;
       border-bottom: 1px solid var(--pm-line); }
@@ -341,6 +403,15 @@
       display: flex; align-items: center; gap: 6px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pm-conv-sub .pm-area { flex: 0 1 auto; min-width: 0; }
+    /* The sub carries four things now — where they work, when they were last
+       here, a guest badge, a link to their catalogue — and nowrap on a flex
+       row defeats flex-wrap, which is how the header title ended up as a
+       99px six-line column the last time something was added to it. Two
+       short lines beat one clipped one. */
+    .pm-conv-sub { flex-wrap: wrap; white-space: normal; overflow: visible; row-gap: 3px; }
+    .pm-conv-sub > * { flex: 0 1 auto; min-width: 0; }
+    .pm-conv-h { align-items: flex-start; }
+    .pm-conv-h .pm-back, .pm-conv-h .pm-btn { margin-top: 1px; }
     /* min-height:0 or a flex child refuses to shrink below its content and
        the log pushes the composer off the bottom instead of scrolling. */
     .pm-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
@@ -518,6 +589,11 @@
     <div class="pm-trust-bar" id="pmTrustBar" hidden></div>
     <div class="pm-log" id="pmLog"></div>
     <div class="pm-conv-note" id="pmConvNote"></div>
+    <!-- What this message is answering. Above the composer rather than inside
+         it, so it survives the textarea growing to six lines, and always
+         visible while typing — a reply that quietly lost its target would
+         land as a non-sequitur in a room of thirty people. -->
+    <div class="pm-replybar" id="pmReplyBar" hidden></div>
     <form class="pm-compose" id="pmComposeForm">
       <textarea id="pmInput" rows="1" data-i18n-placeholder="pm_write_ph" placeholder="Write a message"></textarea>
       <button class="pm-send" id="pmSendBtn" type="submit" aria-label="Send">
@@ -547,7 +623,14 @@
        agent list from what people actually list and where they work. Loaded
        before the page script, which is its only caller. -->
   <script src="js/lib/pm-match.js"></script>
+  <!-- The words for a stored listing kind ("canter" -> "Canter"), shared with
+       the houses / services / trucks pages so the agent list and the catalogue
+       cannot call the same lorry two different things. -->
+  <script src="js/lib/listing-kinds.js"></script>
   <script src="js/lib/pm-store.js"></script>
+  <!-- Loaded AFTER pm-store: it beats against PMStore.touchSeen(), and the
+       page starts it once boot() knows there is an identity to be present as. -->
+  <script src="js/lib/pm-presence.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
   <script src="js/pages/p-message.js"></script>
   <script src="js/core/app-shell.js"></script>

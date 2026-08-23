@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script src="js/core/theme.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Agent — Maisha na Lifeza</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <!-- premium.css is deliberately NOT loaded, for the same reason
+       p-message.html leaves it out: it force-styles every input and select
+       with !important to a near-white glass pill, which is wrong on a dark
+       screen, and fighting it with more !important is a war neither file wins. -->
+  <link rel="stylesheet" href="css/claude-design.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <!-- Presence, work kinds and the link back into a conversation, shared with
+       p-message.html. This page is the other end of that link. -->
+  <link rel="stylesheet" href="css/pm-shared.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+
+  <style>
+    /* =====================================================================
+       agent.html — one agent's storefront.
+
+       The screen that did not exist. Somebody scanning the P-Message agent
+       list could see a name, an area and "4 services", and the only way to
+       find out what those four services WERE was to open a conversation and
+       ask. Every other marketplace answers "who is this" with a page; here
+       the answer was a chat request.
+
+       So this is that page, and it is deliberately a SHOP WINDOW rather than
+       a profile: identity at the top (who, where, when they were last here,
+       in their own words), then everything they list, each card leading to
+       the listing's own page. The one action is "Message them", because
+       that is the thing the P-Message tab exists for and the thing a phone
+       number would quietly replace.
+
+       WHAT IS NOT ON THIS PAGE. A phone number. pm_agent_card and
+       pm_agent_listings do not return one — every function that touches the
+       P-Message directory returns where somebody works and never how to ring
+       them. The listing pages themselves show a number; that is their
+       business, and it is a page the visitor chose to open.
+       ===================================================================== */
+    /* The same token names p-message.html defines, so css/pm-shared.css can
+       be written once and mean the same thing on both. Light values are
+       picked for contrast, not for being the same hue. */
+    body[data-page="agent"] {
+      --pm-ground: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      --pm-ink: #E9F3EE;
+      --pm-ink-soft: rgba(233,243,238,.62);
+      --pm-ink-faint: rgba(233,243,238,.5);
+      --pm-card: #141A18;
+      --pm-line: rgba(255,255,255,.08);
+      --pm-field: rgba(255,255,255,.05);
+      --pm-brand: #2EE6A6;
+      --pm-brand-soft: rgba(46,230,166,.14);
+      --pm-brand-line: rgba(46,230,166,.28);
+      --pm-on-brand: #06170F;
+      --pm-gold: #F6C45A;
+      --pm-gold-soft: rgba(246,196,90,.16);
+
+      --c-surface: var(--pm-card); --c-border: var(--pm-line);
+      --c-text: var(--pm-ink); --c-text-muted: var(--pm-ink-soft);
+      background: var(--pm-ground);
+      color: var(--pm-ink); font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    :root[data-theme="light"] body[data-page="agent"] {
+      --pm-ground: linear-gradient(180deg, #FAF9F5 0%, #F2F1EA 100%);
+      --pm-ink: #1a1915;
+      --pm-ink-soft: #4b493f;
+      --pm-ink-faint: #6b6960;
+      --pm-card: #ffffff;
+      --pm-line: rgba(20,20,15,.12);
+      --pm-field: rgba(20,20,15,.04);
+      --pm-brand: #0a6647;
+      --pm-brand-soft: rgba(10,102,71,.10);
+      --pm-brand-line: rgba(10,102,71,.30);
+      --pm-on-brand: #ffffff;
+      --pm-gold: #8a6100;
+      --pm-gold-soft: rgba(138,97,0,.12);
+    }
+    body[data-page="agent"] #nav-slot,
+    body[data-page="agent"] #footer-slot { display: none !important; }
+
+    .ag-wrap { max-width: 640px; margin: 0 auto; padding: calc(env(safe-area-inset-top,0px) + 14px) 14px 60px; }
+    .ag-back { display: inline-flex; align-items: center; gap: 6px; color: var(--pm-brand);
+      text-decoration: none; font-weight: 700; font-size: .86rem; margin-bottom: 14px; }
+    .ag-back:hover { text-decoration: none; }
+
+    /* ---- who this is --------------------------------------------------- */
+    .ag-card { background: var(--pm-card); border: 1px solid var(--pm-line);
+      border-radius: 18px; padding: 16px; margin-bottom: 16px; }
+    .ag-top { display: flex; align-items: flex-start; gap: 12px; }
+    .ag-av { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 16px; display: grid;
+      place-items: center; background: var(--pm-brand-soft); color: var(--pm-brand);
+      font-weight: 800; font-size: 18px; }
+    .ag-id { min-width: 0; flex: 1; }
+    .ag-name { font-size: 1.15rem; font-weight: 800; color: var(--pm-ink);
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ag-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-top: 5px; font-size: 12px; color: var(--pm-ink-soft); }
+    .ag-area { display: inline-flex; align-items: center; gap: 3px; color: var(--pm-brand);
+      font-weight: 700; min-width: 0; }
+    .ag-area svg { width: 12px; height: 12px; flex: 0 0 auto; }
+    .ag-area.is-none { color: var(--pm-ink-faint); font-weight: 500; font-style: italic; }
+    .ag-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+      padding: 2px 6px; border-radius: 6px; background: var(--pm-brand-soft); color: var(--pm-brand); }
+    .ag-badge.warn { background: var(--pm-gold-soft); color: var(--pm-gold); }
+
+    /* Their own words. Pre-line so paragraph breaks survive, and escaped on
+       the way in — a bio is plain text and never markup, so a link typed
+       into one stays visible text rather than becoming a destination this
+       app appears to vouch for. */
+    .ag-bio { margin-top: 12px; font-size: 13.5px; line-height: 1.6; color: var(--pm-ink);
+      white-space: pre-line; }
+    .ag-bio.is-none { color: var(--pm-ink-faint); font-style: italic; }
+
+    .ag-acts { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
+    .ag-btn { flex: 1 1 160px; display: inline-flex; align-items: center; justify-content: center;
+      gap: 7px; padding: 12px 14px; border-radius: 13px; font: inherit; font-size: 14px;
+      font-weight: 700; text-decoration: none; cursor: pointer; border: 1px solid var(--pm-brand-line);
+      background: var(--pm-brand); color: var(--pm-on-brand); }
+    .ag-btn:hover { text-decoration: none; filter: brightness(1.06); }
+    .ag-btn.ghost { background: var(--pm-field); color: var(--pm-ink); border-color: var(--pm-line); }
+    .ag-btn[disabled] { opacity: .5; cursor: not-allowed; }
+    .ag-note { font-size: 11.5px; color: var(--pm-ink-faint); margin-top: 9px; line-height: 1.5; }
+
+    /* ---- what they list ------------------------------------------------ */
+    .ag-secs { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none;
+      margin: 0 -14px 12px; padding: 0 14px 2px; }
+    .ag-secs::-webkit-scrollbar { display: none; }
+    .ag-sec { flex: 0 0 auto; background: var(--pm-field); border: 1px solid var(--pm-line);
+      color: var(--pm-ink-soft); border-radius: 999px; padding: 8px 13px; font: inherit;
+      font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .ag-sec.is-on { background: var(--pm-brand-soft); border-color: var(--pm-brand-line); color: var(--pm-brand); }
+
+    .ag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 430px) { .ag-grid { grid-template-columns: 1fr; } }
+    .ag-item { display: block; background: var(--pm-card); border: 1px solid var(--pm-line);
+      border-radius: 15px; overflow: hidden; text-decoration: none; color: inherit; }
+    .ag-item:hover { border-color: var(--pm-brand-line); text-decoration: none; }
+    .ag-shot { aspect-ratio: 16/10; background: var(--pm-field) center/cover no-repeat;
+      display: grid; place-items: center; color: var(--pm-ink-faint); font-size: 11px; }
+    .ag-tx { padding: 10px 11px 12px; }
+    .ag-t { font-size: 13.5px; font-weight: 700; color: var(--pm-ink);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ag-sub { font-size: 11.5px; color: var(--pm-ink-soft); margin-top: 3px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .ag-price { font-size: 13px; font-weight: 800; color: var(--pm-brand); margin-top: 5px; }
+    .ag-price small { font-weight: 600; color: var(--pm-ink-faint); font-size: 11px; }
+    /* A closed day job is still evidence about who this is — it just is not an
+       offer. Dimming says both at once. */
+    .ag-item.is-off { opacity: .58; }
+
+    .ag-empty { text-align: center; padding: 34px 16px; color: var(--pm-ink-faint);
+      font-size: 13px; line-height: 1.6; }
+    .ag-h { font-size: .74rem; text-transform: uppercase; letter-spacing: .5px;
+      color: var(--pm-ink-faint); margin: 0 0 9px; font-weight: 800; }
+  </style>
+  <link rel="stylesheet" href="css/theme-light.css" />
+</head>
+<body data-page="agent">
+  <div id="nav-slot"></div>
+
+  <main class="ag-wrap">
+    <a href="p-message.html" class="ag-back" id="agBack">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      <span data-i18n="ag_back">Back to P-Message</span>
+    </a>
+
+    <div id="agCard" aria-live="polite" aria-busy="true">
+      <div class="ag-card" data-i18n="pm_loading">Loading…</div>
+    </div>
+
+    <div id="agWork"></div>
+  </main>
+
+  <div id="footer-slot"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/i18n.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/auth.js"></script>
+  <script src="js/core/nav.js"></script>
+  <script src="js/lib/listing-kinds.js"></script>
+  <!-- PMStore is what holds the two storefront calls, and it needs p-crypto
+       loaded to build its identity — the card is fetched with the visitor's
+       own session, because the directory is signed-in only. -->
+  <script src="js/lib/p-crypto.js"></script>
+  <script src="js/lib/pm-trust.js"></script>
+  <script src="js/lib/pm-store.js"></script>
+  <script src="js/lib/pm-presence.js"></script>
+  <script src="js/pages/agent.js"></script>
+  <script src="js/core/sw-register.js"></script>
+</body>
+</html>

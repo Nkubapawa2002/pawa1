@@ -74,8 +74,10 @@ window.initHousesPage = async () => {
   // A "segment" is the top-level world the user is browsing. Residential
   // rentals/sales are kept apart from commercial premises so searching is
   // simpler. Business = office / shop / warehouse, either rent OR sale.
-  const TYPE_LABELS = { apartment: "Apartment", house: "House", plot: "Plot",
-    office: "Office", shop: "Shop / business", warehouse: "Warehouse" };
+  // The words themselves live in js/lib/listing-kinds.js, the one map this
+  // page, the trucks page, the services page and the P-Message agent list all
+  // read. Four copies of "apartment → Apartment" is four chances to drift.
+  const typeLabel = (t) => window.ListingKinds.label("houses", t) || t;
   const RESIDENTIAL_TYPES = ["apartment", "house", "plot"];
   const BUSINESS_TYPES    = ["office", "shop", "warehouse"];
   const isBusinessType  = (t) => BUSINESS_TYPES.includes(t);
@@ -325,7 +327,7 @@ window.initHousesPage = async () => {
     const allowed = typesForSegment(segment);
     const cur = fType.value;
     fType.innerHTML = `<option value="">Type: any</option>` +
-      allowed.map(t => `<option value="${t}">${esc(TYPE_LABELS[t] || t)}</option>`).join("");
+      allowed.map(t => `<option value="${t}">${esc(typeLabel(t))}</option>`).join("");
     fType.value = allowed.includes(cur) ? cur : "";
   }
 
@@ -1842,7 +1844,7 @@ window.initHousesPage = async () => {
     if (smartAiNote) chips.push(` ${smartAiNote}`);
     if (landmarkLoc) chips.push(` near ${landmarkShort(landmarkLoc.name)}`);
     if (c.listing)   chips.push(c.listing === "sale" ? "For sale" : "For rent");
-    if (c.type)      chips.push(({ apartment:"Apartment", house:"House", plot:"Plot", office:"Office", shop:"Shop/business" })[c.type] || c.type);
+    if (c.type)      chips.push(typeLabel(c.type));
     if (c.bedrooms)  chips.push(`${c.bedrooms}+ bed`);
     if (c.bathrooms) chips.push(`${c.bathrooms}+ bath`);
     if (c.roomKind)  chips.push(c.roomKind === "master" ? "Master room" : "Single room");

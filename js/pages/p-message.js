@@ -37,7 +37,7 @@
    "pmGate", "paneChats", "panePeople", "paneAi", "pmInbox", "pmSearch", "pmRegion",
    "pmPeople", "pmAiRow", "pmConv", "pmBack", "pmConvName", "pmConvSub", "pmVerify",
    "pmLog", "pmConvNote", "pmComposeForm", "pmInput", "pmSendBtn", "pmModalBack", "pmModal",
-   "pmTrustBar", "pmWho", "pmCount", "pmCats", "pmShort", "pmMembers"]
+   "pmTrustBar", "pmWho", "pmCount", "pmCats", "pmShort", "pmMembers", "pmReplyBar"]
     .forEach(function (id) { el[id] = document.getElementById(id); });
 
   var me = null;             // { userId, email, isAdmin }
@@ -48,6 +48,12 @@
   var live = null;           // realtime subscription for the open thread
   var inboxLive = null;      // realtime + poll for the thread list itself
   var searchTimer = null;
+  // The message the next send answers, and the rows the log was last drawn
+  // from. The rows are kept because a quote is built from THIS DEVICE'S
+  // decrypted copy of the original — never from anything the server sent —
+  // so the log has to be able to look up what it already opened.
+  var replyTo = null;        // { id, name, text } or null
+  var lastRows = [];
 
   var AI_THREAD = "assistant";
   var AI_STORE = "pm-assistant-log-v1";
@@ -203,6 +209,14 @@
         "<br><small>" + esc((err && err.message) || err) + "</small></div>");
       return;
     }
+
+    // Say we are here, and keep saying it once a minute. Started only after
+    // an identity exists, because "so-and-so has P-Message open" is a claim
+    // about a person, and until this point there is no person — only a tab.
+    // p-message.html is the ONLY page that beats: the sentence on screen is
+    // "last opened P-Message", and a beat from anywhere else would quietly
+    // turn it into "last used the site".
+    if (window.PMPresence) window.PMPresence.start(window.PMStore);
 
     await refreshInbox();
     watchInbox();
@@ -656,16 +670,90 @@
 
     var why = (category && p.reachable) ? whyLine(scored) : "";
 
-    return '<button class="pm-row is-person" data-person="' + esc(p.user_id) + '" data-name="' + esc(name) +
+    // What kind of work, in words. "4 services" is the count of a thing
+    // whose identity was thrown away one join earlier: a plumber, a
+    // hairdresser and a night guard all read the same on that row, and the
+    // only way to tell them apart was to open four conversations. With a
+    // chip on, the database already narrowed these to that category.
+    var kindsHtml = kindsFor(p);
+
+    // Presence. Nothing at all when we have never seen them — an empty badge
+    // saying "last seen never" would be a claim about the person rather than
+    // about our data, which is the same mistake the area line used to make.
+    var seenHtml = (p.reachable && window.PMPresence)
+      ? window.PMPresence.html(p.last_seen_at) : "";
+
+    // Somewhere to look before writing. A separate tap target from the row,
+    // because "open a conversation" and "see their work first" are different
+    // intentions and one hit area should not have to guess which.
+    var openHtml = hasListings(p)
+      ? '<a class="pm-open" href="' + storefrontUrl(p.user_id) + '" data-open-agent="1">' +
+          BOX_SVG + "<span>" + esc(t("pm_open_listings", "See their work")) + "</span></a>"
+      : "";
+
+    return '<div class="pm-person-wrap">' +
+      '<button class="pm-row is-person" data-person="' + esc(p.user_id) + '" data-name="' + esc(name) +
       '" data-sub="' + esc(sub) + '"' + (p.reachable ? "" : ' data-unreachable="1"') + ">" +
       '<span class="pm-av">' + esc(initials(name)) + "</span>" +
       '<span class="pm-rtx"><span class="pm-name">' + esc(name) + fit +
         (p.is_agent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
         (p.reachable ? "" : ' <span class="pm-badge warn">' + esc(t("pm_badge_unreachable", "Not on P-Message")) + "</span>") +
       "</span>" +
-      '<span class="pm-sub">' + w.html + "</span>" + dealsHtml +
+      '<span class="pm-sub">' + w.html + (seenHtml ? seenHtml : "") + "</span>" +
+      kindsHtml + dealsHtml +
       (why ? '<span class="pm-why">' + esc(why) + "</span>" : "") +
-      "</span></button>";
+      "</span></button>" + openHtml + "</div>";
+  }
+
+  // A little open-box glyph. Not a chevron: a chevron means "more of this
+  // list", and this leaves the list entirely.
+  var BOX_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>' +
+    '<path d="M4 8.5 12 13l8-4.5M12 13v7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+  function hasListings(p) {
+    return ((p.n_houses | 0) + (p.n_services | 0) + (p.n_trucks | 0) + (p.n_jobs | 0)) > 0;
+  }
+
+  /**
+   * The one place the storefront link is built.
+   *
+   * The URL carries ONLY the user id — the same rule the ?to= deep link
+   * follows. Name, area and listings all come from the database on the far
+   * side, so a link somebody doctored cannot put a borrowed name on the page
+   * whose whole job is saying who this is.
+   */
+  function storefrontUrl(userId) {
+    return "agent.html?u=" + encodeURIComponent(userId);
+  }
+
+  /**
+   * The kinds this person deals in, as words.
+   *
+   * The finder returns them already narrowed to the chosen category and
+   * ordered commonest first. Which catalogue to label them against is the
+   * chosen category, or — with no chip on — whichever catalogue they have
+   * most of, because "cleaning" has to be read as a service and "canter" as
+   * a truck and the strings alone do not say which.
+   */
+  function kindsFor(p) {
+    var kinds = p.kinds || [];
+    if (!kinds.length || !window.ListingKinds) return "";
+    var cat = category || dominantCat(p);
+    var words = window.ListingKinds.labels(cat, kinds, { max: 3 });
+    if (!words.length) return "";
+    return '<span class="pm-kinds">' + words.map(function (wd) {
+      return '<span class="pm-kind">' + esc(wd) + "</span>";
+    }).join("") + "</span>";
+  }
+
+  function dominantCat(p) {
+    var best = "", n = 0;
+    [["houses", p.n_houses | 0], ["services", p.n_services | 0],
+     ["trucks", p.n_trucks | 0], ["jobs", p.n_jobs | 0]].forEach(function (row) {
+      if (row[1] > n) { n = row[1]; best = row[0]; }
+    });
+    return best;
   }
 
   function fitWord(b) {
@@ -707,6 +795,10 @@
   // ---- conversation --------------------------------------------------------
   async function openThread(info) {
     open = info;
+    // A reply belongs to the conversation it was chosen in. Carrying one
+    // across would answer a message that is not in the room any more.
+    clearReply();
+    lastRows = [];
     el.pmConv.classList.add("is-on");
     el.pmConv.setAttribute("aria-hidden", "false");
     el.pmConvName.textContent = info.name;
@@ -789,9 +881,21 @@
     // where they actually work, and that is the fact worth having on screen
     // while you decide what to ask them.
     var w = whereOf(hit, { quiet: !hit.isAgent });
-    if (el.pmConvSub && (w.area || w.rest)) {
-      el.pmConvSub.innerHTML = w.html +
-        (hit.isGuest ? ' <span class="pm-badge off">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "");
+    // Presence belongs here more than anywhere: this is the screen where a
+    // person is about to spend words. Nothing is drawn for somebody we have
+    // never seen — see js/lib/pm-presence.js on why null is not "never".
+    var seen = window.PMPresence ? window.PMPresence.html(hit.lastSeenAt) : "";
+    // A link to their catalogue, for the same reason the list has one: the
+    // answer to "can you find me a room in Tungi" is often visible without
+    // anybody having to type it.
+    var shop = hit.isAgent
+      ? '<a class="pm-open" style="position:static" href="' + storefrontUrl(hit.userId) + '">' +
+          BOX_SVG + "<span>" + esc(t("pm_open_listings", "See their work")) + "</span></a>"
+      : "";
+    if (el.pmConvSub && (w.area || w.rest || seen || shop)) {
+      el.pmConvSub.innerHTML = w.html + seen +
+        (hit.isGuest ? ' <span class="pm-badge off">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "") +
+        shop;
       open.sub = w.line;
     }
 
@@ -1138,6 +1242,8 @@
 
   function closeThread() {
     open = null;
+    clearReply();
+    lastRows = [];
     if (live) { live.unsubscribe(); live = null; }
     if (el.pmTrustBar) el.pmTrustBar.hidden = true;
     setComposerBlocked(false);
@@ -1148,6 +1254,7 @@
   }
 
   function renderLog(rows) {
+    lastRows = rows || [];
     if (!rows.length) {
       el.pmLog.innerHTML = '<div class="pm-empty">' + esc(t("pm_say_first", "Say the first thing.")) + "</div>";
       return;
@@ -1164,18 +1271,128 @@
       // and "somebody calling themselves that said so".
       var who = m.mine ? "" : esc(m.senderName || t("pm_someone", "Someone")) +
         (room && m.senderGuest ? " " + esc(t("pm_badge_guest", "Guest")) : "") + " · ";
-      return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") + '">' +
-        esc(text) + '<span class="pm-msg-at">' + who + esc(clock(m.at)) + "</span></div>";
+      return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") +
+        '" data-msg="' + esc(m.id || "") + '">' +
+        quoteHtml(m) + esc(text) +
+        '<span class="pm-msg-at">' + who + esc(clock(m.at)) +
+        // Answering is offered on every message including one this device
+        // cannot open: the id is what gets sent, not the words, so replying
+        // to something unreadable is a perfectly sensible thing to do in a
+        // room you joined late.
+        (m.id ? '<button class="pm-msg-act" type="button" data-reply="' + esc(m.id) + '">' +
+                  esc(t("pm_reply", "Reply")) + "</button>" : "") +
+        "</span></div>";
     }).join("");
     el.pmLog.scrollTop = el.pmLog.scrollHeight;
+  }
+
+  /**
+   * The message being answered, drawn above the answer.
+   *
+   * Built from `lastRows` — the copies THIS DEVICE decrypted — and never from
+   * anything the server sent. The server stores only an id (see
+   * supabase/features/message/p_message_replies.sql): a preview travelling
+   * with the reply would be a second, independent encryption of the same
+   * words, and a place where a client could attach text the original never
+   * contained.
+   *
+   * Two honest failures, both said plainly rather than guessed at:
+   *   • the original is outside the page that was loaded — "an earlier
+   *     message";
+   *   • the original is in the page but will not open, because it predates
+   *     this device or this membership — the same sentence, because from the
+   *     reader's side those are the same fact.
+   */
+  function quoteHtml(m) {
+    if (!m.replyTo) return "";
+    var src = findRow(m.replyTo);
+    if (!src || src.failed || !src.text) {
+      return '<span class="pm-quote is-gone"><span>' +
+        esc(t("pm_reply_gone", "an earlier message")) + "</span></span>";
+    }
+    var who = src.mine ? t("pm_you_short", "You")
+                       : (src.senderName || t("pm_someone", "Someone"));
+    return '<button class="pm-quote" type="button" data-goto="' + esc(src.id) + '">' +
+      "<b>" + esc(who) + "</b><span>" + esc(snip(src.text)) + "</span></button>";
+  }
+
+  function findRow(id) {
+    for (var i = 0; i < lastRows.length; i++) {
+      if (lastRows[i].id === id) return lastRows[i];
+    }
+    return null;
+  }
+
+  // One line of it. A quote that can grow to the height of the message it
+  // quotes stops being a reference and becomes a second copy.
+  function snip(text) {
+    var one = String(text || "").replace(/\s+/g, " ").trim();
+    return one.length > 90 ? one.slice(0, 89) + "…" : one;
+  }
+
+  /**
+   * Choose what to answer, or stop answering it.
+   *
+   * The quoted text is captured HERE, at the moment of choosing, so the strip
+   * above the composer keeps saying the same thing even after the log
+   * redraws underneath it — which it does on every incoming message.
+   */
+  function setReply(id) {
+    var src = id ? findRow(id) : null;
+    if (!src) { clearReply(); return; }
+    replyTo = {
+      id: src.id,
+      name: src.mine ? t("pm_you_short", "You") : (src.senderName || t("pm_someone", "Someone")),
+      text: src.failed ? t("pm_reply_gone", "an earlier message") : snip(src.text),
+    };
+    drawReplyBar();
+    if (el.pmInput && !el.pmInput.disabled) el.pmInput.focus();
+  }
+
+  function clearReply() {
+    replyTo = null;
+    drawReplyBar();
+  }
+
+  function drawReplyBar() {
+    if (!el.pmReplyBar) return;
+    if (!replyTo) { el.pmReplyBar.hidden = true; el.pmReplyBar.innerHTML = ""; return; }
+    el.pmReplyBar.innerHTML =
+      '<span class="pm-rb-tx"><b>' +
+        esc(t("pm_reply_to", "Replying to {name}", { name: replyTo.name })) +
+      '</b><span class="pm-rb-body">' + esc(replyTo.text) + "</span></span>" +
+      '<button class="pm-rb-x" type="button" id="pmReplyX" aria-label="' +
+        esc(t("pm_reply_cancel", "Stop replying")) + '">×</button>';
+    el.pmReplyBar.hidden = false;
+    var x = document.getElementById("pmReplyX");
+    if (x) x.addEventListener("click", clearReply);
+  }
+
+  // Jump to the message a quote points at. It is the whole reason a quote is
+  // tappable: in a busy room the answer is on screen and the question is not.
+  function gotoMessage(id) {
+    var node = el.pmLog.querySelector('[data-msg="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    if (!node) return;
+    try { node.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    catch (_) { node.scrollIntoView(); }
+    node.classList.remove("is-flash");
+    // Reading offsetWidth restarts the animation; without it a second tap on
+    // the same quote does nothing visible.
+    void node.offsetWidth;
+    node.classList.add("is-flash");
   }
 
   async function sendCurrent(text) {
     if (!open) return;
     if (open.kind === "ai") return sendToAi(text);
     el.pmSendBtn.disabled = true;
+    // Taken and cleared BEFORE the round trip. The strip has to go the moment
+    // the message leaves, or a second message typed while the first is still
+    // in flight silently answers the same thing again.
+    var answering = replyTo ? replyTo.id : null;
+    clearReply();
     try {
-      await window.PMStore.send(open.threadId, text);
+      await window.PMStore.send(open.threadId, text, { replyTo: answering });
       renderLog(await window.PMStore.messages(open.threadId));
       refreshInbox();
     } catch (err) {
@@ -1736,6 +1953,17 @@
       if (!e.target.closest("[data-ai]")) return;
       openThread({ threadId: AI_THREAD, kind: "ai", name: t("pm_ai_name", "Maisha assistant"),
         sub: t("pm_ai_sub2", "Not encrypted") });
+    });
+
+    // One delegated listener on the log, bound once. The log's innerHTML is
+    // rewritten on every incoming message, so anything bound to a bubble
+    // would be rebound on each redraw — and with an anonymous handler that
+    // accumulates silently (see docs/P_MESSAGE.md on the invite-revoke bug).
+    el.pmLog && el.pmLog.addEventListener("click", function (e) {
+      var reply = e.target.closest("[data-reply]");
+      if (reply) { setReply(reply.dataset.reply); return; }
+      var jump = e.target.closest("[data-goto]");
+      if (jump) gotoMessage(jump.dataset.goto);
     });
 
     el.pmBack && el.pmBack.addEventListener("click", closeThread);

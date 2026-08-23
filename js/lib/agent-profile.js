@@ -257,6 +257,20 @@
           </div>
         </details>
 
+        <!-- The bio. It is what somebody reads on agent.html before deciding
+             whether to write, and the one part of that page in the agent's own
+             words rather than counted out of their listings. Plain text and
+             escaped at render: a link typed in here stays visible text rather
+             than becoming a destination the app appears to vouch for. -->
+        <details class="apf-details">
+          <summary class="apf-summary">About your work (optional)</summary>
+          <div class="apf-details__body">
+            <textarea id="apfBio" class="apf-input" rows="3" maxlength="400"
+              placeholder="What you do, how long you have done it, what you are good at. Customers see this on your page."
+              >${esc(existing && existing.bio || "")}</textarea>
+          </div>
+        </details>
+
         <div id="apfMsg" class="apf-msg" role="alert" aria-live="polite"></div>
         <button id="apfSave" class="apf-save" type="button">Save &amp; continue</button>
       </div>`;
@@ -370,6 +384,11 @@
           ward: cls.ward || (existing && existing.ward) || null,
           lat: picked && Number.isFinite(+picked.lat) ? +picked.lat : (existing && existing.lat) || null,
           lng: picked && Number.isFinite(+picked.lng) ? +picked.lng : (existing && existing.lng) || null,
+          // Sliced rather than rejected: the textarea already caps at 400 with
+          // maxlength, so anything longer arriving here came from somewhere
+          // else, and the database check would turn it into a save that fails
+          // with nothing on screen explaining why.
+          bio: ($("apfBio") ? $("apfBio").value.trim().slice(0, 400) : "") || null,
         };
         try {
           const { data, error } = await sb.from("agent_profiles")
@@ -403,5 +422,24 @@
     return await collect(sb, uid, existing, regions);
   }
 
-  window.AgentProfile = { ensure, get, isComplete };
+  /**
+   * Open the form on purpose, whether or not the profile is already complete.
+   *
+   * ensure() prompts only when something REQUIRED is missing, which is right
+   * for a dashboard opening for the first time and wrong for everything else:
+   * an agent whose region and area were set months ago could never reach the
+   * form again, so the bio they can now write on their public page was a
+   * field nobody could ever fill in. This is the door.
+   */
+  async function edit(sb, opts = {}) {
+    if (!sb) return null;
+    const uid = await currentUid(sb);
+    if (!uid) return null;
+    if (document.getElementById("agentProfileModal")) return await get(sb);
+    const existing = await get(sb);
+    const regions = await loadRegions(opts);
+    return await collect(sb, uid, existing, regions);
+  }
+
+  window.AgentProfile = { ensure, edit, get, isComplete };
 })();

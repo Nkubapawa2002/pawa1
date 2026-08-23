@@ -34,6 +34,10 @@ const BASE = "http://localhost:8080";
 const PAGES = process.argv[2] ? [process.argv[2]] : [
   "p-chat.html",
   "p-message.html",
+  // An agent's storefront draws almost everything from JS, so its untranslated
+  // strings would never show up in a scan of the markup alone — which is
+  // exactly why it belongs on this list rather than being assumed fine.
+  "agent.html",
   "profile.html",
   "houses.html?alert=1",
   "near-me.html",

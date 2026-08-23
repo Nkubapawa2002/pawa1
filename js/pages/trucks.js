@@ -9,12 +9,11 @@
 (function () {
   "use strict";
 
-  const TYPE_LABEL = {
-    pickup: "Pickup", canter: "Canter", "3ton": "3-tonne",
-    "7ton": "7-tonne lorry", "10ton_plus": "10-tonne+ lorry", other: "Other",
-  };
-  // Capitalise a free-text custom kind ("tipper" → "Tipper") for display.
-  const typeLabel = (tt) => TYPE_LABEL[tt] || (tt ? tt.charAt(0).toUpperCase() + tt.slice(1) : "Truck");
+  // The map moved to js/lib/listing-kinds.js so the truck page, the agent
+  // list and an agent's storefront cannot end up calling the same lorry two
+  // different things. A free-text custom kind ("tipper") is title-cased there
+  // and shown as typed rather than collapsed into "Other".
+  const typeLabel = (tt) => window.ListingKinds.label("trucks", tt) || "Truck";
   const SERVICE_LABEL = {
     within_city: "Within city", region_wide: "Region-wide", cross_region: "Cross-region",
   };

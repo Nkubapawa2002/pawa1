@@ -74,6 +74,8 @@
     shield: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z" stroke="#C594FF" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     out: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M15 4h4v16h-4M11 16l4-4-4-4M15 12H4" stroke="#FF8AA8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     chat: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    shop: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 8.5 12 13l8-4.5M12 13v7" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    pen: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 20h4L20 8l-4-4L4 16z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 6l4 4" stroke="#F6C45A" stroke-width="1.7"/></svg>',
   };
 
   // ---- render --------------------------------------------------------------
@@ -150,6 +152,15 @@
               desc: t("pf_services_d", "The work you offer and where you offer it.") }),
         row({ href: "agent-trucks.html", icon: ICON.truck, tint: "ic-gold", title: t("nav_agent_trucks", "My Trucks"),
               desc: t("pf_trucks_d", "Vehicles you hire out.") }),
+        // The page a customer lands on from the P-Message agent list. Seeing
+        // it is half the point: an agent who has never looked at their own
+        // storefront has no reason to think the empty bio on it matters.
+        row({ href: "agent.html?u=" + encodeURIComponent(me.userId), icon: ICON.shop, tint: "ic-gold",
+              title: t("pf_shop", "Your public page"),
+              desc: t("pf_shop_d", "What a customer sees before they write to you.") }),
+        row({ act: "agentbio", icon: ICON.pen, tint: "ic-gold",
+              title: t("pf_bio", "Your area and your bio"),
+              desc: t("pf_bio_d", "Where you work, and what you want customers to know.") }),
       ]);
     }
 
@@ -194,6 +205,15 @@
       if (act === "backup") return window.PMIdentityUI.backup();
       if (act === "restore") return window.PMIdentityUI.restore();
 
+      if (act === "agentbio") {
+        var sb = window.DataStore && window.DataStore.sb;
+        if (!sb || !window.AgentProfile) return;
+        // Redraw afterwards: nothing on this screen shows the bio, but the
+        // region row above it can change, and a screen that quietly disagrees
+        // with what was just saved is worse than one that flickers.
+        window.AgentProfile.edit(sb).then(function () { render(); }).catch(function () {});
+        return;
+      }
       if (act === "lang") {
         // setLang reloads the page, which is how every other language switch on
         // the site behaves — no half-translated screen.
