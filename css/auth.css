@@ -513,6 +513,31 @@ body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 1
    aurora in BOTH themes, so what sits on it does not depend on the page's
    palette and should not be borrowing one. */
 .auth-scene .auth-field label { color: rgba(233, 243, 238, .82); }
+/* The same reasoning, applied to the rest of the card's own type — and it has
+   to be, because every gate page paints `.auth-card` as dark glass
+   UNCONDITIONALLY (`rgba(255,255,255,.04)`, near-white ink) while these three
+   pieces borrow tokens that DO flip with the theme:
+     .auth-title  → --c-brand-deep   · #064a33 on the aurora = 2.27:1 in light
+     .auth-lead   → --c-text-muted   · warm grey #6b6960 on it = 1.11:1
+     .auth-tabs   → --c-brand-deep   · which the dark re-skins repaint MINT,
+                    printed on the active tab's white pill = 1.47:1
+   Measured on admin / super-admin / agent-services / agent-trucks — every
+   gate, both themes, because the fault is in the borrowing and not in either
+   palette. Stated outright here, they stop depending on the host page. */
+.auth-scene .auth-card h1,
+.auth-scene .auth-title { color: #ffffff; }
+.auth-scene .auth-lead { color: rgba(234, 255, 246, .84); }
+.auth-scene .auth-tabs {
+  background: rgba(4, 26, 18, .34);
+  border-color: rgba(255, 255, 255, .22);
+}
+.auth-scene .auth-tabs button { color: rgba(234, 255, 246, .80); }
+.auth-scene .auth-tabs button:hover { color: #ffffff; }
+.auth-scene .auth-tabs button.active {
+  background: rgba(255, 255, 255, .94);
+  color: #064a33;
+  box-shadow: 0 2px 8px rgba(0, 20, 12, .32);
+}
 @media (max-width: 860px) {
   .auth-scene { padding: clamp(20px, 5vw, 30px); border-radius: 22px; }
 }

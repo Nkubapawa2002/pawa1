@@ -30,7 +30,7 @@
   --n-text:         #1a1915;
   --n-text-soft:    #44423a;
   --n-text-muted:   #6b6960;
-  --n-text-faint:   #908d83;
+  --n-text-faint:   #767368;   /* 4.75:1 on cream — see --c-text-faint */
   --n-text-on-brand:#ffffff;
   --n-text-warn:    #8a4a00;
   --n-text-err:     #a11212;
@@ -40,6 +40,20 @@
   --n-glow-green:   none;
   --n-glow-gold:    none;
   --n-glow-text:    none;
+  /* The ACCENT half of the neon family was never re-asserted here, and it is
+     ink far more often than it is fill. `a { color: var(--n-green-bright) }`
+     (neon-pro.css) therefore painted every plain link #34d399 over cream —
+     1.69:1, measured on the trucks.html empty state, on every page in the app.
+     --n-green and --n-grad-brand ARE fills, and each of their uses pairs with
+     --n-text-on-brand, which light already sets to #ffffff — so darkening them
+     fixes the ink and the white-on-mint fill (≈2:1) in the same move.
+     --n-green-soft/-line stay translucent green: they are grounds BEHIND this
+     ink and read correctly on cream. */
+  --n-green:        var(--green);
+  --n-green-bright: var(--green);
+  --n-green-deep:   #064a33;
+  --n-gold-bright:  #8a4a00;
+  --n-grad-brand:   linear-gradient(135deg, #064a33 0%, var(--green) 60%, #0d8050 100%);
   --n-page-mesh:
     radial-gradient(48% 38% at 12% 0%,  rgba(16, 185, 129, 0.07) 0%, transparent 65%),
     radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.06) 0%, transparent 70%),
@@ -57,7 +71,11 @@
   --c-text:         #1a1915;
   --c-text-soft:    #3f3d36;
   --c-text-muted:   #6b6960;
-  --c-text-faint:   #9e9b91;
+  /* #9e9b91 measured 2.66:1 on white (the .hp-empty__hint on the Saved tab).
+     "Faint" is a rank in the type scale, not a licence to be unreadable, so
+     all three families now land at 4.75:1 — still visibly lighter than
+     --c-text-muted, and still legible. */
+  --c-text-faint:   #767368;
   --c-text-on-brand:#ffffff;
   /* --c-muted is the OLDER spelling of --c-text-muted and twelve per-page dark
      blocks still set it (`--c-muted: rgba(233,243,238,.55)`). It was never
@@ -86,6 +104,14 @@
   --c-info:         #1e40af;
   --c-info-soft:    #e2eaff;
 
+  /* ── premium.css family (--brand-*, --grad-*) ─────────────────────────
+     A fourth family, and the same trap: --grad-brand is always a FILL and
+     every rule that uses it also declares `color: #fff !important`. Its
+     original stops run out to #10b981, so the white sat on mint at 2.76:1
+     (the active "AI Assistant" tab on chat.html). Same deep-green ramp as
+     --n-grad-brand, for the same reason. */
+  --grad-brand:     linear-gradient(135deg, #064a33 0%, #075c40 35%, var(--green) 70%, #0d8050 100%);
+
   /* ── colors.css base family ──────────────────────────────────────────── */
   --bg:             #faf9f5;
   --bg-2:           #f1f0ea;
@@ -97,7 +123,7 @@
   --text:           #1a1915;
   --text-soft:      #3f3d36;
   --text-muted:     #6b6960;
-  --text-faint:     #908d83;
+  --text-faint:     #767368;
   --border:         rgba(20, 18, 12, 0.10);
   --border-strong:  rgba(20, 18, 12, 0.18);
   --text-body:      #1a1915;
@@ -146,6 +172,17 @@
 
 /* ── Misc dark-glass surfaces that hardcode a near-black fill ──────────── */
 :root[data-theme="light"] .ha-card-photo { background: #eceae2; }
+
+/* neon-pro paints the chat header and input bar rgba(7,18,13,.85) with
+   !important — only !important can answer it. In light mode the ink flips to
+   #1a1915 and landed on that near-black at 1.37:1 ("Chat with Pawa
+   Assistant"). The bar keeps its glassiness; only the ground changes side. */
+:root[data-theme="light"] .chat-header,
+:root[data-theme="light"] .chat-input-bar {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: var(--n-text) !important;
+}
+:root[data-theme="light"] .chat-header .avatar { color: #064a33; }
 
 /* ============================================================================
    index.html home feed — the .ha-* components hardcode #EAF1EE text and
