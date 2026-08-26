@@ -1,0 +1,61 @@
+-- ============================================================================
+-- Drop the abandoned Clerk FDW experiment.
+--
+-- APPLIED to production 2026-08-26, on the user's instruction.
+--
+-- WHAT THIS WAS
+-- `public."ID"` was never a data table. It was a FOREIGN table over the Clerk
+-- Admin API — server "maisha na lifeza_server", wrapper supabase:clerk-fdw
+-- 0.1.0, api_url discrete-prawn-57.clerk.accounts.dev, remote object `domains`
+-- — that authenticated with a Clerk API key read from the `vault` at query
+-- time. It looked exactly like what it was: something left behind from wiring
+-- the Clerk wrapper up and never removed.
+--
+-- fix_anon_fdw_grants_and_search_path.sql took the anon/authenticated grants
+-- off it, because a foreign table cannot carry RLS and the grant was therefore
+-- the entire fence. That closed the exposure. This removes the thing itself,
+-- so there is no fence left to get wrong.
+--
+-- CHECKED BEFORE DROPPING
+--   foreign tables on that server ....  1   (only public."ID")
+--   foreign servers in the database ..  1   (only that one)
+--   user mappings on it ..............  0
+-- So nothing cascades. Nothing in the app read it either: Clerk is driven from
+-- js/core/auth-clerk.js against Clerk's FRONTEND api, gated behind
+-- APP_CONFIG.USE_CLERK, and never through this wrapper.
+--
+-- No CASCADE, deliberately. The table is dropped explicitly first so that if
+-- anything unexpected had depended on the server, this would fail loudly
+-- rather than quietly taking that dependency with it.
+--
+-- Idempotent: safe to re-run.
+-- ============================================================================
+
+drop foreign table if exists public."ID";
+
+drop server if exists "maisha na lifeza_server";
+
+
+-- VERIFIED AFTER APPLYING
+--   foreign tables in public .........  0
+--   foreign servers ..................  0
+--   public."ID" .......................  gone
+--
+--
+-- TWO THINGS THIS DELIBERATELY DOES NOT DO
+--
+-- 1. The foreign-data-wrapper `maisha na lifeza` still exists, now with zero
+--    servers. It is inert in that state, and dropping it is a separate
+--    destructive action on a separate object, so it is a separate decision.
+--
+-- 2. The vault secret `maisha na lifeza_api_key_id`
+--    (d67aa5a0-87b9-42a8-a6e7-e1979c292daa, created 2026-06-14) still holds
+--    the Clerk Admin API key. Nothing uses it any more.
+--
+--    READ THIS BEFORE ASSUMING IT IS HANDLED: deleting that vault row does NOT
+--    revoke the key. The credential stays valid at Clerk until it is revoked
+--    in the Clerk dashboard. Deleting the row only removes this database's
+--    copy. If the intent is that the key should stop working, the Clerk
+--    dashboard is the only place that does it, and it must happen there
+--    whether or not the vault row is deleted.
+-- ============================================================================
