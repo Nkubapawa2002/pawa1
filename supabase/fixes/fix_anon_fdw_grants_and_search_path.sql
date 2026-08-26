@@ -1,8 +1,19 @@
 -- ============================================================================
 -- Two findings from spidering the production database, 2026-08-26.
 --
--- Idempotent: safe to re-run. Paste into the Supabase SQL editor.
--- (Applying this from the machine is blocked — see the note at the bottom.)
+-- APPLIED to production on 2026-08-26. Idempotent: safe to re-run.
+--
+-- Verified after applying:
+--   functions in public with no search_path pin ....  0   (want 0)
+--   "ID" grants to anon / authenticated ............  0   (was 14, seven each)
+--   crypto fns pinned WITH extensions ..............  4   (want 4)
+--   "ID" grants to postgres / service_role .........  14  (untouched)
+--
+-- And at runtime, because the pin is the half that breaks silently — a
+-- function that has lost pgcrypto does not fail until something encrypts:
+--   tenant_encrypt -> tenant_decrypt round-trips to the original plaintext
+--   loc_feistel25(123456, '\x0102030405')            -> 4526484
+--   generate_tracking_code('Dar es Salaam','Arusha') -> TZ-DAR-ARU-XGR0BC-JSVQ-6
 --
 --
 -- 1. THE CLERK FOREIGN TABLE THAT anon COULD ADDRESS
