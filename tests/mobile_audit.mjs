@@ -29,9 +29,15 @@
 // coordinate the sampling depends on — elements were reporting positions 300px
 // past the end of their own document.
 //
+// Two shapes, deliberately. WITHOUT --breadth it is depth: the twelve screens
+// people actually walk, on six phones each. WITH --breadth it adds the other
+// fifteen pages in the app on one phone — the coverage hole that let the
+// Trucks and Services directories ship tab labels at 1.03:1 in light mode.
+//
 //   usage:  node server.js      then, in another shell:
-//           node tests/mobile_audit.mjs            (all pages)
-//           node tests/mobile_audit.mjs p-message  (one)
+//           node tests/mobile_audit.mjs             (12 pages × 6 phones)
+//           node tests/mobile_audit.mjs --breadth   (+ the other 15, 1 phone)
+//           node tests/mobile_audit.mjs p-message   (one page)
 // ============================================================================
 import puppeteer from "puppeteer";
 
@@ -70,6 +76,35 @@ const PAGES = [
   { file: "jobs.html", label: "Jobs and staff" },
 ];
 
+// --breadth: the OTHER fifteen screens, on one phone, in both themes.
+//
+// The list above is the app-shell tabs and the doors P-Chat opens — the paths
+// somebody walks every day, worth six phones each. But a bug does not care how
+// often a screen is visited, and the screens missing from that list were the
+// ones carrying the worst of it: the Trucks and Services directories printed
+// their tab labels at 1.03:1 in light mode and no gate had ever loaded them.
+// So this is the same three checks at breadth instead of depth — every page in
+// the app, one representative phone, both themes.
+const BREADTH_PAGES = [
+  { file: "houses.html", label: "Houses" },
+  { file: "house.html?id=x", label: "House" },
+  { file: "houses-compact.html", label: "Houses compact" },
+  { file: "trucks.html", label: "Trucks" },
+  { file: "truck.html?id=x", label: "Truck" },
+  { file: "services.html", label: "Services" },
+  { file: "service.html?id=x", label: "Service" },
+  { file: "favorites.html", label: "Saved" },
+  { file: "chat.html", label: "Chat" },
+  { file: "login.html", label: "Sign in" },
+  { file: "agent.html?u=nobody", label: "Agent storefront" },
+  { file: "agent-houses.html", label: "Houses portal" },
+  { file: "agent-services.html", label: "Services portal" },
+  { file: "agent-trucks.html", label: "Trucks portal" },
+  { file: "admin.html", label: "Admin" },
+  { file: "super-admin.html", label: "Super admin" },
+];
+const BREADTH_DEVICE = [{ name: "iPhone 13", w: 390, h: 844 }];
+
 let pass = 0, fail = 0;
 const findings = [];
 // Frames where the renderer refused the pixel buffer. Not failures — the run
@@ -82,6 +117,39 @@ const ok = (cond, msg, detail) => {
   else { fail++; findings.push(msg + (detail ? "\n        " + detail : "")); }
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Hiding the ink is not only a matter of the fill colour. premium.css paints
+// `.page-hero .page-title` (and `.gradient-text`) from a gradient CLIPPED TO
+// THE GLYPHS — `-webkit-background-clip: text` plus a transparent fill — so
+// making the fill transparent is the very thing that makes those letters
+// visible. The .audit-hide sheet could not reach them: its `.audit-hide *`
+// (0,1,1) loses to `.page-hero .page-title` (0,2,0) even with both !important.
+// So near-me's hero title was screenshotted WITH its own mint lettering still
+// on, and the median pixel inside its box came back rgb(143, 175, 155) — its
+// own glyphs, scored as the ground beneath them, 2.39:1 against a hero that
+// actually measures rgb(24, 56, 33) and about 13:1. An inline !important is
+// the only weight that beats a stylesheet !important, so the gradient is
+// cleared per element and restored afterwards.
+const HIDE_INK = () => {
+  document.body.classList.add("audit-hide");
+  document.querySelectorAll("body *").forEach((el) => {
+    const cs = getComputedStyle(el);
+    if (!/text/.test(cs.webkitBackgroundClip || cs.backgroundClip || "")) return;
+    el.dataset.auditClipped = el.style.getPropertyValue("background-image") || "";
+    el.style.setProperty("background-image", "none", "important");
+    el.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+  });
+};
+const SHOW_INK = () => {
+  document.body.classList.remove("audit-hide");
+  document.querySelectorAll("[data-audit-clipped]").forEach((el) => {
+    const was = el.dataset.auditClipped;
+    el.style.removeProperty("-webkit-text-fill-color");
+    if (was) el.style.setProperty("background-image", was);
+    else el.style.removeProperty("background-image");
+    delete el.dataset.auditClipped;
+  });
+};
 
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -218,6 +286,21 @@ const MEASURE = () => {
       ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : "";
     return el.tagName.toLowerCase() + id + cls;
   };
+  // A checkbox or radio is tapped through its LABEL — clicking the words
+  // toggles it — so the target is the label's box, not the small square the
+  // browser draws. "Remember my email" on the sign-in screen is a 19×19 input
+  // inside a label the width of the row; reporting the square would ask for a
+  // 44px checkbox, which is not what anybody wants and not what WCAG 2.5.8
+  // measures. Only a label that actually addresses this input counts.
+  const tapBox = (el, r) => {
+    const t = (el.type || "").toLowerCase();
+    if (el.tagName !== "INPUT" || (t !== "checkbox" && t !== "radio")) return r;
+    const lab = el.closest("label") ||
+      (el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null);
+    if (!lab) return r;
+    const lr = lab.getBoundingClientRect();
+    return (lr.width >= r.width && lr.height >= r.height) ? lr : r;
+  };
   // A pseudo-element with negative insets IS a hit area — the standard way to
   // grow a touch target without moving the layout — so it counts to the size.
   const hitBox = (el, r) => {
@@ -281,8 +364,19 @@ const MEASURE = () => {
     const pressable = tag === "button" || tag === "select" ||
       (tag === "a" && el.getAttribute("href")) ||
       (tag === "input" && !["hidden", "text", "search", "password", "email", "number"].includes(el.type));
-    if (pressable) {
-      const box = hitBox(el, r);
+    // WCAG 2.5.8's "target in sentence" exception, and it is not a loophole:
+    // a link inside a running paragraph cannot be given a 44px box without
+    // tearing the line height of the prose around it. "…or list your own
+    // truck." was reported as a 122×20 miss on three pages; growing it would
+    // have made the sentence worse, not the tap easier. An inline link with
+    // words beside it inside its own parent is exempt — a link that is the
+    // whole paragraph, or that has been given a block display, is not.
+    const inSentence = tag === "a" &&
+      /^inline/.test(cs.display) &&
+      Array.from(el.parentElement ? el.parentElement.childNodes : [])
+        .some((n) => n !== el && n.nodeType === 3 && n.textContent.trim().length > 1);
+    if (pressable && !inSentence) {
+      const box = hitBox(el, tapBox(el, r));
       if (Math.min(box.w, box.h) < 40) {
         out.taps.push({ el: label(el), w: Math.round(box.w), h: Math.round(box.h) });
       }
@@ -414,8 +508,12 @@ const LOAD_PIXELS = async (b64) => {
 };
 
 // ---- driver ----------------------------------------------------------------
-const only = process.argv[2];
-const pages = only ? PAGES.filter((p) => p.file.includes(only)) : PAGES;
+const argv = process.argv.slice(2);
+const breadth = argv.includes("--breadth");
+const only = argv.find((a) => !a.startsWith("--"));
+const allPages = breadth ? PAGES.concat(BREADTH_PAGES) : PAGES;
+const pages = only ? allPages.filter((p) => p.file.includes(only)) : allPages;
+const devices = breadth ? BREADTH_DEVICE : DEVICES;
 
 const browser = await puppeteer.launch({
   headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"], protocolTimeout: 180000,
@@ -423,7 +521,7 @@ const browser = await puppeteer.launch({
 try {
   for (const spec of pages) {
     for (const theme of ["dark", "light"]) {
-      for (const dev of DEVICES) {
+      for (const dev of devices) {
         const page = await browser.newPage();
         await page.setViewport({ width: dev.w, height: dev.h, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
         await page.setRequestInterception(true);
@@ -508,7 +606,7 @@ try {
           for (let tryN = 0; tryN < 3; tryN++) {
             await page.evaluate((yy) => window.scrollTo(0, yy), y);
             await page.evaluate(SETTLE);
-            await page.evaluate(() => { document.body.classList.add("audit-hide"); });
+            await page.evaluate(HIDE_INK);
             await sleep(80);
             const cand = await page.evaluate(MEASURE);
             // The shot is the OTHER half of the allocation LOAD_PIXELS guards,
@@ -526,7 +624,7 @@ try {
             }
             const movedBy = await page.evaluate((was) => window.scrollY - was, cand.scrollY);
             if (movedBy !== 0 && tryN < 2) {
-              await page.evaluate(() => { document.body.classList.remove("audit-hide"); });
+              await page.evaluate(SHOW_INK);
               await sleep(300);
               continue;
             }
@@ -539,7 +637,7 @@ try {
               : await page.evaluate(() => { window.__AUDIT_PIXELS = null; return null; });
             if (pixErr) noPixels.push(`${where} @${y}: ${pixErr}`);
             cand.contrast = await page.evaluate(SCORE, cand.contrast);
-            await page.evaluate(() => { document.body.classList.remove("audit-hide"); });
+            await page.evaluate(SHOW_INK);
             ok(movedBy === 0, `${where}: page moved ${movedBy}px between the measurement and the shot`);
             part = cand;
             break;

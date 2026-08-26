@@ -487,12 +487,19 @@ body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 1
   margin: clamp(14px, 4vw, 36px) auto;
   padding: clamp(26px, 4.5vw, 56px);
   border-radius: 28px;
+  /* The aurora is decorative; the sign-in form is not. At the original
+     brightness the panel measured about rgb(20, 134, 87) where the lead
+     paragraph and the field labels sit, which puts even near-white ink at
+     4.28:1 — under AA for 15px type, on the one screen where somebody is
+     typing a password. Same five layers, same motion, ~35% less light in the
+     two mint blooms and a deeper mid stop: the effect survives, the words
+     clear AA with room to spare. */
   background:
-    radial-gradient(38% 50% at 14% 16%, rgba(52, 211, 153, .5), transparent 70%),
-    radial-gradient(42% 54% at 86% 12%, rgba(16, 185, 129, .42), transparent 70%),
-    radial-gradient(50% 60% at 84% 88%, rgba(6, 74, 51, .9), transparent 72%),
-    radial-gradient(46% 56% at 16% 92%, rgba(13, 148, 110, .5), transparent 72%),
-    linear-gradient(135deg, #052e21 0%, #0a6f4d 55%, #04261b 100%);
+    radial-gradient(38% 50% at 14% 16%, rgba(52, 211, 153, .32), transparent 70%),
+    radial-gradient(42% 54% at 86% 12%, rgba(16, 185, 129, .26), transparent 70%),
+    radial-gradient(50% 60% at 84% 88%, rgba(6, 74, 51, .92), transparent 72%),
+    radial-gradient(46% 56% at 16% 92%, rgba(13, 148, 110, .32), transparent 72%),
+    linear-gradient(135deg, #042318 0%, #075640 55%, #021b13 100%);
   background-size: 200% 200%;
   animation: aurora-flow 18s ease-in-out infinite;
   box-shadow: 0 30px 70px -26px rgba(0, 20, 12, .6), inset 0 1px 0 rgba(255, 255, 255, .12);
@@ -512,7 +519,7 @@ body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 1
    same markup put #3f3d36 on the aurora at 2.13:1. The panel is a dark green
    aurora in BOTH themes, so what sits on it does not depend on the page's
    palette and should not be borrowing one. */
-.auth-scene .auth-field label { color: rgba(233, 243, 238, .82); }
+.auth-scene .auth-field label { color: rgba(233, 243, 238, .93); }
 /* The same reasoning, applied to the rest of the card's own type — and it has
    to be, because every gate page paints `.auth-card` as dark glass
    UNCONDITIONALLY (`rgba(255,255,255,.04)`, near-white ink) while these three
@@ -526,7 +533,19 @@ body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 1
    palette. Stated outright here, they stop depending on the host page. */
 .auth-scene .auth-card h1,
 .auth-scene .auth-title { color: #ffffff; }
-.auth-scene .auth-lead { color: rgba(234, 255, 246, .84); }
+.auth-scene .auth-lead { color: rgba(234, 255, 246, .93); }
+/* The rest of the type that sits DIRECTLY on the aurora, for the same reason:
+   `.auth-hint` asks for --c-text-muted and the link inside it for --c-brand,
+   so admin.html printed "create admin account" at 1.08:1 in light (deep green
+   on green) and 2.99:1 in dark (#34d399 on green). The panel is dark green in
+   both themes; what sits on it states its own colour. */
+.auth-scene .auth-hint { color: rgba(234, 255, 246, .86); }
+.auth-scene .auth-hint a,
+.auth-scene .auth-alt a,
+.auth-scene .auth-lead a { color: #8ef0c4; text-decoration: underline; }
+.auth-scene .auth-hint a:hover,
+.auth-scene .auth-alt a:hover,
+.auth-scene .auth-lead a:hover { color: #ffffff; }
 .auth-scene .auth-tabs {
   background: rgba(4, 26, 18, .34);
   border-color: rgba(255, 255, 255, .22);

@@ -92,8 +92,11 @@
     body[data-page="agent"] #footer-slot { display: none !important; }
 
     .ag-wrap { max-width: 640px; margin: 0 auto; padding: calc(env(safe-area-inset-top,0px) + 14px) 14px 60px; }
+    /* min-height, not padding: the back link is the first thing a thumb
+       reaches for on this screen and it was 21px tall. */
     .ag-back { display: inline-flex; align-items: center; gap: 6px; color: var(--pm-brand);
-      text-decoration: none; font-weight: 700; font-size: .86rem; margin-bottom: 14px; }
+      text-decoration: none; font-weight: 700; font-size: .86rem;
+      min-height: var(--hit-min, 44px); margin-bottom: 4px; }
     .ag-back:hover { text-decoration: none; }
 
     /* ---- who this is --------------------------------------------------- */

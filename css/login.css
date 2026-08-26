@@ -164,6 +164,10 @@ body[data-page="login"] #footer-slot { display: none !important; }
 .lg-tab {
   appearance: none; border: 0; cursor: pointer;
   padding: 9px 4px; border-radius: 10px;
+  /* 12.5px of type at 1.2 inside 9px padding came to a 33px button — the three
+     things you press first on this screen, all under the 44px a thumb needs. */
+  min-height: var(--hit-min, 44px);
+  display: inline-flex; align-items: center; justify-content: center;
   font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1.2;
   background: transparent; color: var(--lg-muted);
   transition: background .18s ease, color .18s ease;
@@ -314,14 +318,24 @@ body[data-page="login"] #footer-slot { display: none !important; }
   appearance: none; background: none; border: 0; padding: 4px 2px;
   font-family: inherit; font-size: 13px; font-weight: 700;
   color: var(--lg-accent); cursor: pointer; text-decoration: none;
+  position: relative;
 }
+/* "Forgot?" sits in the password field's LABEL row, so growing its box to 44px
+   would push the label off its own input. An invisible hit area does the same
+   job without moving anything: 23px of button plus 11px above and below. */
+.lg-link::after { content: ""; position: absolute; inset: -11px -8px; }
 .lg-link:hover { opacity: .72; }
 .lg-link:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
 
 .lg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 
-/* A checkbox that is actually tappable. */
-.lg-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--lg-muted); cursor: pointer; }
+/* A checkbox that is actually tappable — the LABEL is the target, so it is the
+   label that has to be 44px tall. The 19px square below is only the drawing. */
+.lg-check {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: var(--hit-min, 44px);
+  font-size: 13px; color: var(--lg-muted); cursor: pointer;
+}
 .lg-check input {
   appearance: none; width: 19px; height: 19px; flex: 0 0 auto;
   border: 1.5px solid var(--lg-border-strong); border-radius: 6px;

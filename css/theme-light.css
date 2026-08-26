@@ -92,7 +92,12 @@
   --c-brand-soft:   #d9ecdf;
   --c-brand-faint:  #f0f7f2;
   --c-brand-on:     #ffffff;
-  --c-accent:       #bc5c00;
+  /* #bc5c00 measures 4.46:1 under white — the "+ List your truck" and
+     "+ Offer your service" buttons print #fff on it and missed AA by four
+     hundredths. Two shades deeper reads as the same burnt orange and clears
+     it at 5.35:1, and every place --c-accent is INK rather than fill gets
+     more readable in the same move. */
+  --c-accent:       #a85200;
   --c-accent-soft:  #fbe9d7;
   --c-accent-deep:  #8a4200;
   --c-success:      #0d8050;
