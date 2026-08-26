@@ -34,6 +34,9 @@
     // Explore rather than a tab of its own — its slot in the bar became P-Chat.
     "favorites.html": "explore",
     "p-chat.html": "pchat",
+    // P-Chat's own tool — no other door leads here, so it is not a shared page.
+    // It was missing from this map entirely, which silently lit Home.
+    "share-location.html": "pchat",
     "p-message.html": "pmessage",
     // chat.html keeps the assistant, the voice agent and the support numbers.
     // P-Message links to it rather than swallowing it.
@@ -43,6 +46,51 @@
     "agent-services.html": "profile", "agent-trucks.html": "profile",
     "admin.html": "profile", "super-admin.html": "profile",
   };
+
+  // ── Which tab owns this visit ─────────────────────────────────────────────
+  //  TAB_OF answers "which tab owns this PAGE", which is not the same question
+  //  as "which tab owns this VISIT". Several pages are shared: near-me, area,
+  //  frame, jobs and houses' ?life= / ?alert= / ?request= modes are errands you
+  //  start in P-Chat, but they are also catalogue pages you reach from Explore.
+  //  Resolving by filename alone lit Explore the instant you tapped a P-Chat
+  //  row, so the tab you were standing in went dark mid-errand.
+  //
+  //  A link may therefore name its origin with ?from=<tab>. That wins over the
+  //  filename. Nothing is copied and no page moves — only the lit tab changes.
+  //
+  //  The choice is remembered per file (not globally) so a reload keeps it,
+  //  while walking on to a different page correctly falls back to that page's
+  //  own owner: from near-me you are still in the errand, but from the house
+  //  you opened out of it you are in the catalogue.
+  const TAB_IDS = ["home", "explore", "pchat", "pmessage", "profile"];
+  const CTX_KEY = "pawa-tab-from:";
+
+  function resolveTab(file) {
+    const fallback = TAB_OF[file] || "home";
+    let from = "";
+    try { from = new URLSearchParams(location.search).get("from") || ""; } catch (_) {}
+    from = from.toLowerCase();
+
+    if (TAB_IDS.includes(from)) {
+      try { sessionStorage.setItem(CTX_KEY + file, from); } catch (_) {}
+      return from;
+    }
+    // No param. That is either a reload/back that dropped it, or a genuinely
+    // fresh arrival from somewhere else — and those must not be confused:
+    // reaching jobs.html from Explore has to light Explore even if an earlier
+    // P-Chat errand once stored a context for this same file.
+    let nav = "";
+    try { nav = (performance.getEntriesByType("navigation")[0] || {}).type || ""; } catch (_) {}
+    const resumed = nav === "reload" || nav === "back_forward";
+    try {
+      if (!resumed) sessionStorage.removeItem(CTX_KEY + file);
+      else {
+        const kept = sessionStorage.getItem(CTX_KEY + file);
+        if (kept && TAB_IDS.includes(kept)) return kept;
+      }
+    } catch (_) {}
+    return fallback;
+  }
 
   function injectStyles() {
     if (document.getElementById("appshell-styles")) return;
@@ -103,7 +151,7 @@
 
     const file = (document.body.dataset.appShell ||
       location.pathname.split("/").pop() || "index.html").toLowerCase();
-    const active = TAB_OF[file] || "home";
+    const active = resolveTab(file);
 
     const tabs = [
       { id: "home", href: "index.html", label: t("nav_home", "Home"), icon: ICON.home },

@@ -16,6 +16,9 @@
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
 
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+  <!-- Claude Design tokens (colors/type/spacing/effects). Loaded before the
+       page style block so this page's own palette still wins where it sets one. -->
+  <link rel="stylesheet" href="css/design-system.css" />
 
   <style>
     /* ═══════════════════════════════════════════════════════════════════
@@ -646,6 +649,10 @@
   <script src="js/lib/tz-places.js"></script>
   <script src="js/lib/geo.js"></script>
   <script src="js/lib/geolocate.js"></script>
+  <!-- house-spec.js is read here for one thing only: the room categories a
+       listing actually offers, so a search for "master" reaches a plot whose
+       cheapest room — and therefore whose room_kind column — is a single. -->
+  <script src="js/lib/house-spec.js"></script>
   <script src="js/lib/explore-index.js"></script>
   <script src="js/lib/explore-query.js"></script>
   <script src="js/lib/explore-rank.js"></script>
@@ -656,6 +663,10 @@
   <!-- explore-map.js is tiny and loads Leaflet itself, lazily, on the first
        tap of "Map". Nothing map-related is fetched before that. -->
   <script src="js/lib/explore-map.js"></script>
+  <!-- place-book.js reads the ?at=<lat>,<lng> pin that P-Message hands over
+       ("Open on the map tab"). Without it window.PlaceBook is undefined and
+       the link lands on an ordinary Explore with the pin silently dropped. -->
+  <script src="js/lib/place-book.js"></script>
   <script src="js/pages/explore.js"></script>
   <script src="js/core/app-shell.js"></script>
   <script src="js/core/sw-register.js"></script>

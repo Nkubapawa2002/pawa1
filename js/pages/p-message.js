@@ -37,7 +37,9 @@
    "pmGate", "paneChats", "panePeople", "paneAi", "pmInbox", "pmSearch", "pmRegion",
    "pmPeople", "pmAiRow", "pmConv", "pmBack", "pmConvName", "pmConvSub", "pmVerify",
    "pmLog", "pmConvNote", "pmComposeForm", "pmInput", "pmSendBtn", "pmModalBack", "pmModal",
-   "pmTrustBar", "pmWho", "pmCount", "pmCats", "pmShort", "pmMembers", "pmReplyBar"]
+   "pmTrustBar", "pmWho", "pmCount", "pmCats", "pmShort", "pmMembers", "pmReplyBar",
+   "pmPlaceBtn", "pmAttach", "pmPlaceHint", "pmMapSheet", "pmMapBack", "pmMapName", "pmMapSub",
+   "pmMapCanvas", "pmMapActs"]
     .forEach(function (id) { el[id] = document.getElementById(id); });
 
   var me = null;             // { userId, email, isAdmin }
@@ -54,6 +56,11 @@
   // so the log has to be able to look up what it already opened.
   var replyTo = null;        // { id, name, text } or null
   var lastRows = [];
+  // The pin waiting to go with the next message. A location is not an
+  // attachment in the file sense — it rides inside the encrypted body — but it
+  // behaves like one at the composer, and it must be visible while typing or
+  // it gets sent to a conversation nobody meant.
+  var pendingPlace = null;   // { lat, lng, acc, label, source } or null
 
   var AI_THREAD = "assistant";
   var AI_STORE = "pm-assistant-log-v1";
@@ -224,7 +231,42 @@
     // Last, because it opens a conversation over the inbox it needs drawn
     // first — and because everything above must work whether or not the link
     // carried a person.
+    // Order matters. The pin is picked up FIRST so that when ?to= is also on
+    // the link the conversation opens with the place already attached; on its
+    // own it waits on the list, which is the honest thing to do — the app
+    // cannot know who the pin is for.
+    try { takeRequestedPlace(); } catch (_) {}
     try { await openRequestedPeer(); } catch (_) {}
+  }
+
+  /**
+   * A place handed over by another page — share-location.html?, a listing, a
+   * map — as p-message.html?place=<lat>,<lng>&label=<words>.
+   *
+   * The link carries the coordinates and nothing else that matters: no thread,
+   * no recipient, no claim about who owns the place. Choosing who to send it
+   * to is a decision, and a link that made it for you is a link that can send
+   * somebody's house to a stranger.
+   */
+  function takeRequestedPlace() {
+    if (!ready || !window.PMPlace || !window.PlaceBook) return false;
+    var raw = "", label = "";
+    try {
+      var q = new URLSearchParams(location.search);
+      raw = q.get("place") || "";
+      label = q.get("label") || "";
+    } catch (_) { return false; }
+    if (!raw) return false;
+
+    var hit = window.PlaceBook.parse(raw);
+    if (!hit) return false;
+    attachPlace({
+      lat: hit.lat, lng: hit.lng, acc: null,
+      label: String(label || hit.label || "").slice(0, 120),
+      source: "link",
+    });
+    showSeg("chats");
+    return true;
   }
 
   /**
@@ -403,7 +445,7 @@
       return '<button class="pm-row" data-thread="' + esc(r.thread_id) + '" data-kind="' + esc(r.kind) +
         '" data-name="' + esc(name) + '" data-sub="' + esc(sub) + '" data-other="' + esc(r.other_id || "") + '">' +
         '<span class="pm-av' + (broadcast ? " is-cast" : group ? " is-room" : "") + '">' +
-          (broadcast ? "★" : group ? "◎" : esc(initials(name))) + "</span>" +
+          (broadcast ? CAST_SVG : group ? ROOM_SVG : esc(initials(name))) + "</span>" +
         '<span class="pm-rtx"><span class="pm-name">' + esc(name) + guestTag +
           (broadcast ? ' <span class="pm-badge">' + esc(t("pm_badge_cast", "Announcement")) + "</span>" : "") +
           (group ? ' <span class="pm-badge">' + esc(t("pm_badge_room", "Room")) + "</span>" : "") +
@@ -413,6 +455,18 @@
   }
 
   // ---- directory -----------------------------------------------------------
+  // Drawn, not typed. A character like a star or a ringed circle renders as a
+  // colour emoji on some phones and as a bare glyph on others, so the same row
+  // looks like two different designs depending on who is holding it — and this
+  // project uses no emoji anywhere.
+  var CAST_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M4 9h3l8-5v16l-8-5H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>' +
+    '<path d="M18.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  var ROOM_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<circle cx="9" cy="9" r="3" stroke="currentColor" stroke-width="1.8"/>' +
+    '<circle cx="16.5" cy="10.5" r="2.4" stroke="currentColor" stroke-width="1.8"/>' +
+    '<path d="M3.5 19a5.5 5.5 0 0 1 11 0M15 19a4.6 4.6 0 0 1 5.5-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
   function fillRegions() {
     if (!el.pmRegion) return;
     var names = (window.TZ_REGION_CENTERS || []).map(function (r) { return r.name; })
@@ -796,8 +850,11 @@
   async function openThread(info) {
     open = info;
     // A reply belongs to the conversation it was chosen in. Carrying one
-    // across would answer a message that is not in the room any more.
+    // across would answer a message that is not in the room any more. A pin
+    // is worse: it would be sent to whoever the next conversation happens to
+    // be with.
     clearReply();
+    clearAttach();
     lastRows = [];
     el.pmConv.classList.add("is-on");
     el.pmConv.setAttribute("aria-hidden", "false");
@@ -1243,6 +1300,8 @@
   function closeThread() {
     open = null;
     clearReply();
+    clearAttach();
+    closePlaceMap();
     lastRows = [];
     if (live) { live.unsubscribe(); live = null; }
     if (el.pmTrustBar) el.pmTrustBar.hidden = true;
@@ -1271,9 +1330,26 @@
       // and "somebody calling themselves that said so".
       var who = m.mine ? "" : esc(m.senderName || t("pm_someone", "Someone")) +
         (room && m.senderGuest ? " " + esc(t("pm_badge_guest", "Guest")) : "") + " · ";
+      // A message carrying coordinates gets a card as well as its words. Not
+      // INSTEAD of them: the sentence somebody typed above the pin is often
+      // the useful half ("the blue gate, not the green one"), and a card that
+      // swallowed it would lose the thing only a person could say.
+      var place = (!m.failed && window.PMPlace) ? window.PMPlace.read(text) : null;
+      var shown = place ? placeStripped(text) : text;
+
       return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") +
+        (place ? " has-place" : "") +
         '" data-msg="' + esc(m.id || "") + '">' +
-        quoteHtml(m) + esc(text) +
+        quoteHtml(m) + (place ? window.PMPlace.card(place, {
+          // Who sent it, so that saving the pin keeps the one fact the pin
+          // itself cannot carry. Only for messages that came IN: a pin this
+          // device sent is its own guess coming back, and stamping our own
+          // name on it as provenance would be a listing quoting itself.
+          from: m.mine ? "" : (m.senderName || ""),
+          fromId: m.mine ? "" : (m.senderId || ""),
+          guest: !m.mine && !!m.senderGuest,
+          msgId: m.id || "", at: m.at || "",
+        }) : "") + esc(shown) +
         '<span class="pm-msg-at">' + who + esc(clock(m.at)) +
         // Answering is offered on every message including one this device
         // cannot open: the id is what gets sent, not the words, so replying
@@ -1321,6 +1397,28 @@
       if (lastRows[i].id === id) return lastRows[i];
     }
     return null;
+  }
+
+  /**
+   * The words of a place message, with the machine-readable parts taken out.
+   *
+   * The card already prints the coordinates and offers the map, so leaving
+   * the raw pair and a 60-character URL underneath it says everything twice
+   * and makes the bubble twice as tall. What is kept is exactly what a person
+   * typed — and when they typed nothing, nothing is kept.
+   */
+  function placeStripped(text) {
+    var out = String(text)
+      .replace(/https?:\/\/\S+/gi, "")
+      .replace(/geo:\S+/gi, "")
+      .replace(/\(?~\s*\d{1,5}\s*m\)?/gi, "")
+      .replace(/(-?\d{1,2}\.\d{3,})\s*[,; ]\s*(-?\d{1,3}\.\d{3,})/g, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
+    // The label is already the card's heading. Repeating it under the card is
+    // the same sentence twice.
+    return out;
   }
 
   // One line of it. A quote that can grow to the height of the message it
@@ -1391,8 +1489,17 @@
     // in flight silently answers the same thing again.
     var answering = replyTo ? replyTo.id : null;
     clearReply();
+    // The pin joins the words rather than going as a second message: "the blue
+    // gate, not the green one" and the coordinates are one statement, and
+    // splitting them means the sentence can arrive without the place or the
+    // place without the sentence.
+    var body = text;
+    if (pendingPlace && window.PMPlace) {
+      body = window.PMPlace.compose(pendingPlace, text);
+      clearAttach();
+    }
     try {
-      await window.PMStore.send(open.threadId, text, { replyTo: answering });
+      await window.PMStore.send(open.threadId, body, { replyTo: answering });
       renderLog(await window.PMStore.messages(open.threadId));
       refreshInbox();
     } catch (err) {
@@ -1405,6 +1512,444 @@
     } finally {
       el.pmSendBtn.disabled = false;
     }
+  }
+
+  // ---- sending a place -----------------------------------------------------
+  //
+  //  Four doors, because a location arrives four different ways and refusing
+  //  three of them would mean the feature works for whoever happens to be
+  //  standing in the right place with the right app open:
+  //
+  //    here   — this device's GPS, through pawaLocate, which knows how to wait
+  //             for a real fix and how to explain a refusal in words.
+  //    map    — drag the map, the pin is the middle. For somebody describing a
+  //             place they are not at, which is most of the time.
+  //    saved  — the book of places this device has already been given
+  //             (js/lib/place-book.js). A gate shared last Tuesday is still
+  //             the same gate.
+  //    code   — the nine characters somebody read out on the phone.
+  //
+  //  All four end as { lat, lng, acc, label } and are sent as an ordinary
+  //  encrypted message (js/lib/pm-place.js explains the wire format and why it
+  //  is deliberately plain text).
+
+  var pickMap = null, pickMarker = null, pickTab = "here";
+
+  function showPlacePicker() {
+    if (!open) return;
+    pickTab = window.PlaceBook && window.PlaceBook.list().length ? "saved" : "here";
+    drawPicker();
+  }
+
+  function drawPicker() {
+    var tabs = [
+      ["here", t("pmp_tab_here", "Where I am")],
+      ["map", t("pmp_tab_map", "Point on a map")],
+      ["saved", t("pmp_tab_saved", "Saved places")],
+      ["code", t("pmp_tab_code", "A code")],
+    ];
+    modal("<h2>" + esc(t("pmp_send_place", "Send a place")) + "</h2>" +
+      "<p>" + esc(t("pmp_send_d",
+        "The pin travels inside the message, so it is encrypted exactly as the words are. Whoever you send it to can open it on a map and use it without coming here.")) + "</p>" +
+      '<div class="pm-pick-tabs" role="tablist">' +
+        tabs.map(function (row) {
+          return '<button class="pm-pick-tab' + (pickTab === row[0] ? " is-on" : "") +
+            '" type="button" data-ptab="' + row[0] + '" role="tab">' + esc(row[1]) + "</button>";
+        }).join("") +
+      "</div>" +
+      '<div id="pmPickBody"></div>' +
+      '<div class="pm-note" id="pmPickMsg" hidden></div>' +
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn ghost" id="pmPickCancel" type="button">' + esc(t("pm_close", "Close")) + "</button>" +
+      "</div>");
+
+    document.getElementById("pmPickCancel").addEventListener("click", closePicker);
+    document.getElementById("pmModal").querySelector(".pm-pick-tabs")
+      .addEventListener("click", function (e) {
+        var b = e.target.closest("[data-ptab]");
+        if (!b || b.dataset.ptab === pickTab) return;
+        pickTab = b.dataset.ptab;
+        drawPicker();
+      });
+    drawPickerBody();
+  }
+
+  function closePicker() {
+    if (pickMap) { try { pickMap.remove(); } catch (_) {} pickMap = null; pickMarker = null; }
+    closeModal();
+  }
+
+  function pickMsg(text, kind) {
+    var box = document.getElementById("pmPickMsg");
+    if (!box) return;
+    if (!text) { box.hidden = true; box.textContent = ""; return; }
+    box.className = "pm-note" + (kind === "err" ? " warn" : "");
+    box.textContent = text;
+    box.hidden = false;
+  }
+
+  function drawPickerBody() {
+    var body = document.getElementById("pmPickBody");
+    if (!body) return;
+    if (pickMap) { try { pickMap.remove(); } catch (_) {} pickMap = null; pickMarker = null; }
+    pickMsg("");
+
+    if (pickTab === "here") {
+      body.innerHTML = '<button class="pm-btn" id="pmPickGps" type="button" style="width:100%">' +
+        esc(t("pmp_use_gps", "Use where I am now")) + "</button>" +
+        '<p style="margin-top:9px">' + esc(t("pmp_gps_d",
+          "Your phone decides this, not us, and it is sent only to this conversation.")) + "</p>";
+      document.getElementById("pmPickGps").addEventListener("click", useGps);
+      return;
+    }
+
+    if (pickTab === "map") {
+      body.innerHTML = '<div class="pm-pick-map" id="pmPickMap"></div>' +
+        '<p style="margin:8px 0 0">' + esc(t("pmp_map_d",
+          "Drag the map. The pin is the middle of it.")) + "</p>" +
+        '<button class="pm-btn" id="pmPickMapGo" type="button" style="width:100%;margin-top:9px">' +
+        esc(t("pmp_send_this", "Send this pin")) + "</button>";
+      mountPickMap();
+      document.getElementById("pmPickMapGo").addEventListener("click", function () {
+        if (!pickMap) return;
+        var c = pickMap.getCenter();
+        attachPlace({ lat: c.lat, lng: c.lng, acc: null, label: "", source: "map" });
+        closePicker();
+      });
+      return;
+    }
+
+    if (pickTab === "saved") {
+      var rows = (window.PlaceBook ? window.PlaceBook.list() : []).slice(0, 12);
+      if (!rows.length) {
+        body.innerHTML = "<p>" + esc(t("pmp_none_saved",
+          "No places yet. One arrives here whenever somebody sends you a pin, or when you open a code.")) + "</p>";
+        return;
+      }
+      body.innerHTML = '<div class="pm-pick-list">' + rows.map(function (p) {
+        return '<button class="pm-pick-row" type="button" data-psaved="' + esc(p.id) + '">' +
+          '<span class="pm-pick-t">' + esc(p.label || window.PlaceBook.coords(p.lat, p.lng)) + "</span>" +
+          '<span class="pm-pick-s">' + esc(placeAge(p.at)) + "</span></button>";
+      }).join("") + "</div>";
+      body.querySelector(".pm-pick-list").addEventListener("click", function (e) {
+        var b = e.target.closest("[data-psaved]");
+        if (!b) return;
+        var hit = window.PlaceBook.list().filter(function (p) { return p.id === b.dataset.psaved; })[0];
+        if (!hit) return;
+        attachPlace(hit);
+        closePicker();
+      });
+      return;
+    }
+
+    // code
+    body.innerHTML = '<input id="pmPickCode" type="text" inputmode="latin" autocomplete="off" ' +
+        'maxlength="11" placeholder="K7M-2Q9-F3T" />' +
+      '<button class="pm-btn" id="pmPickCodeGo" type="button" style="width:100%;margin-top:9px">' +
+        esc(t("pmp_open_code", "Open the code")) + "</button>" +
+      '<p style="margin-top:9px">' + esc(t("pmp_code_d",
+        "Nine characters somebody read out to you. It opens once and the pin is theirs, not ours — we cannot read it either.")) + "</p>";
+    var input = document.getElementById("pmPickCode");
+    input.addEventListener("input", function () {
+      if (!window.LocCode) return;
+      var c = window.LocCode.normalize(input.value);
+      var atEnd = input.selectionStart === input.value.length;
+      input.value = c.length === window.LocCode.CODE_LEN
+        ? window.LocCode.format(c) : c.replace(/(.{3})(?=.)/g, "$1-");
+      if (atEnd) input.setSelectionRange(input.value.length, input.value.length);
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); document.getElementById("pmPickCodeGo").click(); }
+    });
+    document.getElementById("pmPickCodeGo").addEventListener("click", openPickedCode);
+  }
+
+  function placeAge(at) {
+    var mins = Math.round((Date.now() - (at || 0)) / 60000);
+    if (mins < 1) return t("pmp_ago_now", "just now");
+    if (mins < 60) return t("pmp_ago_min", "{n} min", { n: mins });
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return t("pmp_ago_hr", "{n} h", { n: hrs });
+    return t("pmp_ago_day", "{n} d", { n: Math.round(hrs / 24) });
+  }
+
+  function mountPickMap() {
+    var host = document.getElementById("pmPickMap");
+    if (!host || !window.L) return;
+    // Somewhere sensible to start: the last place this device was given, or
+    // the whole country. Opening on the middle of the Atlantic and asking
+    // somebody to drag to Mwanza is not a choice.
+    var last = (window.PlaceBook ? window.PlaceBook.list() : [])[0];
+    var centre = last ? [last.lat, last.lng] : [-6.4, 35.0];
+    pickMap = window.L.map(host, { scrollWheelZoom: true, attributionControl: false })
+      .setView(centre, last ? 16 : 6);
+    if (window.addSatelliteHybrid) window.addSatelliteHybrid(pickMap);
+    else window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(pickMap);
+    // A crosshair rather than a draggable marker: the pin is always the middle
+    // of the map, so there is nothing to lose track of and nothing to explain.
+    pickMarker = window.L.marker(centre, { interactive: false }).addTo(pickMap);
+    pickMap.on("move", function () {
+      if (pickMarker) pickMarker.setLatLng(pickMap.getCenter());
+    });
+    setTimeout(function () { try { pickMap.invalidateSize(); } catch (_) {} }, 120);
+  }
+
+  async function useGps() {
+    var btn = document.getElementById("pmPickGps");
+    if (btn) { btn.disabled = true; btn.textContent = t("pmp_locating", "Finding you…"); }
+    try {
+      var fix = window.pawaLocate && window.pawaLocate.supported()
+        ? await window.pawaLocate.best({ targetAccuracy: 50, hardTimeout: 15000 })
+        : await new Promise(function (res, rej) {
+            if (!navigator.geolocation) return rej(new Error("no gps"));
+            navigator.geolocation.getCurrentPosition(function (pos) {
+              res({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+            }, rej, { enableHighAccuracy: true, timeout: 15000 });
+          });
+      attachPlace({
+        lat: fix.lat, lng: fix.lng,
+        acc: fix.accuracy == null ? null : Math.round(fix.accuracy),
+        label: "", source: "gps",
+      });
+      closePicker();
+    } catch (err) {
+      pickMsg((err && err.message) || t("pmp_gps_failed", "Could not get your location."), "err");
+      if (btn) { btn.disabled = false; btn.textContent = t("pmp_use_gps", "Use where I am now"); }
+    }
+  }
+
+  async function openPickedCode() {
+    var input = document.getElementById("pmPickCode");
+    var btn = document.getElementById("pmPickCodeGo");
+    if (!input || !window.LocShare || !window.LocCode) {
+      pickMsg(t("pmp_code_unavailable", "Codes are not available right now."), "err");
+      return;
+    }
+    var problem = window.LocCode.problem(input.value);
+    if (problem) { pickMsg(codeReason(problem), "err"); return; }
+    btn.disabled = true;
+    pickMsg(t("pmp_code_opening", "Opening…"));
+    var r = await window.LocShare.open(input.value);
+    btn.disabled = false;
+    if (!r.ok) { pickMsg(codeReason(r.reason), "err"); return; }
+    // Remembered on the way through: a code opens a limited number of times,
+    // and losing the pin because the message was not sent would mean asking
+    // the person to mint another one.
+    var rec = { lat: r.place.lat, lng: r.place.lng, acc: r.place.acc,
+                label: r.place.label || "", source: "code" };
+    if (window.PlaceBook) window.PlaceBook.add(rec);
+    attachPlace(rec);
+    closePicker();
+  }
+
+  // Every one of these is an ordinary thing that happens to people, so each
+  // gets a sentence rather than a code.
+  function codeReason(reason) {
+    return {
+      short: t("pmp_r_short", "That is too short — a code is nine characters."),
+      long: t("pmp_r_long", "That is too long — a code is nine characters."),
+      chars: t("pmp_r_chars", "A code has no I, L, O or U in it. Check the letters."),
+      check: t("pmp_r_check", "That code has a typo in it."),
+      expired: t("pmp_r_expired", "That code has expired. Ask for a new one."),
+      used_up: t("pmp_r_used", "That code has been opened as many times as it was allowed."),
+      revoked: t("pmp_r_revoked", "Whoever made that code has withdrawn it."),
+      not_found: t("pmp_r_notfound", "No such code."),
+      rate_limited: t("pmp_r_rate", "Too many tries. Wait a moment."),
+      signin: t("pmp_r_signin", "Sign in to open a code."),
+      offline: t("pmp_r_offline", "You are offline."),
+    }[reason] || t("pmp_r_failed", "That did not work.");
+  }
+
+  /** The place a card's button is standing on, and who put it there. */
+  function placeOfButton(btn) {
+    var card = btn.closest ? btn.closest(".pm-place") : null;
+    var d = (card && card.dataset) || btn.dataset;
+    return {
+      lat: Number(btn.dataset.plat),
+      lng: Number(btn.dataset.plng),
+      acc: btn.dataset.pacc ? Number(btn.dataset.pacc) : null,
+      label: btn.dataset.plabel || "",
+      from: d.pfrom || "",
+      fromId: d.pfromid || "",
+      guest: d.pguest === "1",
+      msgId: d.pmid || "",
+      at: d.pat ? (new Date(d.pat).getTime() || null) : null,
+    };
+  }
+
+  // ---- the pin waiting to be sent ------------------------------------------
+  function attachPlace(place) {
+    pendingPlace = {
+      lat: Number(place.lat), lng: Number(place.lng),
+      acc: place.acc == null ? null : Math.round(Number(place.acc)),
+      label: String(place.label || ""),
+      source: place.source || "map",
+    };
+    drawAttach();
+    if (el.pmInput && !el.pmInput.disabled) el.pmInput.focus();
+  }
+
+  function clearAttach() { pendingPlace = null; drawAttach(); }
+
+  function drawAttach() {
+    drawPlaceHint();
+    if (!el.pmAttach) return;
+    if (!pendingPlace) { el.pmAttach.hidden = true; el.pmAttach.innerHTML = ""; return; }
+    el.pmAttach.innerHTML =
+      '<span class="pm-at-tx"><b>' + esc(t("pmp_attached", "Sending a place")) + "</b>" +
+      '<span class="pm-at-body">' +
+        esc(pendingPlace.label || window.PlaceBook.coords(pendingPlace.lat, pendingPlace.lng)) +
+      "</span></span>" +
+      '<button class="pm-rb-x" type="button" id="pmAttachX" aria-label="' +
+        esc(t("pmp_detach", "Do not send it")) + '">×</button>';
+    el.pmAttach.hidden = false;
+    var x = document.getElementById("pmAttachX");
+    if (x) x.addEventListener("click", clearAttach);
+  }
+
+  /**
+   * The same pin, said on the list instead of in the composer.
+   *
+   * The attachment strip lives inside the conversation. A place arriving on a
+   * link has no conversation yet — that is the whole point, somebody has to
+   * choose one — so without this the app would be holding a pin with nothing
+   * on screen admitting it.
+   */
+  function drawPlaceHint() {
+    if (!el.pmPlaceHint) return;
+    if (!pendingPlace) {
+      el.pmPlaceHint.hidden = true;
+      el.pmPlaceHint.innerHTML = "";
+      return;
+    }
+    el.pmPlaceHint.innerHTML = "<b>" + esc(t("pmp_pick_who", "Choose who to send this place to.")) + "</b><br>" +
+      esc(pendingPlace.label || window.PlaceBook.coords(pendingPlace.lat, pendingPlace.lng)) +
+      ' <button class="pm-place-b" type="button" id="pmHintDrop" style="margin-left:6px">' +
+      esc(t("pmp_detach", "Do not send it")) + "</button>";
+    el.pmPlaceHint.hidden = false;
+    var drop = document.getElementById("pmHintDrop");
+    if (drop) drop.addEventListener("click", clearAttach);
+  }
+
+  // ---- opening one somebody sent -------------------------------------------
+  var sheetMap = null, sheetPlace = null;
+
+  function openPlaceMap(place) {
+    sheetPlace = place;
+    if (!el.pmMapSheet) return;
+    el.pmMapSheet.classList.add("is-on");
+    el.pmMapSheet.setAttribute("aria-hidden", "false");
+    if (el.pmMapName) {
+      el.pmMapName.textContent = place.label || t("pmp_a_place", "A place");
+    }
+    if (el.pmMapSub) {
+      el.pmMapSub.textContent = window.PlaceBook.coords(place.lat, place.lng) +
+        (place.acc ? "  ~" + place.acc + " m" : "");
+    }
+    drawSheetActs();
+    mountSheetMap(place);
+  }
+
+  function closePlaceMap() {
+    if (sheetMap) { try { sheetMap.remove(); } catch (_) {} sheetMap = null; }
+    sheetPlace = null;
+    if (!el.pmMapSheet) return;
+    el.pmMapSheet.classList.remove("is-on");
+    el.pmMapSheet.setAttribute("aria-hidden", "true");
+  }
+
+  function mountSheetMap(place) {
+    var host = el.pmMapCanvas;
+    if (!host || !window.L) return;
+    if (sheetMap) { try { sheetMap.remove(); } catch (_) {} sheetMap = null; }
+    sheetMap = window.L.map(host, { scrollWheelZoom: true, attributionControl: false })
+      .setView([place.lat, place.lng], 17);
+    if (window.addSatelliteHybrid) window.addSatelliteHybrid(sheetMap);
+    else window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(sheetMap);
+    window.L.marker([place.lat, place.lng]).addTo(sheetMap);
+    // Accuracy drawn rather than stated: "within 80 m" is a number, and a
+    // circle the size of the block is the same fact in a form somebody can
+    // act on.
+    if (place.acc && place.acc > 0) {
+      window.L.circle([place.lat, place.lng], {
+        radius: place.acc, color: "#2EE6A6", weight: 1, fillOpacity: 0.1,
+      }).addTo(sheetMap);
+    }
+    setTimeout(function () { try { sheetMap.invalidateSize(); } catch (_) {} }, 120);
+  }
+
+  /**
+   * What can be done with a pin once it is on screen.
+   *
+   * "Open in Explore" is the one that answers the request behind this whole
+   * feature: a place received in a conversation should be usable on the map
+   * tab exactly like any other place, with the catalogue around it — what is
+   * for rent near this gate, who works this ward.
+   */
+  function drawSheetActs() {
+    if (!el.pmMapActs || !sheetPlace) return;
+    var p = sheetPlace;
+    var saved = window.PlaceBook && window.PlaceBook.list().some(function (q) {
+      return Math.abs(q.lat - p.lat) < 0.00015 && Math.abs(q.lng - p.lng) < 0.00015;
+    });
+    el.pmMapActs.innerHTML =
+      '<button class="pm-place-b is-go" type="button" id="pmMapExplore">' +
+        esc(t("pmp_in_explore", "Open on the map tab")) + "</button>" +
+      '<button class="pm-place-b" type="button" id="pmMapSave"' + (saved ? " disabled" : "") + ">" +
+        esc(saved ? t("pmp_saved", "Saved") : t("pmp_save", "Save this pin")) + "</button>" +
+      '<a class="pm-place-b" href="' + esc(window.PMPlace.mapsUrl(p.lat, p.lng)) +
+        '" target="_blank" rel="noopener">' + esc(t("pmp_in_maps", "Open in maps app")) + "</a>";
+
+    document.getElementById("pmMapExplore").addEventListener("click", function () {
+      // Saved on the way out. Explore is a different page, and a pin that
+      // vanished when you walked to the map would be the one thing this
+      // feature exists to prevent.
+      savePlace(p);
+      location.href = "explore.html?view=map&at=" +
+        encodeURIComponent(Number(p.lat).toFixed(6) + "," + Number(p.lng).toFixed(6)) +
+        (p.label ? "&label=" + encodeURIComponent(p.label.slice(0, 60)) : "");
+    });
+    document.getElementById("pmMapSave").addEventListener("click", function () {
+      savePlace(p);
+      drawSheetActs();
+    });
+  }
+
+  /**
+   * Keep a pin.
+   *
+   * On the device and nowhere else. loc_share goes to real lengths to keep
+   * coordinates unreadable to the server; writing an opened one back to a
+   * table we can read would undo all of it in a line. place-book.js is the
+   * list, and the listing forms read it — which is how a pin received in a
+   * conversation becomes a pin on a house.
+   */
+  /**
+   * "Save this pin" — into the device's book, with everything about where it
+   * came from.
+   *
+   * `source` is 'pm' and not 'chat': the listing form has a word for each way
+   * a location can arrive and shows it beside the row, and a source nothing
+   * recognises was being drawn as "pasted from a link" — which is what a pin
+   * somebody stood on and sent looked like at the exact moment the difference
+   * mattered. The sender's name and account travel with it for the same
+   * reason: three pages later, "exactly as Amina sent it" has to still be a
+   * checkable claim rather than a memory.
+   */
+  function savePlace(place) {
+    if (!window.PlaceBook) return;
+    window.PlaceBook.add({
+      lat: place.lat, lng: place.lng, acc: place.acc,
+      label: place.label || "",
+      source: "pm",
+      from: place.from || (open && open.kind === "direct" ? open.name : "") || "",
+      fromId: place.fromId || "",
+      guest: !!place.guest,
+      msgId: place.msgId || "",
+      threadId: (open && open.threadId) || "",
+      threadName: (open && open.name) || "",
+      at: place.at || Date.now(),
+    });
   }
 
   // ---- the assistant -------------------------------------------------------
@@ -1963,8 +2508,23 @@
       var reply = e.target.closest("[data-reply]");
       if (reply) { setReply(reply.dataset.reply); return; }
       var jump = e.target.closest("[data-goto]");
-      if (jump) gotoMessage(jump.dataset.goto);
+      if (jump) { gotoMessage(jump.dataset.goto); return; }
+      // The coordinates ride on the button itself, not on an index into a
+      // list — the log is rewritten on every incoming message, and an index
+      // that pointed at row 4 before the redraw points at somebody else's
+      // place after it.
+      var toMap = e.target.closest("[data-place-map]");
+      if (toMap) { openPlaceMap(placeOfButton(toMap)); return; }
+      var toSave = e.target.closest("[data-place-save]");
+      if (toSave) {
+        savePlace(placeOfButton(toSave));
+        toSave.disabled = true;
+        toSave.textContent = t("pmp_saved", "Saved");
+      }
     });
+
+    el.pmPlaceBtn && el.pmPlaceBtn.addEventListener("click", showPlacePicker);
+    el.pmMapBack && el.pmMapBack.addEventListener("click", closePlaceMap);
 
     el.pmBack && el.pmBack.addEventListener("click", closeThread);
     el.pmVerify && el.pmVerify.addEventListener("click", openVerify);
@@ -1977,7 +2537,10 @@
     el.pmComposeForm && el.pmComposeForm.addEventListener("submit", function (e) {
       e.preventDefault();
       var text = el.pmInput.value.trim();
-      if (!text) return;
+      // A pin on its own is a complete message. Requiring words as well would
+      // mean somebody standing at a gate has to think of a sentence before
+      // they can say where they are.
+      if (!text && !pendingPlace) return;
       // The disabled textarea is the visible gate; this is the one that holds
       // if anything ever re-enables it without clearing the alarm.
       if (open && open.trust && open.trust.changed) { openVerify(); return; }

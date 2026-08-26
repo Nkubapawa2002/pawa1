@@ -33,6 +33,14 @@
     '<path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
 
   // ---- Build the compact trigger row -------------------------------------
+  // This bar is built after applyTranslations() has already swept the page,
+  // so every string in it has to ask for its own key or the pill row stays
+  // English on a Swahili phone.
+  var tr = function (key, fallback) {
+    var s = window.t ? window.t(key) : key;
+    return (!s || s === key) ? fallback : s;
+  };
+
   var bar = document.createElement("div");
   bar.className = "hp-filterbar";
 
@@ -42,13 +50,13 @@
   toggle.setAttribute("aria-expanded", "false");
   toggle.setAttribute("aria-controls", "housesToolbarRegion");
   toggle.innerHTML = SLIDERS +
-    '<span>Filters</span><span class="hp-fb-count" hidden>0</span>' + CHEV;
+    "<span>" + tr("hp_filters", "Filters") + '</span><span class="hp-fb-count" hidden>0</span>' + CHEV;
 
   var near = document.createElement("button");
   near.type = "button";
   near.className = "hp-fb-near";
-  near.setAttribute("aria-label", "Find homes near me");
-  near.innerHTML = GPS + "<span>Near me</span>";
+  near.setAttribute("aria-label", tr("hp_near_aria", "Find homes near me"));
+  near.innerHTML = GPS + "<span>" + tr("hp_near", "Near me") + "</span>";
 
   bar.appendChild(toggle);
   bar.appendChild(near);

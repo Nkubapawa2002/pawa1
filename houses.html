@@ -153,7 +153,7 @@
       background: #fff; color: var(--c-text, #1a1915);
     }
     .houses-toolbar input:focus,
-    .houses-toolbar select:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .houses-toolbar select:focus { outline: none; border-color: var(--c-brand, var(--green)); }
     /* The free-text budget box has a longer placeholder — give it two columns
        so "Budget — e.g. 900k, 1.5m, under 2m" stays readable (collapses to one
        column on narrow screens where auto-fit drops to a single column). */
@@ -234,7 +234,7 @@
       text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
     .houses-near-me, .houses-alert-btn {
       flex-shrink: 0; padding: 10px 14px;
-      background: var(--c-brand, #0a6f4d); color: #fff;
+      background: var(--c-brand, var(--green)); color: #fff;
       border: none; border-radius: 10px; cursor: pointer;
       font-weight: 600; font-size: .9rem;
       display: inline-flex; align-items: center; gap: 6px;
@@ -368,7 +368,7 @@
       font-family: inherit;
       background: #fff;
     }
-    .am-search-row input:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .am-search-row input:focus { outline: none; border-color: var(--c-brand, var(--green)); }
     .am-mini-btn {
       flex-shrink: 0;
       padding: 11px 14px;
@@ -378,7 +378,7 @@
       font-weight: 600; font-size: .88rem;
       cursor: pointer; white-space: nowrap;
     }
-    .am-mini-btn:hover { border-color: var(--c-brand, #0a6f4d); }
+    .am-mini-btn:hover { border-color: var(--c-brand, var(--green)); }
     .am-mini-btn:disabled { opacity: .6; cursor: not-allowed; }
 
     /* Mode toolbar: Circle / Draw area / Whole ward */
@@ -392,10 +392,10 @@
       color: var(--c-text-soft, #3f3d36);
       cursor: pointer; white-space: nowrap;
     }
-    .am-mode:hover { border-color: var(--c-brand, #0a6f4d); }
+    .am-mode:hover { border-color: var(--c-brand, var(--green)); }
     .am-mode.active {
-      background: var(--c-brand, #0a6f4d); color: #fff;
-      border-color: var(--c-brand, #0a6f4d);
+      background: var(--c-brand, var(--green)); color: #fff;
+      border-color: var(--c-brand, var(--green));
     }
     .am-draw-tools, .am-area-tools {
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -412,7 +412,7 @@
     .am-area-chip {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--c-brand-faint, #f0f7f2);
-      border: 1px solid var(--c-brand, #0a6f4d);
+      border: 1px solid var(--c-brand, var(--green));
       color: var(--c-brand-deep, #064a33);
       border-radius: 999px; padding: 4px 6px 4px 11px;
       font-size: .8rem; font-weight: 600;
@@ -484,7 +484,7 @@
       min-height: 34px; padding: 0 11px; white-space: nowrap;
     }
     .am-base-seg button + button { border-left: 1px solid rgba(255,255,255,.14); }
-    .am-base-seg button.active { background: var(--c-brand, #0a6f4d); color: #06170F; }
+    .am-base-seg button.active { background: var(--c-brand, var(--green)); color: #06170F; }
     .am-map-btn {
       border-radius: 9px; box-shadow: 0 2px 10px rgba(0,0,0,.28);
       display: inline-flex; align-items: center; gap: 5px;
@@ -548,7 +548,7 @@
       border-color: var(--c-brand-soft, #0a6f4d);
       color: var(--c-brand-deep, #064a33); font-weight: 600;
     }
-    .am-status.has-pin::before { background: var(--c-brand, #0a6f4d); }
+    .am-status.has-pin::before { background: var(--c-brand, var(--green)); }
 
     /* Modal body children keep their intrinsic size so the body scrolls *inside*
        the modal instead of squeezing them. CRITICAL for the map: in a flex
@@ -570,7 +570,7 @@
       margin-bottom: 6px;
     }
     .am-radius-row strong { color: var(--c-brand-deep, #064a33); font-family: var(--c-font-mono, ui-monospace, monospace); }
-    .am-radius-row input[type=range] { width: 100%; accent-color: var(--c-brand, #0a6f4d); }
+    .am-radius-row input[type=range] { width: 100%; accent-color: var(--c-brand, var(--green)); }
 
     /* Alert criteria — where/when/type/price so only the RIGHT rooms notify */
     .am-filter-grid {
@@ -611,7 +611,7 @@
       font-size: 16px;
       font-family: inherit;
     }
-    .am-name-row input:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .am-name-row input:focus { outline: none; border-color: var(--c-brand, var(--green)); }
 
     .am-foot {
       padding: 12px 20px;
@@ -632,10 +632,10 @@
       font-weight: 600; font-size: .92rem;
       cursor: pointer;
     }
-    .am-btn:hover { border-color: var(--c-brand, #0a6f4d); }
-    .am-btn-brand { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .am-btn:hover { border-color: var(--c-brand, var(--green)); }
+    .am-btn-brand { background: var(--c-brand, var(--green)); color: #fff; border-color: var(--c-brand, var(--green)); }
     .am-btn-brand:hover { background: var(--c-brand-deep, #064a33); }
-    .am-btn-brand:disabled { opacity: .5; cursor: not-allowed; background: var(--c-brand, #0a6f4d); }
+    .am-btn-brand:disabled { opacity: .5; cursor: not-allowed; background: var(--c-brand, var(--green)); }
     .houses-result-count { font-size: .88rem; color: var(--c-text-muted, #6b6960); padding: 0 4px 8px; }
 
     /* Split view */
@@ -675,7 +675,7 @@
       transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
     }
     .house-card:hover,
-    .house-card.active { border-color: var(--c-brand, #0a6f4d); box-shadow: 0 6px 18px rgba(10,111,77,.12); transform: translateY(-1px); }
+    .house-card.active { border-color: var(--c-brand, var(--green)); box-shadow: 0 6px 18px rgba(10,111,77,.12); transform: translateY(-1px); }
     .house-card-photo {
       background: #ece9e1 center/cover no-repeat;
       min-height: 100px;
@@ -711,6 +711,15 @@
       border: 1px solid var(--c-brand-soft, #d9ecdf);
       padding: 1px 8px; border-radius: 999px; font-weight: 700; font-size: .72rem;
     }
+    /* "4 kinds of space" — a plain neighbour to the room-kind pill, not a
+       second pill: two badges side by side read as two competing claims. */
+    .house-card-meta .house-card-roomtypes { font-weight: 600; color: var(--c-text-soft, #3f3d36); }
+    /* The word in front of a from-price. Quiet, because the number is the
+       thing being read — but present, because without it the number lies. */
+    .house-card-from {
+      font-size: .66em; font-weight: 600; color: var(--c-text-muted, #6b6960);
+      font-family: system-ui, sans-serif;
+    }
     .house-card-loc {
       font-size: .76rem; color: var(--c-text-soft, #3f3d36); margin-top: 4px;
       display: inline-flex; align-items: center; gap: 4px;
@@ -729,7 +738,7 @@
       padding: 5px 11px; border-radius: 999px;
       text-decoration: none;
     }
-    .house-card-view:hover { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
+    .house-card-view:hover { background: var(--c-brand, var(--green)); color: #fff; border-color: var(--c-brand, var(--green)); text-decoration: none; }
 
     /* Map popup */
     .house-popup { width: 220px; }
@@ -739,12 +748,12 @@
     .house-popup .pop-meta { font-size: .76rem; color: var(--c-text-muted, #6b6960); margin-bottom: 6px; }
     .house-popup .pop-actions { display: flex; gap: 6px; }
     .house-popup .pop-actions a { flex: 1; text-align: center; padding: 6px 8px; border-radius: 6px; font-size: .78rem; text-decoration: none; font-weight: 600; }
-    .house-popup .pop-actions a.btn-call { background: var(--c-brand, #0a6f4d); color: #fff; }
+    .house-popup .pop-actions a.btn-call { background: var(--c-brand, var(--green)); color: #fff; }
     .house-popup .pop-actions a.btn-wa   { background: var(--wa-green, #25d366); color: var(--wa-on, #06170F); }
 
     /* Map markers — circular pin with price tag */
     .house-marker {
-      background: var(--c-brand, #0a6f4d); color: #fff;
+      background: var(--c-brand, var(--green)); color: #fff;
       padding: 4px 9px; border-radius: 999px;
       font-size: .76rem; font-weight: 700;
       box-shadow: 0 2px 8px rgba(0,0,0,.3);
@@ -853,7 +862,7 @@
     .hp-seg:hover { background: var(--c-bg-elev, #f4f3ee); }
     .hp-seg:active { transform: scale(.97); }
     .hp-seg.active {
-      background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+      background: linear-gradient(135deg, var(--c-brand, var(--green)), var(--c-brand-deep, #064a33));
       color: #fff; box-shadow: 0 6px 18px rgba(10,111,77,.28);
     }
     .hp-seg.active .hp-seg-count { background: rgba(255,255,255,.22); color: #fff; }
@@ -890,7 +899,7 @@
       background: #fff; font-family: inherit; font-size: .86rem; color: var(--c-text, #1a1915);
       cursor: pointer;
     }
-    .hp-sort select:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .hp-sort select:focus { outline: none; border-color: var(--c-brand, var(--green)); }
     .hp-viewtoggle { display: inline-flex; gap: 2px; background: var(--c-bg-elev, #f4f3ee); border-radius: 11px; padding: 3px; }
     .hp-viewtoggle button {
       width: 36px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
@@ -907,7 +916,7 @@
       color: var(--c-text-soft, #3f3d36); cursor: pointer; transition: background .15s ease, color .15s ease;
     }
     .hp-maptoggle svg { width: 15px; height: 15px; }
-    .hp-maptoggle.off { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .hp-maptoggle.off { background: var(--c-brand, var(--green)); color: #fff; border-color: var(--c-brand, var(--green)); }
     @media (max-width: 900px) { .hp-maptoggle { display: none; } }
 
     /* Map hidden → list expands to the full width (great for the gallery grid) */
@@ -1090,7 +1099,7 @@
   <link rel="stylesheet" href="css/houses-mobile-pro.css" />
 </head>
 <body data-houses-pro data-page="houses" data-app-shell="houses.html">
-  <a href="#housesMain" class="hp-skip-link">Skip to listings</a>
+  <a href="#housesMain" class="hp-skip-link" data-i18n="hp_skip">Skip to listings</a>
   <div id="nav-slot"></div>
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/victor-0NJ9urGXrIg-unsplash.jpg')">
@@ -1196,11 +1205,11 @@
 
     <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
     <div class="find-mode" id="fmHouses" data-near="houseNearMeBtn" data-area="filterArea" style="display:none">
-      <button class="fm-x" type="button" aria-label="Dismiss">&times;</button>
-      <div class="fm-q">How do you want to find a place?</div>
+      <button class="fm-x" type="button" aria-label="Dismiss" data-i18n-aria-label="fm_dismiss">&times;</button>
+      <div class="fm-q" data-i18n="fm_q_houses">How do you want to find a place?</div>
       <div class="fm-actions">
-        <button type="button" class="fm-btn fm-near"> Near me<small>Show the places closest to me right now</small></button>
-        <button type="button" class="fm-btn fm-area"> A specific area<small>Type a town, district or ward — browse anywhere in Tanzania</small></button>
+        <button type="button" class="fm-btn fm-near"> <span data-i18n="fm_near">Near me</span><small data-i18n="fm_near_sub_houses">Show the places closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"> <span data-i18n="fm_area">A specific area</span><small data-i18n="fm_area_sub">Type a town, district or ward — browse anywhere in Tanzania</small></button>
       </div>
     </div>
 
@@ -1220,7 +1229,7 @@
         <option value="shop" data-i18n="hp_tb_shop">Shop / business</option>
       </select>
       <input type="text" id="filterArea" list="filterAreaList" autocomplete="off" data-i18n-placeholder="hp_tb_area_ph"
-             placeholder="Area — type e.g. Masaki, Mbezi…" title="Type any area, ward or neighbourhood" />
+             placeholder="Area — type e.g. Masaki, Mbezi…" title="Type any area, ward or neighbourhood" data-i18n-title="hp_tt_area" />
       <datalist id="filterAreaList"></datalist>
       <select id="filterBeds">
         <option value="" data-i18n="hp_tb_beds_any">Bedrooms: any</option>
@@ -1229,29 +1238,29 @@
         <option value="3" data-i18n="hp_tb_beds_3">3+ beds</option>
         <option value="4" data-i18n="hp_tb_beds_4">4+ beds</option>
       </select>
-      <select id="filterRoom" title="Single room, master room, or a whole unit">
+      <select id="filterRoom" title="Single room, master room, or a whole unit" data-i18n-title="hp_tt_room">
         <option value="" data-i18n="hp_tb_room_any">Room: any</option>
         <option value="single" data-i18n="ah_room_single">Single room</option>
         <option value="master" data-i18n="hp_tb_room_master">Master room</option>
         <option value="whole" data-i18n="hp_tb_room_whole">Whole unit</option>
       </select>
       <input type="text" id="filterPrice" class="ht-budget" inputmode="text" data-i18n-placeholder="hp_tb_price_ph"
-             placeholder="Budget — e.g. 900k, 1.5m, under 2m" title="Type your budget in your own words" />
+             placeholder="Budget — e.g. 900k, 1.5m, under 2m" title="Type your budget in your own words" data-i18n-title="hp_tt_price" />
       <input type="text" id="filterSearch" data-i18n-placeholder="hp_tb_search_ph" placeholder="Search title or area…" />
       <div class="ht-actions">
-        <button id="houseNearMeBtn" class="houses-near-me" title="Use my GPS location">
+        <button id="houseNearMeBtn" class="houses-near-me" title="Use my GPS location" data-i18n-title="hp_tt_gps">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
           <span data-i18n="hp_near">Near me</span>
         </button>
-        <button id="houseAlertBtn" class="houses-alert-btn" title="Set up a geographic area alert">
+        <button id="houseAlertBtn" class="houses-alert-btn" title="Set up a geographic area alert" data-i18n-title="hp_tt_alert">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span data-i18n="hp_act_alert">Alert me about an area</span>
         </button>
-        <button id="houseRequestBtn" class="houses-alert-btn" title="Type where you want, the price and when — agents in that area will see it">
+        <button id="houseRequestBtn" class="houses-alert-btn" title="Type where you want, the price and when — agents in that area will see it" data-i18n-title="hp_tt_request">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span data-i18n="hp_act_request">Tell us what you want</span>
         </button>
-        <button id="houseCommuteBtn" class="houses-alert-btn" title="Rank homes by distance & travel time to your workplace, school or favourite places">
+        <button id="houseCommuteBtn" class="houses-alert-btn" title="Rank homes by distance &amp; travel time to your workplace, school or favourite places" data-i18n-title="hp_tt_commute">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
           <span data-i18n="hp_act_commute">Match to my life</span>
         </button>
@@ -1266,12 +1275,12 @@
 
     <!-- Workplace / daily-route distance: rank listings by closeness to work -->
     <div id="housesWorkplace" class="houses-workplace">
-      <label class="hw-label" for="hwInput"> Rank homes by distance to your workplace or daily route</label>
+      <label class="hw-label" for="hwInput"> <span data-i18n="hw_label">Rank homes by distance to your workplace or daily route</span></label>
       <div class="hw-row">
         <input type="text" id="hwInput" autocomplete="off"
-          placeholder="e.g. Mlimani City, Muhimbili Hospital, your office area…" />
-        <button type="button" id="hwBtn" class="hw-btn">Measure</button>
-        <button type="button" id="hwClear" class="hw-clear" hidden>Clear</button>
+          placeholder="e.g. Mlimani City, Muhimbili Hospital, your office area…" data-i18n-placeholder="hw_ph" />
+        <button type="button" id="hwBtn" class="hw-btn" data-i18n="hw_measure">Measure</button>
+        <button type="button" id="hwClear" class="hw-clear" hidden data-i18n="hw_clear">Clear</button>
       </div>
       <div id="hwMsg" class="hw-msg" hidden></div>
       <div id="hwResults" class="hw-results"></div>
@@ -1434,12 +1443,12 @@
     <div id="placesModalBackdrop" class="alert-modal-backdrop" hidden>
       <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="placesModalTitle">
         <header class="am-head">
-          <h3 id="placesModalTitle">Match homes to your life</h3>
-          <button id="mpCloseBtn" class="am-close" type="button" aria-label="Close">&times;</button>
+          <h3 id="placesModalTitle" data-i18n="mp_title">Match homes to your life</h3>
+          <button id="mpCloseBtn" class="am-close" type="button" aria-label="Close" data-i18n-aria-label="mp_close">&times;</button>
         </header>
 
         <div class="am-body">
-          <p class="am-help">
+          <p class="am-help" data-i18n-html="mp_help_html">
             Add the places that matter to you — your workplace, your child's school,
             a favourite area. Pick a row, then <strong>search</strong> (region, district,
             ward, village, or a service like a school, hospital or market), tap the
@@ -1448,29 +1457,29 @@
             life best — set a max travel time to hide the ones too far.
           </p>
           <div id="mpList"></div>
-          <button id="mpAddBtn" type="button" class="mp-add">+ Add another place</button>
+          <button id="mpAddBtn" type="button" class="mp-add" data-i18n="mp_add">+ Add another place</button>
 
           <div class="am-search-row" style="margin-top:12px">
             <input id="mpSearchInput" type="search" autocomplete="off"
-                   placeholder="Search region, district, ward, village, or a place / service…" />
-            <button id="mpGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS"> GPS</button>
+                   placeholder="Search region, district, ward, village, or a place / service…" data-i18n-placeholder="mp_search_ph" />
+            <button id="mpGpsBtn" type="button" class="am-mini-btn" title="Use my current GPS" data-i18n-title="mp_gps_title"> GPS</button>
           </div>
           <div id="mpSearchResults" class="am-search-results" hidden></div>
 
           <div class="am-map-wrap">
             <div id="mpModalMap" class="am-map"></div>
             <div class="am-map-offline" id="mpMapOffline" hidden>
-              <strong>Map can't load</strong>
-              <span>Connect to the internet to see the streets, then pin your places. (You can still search a place by name above.)</span>
+              <strong data-i18n="mp_map_offline_t">Map can't load</strong>
+              <span data-i18n="mp_map_offline">Connect to the internet to see the streets, then pin your places. (You can still search a place by name above.)</span>
             </div>
-            <div class="am-coords" id="mpCoords">Pick a place above, then search or tap the map</div>
+            <div class="am-coords" id="mpCoords" data-i18n="mp_coords_hint">Pick a place above, then search or tap the map</div>
           </div>
         </div>
 
         <footer class="am-foot">
-          <button id="mpClearBtn"  class="am-btn" type="button">Clear all</button>
-          <button id="mpCancelBtn" class="am-btn" type="button">Cancel</button>
-          <button id="mpSaveBtn"   class="am-btn am-btn-brand" type="button" disabled>Apply</button>
+          <button id="mpClearBtn"  class="am-btn" type="button" data-i18n="mp_clear">Clear all</button>
+          <button id="mpCancelBtn" class="am-btn" type="button" data-i18n="mp_cancel">Cancel</button>
+          <button id="mpSaveBtn"   class="am-btn am-btn-brand" type="button" disabled data-i18n="mp_apply">Apply</button>
         </footer>
       </div>
     </div>
@@ -1485,30 +1494,30 @@
          =========================================================== -->
     <div class="hp-resultsbar">
       <div class="hp-rb-controls">
-        <label class="hp-sort">Sort
-          <select id="hpSort" aria-label="Sort listings">
-            <option value="recommended">Recommended</option>
-            <option value="newest">Newest first</option>
-            <option value="price_asc">Price: low to high</option>
-            <option value="price_desc">Price: high to low</option>
-            <option value="beds">Most bedrooms</option>
-            <option value="nearest">Nearest first</option>
+        <label class="hp-sort"><span data-i18n="hp_sort">Sort</span>
+          <select id="hpSort" aria-label="Sort listings" data-i18n-aria-label="hp_sort_aria">
+            <option value="recommended" data-i18n="hp_sort_recommended">Recommended</option>
+            <option value="newest" data-i18n="hp_sort_newest">Newest first</option>
+            <option value="price_asc" data-i18n="hp_sort_price_asc">Price: low to high</option>
+            <option value="price_desc" data-i18n="hp_sort_price_desc">Price: high to low</option>
+            <option value="beds" data-i18n="hp_sort_beds">Most bedrooms</option>
+            <option value="nearest" data-i18n="hp_sort_nearest">Nearest first</option>
           </select>
         </label>
       </div>
       <div class="hp-rb-controls">
-        <div id="hpViewToggle" class="hp-viewtoggle" role="group" aria-label="List density">
-          <button type="button" data-vm="comfortable" class="active" title="Comfortable" aria-label="Comfortable view">
+        <div id="hpViewToggle" class="hp-viewtoggle" role="group" aria-label="List density" data-i18n-aria-label="hp_density_aria">
+          <button type="button" data-vm="comfortable" class="active" title="Comfortable" aria-label="Comfortable view" data-i18n-title="hp_density_comfortable" data-i18n-aria-label="hp_density_comfortable_aria">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="6" rx="1"/><line x1="13" y1="5" x2="21" y2="5"/><line x1="13" y1="9" x2="19" y2="9"/><rect x="3" y="14" width="7" height="6" rx="1"/><line x1="13" y1="15" x2="21" y2="15"/><line x1="13" y1="19" x2="19" y2="19"/></svg>
           </button>
-          <button type="button" data-vm="grid" title="Grid gallery" aria-label="Grid view">
+          <button type="button" data-vm="grid" title="Grid gallery" aria-label="Grid view" data-i18n-title="hp_density_grid" data-i18n-aria-label="hp_density_grid_aria">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           </button>
-          <button type="button" data-vm="compact" title="Compact" aria-label="Compact view">
+          <button type="button" data-vm="compact" title="Compact" aria-label="Compact view" data-i18n-title="hp_density_compact" data-i18n-aria-label="hp_density_compact_aria">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
           </button>
         </div>
-        <button type="button" id="hpMapToggle" class="hp-maptoggle" aria-label="Toggle map">
+        <button type="button" id="hpMapToggle" class="hp-maptoggle" aria-label="Toggle map" data-i18n-aria-label="hp_map_toggle_aria">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/></svg>
           <span>Hide map</span>
         </button>
@@ -1581,6 +1590,11 @@
   <!-- Before houses.js: it reads pawaCommute at module scope for MODES. -->
   <script src="js/lib/commute-score.js"></script>
   <script src="js/lib/listing-kinds.js"></script>
+  <!-- The spec sheet. The cards only need two things out of it — whether the
+       headline is a floor price, and how many kinds of space there are — but
+       both have to come from the sheet rather than from a column, or an old
+       listing without one gets a claim that is not true of it. -->
+  <script src="js/lib/house-spec.js"></script>
   <script src="js/pages/houses.js"></script>
   <script src="js/pages/houses-mobile.js"></script>
   <script>

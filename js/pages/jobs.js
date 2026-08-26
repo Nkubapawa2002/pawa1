@@ -221,8 +221,15 @@ window.initJobsPage = () => {
   // inline when the answer is already known, once injected when it arrives
   // after the cards do.
   function posterLinkHtml(p) {
+    // The URL comes from js/lib/pm-reach.js, which is where the same link is
+    // built for a house, a truck and a service. The board keeps its own class
+    // and its own one-word label — what it stops owning is the shape of the
+    // link, so all four catalogues cannot drift apart.
+    const href = window.PMReach
+      ? window.PMReach.href(p.user_id)
+      : `p-message.html?to=${encodeURIComponent(p.user_id)}`;
     return `<a class="btn btn-outline job-msg-btn" data-to="${esc(p.user_id)}"
-      href="p-message.html?to=${encodeURIComponent(p.user_id)}">${esc(T("jb_message"))}</a>`;
+      href="${esc(href)}">${esc(T("jb_message"))}</a>`;
   }
 
   /**

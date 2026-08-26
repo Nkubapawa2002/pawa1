@@ -102,6 +102,7 @@
             <p class="td-h">Contact the owner</p>
             <div class="td-owner">${esc((t.owner && t.owner.name) || "Truck owner")}</div>
             <div class="td-cta">
+              ${window.PMReach ? window.PMReach.button(t, { className: "td-cta-msg" }) : ""}
               ${phone ? `<a class="td-cta-call" href="tel:${esc(cleanPhone(phone))}"> Call ${esc(phone)}</a>` : ""}
               ${wa ? `<a class="td-cta-wa" href="https://wa.me/${esc(waNumber(wa))}?text=${waText}" target="_blank" rel="noopener"> WhatsApp</a>` : ""}
               <a class="td-cta-move" href="meet.html" target="_blank" rel="noopener"> Share live location for pickup</a>

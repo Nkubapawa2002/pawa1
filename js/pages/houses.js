@@ -15,6 +15,19 @@ window.initHousesPage = async () => {
   const TZ_CENTER = [-6.369028, 34.888822];
   const TZ_BOUNDS = [[29.34, -11.75], [40.45, -0.99]];
 
+  // Strings this file writes into the page.
+  //
+  // The markup carries data-i18n and applyTranslations() sweeps it once at
+  // boot — which does nothing for anything built afterwards. Every filter
+  // rebuild, every empty state and every announcement is built afterwards, so
+  // without asking for the key here the page quietly reverts to English the
+  // moment a seeker touches a control. The fallback is the English text, so a
+  // key that has not been written yet still renders a sentence.
+  const tr = (key, fallback) => {
+    const s = window.t ? window.t(key) : key;
+    return (!s || s === key) ? fallback : s;
+  };
+
   // ---- Element refs ------------------------------------------------------
   const listEl     = document.getElementById("housesList");
   const stage      = document.getElementById("housesStage");
@@ -326,7 +339,7 @@ window.initHousesPage = async () => {
     if (!fType) return;
     const allowed = typesForSegment(segment);
     const cur = fType.value;
-    fType.innerHTML = `<option value="">Type: any</option>` +
+    fType.innerHTML = `<option value="">${esc(tr("hp_tb_type_any", "Type: any"))}</option>` +
       allowed.map(t => `<option value="${t}">${esc(typeLabel(t))}</option>`).join("");
     fType.value = allowed.includes(cur) ? cur : "";
   }
@@ -2485,19 +2498,34 @@ window.initHousesPage = async () => {
         if (areaCircle ? !(inCircle || textMatch) : !textMatch) return false;
       }
       if (beds    && (h.bedrooms || 0) < beds) return false;
-      if (room) {
-        // "whole" = the entire property (no single/master tag); otherwise an
-        // exact room-category match.
-        if (room === "whole") { if (h.room_kind === "single" || h.room_kind === "master") return false; }
-        else if (h.room_kind !== room) return false;
-      }
-      if (price) {
-        // Free-typed budget ("900k", "under 2m", "500k - 1.5m"). A tiny 5%
-        // grace on the ceiling keeps a listing that's only just over budget.
-        const { priceMin, priceMax } = parsePriceText(price);
-        const p = h.price_tzs || 0;
-        if (priceMax != null && p > priceMax * 1.05) return false;
-        if (priceMin != null && p < priceMin) return false;
+      // Room category and budget are ONE question, asked of the spec sheet.
+      //
+      // They used to be two, asked of two columns, and the columns describe
+      // one room. `room_kind` carries the cheapest room's category, so a plot
+      // with three singles and a master answered "single" and vanished from
+      // every search for a master room — with a master room standing empty.
+      // And budget read `price_tzs`, the cheapest room's price, so a master
+      // at 400,000 on a plot whose single is 80,000 came back for somebody
+      // asking for a master under 100,000.
+      //
+      // HouseSpec.offers() asks whether ONE room clears both bars, and falls
+      // back to exactly the old column behaviour for a listing with no sheet.
+      // The 5% grace on the ceiling is unchanged — a room only just over
+      // budget is still worth seeing.
+      if (room || price) {
+        const budget = price ? parsePriceText(price) : { priceMin: null, priceMax: null };
+        const max = budget.priceMax != null ? budget.priceMax * 1.05 : null;
+        if (window.HouseSpec) {
+          if (!window.HouseSpec.offers(h, {
+            kind: room, priceMin: budget.priceMin, priceMax: max,
+          })) return false;
+        } else {
+          if (room === "whole") { if (h.room_kind === "single" || h.room_kind === "master") return false; }
+          else if (room && h.room_kind !== room) return false;
+          const p = h.price_tzs || 0;
+          if (max != null && p > max) return false;
+          if (budget.priceMin != null && p < budget.priceMin) return false;
+        }
       }
       if (q) {
         // Extended haystack so typing "rent", "apartment", "3 bed", a price
@@ -2665,7 +2693,7 @@ window.initHousesPage = async () => {
     if (liveEl) {
       liveEl.textContent = visible.length
         ? `${visible.length} ${visible.length === 1 ? "property" : "properties"} found`
-        : "No properties match your filters";
+        : tr("hp_announce_none", "No properties match your filters");
     }
     updateBentoCounts();
 
@@ -2675,7 +2703,7 @@ window.initHousesPage = async () => {
       const c = smartCriteria;
       const textQ = fSearch?.value.trim();
       let notFoundTitle = "No properties match";
-      let notFoundSub   = "Widen your filters, clear the search box, or browse all listings.";
+      let notFoundSub   = tr("hp_empty_sub", "Widen your filters, clear the search box, or browse all listings.");
       if (c || textQ) {
         const parts = [];
         if (textQ) parts.push(`"${textQ}"`);
@@ -2701,8 +2729,8 @@ window.initHousesPage = async () => {
         <div class="hp-empty__title">${notFoundTitle}</div>
         <div class="hp-empty__sub">${notFoundSub}</div>
         <div class="hp-empty__actions">
-          <button class="hp-empty__cta" type="button" id="hpClearFilters">Clear all filters</button>
-          <button class="hp-empty__cta hp-empty__cta--ghost" type="button" id="hpPinArea"> Pin this area &amp; get alerted</button>
+          <button class="hp-empty__cta" type="button" id="hpClearFilters">${esc(tr("hp_clear_filters", "Clear all filters"))}</button>
+          <button class="hp-empty__cta hp-empty__cta--ghost" type="button" id="hpPinArea"> ${esc(tr("hp_pin_area", "Pin this area & get alerted"))}</button>
         </div>
         <div id="hpPinForm" hidden></div>
       </div>`;
@@ -2723,8 +2751,12 @@ window.initHousesPage = async () => {
       const listing = h.listing === "sale" ? "For sale" : "For rent";
       const verified = h.verified ? `<span class="verified"> Verified</span>` : "";
       const roomKind = roomKindLabel(h.room_kind);
+      const roomTypes = roomTypeCount(h);
       const meta = [
         roomKind ? `<span class="house-card-roomkind">${roomKind}</span>` : "",
+        // Said plainly, because "Single room" next to a from-price is only
+        // half the sentence: there are three other kinds of space here.
+        roomTypes ? `<span class="house-card-roomtypes">${roomTypes} kinds of space</span>` : "",
         h.bedrooms ? `<span> ${h.bedrooms} bed${h.bedrooms !== 1 ? "s" : ""}</span>` : "",
         h.bathrooms ? `<span> ${h.bathrooms} bath${h.bathrooms !== 1 ? "s" : ""}</span>` : "",
         h.size_sqm ? `<span> ${h.size_sqm} m²</span>` : "",
@@ -2748,7 +2780,7 @@ window.initHousesPage = async () => {
              : rkRaw === undefined  ? ` · measuring road distance…`
              : "")
           : "";
-      const ariaLabel = `${esc(h.title)}, ${price.value} ${price.unit}, ${loc}`;
+      const ariaLabel = `${esc(h.title)}, ${isFromPrice(h) ? "from " : ""}${price.value} ${price.unit}, ${loc}`;
       const matchPct = smartCriteria ? matchScores.get(h.id) : null;
       const matchCls = matchPct == null ? "" : matchPct >= 75 ? "" : matchPct >= 50 ? "mid" : "low";
       const matchBadge = matchPct == null ? ""
@@ -2797,7 +2829,7 @@ window.initHousesPage = async () => {
             ${matchBadge}
           </div>
           <div class="house-card-body">
-            <div class="house-card-price">${price.value} <small>${price.unit}</small></div>
+            <div class="house-card-price">${priceLead(h)}${price.value} <small>${price.unit}</small></div>
             <div class="house-card-title">${esc(h.title)}</div>
             <div class="house-card-meta">${meta}</div>
             <div class="house-card-loc"> ${loc}${dist}</div>
@@ -3267,7 +3299,7 @@ window.initHousesPage = async () => {
     return `<div class="house-popup">
       ${photo ? `<img src="${photo}" alt="${esc(h.title)}">` : ""}
       <h4>${esc(h.title)}</h4>
-      <div class="price">${price.value} <span style="font-weight:500;color:#666">${price.unit}</span></div>
+      <div class="price">${priceLead(h)}${price.value} <span style="font-weight:500;color:#666">${price.unit}</span></div>
       <div class="pop-meta">${esc(h.area || "")}${h.region ? ", " + esc(h.region) : ""}${meta ? " · " + meta : ""}</div>
       <div class="pop-actions">
         ${ph ? `<a class="btn-call" href="tel:${phClean}"> Call</a>` : ""}
@@ -3287,6 +3319,39 @@ window.initHousesPage = async () => {
       ? "TZS"
       : `TZS / ${h.period || "month"}`;
     return { value: `${value} `, unit };
+  }
+
+  // ====================================================================
+  //  The spec sheet, as far as a card needs it  (js/lib/house-spec.js)
+  //
+  //  A card has room for one number, and a plot that rents three singles at
+  //  60,000 and a master at 150,000 has four. agent-houses.js resolves that
+  //  by writing the CHEAPEST room into price_tzs — which is the right number
+  //  to sort and filter by, and a misleading one to print bare: somebody
+  //  scrolling reads it as the price of the place.
+  //
+  //  So the card says the same thing the sheet says, in two words: "from",
+  //  and how many kinds of space there are. Both are computed from the sheet
+  //  itself rather than trusted from a column, so an older listing that never
+  //  had one simply gets neither.
+  // ====================================================================
+  function isFromPrice(h) {
+    const HS = window.HouseSpec;
+    if (!HS || !Number(h.price_tzs)) return false;
+    return !!HS.priceFrom(h) && HS.isRoomByRoom(h);
+  }
+
+  /** "From " before a headline figure, or "" — HTML, so it is used unescaped. */
+  function priceLead(h) {
+    return isFromPrice(h) ? `<span class="house-card-from">From</span> ` : "";
+  }
+
+  /** How many kinds of space a listing holds, when it holds more than one. */
+  function roomTypeCount(h) {
+    const HS = window.HouseSpec;
+    if (!HS) return 0;
+    const n = HS.fromRow(h).rooms.length;
+    return n > 1 ? n : 0;
   }
 
   function shortPrice(h) {

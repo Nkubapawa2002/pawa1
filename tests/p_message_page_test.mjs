@@ -78,6 +78,25 @@ async function waitForText(page, selector, ms) {
 // ---- the stub post office ---------------------------------------------------
 // Deliberately dumb, exactly like the real schema: it holds ciphertext and
 // wrapped keys and has no idea what any of it says.
+const MAP_STUB = (globalName) => `(function () {
+  function chain() {
+    return new Proxy(function () {}, {
+      get: function (t, k) {
+        if (k === "then") return undefined;
+        if (k === Symbol.toPrimitive) return function (h) { return h === "string" ? "" : 0; };
+        if (k === "valueOf") return function () { return 0; };
+        if (k === "toString") return function () { return ""; };
+        if (k === Symbol.iterator) return function () { return [][Symbol.iterator](); };
+        return chain();
+      },
+      set: function () { return true; },
+      apply: function () { return chain(); },
+      construct: function () { return chain(); },
+    });
+  }
+  window.${globalName} = chain();
+})();`;
+
 const stub = (email, opts) => `
 window.__PM_SENT = [];
 window.supabase = { createClient: function () {
@@ -508,8 +527,16 @@ async function openPage(email, opts) {
     if (/cdn\.jsdelivr\.net.*supabase/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "application/javascript" }, body: stub(email, opts) });
     }
-    if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url)) {
+    if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url) ||
+        /cdn\.jsdelivr\.net.*(leaflet|maplibre).*\.css/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "text/css" }, body: "" });
+    }
+    // Leaflet, for the map sheet a place message opens. Nothing here opens it;
+    // what matters is that the blocking <script> resolves so the page loads.
+    if (/cdn\.jsdelivr\.net.*(leaflet|maplibre)/.test(url)) {
+      return req.respond({ status: 200,
+        headers: { "content-type": "application/javascript" },
+        body: MAP_STUB(/leaflet/.test(url) ? "L" : "maplibregl") });
     }
     if (/supabase\.co\/storage|arcgisonline|basemaps\.cartocdn/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "image/png" }, body: PNG });

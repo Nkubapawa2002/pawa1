@@ -51,6 +51,20 @@
     .td-desc { line-height: 1.6; color: var(--c-text,#2a2a26); white-space: pre-line; }
     .td-cta { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
     .td-cta a { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px; border-radius: 12px; font-weight: 700; text-decoration: none; }
+    /* The encrypted door. Quieter than Call, above it, and carrying the one
+       line that says why: no phone number changes hands. --c-surface-2 and
+       --c-brand are both set in the body[data-page="truck"] palette below,
+       which is what keeps this dark on the only skin this page has. */
+    .td-cta-msg {
+      background: var(--c-surface-2, #f3f1ec);
+      color: var(--c-brand, var(--green));
+      border: 1px solid var(--c-brand, var(--green));
+      flex-wrap: wrap;
+    }
+    .td-cta-msg small {
+      flex-basis: 100%; text-align: center; font-weight: 500;
+      font-size: .74rem; color: var(--c-muted, #6b6960); margin-top: 2px;
+    }
     .td-cta-call { background: var(--c-brand,#0a6f4d); color: #fff; }
     .td-cta-wa { background: var(--wa-green, #25d366); color: var(--wa-on, #06170F); }
     .td-cta-move { background: var(--c-accent,#bc5c00); color: #fff; }
@@ -104,6 +118,10 @@
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>
   <script src="js/core/nav.js"></script>
+  <!-- The encrypted door to whoever posted this listing. One link, but the
+       decisions around it (the URL shape, the guard, the wording) live in
+       one place so all four catalogues offer the same thing. -->
+  <script src="js/lib/pm-reach.js"></script>
   <script src="js/pages/truck.js"></script>
   <script>
     // Pure app-shell: native pushed-detail view — no top nav / footer / tab bar,

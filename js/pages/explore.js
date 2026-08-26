@@ -915,7 +915,18 @@
       // A region centroid is reproduced from the region param, so writing it
       // as a place too would restore the same anchor twice and, worse, survive
       // clearing the region.
-      if (anchor && anchor.source !== "gps" && anchor.source !== "region") p.set("place", anchor.name);
+      //
+      // A pin somebody was SENT is written back as the pin, not as its name.
+      // Writing ?place=<label> would send the next load through the geocoder
+      // with whatever a person typed in a chat ("the gate is the blue one"),
+      // and the exact spot they walked to would be replaced by a guess or by
+      // nothing. The label rides along so the box still reads in their words.
+      if (anchor && anchor.source === "shared") {
+        p.set("at", Number(anchor.lat).toFixed(6) + "," + Number(anchor.lng).toFixed(6));
+        if (anchor.name) p.set("label", String(anchor.name).slice(0, 60));
+      } else if (anchor && anchor.source !== "gps" && anchor.source !== "region") {
+        p.set("place", anchor.name);
+      }
       if (radiusKm) p.set("r", String(radiusKm));
       if (sort !== "best") p.set("sort", sort);
       if (view === "map") p.set("view", "map");
@@ -941,6 +952,37 @@
       if (el.xpPlace) el.xpPlace.value = p.get("place");
       var resolved = await resolvePlace(p.get("place"));
       if (resolved) anchor = resolved;
+    }
+    // ?at=<lat>,<lng> — an exact pin, usually one somebody was sent in
+    // P-Message. It is the most specific statement a link can make about
+    // where to look, so it wins over ?place= and over ?region=.
+    //
+    // The lesson from the region picker applies exactly: scope, anchor and
+    // map must move TOGETHER or the page lies. Setting the anchor alone would
+    // leave an older region filtering the results to somewhere else while
+    // every distance was measured from here — which looks broken in the way
+    // that is hardest to explain. So the region follows the pin, and the
+    // radius is set small, because "near this gate" is the question a pin
+    // asks and a country-wide list is not an answer to it.
+    var at = p.get("at");
+    if (at) {
+      var hit = window.PlaceBook ? window.PlaceBook.parse(at) : null;
+      if (hit) {
+        var here = regionAt(hit.lat, hit.lng);
+        anchor = {
+          lat: hit.lat, lng: hit.lng,
+          name: p.get("label") || here || t("xp_map_area", "this area"),
+          source: "shared",
+        };
+        if (here) {
+          region = here;
+          if (el.xpRegion) el.xpRegion.value = here;
+        }
+        if (el.xpPlace) el.xpPlace.value = anchor.name;
+        if (!p.get("r")) radiusKm = 5;
+        if (el.xpRadius) el.xpRadius.value = String(radiusKm);
+        view = "map";
+      }
     }
     syncBoxState();
   }

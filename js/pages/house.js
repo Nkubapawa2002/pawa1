@@ -83,6 +83,7 @@ function render(h) {
     slides.push({ kind: "photo", url: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg" });
   }
 
+  const pinLine  = pinProvenance(h);
   const listing  = h.listing === "sale" ? "For sale" : "For rent";
   const price    = formatPrice(h);
   const verified = h.verified ? `<span class="hd-badge verified"> Verified</span>` : "";
@@ -254,7 +255,7 @@ function render(h) {
     <div class="hd-header">
       <h1 class="hd-title">${esc(h.title)}</h1>
       <div class="hd-loc"> ${esc(h.area || "")}${h.region ? ", " + esc(h.region) : ""}${h.address ? " · " + esc(h.address) : ""}</div>
-      <div class="hd-price">${price.value} <small>${price.unit}</small></div>
+      <div class="hd-price">${priceLead(h)}${price.value} <small>${price.unit}</small></div>
       ${(h.listing === "rent" && Number(h.min_months) > 1) ? `
         <div class="hd-min-months"> Minimum <strong>${h.min_months} months</strong> upfront${
           h.price_tzs ? ` — <strong>TZS ${(h.price_tzs * h.min_months).toLocaleString("en-US")}</strong> to move in` : ""
@@ -266,6 +267,11 @@ function render(h) {
       <h3>Rooms &amp; specifications</h3>
       <div class="hd-specs">${specs.join("")}</div>
     </div>` : ""}
+
+    <!-- The price table comes before the paragraph: when a place rents room by
+         room, "which room, and how much" is the question, and burying it under
+         a description is what pushed agents to type prices into prose. -->
+    ${roomsCardHtml(h)}
 
     ${h.description ? `
     <div class="hd-card">
@@ -287,6 +293,11 @@ function render(h) {
 
     ${agentFeeHtml}
 
+    <!-- Rules, the area, services, paperwork — and anything else the agent
+         named themselves. These are the facts a tenant decides on, and until
+         now they were only ever stored. -->
+    ${groupsHtml(h)}
+
     <div class="hd-card">
       <h3>Where it is</h3>
       <div class="hd-map" id="hdMap"></div>
@@ -295,6 +306,8 @@ function render(h) {
         <a href="${mapsUrl}" target="_blank" rel="noopener"> Get directions</a>
         <a href="meet.html?${meetCode}" target="_blank" rel="noopener"> Live meet with agent</a>
       </div>
+
+      ${pinLine}
 
       <!-- How far is this home from the nearest main (tarmac) road? -->
       <div class="hd-main-road" id="hdMainRoad" hidden></div>
@@ -331,6 +344,10 @@ function render(h) {
         </div>
       </div>
       <div class="hd-cta-row hd-cta-row-mobile-hide">
+        <!-- Message comes first, and that is the point of it being here at
+             all: it is the only one of the three that does not cost the
+             seeker their phone number before they know the room is free. -->
+        ${window.PMReach ? window.PMReach.button(h, { className: "hd-cta hd-cta-msg" }) : ""}
         ${agentPhone ? `<a class="hd-cta hd-cta-call" href="tel:${agentPhoneClean}"> Call</a>` : ""}
         ${waHref     ? `<a class="hd-cta hd-cta-wa"   href="${waHref}"  target="_blank" rel="noopener"> WhatsApp</a>` : ""}
         <a class="hd-cta hd-cta-meet" href="meet.html?${meetCode}" target="_blank" rel="noopener"> Request live viewing</a>
@@ -399,10 +416,29 @@ function render(h) {
     }
   });
 
-  // Sticky bottom CTAs (phones)
-  if (agentPhone) {
-    document.getElementById("hdStickyCall").href = `tel:${agentPhoneClean}`;
-    document.getElementById("hdStickyWa").href   = waHref;
+  // Sticky bottom CTAs (phones).
+  //
+  // This bar IS the contact row on a phone — .hd-cta-row-mobile-hide takes the
+  // inline one away below 720px. So the encrypted door has to be here too, or
+  // it exists only for people on a desktop, which is not who is looking for a
+  // room in Mbezi. And the bar now appears for a listing that has an owner but
+  // no phone number, which used to leave a phone visitor with no way to ask at
+  // all.
+  const msgHref = window.PMReach ? window.PMReach.href(window.PMReach.ownerOf(h)) : "";
+  if (agentPhone || msgHref) {
+    const stickyMsg = document.getElementById("hdStickyMsg");
+    if (stickyMsg && msgHref) { stickyMsg.href = msgHref; stickyMsg.hidden = false; }
+    const stickyCall = document.getElementById("hdStickyCall");
+    const stickyWa   = document.getElementById("hdStickyWa");
+    if (agentPhone) {
+      stickyCall.href = `tel:${agentPhoneClean}`;
+      stickyWa.href   = waHref;
+    } else {
+      // No number on the listing: two buttons pointing at nothing are worse
+      // than two buttons that are not there.
+      stickyCall.hidden = true;
+      stickyWa.hidden = true;
+    }
     document.getElementById("hdStickyMeet").href = `meet.html?${meetCode}`;
     stickyEl.hidden = false;
   }
@@ -542,6 +578,63 @@ const POI_CATS = [
 
 const POI_RADIUS_M     = 1500;            // 1.5 km around the property
 const POI_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Who put this pin here?
+//
+// Two listings with the same two coordinates have never been the same claim.
+// One was pinned by an agent dragging a marker onto a roof that looked about
+// right from a satellite photo; the other by the person who lives there,
+// standing at the gate, tapping once. A seeker about to spend a Saturday and a
+// daladala fare on a viewing is entitled to know which they are looking at.
+//
+// Said ONLY when it is still exactly true. `exact` goes false the moment the
+// agent moves the marker more than a house's width off what was sent, and this
+// then draws nothing rather than something weaker — an agent correcting a pin
+// that was wrong is doing the right thing, and a listing that hedged about it
+// would teach agents not to correct pins. Silence is the honest default: the
+// absence of the line is not an accusation, it is just the ordinary case.
+//
+// Shape: supabase/features/house/houses_pin.sql.
+// ---------------------------------------------------------------------------
+function pinProvenance(h) {
+  const pin = h && h.pin;
+  if (!pin || typeof pin !== "object" || pin.exact !== true) return "";
+
+  const acc = Number(pin.acc);
+  const within = Number.isFinite(acc) && acc > 0 ? ` \u2014 to within ${Math.round(acc)} m` : "";
+
+  // The agent's own phone has no third party in it, so it gets its own
+  // sentence rather than being forced through one written about somebody else.
+  if (pin.via === "gps") {
+    return provLine(`Pinned by the agent, standing at the property${within}.`);
+  }
+
+  // A name somebody chose for themselves in a room is not the same as one
+  // behind an account, and reading them the same way is how the weaker of the
+  // two borrows the authority of the stronger.
+  const who = pin.from_name
+    ? esc(String(pin.from_name)) + (pin.from_guest ? " (unverified)" : "")
+    : "the person who was there";
+
+  const how = pin.via === "p-message" ? ", and sent from there in an encrypted message"
+            : pin.via === "code"      ? ", and read out from there as a location code"
+            : pin.via === "request"   ? ", and shared from there as it was taken"
+            : "";
+
+  return provLine(`Pinned exactly where ${who} was standing${how}${within}.`);
+}
+
+// The one shape the provenance line is drawn in, so the three sentences above
+// cannot drift into three slightly different rows.
+function provLine(text) {
+  return `<p class="hd-pin-prov">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 6 9 17l-5-5"/></svg>
+      <span>${text}</span>
+    </p>`;
+}
 
 function attachNearbyOverlay(map, lat, lng) {
   const mapEl = document.getElementById("hdMap");
@@ -1084,6 +1177,126 @@ const SPEC_ICONS = {
   months:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M5 3L2 6M19 3l3 3"/></svg>`,
   calendar:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`
 };
+
+// ============================================================================
+// The spec sheet — the listing's own account of itself
+//
+// js/lib/house-spec.js owns the shape and the catalogue; agent-houses.js
+// writes it; this is where a client finally reads it. Two halves, drawn
+// differently on purpose:
+//
+//   rooms[]   carry money, so they are a price table. A plot with three
+//             singles at 60,000 and a master at 150,000 is ONE listing with
+//             four rooms, and a table is the only honest way to say that —
+//             a single headline figure has to pick one of them and call the
+//             other three wrong.
+//   groups[]  carry everything else, so they are label→value lines under the
+//             agent's own heading. Nothing is required and no category is
+//             fixed, so the renderer draws what is there and never a
+//             placeholder for what is not.
+//
+// fromRow() rather than row.details: a listing saved before the spec sheet
+// existed still has room_kind + price_tzs, and reading those back as a
+// one-line table means the page says the same kind of thing about an old
+// listing as it does about a new one.
+// ============================================================================
+function money(n) {
+  return (window.formatTZS || ((v) => "TZS " + Number(v || 0).toLocaleString("en-US")))(n);
+}
+
+/**
+ * "From " in front of the headline, or nothing.
+ *
+ * agent-houses.js already puts the CHEAPEST room's price into price_tzs when
+ * the agent priced room by room instead of naming an overall figure. That is
+ * the right number, but printed bare it reads as the price of the place —
+ * and somebody who turns up expecting 60,000 for the master room has been
+ * misled by one missing word.
+ */
+function priceLead(h) {
+  const HS = window.HouseSpec;
+  if (!HS || !Number(h.price_tzs)) return "";
+  const from = HS.priceFrom(h);
+  return (from && HS.isRoomByRoom(h)) ? `<span class="hd-price-lead">From</span> ` : "";
+}
+
+function roomsCardHtml(h) {
+  const HS = window.HouseSpec;
+  if (!HS) return "";
+  const rooms = HS.fromRow(h).rooms;
+  // One room that is the whole unit says nothing the header and the spec
+  // tiles have not already said, so it gets no table of its own.
+  if (!rooms.length || !HS.isRoomByRoom(h)) return "";
+
+  const from = HS.priceFrom(h);
+  const lead = from
+    ? `<p class="hd-rooms-lead">${esc(rooms.length > 1
+        ? `${rooms.length} kinds of space here, from `
+        : "From ")}<strong>${esc(money(from.amount))}</strong> ${esc(HS.periodLabel(from.period))}</p>`
+    : `<p class="hd-rooms-lead">${esc(rooms.length > 1
+        ? `${rooms.length} kinds of space here. Prices on request.`
+        : "Price on request.")}</p>`;
+
+  const cheapest = from ? from.amount : null;
+
+  const rows = rooms.map((r) => {
+    // The facts that qualify a room, in the order somebody asks about them.
+    const facts = [];
+    if (r.ensuite) facts.push("Own bathroom");
+    if (r.size) facts.push(`${r.size} m²`);
+    if (r.count > 1 && r.vacant != null) facts.push(`${r.vacant} of ${r.count} free now`);
+    else if (r.count > 1) facts.push(`${r.count} of these`);
+    else if (r.vacant === 0) facts.push("Taken right now");
+
+    const taken = r.vacant === 0;
+    const price = r.price != null && r.price > 0
+      ? `<strong>${esc(money(r.price))}</strong><small>${esc(HS.periodLabel(r.period))}</small>`
+      : `<span class="hd-room-ask">Ask the agent</span>`;
+    const best = cheapest != null && r.price === cheapest && rooms.length > 1
+      ? `<span class="hd-room-tag">Cheapest</span>` : "";
+
+    return `<li class="hd-room${taken ? " is-taken" : ""}">
+      <span class="hd-room-l">
+        <span class="hd-room-k">${esc(HS.roomLabel(r.kind))}${best}</span>
+        ${facts.length ? `<small class="hd-room-f">${esc(facts.join(" · "))}</small>` : ""}
+        ${r.note ? `<small class="hd-room-n">${esc(r.note)}</small>` : ""}
+      </span>
+      <span class="hd-room-p">${price}</span>
+    </li>`;
+  }).join("");
+
+  return `<div class="hd-card hd-rooms-card">
+    <h3>Rooms &amp; what each one costs</h3>
+    ${lead}
+    <ul class="hd-rooms">${rows}</ul>
+  </div>`;
+}
+
+function groupsHtml(h) {
+  const HS = window.HouseSpec;
+  if (!HS) return "";
+  return HS.fromRow(h).groups.map((g) => {
+    // The preset's icon is ours (a path constant in house-spec.js), so it is
+    // trusted markup. The title is the agent's, so it is escaped — including
+    // when it happens to match a preset.
+    const preset = HS.groupPreset(g.key);
+    const icon = preset
+      ? `<svg class="hd-group-i" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true"><path d="${preset.icon}"/></svg>`
+      : "";
+    const lines = g.items.map((it) => `
+      <li>
+        <span class="hd-fact-l">${esc(it.label)}</span>
+        <span class="hd-fact-v">${esc(it.value)}${
+          it.note ? `<small>${esc(it.note)}</small>` : ""}</span>
+      </li>`).join("");
+    return `<div class="hd-card hd-group-card">
+      <h3>${icon}<span>${esc(g.title)}</span></h3>
+      <ul class="hd-facts">${lines}</ul>
+    </div>`;
+  }).join("");
+}
 
 function stateHtml(title, body) {
   return `<div class="hd-state"><h3>${esc(title)}</h3><p>${body}</p></div>`;

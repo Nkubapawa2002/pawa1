@@ -79,9 +79,17 @@
 
   function fromHouse(h) {
     var lat = num(h.lat), lng = num(h.lng);
+    // room_kind names ONE room, and a listing can hold up to twenty-four. A
+    // plot with three singles and a master reads "single" in the column, so
+    // searching Explore for "master" used to miss it — with a master room
+    // standing empty. HouseSpec.roomWords() says every category the spec sheet
+    // actually offers, in both languages. It is optional here: explore.html
+    // does not need house-spec.js loaded for the rest of the index to work.
+    var sheetWords = window.HouseSpec ? window.HouseSpec.roomWords(h) : [];
     var kindWords = [h.type, h.listing === "rent" ? "for rent kupanga" : "for sale kuuza",
                      h.room_kind === "master" ? "master self contained" : "",
-                     h.room_kind === "single" ? "single room chumba kimoja" : ""];
+                     h.room_kind === "single" ? "single room chumba kimoja" : ""]
+                    .concat(sheetWords);
     return {
       kind: "room",
       id: str(h.id),

@@ -308,7 +308,13 @@
       padding: 6px 10px; border-radius: 8px;
       font-family: var(--c-font-mono, ui-monospace, monospace);
       font-size: .76rem;
-      color: var(--c-text-soft, #3f3d36);
+      /* The pill behind this is hard-coded white in BOTH themes (above), so the
+         ink has to be dark in both too. --c-text-soft flips with the theme and
+         went near-white on that white pill in the dark one, which left the
+         coordinates — the one thing on this screen that has to be checkable
+         digit by digit — invisible. --text-ink is defined once, for exactly
+         this: text on a light ground, whatever the page is doing. */
+      color: var(--text-ink);
       box-shadow: 0 2px 8px rgba(0,0,0,.12);
       flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -474,6 +480,151 @@
     .ah-tenant-endprev strong { color: var(--c-brand-deep, #064a33); }
     .ah-tenant-formacts { display: flex; gap: 8px; }
     .ah-tenant-msg.err { color: #b3261e; font-size: .82rem; }
+
+    /* ==================================================================
+       SPEC SHEET — the open half of the form.
+       Rooms carry prices; groups carry every other fact the agent wants
+       to state. Both are repeatable, both are drawn by JS, and both use
+       the same token palette so the dark re-skin above covers them
+       without a second set of rules.
+       ================================================================== */
+    .ah-suggest { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+    .ah-suggest-lead {
+      width: 100%; margin: 0 0 2px; font-size: .78rem; font-weight: 600;
+      color: var(--c-text-muted, #6b6960); text-transform: uppercase; letter-spacing: .4px;
+    }
+    .ah-sg {
+      border: 1px dashed var(--c-border, #e7e4dd); background: transparent;
+      color: var(--c-text-soft, #3f3d36); border-radius: 20px;
+      padding: 6px 12px; font: inherit; font-size: .83rem; font-weight: 600;
+      cursor: pointer; line-height: 1.2; text-align: left;
+    }
+    .ah-sg:hover { border-color: var(--c-brand, #0a6f4d); color: var(--c-brand-deep, #064a33); border-style: solid; }
+    .ah-sg small { display: block; font-weight: 400; font-size: .74rem; opacity: .75; }
+
+    /* ---- Rooms ---- */
+    .ah-rooms { display: flex; flex-direction: column; gap: 10px; }
+    .ah-room {
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px;
+      padding: 12px; background: var(--c-bg-elev, #f9f8f5);
+    }
+    .ah-room-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .ah-room-head strong { font-size: .9rem; color: var(--c-brand-deep, #064a33); flex: 1; min-width: 0; }
+    .ah-room-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+    .ah-room-grid label {
+      display: flex; flex-direction: column; gap: 3px;
+      font-size: .74rem; font-weight: 600; color: var(--c-text-muted, #6b6960);
+    }
+    .ah-room-grid input, .ah-room-grid select {
+      font: inherit; font-size: 16px; padding: 8px 10px;
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 8px;
+      background: var(--c-surface, #fff); color: var(--c-text, #1a1915); width: 100%;
+    }
+    .ah-room-grid .ah-wide { grid-column: 1 / -1; }
+    .ah-room-check {
+      display: flex; flex-direction: row !important; align-items: center; gap: 8px;
+      font-size: .8rem; cursor: pointer; align-self: end; padding-bottom: 9px;
+    }
+    .ah-room-check input { width: 18px !important; height: 18px; flex: 0 0 auto; }
+    .ah-x {
+      border: 0; background: transparent; cursor: pointer; color: var(--c-text-muted, #888);
+      font-size: 1.3rem; line-height: 1; padding: 2px 8px; border-radius: 6px; font-family: inherit;
+    }
+    .ah-x:hover { color: var(--c-danger, #b91c1c); background: var(--c-danger-soft, #fce4e4); }
+
+    /* ---- Detail groups ---- */
+    .ah-groups { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+    .ah-group {
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 13px;
+      padding: 13px 14px; background: var(--c-bg-elev, #f9f8f5);
+    }
+    .ah-group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .ah-group-head input {
+      flex: 1; min-width: 0; font: inherit; font-size: .98rem; font-weight: 700;
+      color: var(--c-brand-deep, #064a33); background: transparent;
+      border: 0; border-bottom: 1px dashed var(--c-border, #e7e4dd); padding: 3px 2px;
+    }
+    .ah-group-head input:focus { outline: none; border-bottom-color: var(--c-brand, #0a6f4d); }
+    .ah-group-blurb { margin: 0 0 10px; font-size: .81rem; color: var(--c-text-muted, #6b6960); line-height: 1.45; }
+    .ah-kvs { display: flex; flex-direction: column; gap: 7px; }
+    .ah-kv { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+    .ah-kv input {
+      font: inherit; font-size: 16px; padding: 8px 11px;
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 8px;
+      background: var(--c-surface, #fff); color: var(--c-text, #1a1915); min-width: 0;
+    }
+    .ah-kv .ah-kv-l { flex: 1 1 130px; font-weight: 600; }
+    .ah-kv .ah-kv-v { flex: 2 1 210px; }
+
+    /* ---- Shared locations ---- */
+    .ah-places { border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px; padding: 12px 13px; margin-bottom: 12px; }
+    .ah-places h5 { margin: 0 0 3px; font-size: .9rem; color: var(--c-brand-deep, #064a33); }
+    .ah-places p.ah-places-sub { margin: 0 0 10px; font-size: .81rem; color: var(--c-text-muted, #6b6960); line-height: 1.45; }
+    .ah-place-in { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    .ah-place-in input {
+      flex: 1 1 180px; min-width: 0; font: inherit; font-size: 16px; padding: 9px 12px;
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 9px;
+      background: var(--c-surface, #fff); color: var(--c-text, #1a1915);
+    }
+    #ahLocCode { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .16em; text-transform: uppercase; }
+    .ah-place-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+    .ah-place-row {
+      display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px;
+      padding: 9px 11px; background: var(--c-surface, #fff); color: inherit;
+      font: inherit; cursor: pointer;
+    }
+    .ah-place-row:hover { border-color: var(--c-brand, #0a6f4d); background: var(--c-brand-faint, #f0f7f2); }
+    .ah-place-row.is-on { border-color: var(--c-brand, #0a6f4d); box-shadow: 0 0 0 2px var(--c-brand-soft, rgba(10,111,77,.25)) inset; }
+    .ah-place-ic { flex: 0 0 auto; color: var(--c-brand, #0a6f4d); display: flex; }
+    .ah-place-tx { flex: 1; min-width: 0; }
+    .ah-place-t { display: block; font-size: .88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ah-place-d { display: block; font-size: .76rem; color: var(--c-text-muted, #6b6960); }
+    .ah-place-msg { font-size: .84rem; margin-top: 6px; line-height: 1.45; }
+    .ah-place-msg.err { color: var(--c-danger, #b91c1c); }
+    .ah-place-msg.ok  { color: var(--c-success, #0d8050); font-weight: 600; }
+    .ah-place-guest {
+      font-size: .68rem; padding: 1px 5px; border-radius: var(--radius-pill, 999px);
+      border: 1px solid var(--n-border-strong); color: var(--n-text-muted);
+    }
+
+    /* Pins read straight out of P-Message conversations. Same row shape as the
+       device book above it — they are the same kind of thing, and two visual
+       languages for one list is two lists. */
+    .ah-pm-door { margin-top: var(--space-3, 12px); padding-top: var(--space-3, 12px);
+                  border-top: 1px solid var(--n-border); }
+    .ah-pm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ah-pm-head h6 { margin: 0; font-size: .84rem; font-weight: 700; color: var(--n-text-soft); }
+    .ah-pm-scan { padding: 5px 10px; font-size: .78rem; }
+
+    /* The seal: whether the pin is still standing exactly where somebody put
+       it. Success and warning grounds rather than a colour of its own — this
+       is a status, and the app already has two of those. */
+    .ah-pin-seal {
+      display: flex; align-items: flex-start; gap: 9px;
+      margin: 0 0 var(--space-3, 12px);
+      padding: 9px 12px; border-radius: var(--radius-md, 10px);
+      border: 1px solid transparent; font-size: .85rem; line-height: 1.45;
+    }
+    .ah-pin-seal[hidden] { display: none; }
+    .ah-pin-seal.is-held  { background: var(--n-surface-ok);   color: var(--n-text-ok);
+                            border-color: var(--n-green-line, var(--n-border-strong)); }
+    .ah-pin-seal.is-moved { background: var(--n-surface-warn); color: var(--n-text-warn);
+                            border-color: var(--n-gold-line, var(--n-border-strong)); }
+    .ah-pin-seal-ic { flex: 0 0 auto; display: flex; padding-top: 2px; }
+    .ah-pin-seal-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .ah-pin-seal-tx b { font-weight: 700; }
+    .ah-pin-seal-sub { font-size: .78rem; opacity: .85; }
+    .ah-pin-seal-sub.is-warn { font-weight: 600; opacity: 1; }
+    .ah-pin-seal-b {
+      flex: 0 0 auto; align-self: center; cursor: pointer;
+      padding: 6px 11px; font-size: .78rem; font-weight: 600;
+      border-radius: var(--radius-sm, 8px);
+      border: 1px solid currentColor; background: transparent; color: inherit;
+    }
+    /* Tinted with the seal's own ink, so the hover is visible on the dark
+       green ground and on the cream one without knowing which it is on. */
+    .ah-pin-seal-b:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
   </style>
 
   <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
@@ -711,7 +862,8 @@
           <div class="ah-grid-2">
             <div class="ah-form-row">
               <label for="ahPrice" data-i18n="ah_field_price">Price (TZS)</label>
-              <input id="ahPrice" type="number" min="0" step="50000" required placeholder="e.g. 1800000" data-i18n-placeholder="ah_field_price_ph" />
+              <input id="ahPrice" type="number" min="0" step="50000" placeholder="e.g. 1800000" data-i18n-placeholder="ah_field_price_ph" />
+              <small style="color:var(--c-text-muted,#6b6960);font-size:.78rem;margin-top:2px;" data-i18n="ah_field_price_hint">Leave this blank if you price each room separately below &mdash; the cheapest room becomes the &ldquo;from&rdquo; price.</small>
             </div>
             <div class="ah-form-row">
               <label for="ahPeriod" data-i18n="ah_field_period">Period</label>
@@ -755,20 +907,27 @@
           <button type="button" id="ahAddCostBtn" class="ah-btn" style="margin-top:10px;">+ Add cost</button>
         </div>
 
-        <!-- 3. Rooms & size -->
+        <!-- 3. Rooms, categories & prices ------------------------------------
+             The old fixed "single / master / whole unit" dropdown could
+             describe one room at one price. A plot with three singles at
+             60,000 and a master at 150,000 had to be posted as one lie or
+             four listings. This is a repeatable list instead: any number of
+             room kinds, each with its own price, count and note, and `kind`
+             is free text with a long suggestion list behind it. -->
         <div class="ah-form-section">
-          <h4 data-i18n="ah_section_rooms">Rooms &amp; size</h4>
-          <div class="ah-form-row">
-            <label for="ahRoomKind" data-i18n="ah_field_room_kind">Room category</label>
-            <select id="ahRoomKind">
-              <option value="" data-i18n="ah_room_whole">Whole unit (not a single room)</option>
-              <option value="single" data-i18n="ah_room_single">Single room</option>
-              <option value="master" data-i18n="ah_room_master">Master room (self-contained)</option>
-            </select>
-            <small style="color:var(--c-text-muted,#6b6960);font-size:.78rem;margin-top:2px;" data-i18n="ah_field_room_kind_hint">
-              For room rentals: is this a single room (shared facilities) or a master room (self-contained, with its own bathroom)? Leave on "Whole unit" when renting/selling the entire property.
-            </small>
-          </div>
+          <h4 data-i18n="ah_section_rooms">Rooms, categories &amp; prices</h4>
+          <p class="muted" style="margin-bottom:10px;" data-i18n="ah_section_rooms_sub">
+            List every kind of room or space in this property and what each one costs — singles, a master,
+            a shop frame, a godown, a parking bay, anything. Tap a suggestion to add it, or type your own
+            name for it. The cheapest one becomes the “from” price clients see.
+          </p>
+          <div class="ah-suggest" id="ahRoomSuggest" aria-label="Common room kinds"></div>
+          <div class="ah-rooms" id="ahRoomsList"></div>
+          <button type="button" id="ahAddRoomBtn" class="ah-btn" style="margin-top:10px;" data-i18n="ah_add_room">+ Add a room type</button>
+
+          <p class="muted" style="margin:16px 0 8px;font-size:.86rem;" data-i18n="ah_section_size_sub">
+            And the property as a whole:
+          </p>
           <div class="ah-grid-3">
             <div class="ah-form-row">
               <label for="ahBedrooms" data-i18n="ah_field_bedrooms">Bedrooms</label>
@@ -821,6 +980,59 @@
             <button type="button" id="ahPinAi" style="padding:9px 14px;border:1px solid #0a6f4d;background:#0a6f4d;color:#fff;border-radius:9px;font-weight:600;cursor:pointer;white-space:nowrap;" data-i18n="ah_pin_ai"> Describe it — let AI pin it</button>
             <small id="ahPinAiMsg" class="muted" style="flex:1;min-width:160px;"></small>
           </div>
+          <!-- Pin it from a location somebody already shared with you ---------
+               The pin used to have three sources, and all three needed the
+               agent: drag it, stand on it, or send a link and wait. But the
+               location of a house usually already exists — someone stood at
+               the gate and shared it, down a phone call as nine characters or
+               into a P-Message thread as a map link. This is the door for
+               that. js/lib/place-book.js keeps every place this device has
+               been given, whichever door it came through, so a location
+               shared on Monday is still a tap away on Friday. -->
+          <div class="ah-places">
+            <h5 data-i18n="ah_loc_h">Pin it from a location someone shared with you</h5>
+            <p class="ah-places-sub" data-i18n="ah_loc_sub">
+              Somebody standing at the property can read you nine characters down the phone, or send you a
+              map link in P-Message or WhatsApp. Put it in here and the pin drops exactly where they were
+              standing — you never have to go there yourself.
+            </p>
+            <div class="ah-place-in">
+              <input id="ahLocCode" type="text" inputmode="latin" autocomplete="off" spellcheck="false"
+                     maxlength="13" placeholder="K7M-2Q9-F3T" aria-label="Location code" />
+              <button type="button" id="ahLocOpen" class="ah-btn ah-btn-brand" data-i18n="ah_loc_open">Open the code</button>
+            </div>
+            <div class="ah-place-in">
+              <input id="ahLocPaste" type="text" autocomplete="off"
+                     placeholder="…or paste a map link or coordinates from a chat"
+                     data-i18n-placeholder="ah_loc_paste_ph" aria-label="Map link or coordinates" />
+              <button type="button" id="ahLocPasteGo" class="ah-btn" data-i18n="ah_loc_paste_go">Use it</button>
+            </div>
+            <div id="ahLocMsg" class="ah-place-msg" role="status" aria-live="polite"></div>
+            <div class="ah-place-list" id="ahPlaceList"></div>
+
+            <!-- Pins still sitting in a conversation ------------------------
+                 The list above is what has already been FILED, and filing is
+                 a deliberate tap somebody has to have remembered to make. The
+                 pins that matter most are the ones nobody thought to save,
+                 because they arrived in the middle of a conversation about
+                 something else. js/lib/pm-places.js opens the threads and the
+                 rooms this device can already read, finds the pins in them,
+                 and hands them over with the coordinates untouched and the
+                 sender attached. It reads and never writes. -->
+            <div class="ah-pm-door">
+              <div class="ah-pm-head">
+                <h6 data-i18n="ah_pm_h">Pins people sent you in P-Message</h6>
+                <button type="button" id="ahPmScan" class="ah-btn ah-pm-scan"
+                        data-i18n="ah_pm_scan">Look again</button>
+              </div>
+              <div id="ahPmMsg" class="ah-place-msg" role="status" aria-live="polite"></div>
+              <div class="ah-place-list" id="ahPmList"></div>
+            </div>
+            <p style="margin:9px 0 0;font-size:.78rem;color:var(--c-text-muted,#6b6960);"
+               data-i18n-html="ah_loc_howto">How does the person there make a code? Send them
+               <a href="share-location.html" target="_blank" rel="noopener">this page</a> — one tap, no account, no app.</p>
+          </div>
+
           <details class="ah-pin-remote" style="margin-bottom:12px;border:1px dashed #cbd5e1;border-radius:10px;padding:8px 12px;">
             <summary style="cursor:pointer;font-weight:600;color:#0a6f4d;" data-i18n="ah_remote_summary">Not at the property? Get its location remotely ▾</summary>
             <div style="padding:8px 0;">
@@ -844,6 +1056,14 @@
               <button type="button" id="ahPinGps" class="ah-btn" data-i18n="ah_pin_gps"> Use my GPS</button>
             </div>
           </div>
+          <!-- Whose pin is this, and is it still standing on it? ---------
+               A location that arrives from a person is a different kind of
+               fact from one dragged onto a roof that looked about right, and
+               the difference survives only as long as nobody moves it. This
+               line says which of the two the listing is about to save. See the
+               THE SEAL block in js/pages/agent-houses.js. -->
+          <div id="ahPinSeal" class="ah-pin-seal" role="status" aria-live="polite" hidden></div>
+
           <!-- Reverse-geocoded location verification (street + area confirmation) -->
           <div id="ahPinPlace" class="ah-pin-place" hidden>
             <span class="ah-pin-place__icon" aria-hidden="true"></span>
@@ -898,6 +1118,25 @@
           </div>
         </div>
 
+        <!-- 6b. The spec sheet — the open half of the form ------------------
+             Everything a letting turns on that no fixed field could ever
+             anticipate: the deposit, the hour the gate closes, which days the
+             tap runs, whether the road holds up in the rain, whether there is
+             a title deed and who signs. Four ready-made categories with a lot
+             of suggestions behind them, plus one the agent names themselves —
+             and no category is compulsory, because the catalogue can never be
+             finished. See js/lib/house-spec.js. -->
+        <div class="ah-form-section">
+          <h4 data-i18n="ah_section_spec">Everything else about this place</h4>
+          <p class="muted" style="margin-bottom:12px;" data-i18n="ah_section_spec_sub">
+            The facts people actually decide on — house rules, what the area gives you, what services come
+            with it, the paperwork. Tap a category to open it, then tap a line to add it and edit the answer.
+            Anything you can’t find, type yourself: nothing here is a fixed list.
+          </p>
+          <div class="ah-suggest" id="ahGroupSuggest" aria-label="Detail categories"></div>
+          <div class="ah-groups" id="ahGroupsList"></div>
+        </div>
+
         <!-- 7. Description + availability -->
         <div class="ah-form-section">
           <h4 data-i18n="ah_section_desc">Description &amp; availability</h4>
@@ -944,6 +1183,24 @@
   <script src="js/lib/map-expand.js"></script>
   <script src="js/lib/auth-ui.js"></script>
   <script src="js/lib/agent-profile.js"></script>
+  <!-- The open half of a listing: room types with their own prices, and any
+       category of fact the agent wants to state. -->
+  <script src="js/lib/house-spec.js"></script>
+  <!-- Pinning from a location somebody already shared. loc-code does the nine
+       characters and the crypto, loc-share does the four RPCs, place-book
+       remembers what came through any of the doors. -->
+  <script src="js/lib/loc-code.js"></script>
+  <script src="js/lib/loc-share.js"></script>
+  <script src="js/lib/place-book.js"></script>
+  <!-- Reading the pins people sent, out of the encrypted threads themselves.
+       The key that opens them is already in this browser; these four files are
+       what lets the listing form ASK, without ever writing anything back.
+       Order matters: p-crypto before pm-store, pm-place before pm-places. -->
+  <script src="js/lib/p-crypto.js"></script>
+  <script src="js/lib/pm-device-lock.js"></script>
+  <script src="js/lib/pm-store.js"></script>
+  <script src="js/lib/pm-place.js"></script>
+  <script src="js/lib/pm-places.js"></script>
   <script src="js/pages/agent-houses.js"></script>
   <script>
     // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js) — Profile area.

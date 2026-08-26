@@ -109,6 +109,7 @@
             <p class="sd-h">Contact the provider</p>
             <div class="sd-owner">${esc((s.owner && s.owner.name) || "Service provider")}</div>
             <div class="sd-cta">
+              ${window.PMReach ? window.PMReach.button(s, { className: "sd-cta-msg" }) : ""}
               ${phone ? `<a class="sd-cta-call" href="tel:${esc(cleanPhone(phone))}"> Call ${esc(phone)}</a>` : ""}
               ${wa ? `<a class="sd-cta-wa" href="https://wa.me/${esc(waNumber(wa))}?text=${waText}" target="_blank" rel="noopener"> WhatsApp</a>` : ""}
               <a class="sd-cta-move" href="meet.html" target="_blank" rel="noopener"> Share live location</a>

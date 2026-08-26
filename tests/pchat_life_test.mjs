@@ -129,7 +129,7 @@ try {
   {
     const { page, errs } = await open("p-chat.html");
     const row = await page.evaluate(() => {
-      const a = document.querySelector('a[href="houses.html?life=1"]');
+      const a = document.querySelector('a[href^="houses.html?life=1"]');
       if (!a) return null;
       const box = a.getBoundingClientRect();
       return {
@@ -290,7 +290,7 @@ try {
   {
     const { page, errs } = await open("p-chat.html", { lang: "sw" });
     const row = await page.evaluate(() => {
-      const a = document.querySelector('a[href="houses.html?life=1"]');
+      const a = document.querySelector('a[href^="houses.html?life=1"]');
       return a ? { t: a.querySelector(".ha-find-t")?.textContent.trim(),
                    d: a.querySelector(".ha-find-d")?.textContent.trim() } : null;
     });

@@ -123,6 +123,34 @@
     return { identity: identity, fingerprint: fp, isNewDevice: fresh };
   }
 
+  /**
+   * Point this device's ALREADY-GENERATED identity at the current session,
+   * without publishing anything.
+   *
+   * ensureIdentity() is the door for a page whose job is P-Message: it mints a
+   * keypair when there is none and upserts the public half every time. Both are
+   * right there and wrong anywhere else. A page that only wants to READ what it
+   * already has — the listing form asking "which pins have people sent me?" —
+   * must not mint a key as a side effect of being opened, because that key
+   * would become this account's published key and every message sent under the
+   * real one, on the real device, would stop opening.
+   *
+   * So this refuses in exactly the cases ensureIdentity() would act:
+   * no session, no crypto, a locked device, or no stored key. Returns null and
+   * writes nothing. The caller shows the reason; it never invents an identity.
+   */
+  async function attach() {
+    if (identity) return identity;
+    var who = await me();
+    if (!who.userId) return null;
+    if (!window.PMCrypto || !window.PMCrypto.available()) return null;
+    if (window.PMDeviceLock && window.PMDeviceLock.isLocked()) return null;
+    var stored = window.PMCrypto.load();
+    if (!stored) return null;
+    identity = { userId: who.userId, publicKey: stored.publicKey, privateKey: stored.privateKey };
+    return identity;
+  }
+
   function current() { return identity; }
 
   /** Replace this device's identity from a backup code, then republish it. */
@@ -684,6 +712,7 @@
     me: me,
     signInAsGuest: signInAsGuest,
     ensureIdentity: ensureIdentity,
+    attach: attach,
     restoreIdentity: restoreIdentity,
     current: current,
     directory: directory,

@@ -18,14 +18,14 @@ const BASE = "http://localhost:8080";
 // Every destination the tab promises, in the order it presents them.
 const EXPECTED = [
   { kind: "modal", id: "pcRequestBtn", label: "Tell us what you want" },
-  { kind: "link", href: "houses.html?life=1", label: "Match homes to my life" },
-  { kind: "link", href: "houses.html?alert=1", label: "Alert me about an area" },
-  { kind: "link", href: "near-me.html", label: "Scan areas and services near you" },
-  { kind: "link", href: "frame.html", label: "Read any area as a room for business" },
-  { kind: "link", href: "meet.html?live=1", label: "Share my live location" },
-  { kind: "link", href: "meet.html", label: "Meet & Locate" },
-  { kind: "link", href: "share-location.html", label: "Share a location" },
-  { kind: "link", href: "jobs.html", label: "Jobs and staff" },
+  { kind: "link", href: "houses.html?life=1&from=pchat", label: "Match homes to my life" },
+  { kind: "link", href: "houses.html?alert=1&from=pchat", label: "Alert me about an area" },
+  { kind: "link", href: "near-me.html?from=pchat", label: "Scan areas and services near you" },
+  { kind: "link", href: "frame.html?from=pchat", label: "Read any area as a room for business" },
+  { kind: "link", href: "meet.html?live=1&from=pchat", label: "Share my live location" },
+  { kind: "link", href: "meet.html?from=pchat", label: "Meet & Locate" },
+  { kind: "link", href: "share-location.html?from=pchat", label: "Share a location" },
+  { kind: "link", href: "jobs.html?from=pchat", label: "Jobs and staff" },
 ];
 
 let pass = 0, fail = 0;
@@ -56,7 +56,7 @@ const browser = await puppeteer.launch({
   headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"], protocolTimeout: 120000,
 });
 try {
-  const open = async (lang) => {
+  const open = async (lang, path = "/p-chat.html", settle = 1200) => {
     const page = await browser.newPage();
     await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 1 });
     const errs = [];
@@ -86,8 +86,8 @@ try {
       req.continue();
     });
     if (lang) await page.evaluateOnNewDocument((l) => { try { localStorage.setItem("lang", l); } catch (_) {} }, lang);
-    await page.goto(`${BASE}/p-chat.html`, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await new Promise((r) => setTimeout(r, 1200));
+    await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await new Promise((r) => setTimeout(r, settle));
     return { page, errs };
   };
 
@@ -168,6 +168,53 @@ try {
      "the new rows are actually translated, not just present", swTitles.join(" / "));
   ok(sw.errs.length === 0, "no page errors in Swahili", sw.errs.slice(0, 4).join("\n        "));
   await sw.page.close();
+
+  // -- The boundary --------------------------------------------------------
+  //  Explore owns the catalogue; P-Chat owns the errands. near-me, area,
+  //  frame, jobs and houses' ?life= / ?alert= modes are BOTH -- reached from
+  //  either tab. They stay shared pages, never copies, so the only thing that
+  //  may differ between the two visits is which tab stays lit. Resolving that
+  //  by filename alone handed you to Explore the moment you tapped a P-Chat
+  //  row; these two sections pin down both halves of the fix.
+  const litTab = (p) => p.$$eval(".app-tabbar a.active span",
+    (n) => (n[0] ? n[0].textContent.trim() : ""));
+
+  process.stdout.write("\n7. An errand started in P-Chat stays in P-Chat\n");
+  for (const href of [
+    "houses.html?life=1&from=pchat",
+    "houses.html?alert=1&from=pchat",
+    "houses.html?request=1&from=pchat",
+    "near-me.html?from=pchat",
+    "area.html?from=pchat",
+    "frame.html?from=pchat",
+    "meet.html?live=1&from=pchat",
+    "meet.html?from=pchat",
+    "share-location.html?from=pchat",
+    "jobs.html?from=pchat",
+  ]) {
+    const t = await open("en", "/" + href, 1800);
+    const lit = await litTab(t.page);
+    ok(lit === "P-Chat", `${href} keeps P-Chat lit`, `lit: ${lit || "no tab lit"}`);
+    await t.page.close();
+  }
+
+  process.stdout.write("\n8. The same pages reached any other way are unchanged\n");
+  for (const [href, owner] of [
+    ["houses.html", "Explore"],
+    ["near-me.html", "Explore"],
+    ["area.html", "Explore"],
+    ["frame.html", "Explore"],
+    ["jobs.html", "Explore"],
+    ["explore.html", "Explore"],
+    ["meet.html", "P-Message"],
+    // P-Chat is the only tab that leads here, so it owns the page outright.
+    ["share-location.html", "P-Chat"],
+  ]) {
+    const t = await open("en", "/" + href, 1800);
+    const lit = await litTab(t.page);
+    ok(lit === owner, `${href} on its own still lights ${owner}`, `lit: ${lit || "no tab lit"}`);
+    await t.page.close();
+  }
 
   process.stdout.write(`\n${pass} passed, ${fail} failed\n`);
 } finally {

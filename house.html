@@ -40,7 +40,7 @@
       border-radius: 999px;
       margin-bottom: 14px;
     }
-    .hd-back:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
+    .hd-back:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, var(--green)); text-decoration: none; }
 
     /* Hero photo (full width) */
     .hd-hero {
@@ -160,7 +160,7 @@
       width: 36px; height: 36px; border-radius: 11px;
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--c-surface, #fff);
-      color: var(--c-brand, #0a6f4d);
+      color: var(--c-brand, var(--green));
       box-shadow: 0 1px 3px rgba(0,0,0,.07);
     }
     .hd-spec__icon svg { width: 19px; height: 19px; }
@@ -185,7 +185,7 @@
     /* Accented "feature" tile — used for the room category (single / master),
        the headline fact for room-by-room rentals. */
     .hd-spec--feature {
-      background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
+      background: linear-gradient(135deg, var(--c-brand, var(--green)), var(--c-brand-deep, #064a33));
       color: #fff;
     }
     .hd-spec--feature .hd-spec__icon { background: rgba(255,255,255,.18); color: #fff; box-shadow: none; }
@@ -234,6 +234,57 @@
     }
     .hd-card p { color: var(--c-text-soft, #3f3d36); line-height: 1.6; }
 
+    /* =====================================================================
+       The spec sheet (js/lib/house-spec.js): the room price table and the
+       agent's own fact groups.
+
+       Every colour here is a token, never a literal. body[data-page="house"]
+       redefines the whole palette a few hundred lines below, so a hardcoded
+       #fff would be a white slab under pale ink on the only theme this page
+       ever renders in.
+       ===================================================================== */
+    .hd-rooms-lead { color: var(--c-text-soft, #3f3d36); margin: -4px 0 12px; font-size: .94rem; }
+    .hd-rooms-lead strong { color: var(--c-brand, var(--green)); }
+    .hd-rooms { list-style: none; margin: 0; padding: 0; }
+    .hd-room {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+      padding: 11px 0; border-top: 1px solid var(--c-border, #e7e4dd);
+    }
+    .hd-room:first-child { border-top: 0; }
+    .hd-room-l { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .hd-room-k { color: var(--c-text, #1a1a1a); font-weight: 700; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .hd-room-f, .hd-room-n { color: var(--c-text-muted, #6b6960); font-size: .84rem; line-height: 1.45; }
+    .hd-room-n { font-style: italic; }
+    .hd-room-p { text-align: right; white-space: nowrap; display: flex; flex-direction: column; gap: 2px; }
+    .hd-room-p strong { color: var(--c-text, #1a1a1a); font-size: 1.02rem; }
+    .hd-room-p small { color: var(--c-text-muted, #6b6960); font-size: .78rem; }
+    .hd-room-ask { color: var(--c-text-muted, #6b6960); font-size: .88rem; }
+    /* A cheapest-room badge, because the header says "from" and this is the
+       row that word is pointing at. */
+    .hd-room-tag {
+      font-size: .66rem; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+      color: var(--c-brand, var(--green)); background: var(--c-brand-faint, rgba(10,111,77,.10));
+      border: 1px solid var(--c-brand-soft, rgba(10,111,77,.28));
+      border-radius: 999px; padding: 1px 8px;
+    }
+    /* Taken is dimmed and struck, not hidden: a full plot still tells you what
+       it rents for and what to ask about next month. */
+    .hd-room.is-taken { opacity: .55; }
+    .hd-room.is-taken .hd-room-p strong { text-decoration: line-through; }
+
+    .hd-group-card h3 { display: flex; align-items: center; gap: 8px; }
+    .hd-group-i { width: 17px; height: 17px; flex: 0 0 auto; }
+    .hd-facts { list-style: none; margin: 0; padding: 0; }
+    .hd-facts li {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+      padding: 9px 0; border-top: 1px solid var(--c-border, #e7e4dd);
+    }
+    .hd-facts li:first-child { border-top: 0; }
+    .hd-fact-l { color: var(--c-text-muted, #6b6960); font-size: .88rem; flex: 0 0 auto; max-width: 45%; }
+    .hd-fact-v { color: var(--c-text, #1a1a1a); text-align: right; line-height: 1.5; display: flex; flex-direction: column; gap: 2px; }
+    .hd-fact-v small { color: var(--c-text-muted, #6b6960); font-size: .8rem; font-style: italic; }
+    .hd-price-lead { color: var(--c-text-muted, #6b6960); font-size: .62em; font-weight: 600; }
+
     /* Map */
     .hd-map { position: relative; height: 320px; border-radius: 12px; overflow: hidden; border: 1px solid var(--c-border, #e7e4dd); }
 
@@ -279,7 +330,7 @@
       white-space: nowrap;
     }
     .hd-poi-chip:active { transform: scale(.95); }
-    .hd-poi-chip.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: var(--c-brand, #0a6f4d); }
+    .hd-poi-chip.active { background: var(--c-brand, var(--green)); color: #fff; border-color: var(--c-brand, var(--green)); }
     .hd-poi-chip.loading::after {
       content: ""; width: 8px; height: 8px; margin-left: 4px;
       border: 2px solid currentColor; border-top-color: transparent;
@@ -346,7 +397,21 @@
       cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     }
-    .hd-map-actions a:hover, .hd-map-actions button:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, #0a6f4d); text-decoration: none; }
+    .hd-map-actions a:hover, .hd-map-actions button:hover { background: var(--c-brand-faint, #f0f7f2); border-color: var(--c-brand, var(--green)); text-decoration: none; }
+
+    /* "Pinned exactly where Amina was standing" — drawn only when it is still
+       exactly true, so it never needs a hedged or a negative variant. Success
+       ink on a success ground, because that is what it is: the strongest thing
+       a listing can say about its own location. */
+    .hd-pin-prov {
+      display: flex; align-items: flex-start; gap: 8px;
+      margin: 10px 0 0; padding: 9px 12px; border-radius: 9px;
+      font-size: .86rem; line-height: 1.45; font-weight: 600;
+      background: var(--n-surface-ok);
+      border: 1px solid var(--n-green-line, var(--n-border-strong));
+      color: var(--n-text-ok);
+    }
+    .hd-pin-prov svg { flex: 0 0 auto; margin-top: 2px; }
 
     /* Nearest main road line */
     .hd-main-road {
@@ -367,9 +432,9 @@
       border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px;
       font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text, #1a1915);
     }
-    .hd-commute-row input:focus { outline: none; border-color: var(--c-brand, #0a6f4d); }
+    .hd-commute-row input:focus { outline: none; border-color: var(--c-brand, var(--green)); }
     .hd-commute-btn {
-      padding: 10px 18px; background: var(--c-brand, #0a6f4d); color: #fff;
+      padding: 10px 18px; background: var(--c-brand, var(--green)); color: #fff;
       border: none; border-radius: 10px; font-weight: 700; font-size: .9rem; cursor: pointer;
     }
     .hd-commute-btn:disabled { opacity: .6; cursor: default; }
@@ -384,8 +449,8 @@
       text-align: left; padding: 8px 11px; background: #fff;
       border: 1px solid var(--c-border, #e7e4dd); border-radius: 10px; cursor: pointer; font-family: inherit;
     }
-    .hd-commute-result:hover { border-color: var(--c-brand, #0a6f4d); background: var(--c-brand-faint, #f0f7f2); }
-    .hd-commute-result.active { border-color: var(--c-brand, #0a6f4d); box-shadow: inset 0 0 0 1px var(--c-brand, #0a6f4d); }
+    .hd-commute-result:hover { border-color: var(--c-brand, var(--green)); background: var(--c-brand-faint, #f0f7f2); }
+    .hd-commute-result.active { border-color: var(--c-brand, var(--green)); box-shadow: inset 0 0 0 1px var(--c-brand, var(--green)); }
     .hd-cr-name { font-weight: 700; font-size: .9rem; color: var(--c-text, #1a1915); }
     .hd-cr-meta { grid-column: 1; font-size: .76rem; color: var(--c-text-muted, #6b6960); }
     .hd-cr-km   { grid-column: 2; grid-row: 1 / span 2; font-weight: 800; color: var(--c-brand-deep, #064a33); font-size: .9rem; }
@@ -417,7 +482,7 @@
     .hd-agent-avatar {
       width: 60px; height: 60px;
       border-radius: 50%;
-      background: var(--c-brand, #0a6f4d);
+      background: var(--c-brand, var(--green));
       color: #fff;
       display: flex; align-items: center; justify-content: center;
       font-size: 1.4rem;
@@ -445,7 +510,23 @@
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       text-decoration: none;
     }
-    .hd-cta-call { background: var(--c-brand, #0a6f4d); color: #fff; }
+    /* Message sits above Call and WhatsApp and spans the row, because it
+       carries a second line — the reason to choose it. --c-bg-elev and
+       --c-brand are both redefined in the body[data-page="house"] palette
+       further down, so this reads correctly on the dark skin this page
+       always renders in; a token defined only on :root would not. */
+    .hd-cta-msg {
+      grid-column: span 2;
+      background: var(--c-bg-elev, #f4f3ee);
+      color: var(--c-brand, var(--green));
+      border: 1px solid var(--c-brand-soft, #d9ecdf);
+      flex-wrap: wrap;
+    }
+    .hd-cta-msg small {
+      flex-basis: 100%; text-align: center; font-weight: 500;
+      font-size: .74rem; color: var(--c-text-muted, #6b6960); margin-top: 2px;
+    }
+    .hd-cta-call { background: var(--c-brand, var(--green)); color: #fff; }
     .hd-cta-wa   { background: var(--wa-green, #25d366); color: var(--wa-on, #06170F); }
     .hd-cta-meet { background: var(--c-accent, #bc5c00); color: #fff; grid-column: span 2; }
     .hd-cta:active { transform: scale(.97); }
@@ -462,14 +543,24 @@
       z-index: 940;
       box-shadow: 0 -4px 16px rgba(0,0,0,.08);
     }
+    /* Flex, not a fixed three-column grid: this bar carries four buttons when
+       the listing records who owns it and three when it does not, and a grid
+       with a hard column count leaves a hole in the second case. */
     .hd-sticky-inner {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      display: flex;
       gap: 6px;
       max-width: 600px;
       margin: 0 auto;
     }
-    .hd-sticky .hd-cta { padding: 11px 8px; font-size: .85rem; min-height: 44px; }
+    .hd-sticky-inner > a { flex: 1 1 0; min-width: 0; }
+    .hd-sticky .hd-cta { padding: 11px 6px; font-size: .82rem; min-height: 44px; }
+    /* The encrypted door, compact. No sub-label down here — the reason lives
+       on the card above; this is the row you tap once you have decided. */
+    .hd-sticky .hd-cta-msg-sticky {
+      background: var(--c-bg-elev, #f4f3ee);
+      color: var(--c-brand, var(--green));
+      border: 1px solid var(--c-brand-soft, #d9ecdf);
+    }
 
     /* Loading / not-found states */
     .hd-state {
@@ -580,6 +671,9 @@
   <!-- Sticky bottom CTA bar (phones) — wired in JS after data loads -->
   <div id="hdSticky" class="hd-sticky" hidden>
     <div class="hd-sticky-inner">
+      <a id="hdStickyMsg"  class="hd-cta hd-cta-msg-sticky" href="#" hidden
+         aria-label="Message the agent, encrypted" data-i18n-aria-label="hd_sticky_msg_aria"
+         data-i18n="pm_reach">Message</a>
       <a id="hdStickyCall" class="hd-cta hd-cta-call" href="#" aria-label="Call agent"> Call</a>
       <a id="hdStickyWa"   class="hd-cta hd-cta-wa"   href="#" target="_blank" rel="noopener" aria-label="WhatsApp agent"> WhatsApp</a>
       <a id="hdStickyMeet" class="hd-cta hd-cta-meet" href="#" target="_blank" rel="noopener" aria-label="Request live viewing"> Viewing</a>
@@ -598,6 +692,14 @@
   <script src="js/lib/map-expand.js"></script>
   <script src="js/lib/geo.js"></script>
   <script src="js/lib/geolocate.js"></script>
+  <!-- The spec sheet the agent wrote themselves: the room-by-room price table
+       and the titled fact groups. agent-houses.js writes it, house.js draws
+       it, and both of them get its shape from here. -->
+  <script src="js/lib/house-spec.js"></script>
+  <!-- The encrypted door to whoever posted this listing. One link, but the
+       decisions around it (the URL shape, the guard, the wording) live in
+       one place so all four catalogues offer the same thing. -->
+  <script src="js/lib/pm-reach.js"></script>
   <script src="js/pages/house.js"></script>
   <script>
     // Pure app-shell: native pushed-detail view — no top nav / footer / tab bar

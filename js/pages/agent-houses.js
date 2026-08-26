@@ -62,6 +62,33 @@ window.initAgentHousesPage = async () => {
   const fCostQuick       = document.getElementById("ahCostQuick");
   const fAddCostBtn      = document.getElementById("ahAddCostBtn");
 
+  // The spec sheet: room types that carry their own prices, and any category
+  // of fact the agent wants to state. Shape lives in js/lib/house-spec.js.
+  const fRoomSuggest     = document.getElementById("ahRoomSuggest");
+  const fRoomsList       = document.getElementById("ahRoomsList");
+  const fAddRoomBtn      = document.getElementById("ahAddRoomBtn");
+  const fGroupSuggest    = document.getElementById("ahGroupSuggest");
+  const fGroupsList      = document.getElementById("ahGroupsList");
+
+  // Pinning from a location somebody already shared (code, paste, or the
+  // device's own book of places — js/lib/place-book.js).
+  const fLocCode         = document.getElementById("ahLocCode");
+  const fLocOpen         = document.getElementById("ahLocOpen");
+  const fLocPaste        = document.getElementById("ahLocPaste");
+  const fLocPasteGo      = document.getElementById("ahLocPasteGo");
+  const fLocMsg          = document.getElementById("ahLocMsg");
+  const fPlaceList       = document.getElementById("ahPlaceList");
+
+  // Pins people sent this agent inside encrypted P-Message threads and rooms
+  // — read straight out of the conversations, never retyped (js/lib/pm-places.js).
+  const fPmScan          = document.getElementById("ahPmScan");
+  const fPmList          = document.getElementById("ahPmList");
+  const fPmMsg           = document.getElementById("ahPmMsg");
+
+  // The seal: "this pin is exactly where somebody put it", and the withdrawal
+  // of that claim the moment it stops being true.
+  const fPinSeal         = document.getElementById("ahPinSeal");
+
   // Media limits
   const MAX_PHOTOS    = 12;
   const MAX_VIDEOS    = 2;
@@ -137,6 +164,29 @@ window.initAgentHousesPage = async () => {
   let nearbyTimer     = null;       // debounce timer for Overpass calls
   let searchTimer     = null;       // debounce timer for Mapbox search
   let gpsAccuracyM    = null;       // accuracy (metres) of the last GPS fix, if any
+  let _videoWarmed    = false;   // see warmVideoGateway(), ~3000 lines below
+
+  // ---- Is this page finished setting itself up? --------------------------
+  //
+  // It is one long async function, and the New-listing button is deliberately
+  // wired before the first await so that a tap during loading is not lost.
+  // But openForm() reads things declared much further down — the spec-sheet
+  // helper, the video-gateway flag, the amenity catalogue — and a `const`
+  // further down this function does not exist yet while the dashboard is
+  // still fetching its rows. Tapping in that window produced "Agent dashboard
+  // error: Cannot access 'HS' before initialization", which is a sentence
+  // about a temporal dead zone shown to somebody trying to list a house.
+  //
+  // Hoisting each name as it turns up would fix them one at a time and leave
+  // the next one waiting. The real fact is simpler and only has to be said
+  // once: THE PAGE IS NOT READY YET. So the intent is remembered and acted on
+  // the moment it is — nothing is lost, and nothing runs early.
+  let pageReady    = false;
+  let queuedForm   = null;   // { row } a form asked for before we could open it
+  // Where the pin was PUT BY SOMEBODY, as opposed to where it currently sits.
+  // { lat, lng, acc, via, name, userId, guest, thread, at } or null. See the
+  // block above renderPinSeal() for what it is for.
+  let pinOrigin       = null;
   let geocodeTimer    = null;       // debounce timer for reverse-geocode lookups
   let geocodeKey      = null;       // lat/lng we last reverse-geocoded for
   let resolvedPlace   = null;       // { road, area, region, label } from reverse geocode
@@ -296,14 +346,24 @@ create policy "house-photos upload" on storage.objects for insert
       showFatal("Sign out threw: " + (err.message || err));
     }
   });
-  newBtn?.addEventListener("click", () => {
+  /**
+   * Open the listing form, now or as soon as the page can.
+   *
+   * Every route into the form goes through here — the New button, the empty
+   * state, and the edit button on each row — because all three can be tapped
+   * while the page is still assembling itself, and all three used to fail
+   * differently when they were.
+   */
+  function requestForm(row) {
+    if (!pageReady) { queuedForm = { row: row || null }; return; }
     try {
-      console.log("[agent-houses] new listing clicked");
-      openForm(null);
+      openForm(row || null);
     } catch (err) {
       showFatal("Couldn't open form: " + (err.message || err));
     }
-  });
+  }
+
+  newBtn?.addEventListener("click", () => requestForm(null));
   cancelBtn?.addEventListener("click", () => closeForm());
 
   // ---- Hard requirement: Supabase must be configured -----------------------
@@ -579,7 +639,7 @@ create policy "house-photos upload" on storage.objects for insert
         <div class="hp-empty__sub">${tr("ah_no_listings_hint_html")}</div>
         <button class="hp-empty__cta" type="button" id="ahEmptyNew">+ Add your first listing</button>
       </div>`;
-      document.getElementById("ahEmptyNew")?.addEventListener("click", () => openForm(null));
+      document.getElementById("ahEmptyNew")?.addEventListener("click", () => requestForm(null));
       return;
     }
     // Listings render as a compact table (one row per property) so an agent
@@ -641,7 +701,7 @@ create policy "house-photos upload" on storage.objects for insert
     listEl.querySelectorAll("tr[data-id]").forEach(tr => {
       const id = tr.dataset.id;
       const row = data.find(x => x.id === id);
-      tr.querySelector(".ah-edit-btn").addEventListener("click", () => openForm(row));
+      tr.querySelector(".ah-edit-btn").addEventListener("click", () => requestForm(row));
       tr.querySelector(".ah-delete-btn").addEventListener("click", () => deleteListing(row));
       tr.querySelector(".ah-tenant-btn")?.addEventListener("click", () => openTenantPanel(row));
       tr.querySelector(".ah-sold-btn")?.addEventListener("click", () => markSold(row));
@@ -682,6 +742,7 @@ create policy "house-photos upload" on storage.objects for insert
     nearbyData = null;
     nearbyFetchKey = null;
     gpsAccuracyM = null;
+    pinOrigin = null;
     resolvedPlace = null;
     geocodeKey = null;
     stopGpsWatch();
@@ -700,6 +761,10 @@ create policy "house-photos upload" on storage.objects for insert
     if (fCostsList) fCostsList.innerHTML = "";
     if (fTypeOther) fTypeOther.value = "";
     syncTypeOther();
+    resetSpec();
+    if (fLocCode)  fLocCode.value = "";
+    if (fLocPaste) fLocPaste.value = "";
+    locMsg("");
 
     if (row) {
       fTitle.value       = row.title || "";
@@ -768,10 +833,19 @@ create policy "house-photos upload" on storage.objects for insert
       if (row.lat != null && row.lng != null) {
         pickedLatLng = { lat: Number(row.lat), lng: Number(row.lng) };
       }
+      // Whoever sent this pin sent it once. Re-opening the listing to fix a
+      // price must not quietly turn their location into the agent own.
+      loadPinRecord(row.pin);
     }
+
+    // The spec sheet: a saved listing brings its own rooms and categories
+    // back; a new one starts on the suggestion chips alone.
+    if (row) loadSpec(row);
 
     renderMediaGrids();
     renderCostQuick();   // build the one-tap preset chips for additional costs
+    renderPlaceBook();   // locations already shared with this device
+    scanPmPlaces();      // and the ones still sitting in a conversation
     toggleMinMonths();   // show/hide the rent-only "minimum months" field
 
     // Switch UI
@@ -1158,6 +1232,7 @@ create policy "house-photos upload" on storage.objects for insert
       resolvedPlace = null;
       if (fPinPlace) fPinPlace.hidden = true;
       drawAccuracyCircle(null);
+      renderPinSeal();
       renderNearbyPanel();
       if (pinMap && window.AreaBoundary) AreaBoundary.clearMapLibre(pinMap);
       pinBoundaryKey = null;
@@ -1166,6 +1241,9 @@ create policy "house-photos upload" on storage.objects for insert
     const acc = accuracyBadge();
     fPinCoords.innerHTML =
       ` ${pickedLatLng.lat.toFixed(5)}, ${pickedLatLng.lng.toFixed(5)}${acc}`;
+    // Every way the pin can move already ends here, which is why the seal is
+    // checked here and nowhere else. See the block above renderPinSeal().
+    renderPinSeal();
     scheduleNearbyRefresh();
     scheduleReverseGeocode();
     drawPinBoundary();
@@ -1199,6 +1277,215 @@ create policy "house-photos upload" on storage.objects for insert
               : cls === "ok"   ? `±${m} m`
               :                  `±${m} m · move closer`;
     return ` <span class="ah-pin-acc ${cls}">${txt}</span>`;
+  }
+
+  // ==========================================================================
+  //  THE SEAL — "this pin is exactly where somebody put it"
+  //
+  //  A location that arrives from a person is a different kind of fact from
+  //  one the agent dragged onto a roof that looked about right. Somebody stood
+  //  at that gate. They tapped once. The six decimal places that came out are
+  //  the property, and the single most common way they stop being the property
+  //  is that they pass through a human being on the way to the listing — read
+  //  out on a phone, retyped, or nudged "closer to the road" by an agent who
+  //  has never been there.
+  //
+  //  So a pin that came from a person is SEALED to the coordinates that person
+  //  sent, and the form says so in words with their name in it. Nothing is
+  //  locked: the sender may have pinned the wrong gate, may have been standing
+  //  in the shop next door, may have had a bad fix — an agent who cannot
+  //  correct that is an agent who has to throw the whole listing away. What is
+  //  withheld is the CLAIM. Move the pin more than a house width off what they
+  //  sent and the sentence stops saying "exactly as Amina sent it" and starts
+  //  saying "you have moved this 96 m off the pin Amina sent", with the way
+  //  back one tap away and the saved listing marked as the agent own pin
+  //  rather than hers.
+  //
+  //  WHY THE CHECK LIVES IN updatePinReadout()
+  //  Because every way the pin can move already ends there — the drag handler,
+  //  the map click, the GPS fix, the search result, the AI locator, the remote
+  //  request, and the three doors in the place panel. Breaking the seal at each
+  //  of those call sites would be seven chances to forget, and the one that got
+  //  forgotten would be a listing quietly claiming a person pin it had been
+  //  moved off. One checkpoint cannot be forgotten.
+  // ==========================================================================
+
+  // A house width. Under this, a pin is the same doorway — GPS on a phone does
+  // not repeat to better than this, and pretending otherwise would break the
+  // seal on a pin nobody touched.
+  const SEAL_TOLERANCE_M = 15;
+
+  // The ways a location can arrive that mean SOMEBODY WAS STANDING THERE.
+  // A pasted link, a map drag and a search result are all guesses, however
+  // good, and none of them gets a seal.
+  // 'chat' is what builds before this one wrote for a pin saved out of a
+  // P-Message thread. It means the same thing and is normalised to 'pm'
+  // below, so a pin filed last month seals exactly like one filed today.
+  const SEALED_SOURCES = { pm: 1, chat: 1, code: 1, request: 1, gps: 1 };
+
+  const TICK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+    ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  const WARN_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+    ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>' +
+    '<path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+
+  /** How far the pin now sits from what was sent, or null when unsealed. */
+  function originOffM() {
+    if (!pinOrigin || !pickedLatLng) return null;
+    return haversineMeters(pickedLatLng.lat, pickedLatLng.lng, pinOrigin.lat, pinOrigin.lng);
+  }
+
+  /** Is the pin still standing exactly where it was put? */
+  function sealHolds() {
+    const off = originOffM();
+    return off != null && off <= SEAL_TOLERANCE_M;
+  }
+
+  /**
+   * Remember that this pin came from somebody.
+   *
+   * Keeps the coordinates AS SENT even after the marker has been dragged away
+   * from them, which is the only reason "put it back" can exist.
+   */
+  function sealPin(place) {
+    // A pin that is NOT evidence does not clear a seal, it moves off it.
+    // Pasting a link, searching a landmark and dragging the marker are the
+    // same gesture wearing three hats, and only one of the three used to
+    // come through here. Clearing on this path and not the others would
+    // mean the way back to what somebody sent survived a 3 km search and
+    // vanished on a paste. Only a person standing somewhere replaces a
+    // person standing somewhere; resetForm() is what actually clears it.
+    if (!place || !SEALED_SOURCES[place.source]) return;
+    pinOrigin = {
+      lat: Number(place.lat), lng: Number(place.lng),
+      acc: place.acc == null ? null : (Math.round(Number(place.acc)) || null),
+      via: place.source === "chat" ? "pm" : place.source,
+      name: String(place.from || "").trim(),
+      userId: String(place.fromId || "").trim(),
+      guest: !!place.guest,
+      thread: String(place.threadName || "").trim(),
+      at: place.at || Date.now(),
+    };
+  }
+
+  /** Who put the pin there, in words. A GPS fix has no third party in it. */
+  function originWho() {
+    if (!pinOrigin || pinOrigin.via === "gps") return "";
+    return pinOrigin.name || tr("ah_seal_someone");
+  }
+
+  /** Put the pin back exactly where it was sent. */
+  function restorePin() {
+    if (!pinOrigin) return;
+    pickedLatLng = { lat: pinOrigin.lat, lng: pinOrigin.lng };
+    gpsAccuracyM = pinOrigin.acc;
+    drawAccuracyCircle(gpsAccuracyM);
+    if (pinMarker) pinMarker.setLngLat([pinOrigin.lng, pinOrigin.lat]);
+    if (pinMap) pinMap.easeTo({ center: [pinOrigin.lng, pinOrigin.lat], zoom: 17, duration: 500 });
+    updatePinReadout();
+  }
+
+  /**
+   * The seal, on screen.
+   *
+   * Three states and no fourth: no seal (nothing is drawn — a hand-placed pin
+   * should not have to defend itself), sealed, and moved. The moved state is a
+   * warning rather than an error, because moving the pin is allowed and is
+   * sometimes right.
+   */
+  function renderPinSeal() {
+    if (!fPinSeal) return;
+    if (!pinOrigin || !pickedLatLng) {
+      fPinSeal.hidden = true;
+      fPinSeal.innerHTML = "";
+      return;
+    }
+    const who = originWho();
+    const off = Math.round(originOffM());
+    const acc = pinOrigin.acc ? tr("ah_seal_within").replace("{n}", pinOrigin.acc) : "";
+
+    if (sealHolds()) {
+      const line = pinOrigin.via === "gps"
+        ? tr("ah_seal_gps")
+        : tr(pinOrigin.via === "pm" ? "ah_seal_pm" : "ah_seal_shared").replace("{name}", who);
+      fPinSeal.className = "ah-pin-seal is-held";
+      fPinSeal.innerHTML =
+        `<span class="ah-pin-seal-ic" aria-hidden="true">${TICK_SVG}</span>` +
+        `<span class="ah-pin-seal-tx"><b>${esc(line)}</b>` +
+        (acc ? `<span class="ah-pin-seal-sub">${esc(acc)}</span>` : "") +
+        // A private person name is about to be published on a world-readable
+        // listing. Saying so beside the name, at the moment it becomes true, is
+        // the only place the agent can act on it — the person it names is not
+        // in the room to be asked.
+        (who ? `<span class="ah-pin-seal-sub">${esc(tr("ah_seal_public").replace("{name}", who))}</span>` : "") +
+        (pinOrigin.guest
+          ? `<span class="ah-pin-seal-sub is-warn">${esc(tr("ah_seal_guest"))}</span>`
+          : "") +
+        "</span>";
+    } else {
+      const line = pinOrigin.via === "gps"
+        ? tr("ah_seal_moved_gps").replace("{n}", off)
+        : tr("ah_seal_moved").replace("{n}", off).replace("{name}", who);
+      fPinSeal.className = "ah-pin-seal is-moved";
+      fPinSeal.innerHTML =
+        `<span class="ah-pin-seal-ic" aria-hidden="true">${WARN_SVG}</span>` +
+        `<span class="ah-pin-seal-tx"><b>${esc(line)}</b>` +
+        `<span class="ah-pin-seal-sub">${esc(tr("ah_seal_moved_sub"))}</span></span>` +
+        `<button type="button" class="ah-pin-seal-b" id="ahPinPutBack">${esc(tr("ah_seal_put_back"))}</button>`;
+      const back = document.getElementById("ahPinPutBack");
+      if (back) back.addEventListener("click", restorePin);
+    }
+    fPinSeal.hidden = false;
+  }
+
+  /**
+   * What goes in houses.pin — the pin own account of where it came from.
+   *
+   * Read by js/pages/house.js so a seeker is told, in one sentence, that the
+   * pin is exactly where somebody standing there put it. `origin` is kept even
+   * when the agent has moved off it, so editing the listing later restores the
+   * seal instead of quietly losing the fact that a person ever sent it.
+   */
+  function pinRecord() {
+    if (!pinOrigin) {
+      return { v: 1, via: "hand", exact: false,
+               acc: gpsAccuracyM == null ? null : Math.round(gpsAccuracyM) };
+    }
+    const held = sealHolds();
+    return {
+      v: 1,
+      via: pinOrigin.via === "pm" ? "p-message" : pinOrigin.via,
+      exact: held,
+      acc: pinOrigin.acc,
+      at: new Date(pinOrigin.at).toISOString(),
+      from_name: pinOrigin.name || null,
+      from_user: pinOrigin.userId || null,
+      from_guest: !!pinOrigin.guest,
+      origin: { lat: pinOrigin.lat, lng: pinOrigin.lng },
+      off_m: held ? 0 : Math.round(originOffM()),
+    };
+  }
+
+  /** The seal a saved listing brings back with it, so an edit does not lose it. */
+  function loadPinRecord(rec) {
+    pinOrigin = null;
+    if (!rec || typeof rec !== "object") return;
+    const o = rec.origin && typeof rec.origin === "object" ? rec.origin : null;
+    const lat = Number(o ? o.lat : NaN), lng = Number(o ? o.lng : NaN);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const via = rec.via === "p-message" ? "pm" : rec.via;
+    if (!SEALED_SOURCES[via]) return;
+    pinOrigin = {
+      lat: lat, lng: lng,
+      acc: rec.acc == null ? null : (Number(rec.acc) || null),
+      via: via,
+      name: rec.from_name || "",
+      userId: rec.from_user || "",
+      guest: !!rec.from_guest,
+      thread: "",
+      at: rec.at ? (new Date(rec.at).getTime() || Date.now()) : Date.now(),
+    };
   }
 
   // ---- Accuracy circle on the pin map -------------------------------------
@@ -1451,13 +1738,18 @@ create policy "house-photos upload" on storage.objects for insert
   }
   function reqApply(row) {
     if (!row || !Number.isFinite(+row.lat) || !Number.isFinite(+row.lng)) return;
-    pickedLatLng = { lat: +row.lat, lng: +row.lng };
-    gpsAccuracyM = row.accuracy_m || null; drawAccuracyCircle(gpsAccuracyM);
-    if (pinMarker) pinMarker.setLngLat([+row.lng, +row.lat]);
-    if (pinMap) pinMap.easeTo({ center: [+row.lng, +row.lat], zoom: 16, duration: 600 });
-    updatePinReadout();
+    // Somebody stood at that gate and sent this, so it goes through the one
+    // door every chosen location goes through: usePlace() drops the pin,
+    // seals it to what they sent, files it in the book beside the codes and
+    // the chat pins, and redraws the list. Doing those four things here by
+    // hand is how one of them ends up forgotten.
+    usePlace({
+      lat: +row.lat, lng: +row.lng, acc: row.accuracy_m || null,
+      label: fTitle && fTitle.value.trim() ? fTitle.value.trim() : "",
+      source: "request", from: row.display_name || "",
+    });
     const st = document.getElementById("ahReqLocStatus");
-    if (st) st.textContent = " Location received from the house — drag the pin to fine-tune if needed.";
+    if (st) st.textContent = tr("ah_remote_got");
     reqCleanup();
   }
   reqBtn?.addEventListener("click", async () => {
@@ -1795,6 +2087,10 @@ create policy "house-photos upload" on storage.objects for insert
   const applyFix = (fix) => {
     pickedLatLng = { lat: fix.lat, lng: fix.lng };
     gpsAccuracyM = fix.accuracy ?? null;
+    // The agent phone WAS standing there, so this is evidence in the same
+    // sense a sent pin is — and an agent who takes a fix at the gate and
+    // then nudges the marker onto the roof deserves the same sentence.
+    sealPin({ lat: fix.lat, lng: fix.lng, acc: fix.accuracy ?? null, source: "gps" });
     if (pinMarker) pinMarker.setLngLat([pickedLatLng.lng, pickedLatLng.lat]);
     if (pinMap) {
       // Zoom tighter for precise fixes, looser when accuracy is poor.
@@ -1820,6 +2116,16 @@ create policy "house-photos upload" on storage.objects for insert
         onProgress: applyFix,            // show progress as it tightens
       });
       applyFix(fix);
+      // Only the settled fix is remembered — the progress readings are the
+      // same place seen badly, and a book full of them is a book of one place.
+      if (window.PlaceBook) {
+        window.PlaceBook.add({
+          lat: fix.lat, lng: fix.lng, acc: fix.accuracy ?? null,
+          label: fTitle && fTitle.value.trim() ? fTitle.value.trim() : "",
+          source: "gps",
+        });
+        renderPlaceBook();
+      }
     } catch (err) {
       if (err.code !== "aborted") alert(tr("ah_err_geo") + pawaLocate.message(err));
     } finally {
@@ -1859,6 +2165,617 @@ create policy "house-photos upload" on storage.objects for insert
     setTimeout(() => { fPinFill.textContent = "Use this address"; }, 1500);
   });
 
+  // ==========================================================================
+  //  THE SPEC SHEET — the open half of the form.
+  //
+  //  Two repeatable lists, both drawn here and both scraped at save time, in
+  //  the same style as the additional-costs rows above: one pattern for every
+  //  repeatable list on this form rather than three that drift apart.
+  //
+  //    rooms   the things that carry a price
+  //    groups  every other fact, as a titled set of label→value lines
+  //
+  //  The rule everywhere below is SUGGEST A LOT, FORBID NOTHING. Every chip is
+  //  a shortcut into a free-text box, never a constraint on it: an agent with a
+  //  kind of room we have never heard of types its name and it publishes.
+  // ==========================================================================
+  const HS = window.HouseSpec || null;
+  if (!HS) console.warn("[agent-houses] house-spec.js missing — spec sheet disabled");
+
+  // ---- Rooms ---------------------------------------------------------------
+
+  /** The catalogue as a <datalist>, so the free-text box offers without refusing. */
+  function buildRoomKindList() {
+    if (!HS || document.getElementById("ahdlRoomKinds")) return;
+    const dl = document.createElement("datalist");
+    dl.id = "ahdlRoomKinds";
+    dl.innerHTML = HS.ROOM_KINDS.map(k => `<option value="${esc(HS.say(k))}"></option>`).join("");
+    form.appendChild(dl);
+  }
+
+  /**
+   * A typed label back to the key that gets stored.
+   *
+   * "Master room" and "Chumba cha master" both store `master`. Without this a
+   * listing written on a Swahili phone would be invisible to an English filter
+   * and vice versa — two catalogues of the same building.
+   */
+  function roomKeyFor(text) {
+    const v = String(text || "").trim();
+    if (!v || !HS) return "";
+    const low = v.toLowerCase();
+    const hit = HS.ROOM_KINDS.find(k =>
+      k.key.toLowerCase() === low ||
+      String(k.en || "").toLowerCase() === low ||
+      String(k.sw || "").toLowerCase() === low);
+    return hit ? hit.key : low.slice(0, 40);
+  }
+
+  function addRoomRow(room) {
+    if (!fRoomsList || !HS) return null;
+    const r = room || {};
+    const node = document.createElement("div");
+    node.className = "ah-room";
+    const periods = HS.PERIODS.map(p =>
+      `<option value="${p.key}"${r.period === p.key ? " selected" : ""}>${esc(HS.say(p))}</option>`).join("");
+    node.innerHTML = `
+      <div class="ah-room-head">
+        <strong>${esc(tr("ah_room_row"))}</strong>
+        <button type="button" class="ah-x" aria-label="${esc(tr("ah_room_remove"))}">×</button>
+      </div>
+      <div class="ah-room-grid">
+        <label class="ah-wide">${esc(tr("ah_room_kind_q"))}
+          <input class="ah-r-kind" type="text" list="ahdlRoomKinds" maxlength="40"
+                 placeholder="${esc(tr("ah_room_kind_ph"))}"
+                 value="${esc(r.kind ? HS.roomLabel(r.kind) : "")}">
+        </label>
+        <label>${esc(tr("ah_room_price"))}
+          <input class="ah-r-price" type="number" min="0" step="5000" placeholder="60000"
+                 value="${r.price != null ? Number(r.price) : ""}">
+        </label>
+        <label>${esc(tr("ah_room_period"))}
+          <select class="ah-r-period">${periods}</select>
+        </label>
+        <label>${esc(tr("ah_room_count"))}
+          <input class="ah-r-count" type="number" min="1" max="99" step="1" value="${Number(r.count) || 1}">
+        </label>
+        <label>${esc(tr("ah_room_vacant"))}
+          <input class="ah-r-vacant" type="number" min="0" max="99" step="1" placeholder="—"
+                 value="${r.vacant == null ? "" : Number(r.vacant)}">
+        </label>
+        <label>${esc(tr("ah_room_size"))}
+          <input class="ah-r-size" type="number" min="0" step="1" placeholder="—"
+                 value="${r.size == null ? "" : Number(r.size)}">
+        </label>
+        <label class="ah-room-check">
+          <input class="ah-r-ensuite" type="checkbox"${r.ensuite ? " checked" : ""}>
+          <span>${esc(tr("ah_room_ensuite"))}</span>
+        </label>
+        <label class="ah-wide">${esc(tr("ah_room_note"))}
+          <input class="ah-r-note" type="text" maxlength="200"
+                 placeholder="${esc(tr("ah_room_note_ph"))}" value="${esc(r.note || "")}">
+        </label>
+      </div>`;
+    node.querySelector(".ah-x").addEventListener("click", () => { node.remove(); renderRoomSuggest(); });
+    node.querySelector(".ah-r-kind").addEventListener("input", renderRoomSuggest);
+    fRoomsList.appendChild(node);
+    renderRoomSuggest();
+    return node;
+  }
+
+  function collectRooms() {
+    if (!fRoomsList) return [];
+    return Array.from(fRoomsList.querySelectorAll(".ah-room")).map(n => {
+      const val = (sel) => n.querySelector(sel).value;
+      const price = val(".ah-r-price"), vacant = val(".ah-r-vacant"), size = val(".ah-r-size");
+      return {
+        kind:    roomKeyFor(val(".ah-r-kind")),
+        price:   price === "" ? null : Number(price),
+        period:  val(".ah-r-period"),
+        count:   Number(val(".ah-r-count")) || 1,
+        vacant:  vacant === "" ? null : Number(vacant),
+        size:    size === "" ? null : Number(size),
+        ensuite: n.querySelector(".ah-r-ensuite").checked,
+        note:    val(".ah-r-note").trim(),
+      };
+    }).filter(r => r.kind || r.price != null);
+  }
+
+  /** One-tap chips for every kind not already on the list. */
+  function renderRoomSuggest() {
+    if (!fRoomSuggest || !HS) return;
+    const used = new Set(collectRooms().map(r => r.kind));
+    fRoomSuggest.innerHTML = `<p class="ah-suggest-lead">${esc(tr("ah_room_suggest_lead"))}</p>`;
+    HS.ROOM_KINDS.forEach(k => {
+      if (used.has(k.key)) return;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ah-sg";
+      b.innerHTML = `+ ${esc(HS.say(k))}${k.hint ? `<small>${esc(HS.say(k.hint))}</small>` : ""}`;
+      b.addEventListener("click", () => addRoomRow({
+        kind: k.key,
+        // A master and a self-contained room have their own bathroom by
+        // definition — pre-ticking it saves the tap that says so.
+        ensuite: k.key === "master" || k.key === "self_contained",
+        period: fListing && fListing.value === "sale" ? "total" : "month",
+        count: 1,
+      }));
+      fRoomSuggest.appendChild(b);
+    });
+  }
+
+  fAddRoomBtn?.addEventListener("click", () => addRoomRow({
+    period: fListing && fListing.value === "sale" ? "total" : "month", count: 1,
+  }));
+
+  // ---- Detail groups -------------------------------------------------------
+
+  function valueListId(groupKey, i) { return "ahdl_" + groupKey + "_" + i; }
+
+  /** One <datalist> per suggested line, built once for the whole catalogue. */
+  function buildValueLists() {
+    if (!HS || document.getElementById("ahdlValues")) return;
+    const holder = document.createElement("div");
+    holder.id = "ahdlValues";
+    holder.hidden = true;
+    holder.innerHTML = HS.GROUPS.map(g => g.items.map((it, i) =>
+      (it.values && it.values.length)
+        ? `<datalist id="${valueListId(g.key, i)}">${
+            it.values.map(v => `<option value="${esc(HS.say(v))}"></option>`).join("")}</datalist>`
+        : "").join("")).join("");
+    form.appendChild(holder);
+  }
+
+  /**
+   * A category card.
+   *
+   * `presetKey` chooses the suggestions; the TITLE is an editable text box in
+   * every case, including the ready-made ones. An agent who wants their rules
+   * card to say "Masharti ya Mama Neema" gets to say that — the preset is a
+   * starting point, never a label the app insists on.
+   */
+  function addGroup(presetKey, existing) {
+    if (!fGroupsList || !HS) return null;
+    const preset = HS.groupPreset(presetKey) || HS.groupPreset("custom");
+    const node = document.createElement("div");
+    node.className = "ah-group";
+    node.dataset.key = preset.key;
+    node.innerHTML = `
+      <div class="ah-group-head">
+        <span class="ah-place-ic" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+          stroke-linejoin="round"><path d="${preset.icon}"/></svg></span>
+        <input class="ah-g-title" type="text" maxlength="60"
+               placeholder="${esc(tr("ah_group_title_ph"))}"
+               value="${esc((existing && existing.title) || HS.say(preset.title))}">
+        <button type="button" class="ah-x" aria-label="${esc(tr("ah_group_remove"))}">×</button>
+      </div>
+      <p class="ah-group-blurb">${esc(HS.say(preset.blurb))}</p>
+      <div class="ah-suggest ah-g-suggest"></div>
+      <div class="ah-kvs"></div>
+      <button type="button" class="ah-btn ah-g-add" style="margin-top:9px;">${esc(tr("ah_group_add_line"))}</button>`;
+
+    const kvs = node.querySelector(".ah-kvs");
+    const sug = node.querySelector(".ah-g-suggest");
+
+    function addKv(item, listId) {
+      const row = document.createElement("div");
+      row.className = "ah-kv";
+      row.innerHTML = `
+        <input class="ah-kv-l" type="text" maxlength="60"
+               placeholder="${esc(tr("ah_kv_label_ph"))}" value="${esc((item && item.label) || "")}">
+        <input class="ah-kv-v" type="text" maxlength="220"${listId ? ` list="${listId}"` : ""}
+               placeholder="${esc(tr("ah_kv_value_ph"))}" value="${esc((item && item.value) || "")}">
+        <button type="button" class="ah-x" aria-label="${esc(tr("ah_kv_remove"))}">×</button>`;
+      row.querySelector(".ah-x").addEventListener("click", () => { row.remove(); paintSuggest(); });
+      row.querySelector(".ah-kv-l").addEventListener("input", paintSuggest);
+      kvs.appendChild(row);
+      return row;
+    }
+
+    function paintSuggest() {
+      sug.innerHTML = "";
+      const used = new Set(Array.from(kvs.querySelectorAll(".ah-kv-l"))
+        .map(i => i.value.trim().toLowerCase()).filter(Boolean));
+      preset.items.forEach((it, i) => {
+        const label = HS.say(it.label);
+        if (used.has(label.toLowerCase())) return;
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ah-sg";
+        b.textContent = "+ " + label;
+        b.addEventListener("click", () => {
+          // The first suggested answer is filled in, not forced: it is the
+          // right one often enough to save typing and always editable when it
+          // is not. An empty box would make every chip a two-step.
+          const first = it.values && it.values.length ? HS.say(it.values[0]) : "";
+          addKv({ label: label, value: first },
+                it.values && it.values.length ? valueListId(preset.key, i) : "");
+          paintSuggest();
+        });
+        sug.appendChild(b);
+      });
+    }
+
+    node.querySelector(".ah-x").addEventListener("click", () => { node.remove(); renderGroupSuggest(); });
+    node.querySelector(".ah-g-add").addEventListener("click", () => { addKv({}, ""); paintSuggest(); });
+
+    fGroupsList.appendChild(node);
+
+    // Restoring a saved card: its lines come back as typed, and a line whose
+    // label happens to match a suggestion re-uses that suggestion's answers.
+    if (existing && Array.isArray(existing.items) && existing.items.length) {
+      existing.items.forEach(it => {
+        const i = preset.items.findIndex(p =>
+          HS.say(p.label).toLowerCase() === String(it.label || "").toLowerCase());
+        addKv(it, i >= 0 && preset.items[i].values && preset.items[i].values.length
+          ? valueListId(preset.key, i) : "");
+      });
+    } else if (!existing && preset.key === "custom") {
+      addKv({}, "");   // a card the agent named needs somewhere to type
+    }
+    paintSuggest();
+    return node;
+  }
+
+  function collectGroups() {
+    if (!fGroupsList) return [];
+    return Array.from(fGroupsList.querySelectorAll(".ah-group")).map(n => ({
+      key:   n.dataset.key || "custom",
+      title: n.querySelector(".ah-g-title").value.trim(),
+      items: Array.from(n.querySelectorAll(".ah-kv")).map(r => ({
+        label: r.querySelector(".ah-kv-l").value.trim(),
+        value: r.querySelector(".ah-kv-v").value.trim(),
+      })).filter(it => it.label && it.value),
+    })).filter(g => g.title && g.items.length);
+  }
+
+  function renderGroupSuggest() {
+    if (!fGroupSuggest || !HS) return;
+    const used = new Set(Array.from(fGroupsList.querySelectorAll(".ah-group"))
+      .map(n => n.dataset.key));
+    fGroupSuggest.innerHTML = `<p class="ah-suggest-lead">${esc(tr("ah_group_suggest_lead"))}</p>`;
+    HS.GROUPS.forEach(g => {
+      // "Anything else" never disappears — an agent may want four of them.
+      if (g.key !== "custom" && used.has(g.key)) return;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ah-sg";
+      b.textContent = "+ " + HS.say(g.title);
+      b.addEventListener("click", () => { addGroup(g.key); renderGroupSuggest(); });
+      fGroupSuggest.appendChild(b);
+    });
+  }
+
+  /** Everything the two lists know, cleaned by the one normaliser. */
+  function collectDetails() {
+    const raw = { v: 1, rooms: collectRooms(), groups: collectGroups() };
+    return HS ? HS.normalize(raw) : raw;
+  }
+
+  function resetSpec() {
+    if (fRoomsList)  fRoomsList.innerHTML = "";
+    if (fGroupsList) fGroupsList.innerHTML = "";
+    renderRoomSuggest();
+    renderGroupSuggest();
+  }
+
+  function loadSpec(row) {
+    if (!HS) return;
+    const d = HS.fromRow(row);
+    d.rooms.forEach(addRoomRow);
+    d.groups.forEach(g => addGroup(g.key, g));
+    renderRoomSuggest();
+    renderGroupSuggest();
+  }
+
+  buildRoomKindList();
+  buildValueLists();
+
+  // ==========================================================================
+  //  PINNING FROM A LOCATION SOMEBODY ALREADY SHARED
+  //
+  //  The pin had three sources and all three needed the agent: drag it, stand
+  //  on it, or send a link and wait by the screen. But the location of a house
+  //  usually already exists — somebody stood at that gate and shared it, as
+  //  nine characters down a phone call or a map link in a P-Message thread.
+  //
+  //  Three doors, one destination. js/lib/place-book.js keeps whatever came
+  //  through any of them, on this device only, so a location shared on Monday
+  //  is still one tap away on Friday.
+  // ==========================================================================
+  function locMsg(text, kind) {
+    if (!fLocMsg) return;
+    fLocMsg.textContent = text || "";
+    fLocMsg.className = "ah-place-msg" + (kind ? " " + kind : "");
+  }
+
+  /**
+   * The one place a chosen location becomes the pin.
+   *
+   * A code, a paste and a row in the book all end here, so "the pin moved"
+   * means exactly one thing however it happened — and the accuracy circle, the
+   * readout and the reverse-geocode all follow from a single call site instead
+   * of three that each forget a different one.
+   */
+  function usePlace(place, opts) {
+    const o = opts || {};
+    const lat = Number(place.lat), lng = Number(place.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    pickedLatLng = { lat, lng };
+    gpsAccuracyM = place.acc == null ? null : Number(place.acc);
+    // Before the readout, because the readout is where the seal is drawn.
+    sealPin(place);
+    drawAccuracyCircle(gpsAccuracyM);
+    if (pinMarker) pinMarker.setLngLat([lng, lat]);
+    if (pinMap) pinMap.easeTo({ center: [lng, lat], zoom: 17, duration: 600 });
+    updatePinReadout();
+    if (o.remember !== false && window.PlaceBook) window.PlaceBook.add(place);
+    renderPlaceBook();
+  }
+
+  // How a place arrived, in a word — because "someone standing there sent
+  // this" and "I typed it into a search box" are different kinds of evidence
+  // and the agent is entitled to know which row is which.
+  function placeSourceWord(source) {
+    return tr({
+      code: "ah_loc_src_code", link: "ah_loc_src_link", gps: "ah_loc_src_gps",
+      request: "ah_loc_src_request", map: "ah_loc_src_map",
+      // 'chat' is what builds before this one wrote for a pin saved out of
+      // P-Message. It had no word here, so the strongest evidence in the
+      // book was being labelled "pasted from a link".
+      pm: "ah_loc_src_pm", chat: "ah_loc_src_pm",
+    }[source] || "ah_loc_src_link");
+  }
+
+  function agoWords(ms) {
+    const mins = Math.round((Date.now() - ms) / 60000);
+    if (mins < 1) return tr("ah_ago_now");
+    if (mins < 60) return tr("ah_ago_min").replace("{n}", mins);
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return tr("ah_ago_hr").replace("{n}", hrs);
+    return tr("ah_ago_day").replace("{n}", Math.round(hrs / 24));
+  }
+
+  function renderPlaceBook() {
+    if (!fPlaceList || !window.PlaceBook) return;
+    const rows = window.PlaceBook.list().slice(0, 8);
+    fPlaceList.innerHTML = "";
+    if (!rows.length) return;
+    const lead = document.createElement("p");
+    lead.className = "ah-suggest-lead";
+    lead.style.margin = "6px 0 2px";
+    lead.textContent = tr("ah_loc_book_lead");
+    fPlaceList.appendChild(lead);
+    rows.forEach(p => {
+      const on = pickedLatLng &&
+        Math.abs(pickedLatLng.lat - p.lat) < 0.00015 &&
+        Math.abs(pickedLatLng.lng - p.lng) < 0.00015;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ah-place-row" + (on ? " is-on" : "");
+      b.innerHTML = `
+        <span class="ah-place-ic" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z"/>
+          <circle cx="12" cy="10.3" r="2.4"/></svg></span>
+        <span class="ah-place-tx">
+          <span class="ah-place-t">${esc(p.label || window.PlaceBook.coords(p.lat, p.lng))}</span>
+          <span class="ah-place-d">${esc(placeSourceWord(p.source))}${p.from ? " · " + esc(p.from) : ""} · ${esc(agoWords(p.at))}</span>
+        </span>`;
+      b.addEventListener("click", () => {
+        usePlace(p, { remember: false });
+        locMsg(tr("ah_loc_ok"), "ok");
+      });
+      fPlaceList.appendChild(b);
+    });
+  }
+
+  // ==========================================================================
+  //  THE PINS PEOPLE SENT YOU, READ OUT OF THE CONVERSATIONS THEMSELVES
+  //
+  //  The panel above is the device book: everything that has ALREADY been
+  //  filed. Filing is a deliberate act — somebody has to have tapped "Save
+  //  this pin" in P-Message — and the pins that matter most are exactly the
+  //  ones nobody thought to tap, because they arrived in the middle of a
+  //  conversation about something else.
+  //
+  //  So this door does not wait to be filed. js/lib/pm-places.js opens the
+  //  threads this device can already read, finds the pins in them, and hands
+  //  them over with their coordinates untouched and the sender attached. The
+  //  agent taps one and the marker is standing on the sender numbers to six
+  //  decimal places, having passed through nobody hands.
+  //
+  //  It reads and never writes: no key is minted, no message is marked read,
+  //  no row is touched. See the header of pm-places.js for why that matters
+  //  more than it sounds.
+  // ==========================================================================
+  function pmMsg(text, kind) {
+    if (!fPmMsg) return;
+    fPmMsg.textContent = text || "";
+    fPmMsg.className = "ah-place-msg" + (kind ? " " + kind : "");
+  }
+
+  // Why there is nothing to show — said as the ordinary situation it is, with
+  // the way out of it. "Unavailable" would send an agent hunting for a fault
+  // that is not there.
+  function pmReasonText(reason) {
+    return tr({
+      no_crypto: "ah_pm_r_nocrypto", locked: "ah_pm_r_locked", no_key: "ah_pm_r_nokey",
+      signed_out: "ah_pm_r_signin", offline: "ah_pm_r_offline", empty: "ah_pm_r_empty",
+    }[reason] || "ah_pm_r_failed");
+  }
+
+  function pmWhere(p) {
+    if (p.threadKind === "group" && p.threadName) {
+      return tr("ah_pm_in_room").replace("{room}", p.threadName);
+    }
+    return tr("ah_pm_in_chat");
+  }
+
+  function renderPmPlaces(res) {
+    if (!fPmList) return;
+    fPmList.innerHTML = "";
+    if (!res) return;
+    if (!res.ok || !res.places.length) { pmMsg(pmReasonText(res.reason), "err"); return; }
+    pmMsg("");
+
+    const lead = document.createElement("p");
+    lead.className = "ah-suggest-lead";
+    lead.style.margin = "6px 0 2px";
+    lead.textContent = tr("ah_pm_lead");
+    fPmList.appendChild(lead);
+
+    res.places.slice(0, 8).forEach(p => {
+      const on = pickedLatLng &&
+        Math.abs(pickedLatLng.lat - p.lat) < 0.00015 &&
+        Math.abs(pickedLatLng.lng - p.lng) < 0.00015;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ah-place-row" + (on ? " is-on" : "");
+      // The pin words first: "the blue gate, second house" is the half a
+      // person wrote, and six decimal places are only worth reading when
+      // there is nothing else. Coordinates stand in when there is not.
+      const title = p.label || window.PlaceBook.coords(p.lat, p.lng);
+      const who = p.fromName || tr("ah_seal_someone");
+      b.innerHTML = `
+        <span class="ah-place-ic" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z"/>
+          <circle cx="12" cy="10.3" r="2.4"/></svg></span>
+        <span class="ah-place-tx">
+          <span class="ah-place-t">${esc(title)}</span>
+          <span class="ah-place-d">${esc(who)}${p.fromGuest
+            ? ` <span class="ah-place-guest">${esc(tr("ah_pm_guest"))}</span>` : ""
+          } · ${esc(pmWhere(p))} · ${esc(agoWords(p.at))}${
+            p.acc ? " · " + esc(tr("ah_seal_within").replace("{n}", p.acc)) : ""
+          }</span>
+        </span>`;
+      b.addEventListener("click", () => {
+        usePlace({
+          lat: p.lat, lng: p.lng, acc: p.acc, label: p.label,
+          source: "pm", from: p.fromName, fromId: p.fromId, guest: p.fromGuest,
+          threadId: p.threadId, threadName: p.threadName, msgId: p.msgId, at: p.at,
+        });
+        locMsg(p.outside ? tr("ah_loc_outside") : tr("ah_loc_ok"), p.outside ? "err" : "ok");
+      });
+      fPmList.appendChild(b);
+    });
+  }
+
+  let pmScanning = false;
+  async function scanPmPlaces(opts) {
+    if (!window.PMPlaces || !fPmList || pmScanning) return;
+    const o = opts || {};
+    // Silence on a device that has never opened P-Message and was not asked to
+    // look. The panel is about locations somebody sent; an agent who has never
+    // used the messenger is owed nothing here until they press the button.
+    if (!o.loud && window.PMPlaces.available()) return;
+    pmScanning = true;
+    if (fPmScan) fPmScan.disabled = true;
+    pmMsg(tr("ah_pm_looking"));
+    try {
+      renderPmPlaces(await window.PMPlaces.scan({ refresh: !!o.refresh }));
+    } catch (err) {
+      console.warn("[agent-houses] p-message scan failed", err);
+      pmMsg(tr("ah_pm_r_failed"), "err");
+    } finally {
+      pmScanning = false;
+      if (fPmScan) fPmScan.disabled = false;
+    }
+  }
+
+  // Pressed deliberately: look again, from scratch, and say what happened even
+  // when the answer is "this device cannot read your messages".
+  fPmScan?.addEventListener("click", () => scanPmPlaces({ loud: true, refresh: true }));
+
+  // Why a code cannot be used, said as the ordinary thing it is. Every one of
+  // these happens to real people; none of them is an error the agent caused.
+  function locReasonText(reason) {
+    const key = {
+      short: "ah_loc_r_short", long: "ah_loc_r_long", chars: "ah_loc_r_chars",
+      check: "ah_loc_r_check", expired: "ah_loc_r_expired", used_up: "ah_loc_r_used",
+      revoked: "ah_loc_r_revoked", not_found: "ah_loc_r_notfound",
+      rate_limited: "ah_loc_r_rate", signin: "ah_loc_r_signin", offline: "ah_loc_r_offline",
+    }[reason];
+    return key ? tr(key) : tr("ah_loc_r_failed");
+  }
+
+  // K7M2Q9F3T typed straight through still reads back as K7M-2Q9-F3T, because
+  // the person on the phone is reading it in threes and the box should agree.
+  fLocCode?.addEventListener("input", () => {
+    if (!window.LocCode) return;
+    const c = window.LocCode.normalize(fLocCode.value);
+    const at = fLocCode.selectionStart === fLocCode.value.length;
+    fLocCode.value = c.length === window.LocCode.CODE_LEN ? window.LocCode.format(c)
+      : c.replace(/(.{3})(?=.)/g, "$1-");
+    if (at) fLocCode.setSelectionRange(fLocCode.value.length, fLocCode.value.length);
+  });
+  fLocCode?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); fLocOpen?.click(); }
+  });
+
+  fLocOpen?.addEventListener("click", async () => {
+    if (!window.LocShare || !window.LocCode) { locMsg(tr("ah_loc_unavailable"), "err"); return; }
+    const raw = (fLocCode.value || "").trim();
+    const problem = window.LocCode.problem(raw);
+    if (problem) { locMsg(locReasonText(problem), "err"); return; }
+    fLocOpen.disabled = true;
+    locMsg(tr("ah_loc_opening"));
+    try {
+      const r = await window.LocShare.open(raw);
+      if (!r.ok) { locMsg(locReasonText(r.reason), "err"); return; }
+      usePlace({
+        lat: r.place.lat, lng: r.place.lng, acc: r.place.acc,
+        label: r.place.label || "", source: "code", from: window.LocCode.format(raw),
+      });
+      fLocCode.value = "";
+      locMsg(tr("ah_loc_ok"), "ok");
+    } catch (err) {
+      console.warn("[agent-houses] code open failed", err);
+      locMsg(tr("ah_loc_r_failed"), "err");
+    } finally {
+      fLocOpen.disabled = false;
+    }
+  });
+
+  /**
+   * Whatever a chat carried.
+   *
+   * A code goes to the code box and opens itself; anything with coordinates in
+   * it pins directly. Both are one paste, because the agent copying a message
+   * out of P-Message does not know or care which of the two they have.
+   */
+  function applyPastedLocation(text) {
+    if (!window.PlaceBook) return;
+    const code = window.PlaceBook.codeIn(text);
+    if (code && window.LocCode) {
+      fLocCode.value = window.LocCode.format(code);
+      fLocPaste.value = "";
+      fLocOpen?.click();
+      return;
+    }
+    const hit = window.PlaceBook.parse(text);
+    if (!hit) { locMsg(tr("ah_loc_unreadable"), "err"); return; }
+    usePlace({ lat: hit.lat, lng: hit.lng, acc: null, label: hit.label, source: "link" });
+    fLocPaste.value = "";
+    locMsg(hit.outside ? tr("ah_loc_outside") : tr("ah_loc_ok"), hit.outside ? "err" : "ok");
+  }
+
+  fLocPasteGo?.addEventListener("click", () => applyPastedLocation(fLocPaste.value));
+  fLocPaste?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); applyPastedLocation(fLocPaste.value); }
+  });
+  // A paste is the whole gesture on a phone — waiting for a second tap on
+  // "Use it" is a step that exists only because desktops have buttons.
+  fLocPaste?.addEventListener("paste", (e) => {
+    const text = (e.clipboardData || window.clipboardData)?.getData("text");
+    if (!text) return;
+    e.preventDefault();
+    fLocPaste.value = text;
+    applyPastedLocation(text);
+  });
+
   // ---- Save listing (create or update) ------------------------------------
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1867,6 +2784,16 @@ create policy "house-photos upload" on storage.objects for insert
       formMsg.className = "ah-msg error";
       formMsg.textContent = tr("ah_err_no_pin");
       formMsg.hidden = false;
+      return;
+    }
+    // The overall price stopped being compulsory the moment a listing could
+    // price its rooms individually — but SOME price has to exist, or the card
+    // says nothing a person can decide on. One or the other, never neither.
+    if (!(Number(fPrice.value) > 0) && !(HS && HS.priceFrom({ details: { rooms: collectRooms() } }))) {
+      formMsg.className = "ah-msg error";
+      formMsg.textContent = tr("ah_err_no_price");
+      formMsg.hidden = false;
+      fPrice.focus();
       return;
     }
     saveBtn.disabled = true;
@@ -1897,7 +2824,15 @@ create policy "house-photos upload" on storage.objects for insert
       ).map(i => i.value);
       const amenities = Array.from(new Set([...checkedKeys, ...customAmenities.map(s => s.trim()).filter(Boolean)]));
 
-      // 3. Build row
+      // 3. Build row.
+      //
+      // The spec sheet is the listing's own account of itself; the flat
+      // columns below are the projection of it that search and the old cards
+      // still read. Deriving them here — rather than asking the agent to type
+      // the same number twice — is what keeps the two from disagreeing.
+      const details   = collectDetails();
+      const roomFloor = HS ? HS.priceFrom({ details }) : null;
+      const typedPrice = Number(fPrice.value) || 0;
       const id = editingId || generateId();
       const row = {
         id,
@@ -1907,17 +2842,29 @@ create policy "house-photos upload" on storage.objects for insert
                        ? ((fTypeOther && fTypeOther.value.trim().toLowerCase()) || "other")
                        : fType.value,
         listing:     fListing.value,
-        price_tzs:   Number(fPrice.value) || 0,
+        // The headline price. An agent who lists four room types and no
+        // overall figure is not leaving the price blank — they are saying
+        // "from the cheapest of these", so that is what the column holds.
+        price_tzs:   typedPrice || (roomFloor ? roomFloor.amount : 0),
         currency:    "TZS",
-        period:      fPeriod.value,
+        period:      typedPrice ? fPeriod.value : (roomFloor ? roomFloor.period : fPeriod.value),
+        // The whole spec sheet, exactly as the agent wrote it.
+        details,
         // Minimum months a tenant must pay upfront — rent only (null for sale).
         min_months:  fListing.value === "rent" ? (Math.max(1, Number(fMinMonths?.value) || 1)) : null,
         // Agent commission the tenant pays — rent only. 0/blank → the house
         // detail + dashboard default it to one month's rent.
         agent_fee_tzs: fListing.value === "rent" ? (Number(fAgentFee?.value) || 0) : 0,
         // Room category for room-by-room rentals: single vs master
-        // (self-contained); null/"" means the whole unit is listed.
-        room_kind:   (fRoomKind && fRoomKind.value) || null,
+        // (self-contained); null means the whole unit is listed.
+        //
+        // One column, and the spec sheet can hold twenty rooms — so it carries
+        // the CHEAPEST room's category, which is the one a "show me singles
+        // under 80,000" filter is asking about. A plot whose cheapest room is
+        // a single belongs in that result even though it also has a master.
+        room_kind:   (roomFloor && (roomFloor.kind === "single" || roomFloor.kind === "master"))
+                       ? roomFloor.kind
+                       : ((fRoomKind && fRoomKind.value) || null),
         // Explicit "this is a business space (frame)" flag — drives the Frame map.
         is_frame:    !!(fIsFrame && fIsFrame.checked),
         bedrooms:    Number(fBedrooms.value) || 0,
@@ -1933,6 +2880,9 @@ create policy "house-photos upload" on storage.objects for insert
         address:     fAddress.value.trim() || null,
         lat:         pickedLatLng.lat,
         lng:         pickedLatLng.lng,
+        // Where the pin came from, and whether it is still standing exactly
+        // there. See pinRecord() and supabase/features/house/houses_pin.sql.
+        pin:         pinRecord(),
         amenities,
         furnished:   fFurnished.value.trim() || null,
         photo:       coverPath,
@@ -1962,8 +2912,22 @@ create policy "house-photos upload" on storage.objects for insert
         ? sb.from("houses").update(payload).eq("id", editingId).eq("owner_user_id", uid).select()
         : sb.from("houses").insert(payload).select();
       let { data: savedRows, error } = await trySave(row);
-      if (error && /column .*(photos|videos|nearby|extra_costs|min_months|room_kind|agent_fee_tzs|is_frame).* (does not exist|not found)/i.test(error.message)) {
-        const { photos: _p, videos: _v, nearby: _n, extra_costs: _e, min_months: _m, room_kind: _rk, agent_fee_tzs: _af, is_frame: _if, ...legacy } = row;
+      // A database that has not had the newer feature SQL run against it yet.
+      // Both wordings are needed and only one of them was here: Postgres says
+      // `column "pin" of relation "houses" does not exist`, while PostgREST
+      // usually answers first with PGRST204 — `Could not find the 'pin' column
+      // of 'houses' in the schema cache` — which the old pattern could not
+      // match, and which then fell through to the branch below and replaced
+      // the whole form with the setup card. An agent halfway through a listing
+      // does not need a wall of SQL; they need the listing saved without the
+      // column their database has not got yet.
+      const OPTIONAL_COLS = /(photos|videos|nearby|extra_costs|min_months|room_kind|agent_fee_tzs|is_frame|details|pin)/i;
+      const missingColumn = (m) =>
+        OPTIONAL_COLS.test(m) &&
+        (/column .* (does not exist|not found)/i.test(m) ||
+         /could not find the .* column/i.test(m));
+      if (error && missingColumn(error.message || "")) {
+        const { photos: _p, videos: _v, nearby: _n, extra_costs: _e, min_months: _m, room_kind: _rk, agent_fee_tzs: _af, is_frame: _if, details: _d, pin: _pin, ...legacy } = row;
         ({ data: savedRows, error } = await trySave(legacy));
       }
       if (error) {
@@ -2399,7 +3363,8 @@ create policy "house-photos upload" on storage.objects for insert
 
   // Wake a sleeping free-tier gateway when the form opens, so it's warm by the
   // time the agent finishes filling in the listing and hits save. Fire-and-forget.
-  let _videoWarmed = false;
+  // The flag itself is declared with the rest of the state at the top of this
+  // function; see there for why it cannot live here.
   function warmVideoGateway() {
     if (_videoWarmed) return;
     _videoWarmed = true;
@@ -2794,5 +3759,16 @@ create policy "house-photos upload" on storage.objects for insert
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  // ---- The page is now assembled -----------------------------------------
+  // Everything above has been evaluated, so openForm() can reach all of it.
+  // This must stay the last statement in this function: moving it up would
+  // re-open exactly the window it exists to close.
+  pageReady = true;
+  if (queuedForm) {
+    const q = queuedForm;
+    queuedForm = null;
+    requestForm(q.row);
   }
 };
