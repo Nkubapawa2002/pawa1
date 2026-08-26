@@ -2,7 +2,7 @@
 // The Frame — read any area as a "room for business"
 // =====================================================================
 // Pick a spot (search a place, use GPS, or tap the map) and Pawa reads it
-// against the four layers in frame.MD:
+// against the four layers in docs/frame.MD:
 //   1. Magnets        — the fixed things that gather a population (OSM POIs)
 //   2. Shared services — what many people use daily (food/money/fuel density)
 //   3. Population      — estimated from magnet pull + Pawa's own revealed signals
@@ -22,7 +22,7 @@
 (function () {
   "use strict";
 
-  // ---- magnet taxonomy (mirrors frame.MD §2) -------------------------------
+  // ---- magnet taxonomy (mirrors docs/frame.MD §2) --------------------------
   // weight = how strongly this class pulls a crowd (transport & market lead).
   const MAGNETS = {
     transport:  { label: "Transport", emoji: "", color: "#2563eb", weight: 3.0 },
@@ -51,7 +51,7 @@
     _quiet:     { type: "Dormitory / residential", lead: "rooms & houses to rent, everyday services" },
   };
 
-  // ---- daily-life model (frame.MD §4/§5 made tangible) ---------------------
+  // ---- daily-life model (docs/frame.MD §4/§5 made tangible) ----------------
   // The six parts of a Tanzanian day. Each activity below says which parts it
   // runs in; summing them gives the area's daily RHYTHM (when it's busy), and
   // the activities themselves are what the area actually DOES — the read the
@@ -329,7 +329,7 @@
     });
   }
 
-  // ---- scoring (frame.MD §6) -----------------------------------------------
+  // ---- scoring (docs/frame.MD §6) ------------------------------------------
   // Every component is normalised to 0–100 with a soft cap, so the final score
   // is comparable across frames and each part can be shown as a reason.
   function score(model) {

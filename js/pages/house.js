@@ -547,7 +547,7 @@ function render(h) {
 // ============================================================================
 // Nearby amenities (Overpass / OpenStreetMap, free, no API key)
 // ============================================================================
-// Full set of "nearby infrastructure" categories per SKILL.md 3.2 — all
+// Full set of "nearby infrastructure" categories per docs/SKILL.md 3.2 — all
 // fetched live from OpenStreetMap via the Overpass API. Categories are
 // loaded lazily on first chip-tap (and the first two are auto-loaded
 // when the map opens so the buyer gets immediate context).
