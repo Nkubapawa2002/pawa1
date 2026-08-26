@@ -1,0 +1,9 @@
+# Local caches and virtualenvs are rebuilt inside the image and must never be
+# shipped from a developer's machine — a __pycache__ compiled by a different
+# Python than python:3.12-slim is worse than no cache at all.
+#
+# The Dockerfile copies only main.py, so this is about keeping the context
+# clean rather than the image.
+__pycache__/
+*.pyc
+.venv/

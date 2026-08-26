@@ -1,0 +1,9 @@
+# The build context is uploaded to the Docker daemon before a single
+# instruction runs. This directory carries go.exe — a 9.3 MB Windows binary a
+# linux/amd64 build can never use — which is 99% of the context by size.
+#
+# The Dockerfile already copies selectively (go.mod, then *.go), so none of
+# this ever reached the image. This is about the upload, not the layers:
+# 9.4 MB of context becomes about 50 KB.
+*.exe
+bin/
