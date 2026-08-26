@@ -379,7 +379,15 @@
       cursor: pointer; white-space: nowrap;
     }
     .am-mini-btn:hover { border-color: var(--c-brand, var(--green)); }
-    .am-mini-btn:disabled { opacity: .6; cursor: not-allowed; }
+    /* Its BACKGROUND is a token that follows the theme; its ink was inherited
+       from the sheet and did not. In light mode that put near-white GPS /
+       Undo point / Clear on a #f1f0ea button — 1.14:1, three invisible
+       controls on the screen where you draw the area you want alerts for.
+       Ink from the same token system as the fill, so the two move together. */
+    .am-mini-btn { color: var(--c-text, #1a1915); }
+    /* .6 took "Use this whole area" to 1.08:1 — disabled is exempt from AA,
+       but a control nobody can read is not a control that looks inert. */
+    .am-mini-btn:disabled { opacity: .75; cursor: not-allowed; }
 
     /* Mode toolbar: Circle / Draw area / Whole ward */
     .am-modes { display: flex; gap: 6px; }
@@ -635,7 +643,8 @@
     .am-btn:hover { border-color: var(--c-brand, var(--green)); }
     .am-btn-brand { background: var(--c-brand, var(--green)); color: #fff; border-color: var(--c-brand, var(--green)); }
     .am-btn-brand:hover { background: var(--c-brand-deep, #064a33); }
-    .am-btn-brand:disabled { opacity: .5; cursor: not-allowed; background: var(--c-brand, var(--green)); }
+    /* .5 put white "Save alert" on rgb(152,177,168) at 2.29:1. */
+    .am-btn-brand:disabled { opacity: .65; cursor: not-allowed; background: var(--c-brand, var(--green)); }
     .houses-result-count { font-size: .88rem; color: var(--c-text-muted, #6b6960); padding: 0 4px 8px; }
 
     /* Split view */
@@ -1053,6 +1062,25 @@
        that never changes with the theme, so the dark ink was wrong in BOTH —
        #06170F on that navy is 1.6:1. Its own rule already says #fff (13.0:1);
        the fix is to stop overriding it. */
+
+    /* ── The same ink-vs-fill bug, two selectors the list above missed ─────
+       .alert-modal's own background is var(--c-surface), so the sheet turns
+       WHITE in light mode. These two kept dark-theme ink regardless, and the
+       audit caught both on all six phones:
+
+         .am-base-seg button.active  #06170F on #0a6f4d   2.98:1
+         .am-btn:not(.am-btn-brand)  #E9F3EE on #ffffff   1.13:1  ("Cancel")
+
+       .am-base-seg button.active is the same fill-flips-so-ink-must-flip case
+       as .am-mode.active above; it was simply a different selector. Cancel is
+       the dark re-skin at line 977 outranking theme-light.css, which sets its
+       palette on :root while this sets it on body. */
+    :root[data-theme="light"] body[data-page="houses"] .am-base-seg button.active { color: #fff; }
+    :root[data-theme="light"] body[data-page="houses"] .am-btn:not(.am-btn-brand) {
+      background: var(--c-surface, #fff);
+      color: var(--c-text, #1a1915);
+      border-color: var(--c-border, #e7e4dd);
+    }
 
     /* ── Leaflet controls on the alert / map-picker modals ─────────────────
        Leaflet ships 30px zoom buttons, a 13px radio and a 14px-tall attribution
