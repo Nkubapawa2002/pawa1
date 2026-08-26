@@ -43,6 +43,14 @@
 -- gone. So: take the grant away, and let the fence be the thing that was
 -- meant to be the fence.
 --
+-- CAVEAT ON THAT 401, ADDED AFTER REVIEW: it was observed ONCE, from one
+-- machine. A second session could not reproduce it — the same request hung
+-- and timed out instead (api.supabase.com connect-times-out from here on
+-- roughly half of all calls). So treat "it fails closed at the vault" as a
+-- single observation, not an established property. It does not change the
+-- fix: the grant was unnecessary either way, and a fence that depends on an
+-- unrelated permission is not a fence whether or not it happens to hold.
+
 -- Nothing in the app reads this table. Clerk is driven from
 -- js/core/auth-clerk.js against Clerk's FRONTEND api, gated behind
 -- APP_CONFIG.USE_CLERK, and never through this wrapper.
