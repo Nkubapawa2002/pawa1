@@ -12,6 +12,19 @@ stages the site into `www/` (gitignored). Full runbook: `docs/APP_BUILD.md`.
 > Historical note: this used to live under `bus web/`. It was flattened to the
 > repo root so GitHub Pages can deploy it without a build step or workflow.
 
+## Design
+
+The brand is a Claude Design project mirrored into `css/ds/tokens/`. Every page
+links `css/design-system.css`, which `@import`s those tokens plus the five brand
+webfonts. Use `var(--token)` — never a raw brand hex.
+
+```bash
+node scripts/design/check_tokens.mjs   # literals that should be tokens
+```
+
+Rules, the token table, the sync procedure and two known traps live in the
+`design` skill (`.claude/skills/design/SKILL.md`) — read it before any UI work.
+
 ## Backend
 
 - **Supabase** — PostgreSQL + Auth + Storage + Edge Functions
