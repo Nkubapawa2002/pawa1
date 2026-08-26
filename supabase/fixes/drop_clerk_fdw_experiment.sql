@@ -42,20 +42,34 @@ drop server if exists "maisha na lifeza_server";
 --   public."ID" .......................  gone
 --
 --
--- TWO THINGS THIS DELIBERATELY DOES NOT DO
+-- THE LAST TWO OBJECTS, REMOVED IN THE SAME PASS
 --
--- 1. The foreign-data-wrapper `maisha na lifeza` still exists, now with zero
---    servers. It is inert in that state, and dropping it is a separate
---    destructive action on a separate object, so it is a separate decision.
+-- Applied 2026-08-26 as drop_clerk_fdw_wrapper_and_vault_key, on the user's
+-- instruction, once the table and server were confirmed gone:
 --
--- 2. The vault secret `maisha na lifeza_api_key_id`
---    (d67aa5a0-87b9-42a8-a6e7-e1979c292daa, created 2026-06-14) still holds
---    the Clerk Admin API key. Nothing uses it any more.
+--   drop foreign data wrapper if exists "maisha na lifeza";
+--   delete from vault.secrets
+--    where id = 'd67aa5a0-87b9-42a8-a6e7-e1979c292daa';
 --
---    READ THIS BEFORE ASSUMING IT IS HANDLED: deleting that vault row does NOT
---    revoke the key. The credential stays valid at Clerk until it is revoked
---    in the Clerk dashboard. Deleting the row only removes this database's
---    copy. If the intent is that the key should stop working, the Clerk
---    dashboard is the only place that does it, and it must happen there
---    whether or not the vault row is deleted.
+-- The wrapper had zero servers left by then, so nothing depended on it. Again
+-- no CASCADE, so an unexpected dependency would have failed loudly.
+--
+-- VERIFIED AFTER THE WHOLE CLEANUP
+--   foreign tables in public .....  0
+--   foreign servers ..............  0
+--   foreign-data wrappers ........  0   (none left in the database at all)
+--   public."ID" ...................  gone
+--   the Clerk vault secret .......  gone
+--   vault.secrets total ..........  0   (it held nothing else, so nothing
+--                                        else was affected)
+--
+--
+-- THE ONE THING SQL CANNOT DO, AND IT IS THE SECURITY-RELEVANT ONE
+--
+-- Deleting the vault row did NOT revoke the credential. That Clerk Admin API
+-- key is still valid at Clerk right now. All this removed is the database's
+-- copy of it. If the key should stop working — and for a key that sat in a
+-- table anon could address, it should — it has to be revoked in the Clerk
+-- dashboard for instance discrete-prawn-57.clerk.accounts.dev. Nothing in
+-- this repository or this database can do that.
 -- ============================================================================
