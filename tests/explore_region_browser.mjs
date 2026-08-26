@@ -275,6 +275,50 @@ try {
   ok(!/Arusha/.test(emptyT2),
      "an empty search with no region does not still blame Arusha", emptyT2);
 
+  // --------------------------------------------------------------------------
+  // 6. A pin somebody was sent in P-Message.
+  //
+  // "Open on the map tab" in a chat hands Explore an exact position rather
+  // than a place name (js/pages/p-message.js, drawSheetActs). Three things
+  // have to move together or the page lies about where it is looking: the
+  // anchor every distance is measured from, the region that scopes the cards,
+  // and the radius — "near this gate" is the question a pin asks.
+  //
+  // The URL round-trip is the other half. Explore rewrites its own URL after
+  // every search; if it wrote the pin back as ?place=<label> then reloading a
+  // link would send whatever a person typed in a chat ("the gate is the blue
+  // one") through the geocoder, and the exact spot would become a guess.
+  process.stdout.write("\n6. A pin received in a conversation\n");
+  await page.goto(
+    URL + "?view=map&at=" + encodeURIComponent(MWANZA.lat + "," + MWANZA.lng) +
+    "&label=" + encodeURIComponent("Blue gate"),
+    { waitUntil: "domcontentloaded", timeout: 30000 });
+  await settle();
+
+  const pinState = await page.evaluate(() => ({
+    region: (document.getElementById("xpRegion") || {}).value,
+    place: (document.getElementById("xpPlace") || {}).value,
+    radius: (document.getElementById("xpRadius") || {}).value,
+  }));
+  ok(pinState.region === "Mwanza",
+     "the region follows the pin, so the cards are scoped to where it is",
+     JSON.stringify(pinState));
+  ok(pinState.place === "Blue gate",
+     "the box reads back the words the sender typed, not a coordinate",
+     JSON.stringify(pinState));
+  ok(String(pinState.radius) === "5",
+     "the radius tightens to the neighbourhood the pin is in",
+     JSON.stringify(pinState));
+
+  const pinIds = await cardIds();
+  ok(pinIds.length > 0 && pinIds.every((id) => MWANZA_IDS.includes(id)),
+     "only what is near the pin comes back", pinIds.join(","));
+
+  const pinUrl = page.url();
+  ok(/[?&]at=/.test(pinUrl) && !/[?&]place=/.test(pinUrl),
+     "the rewritten URL keeps the exact pin instead of downgrading it to a name",
+     pinUrl);
+
   ok(errs.length === 0, "no page errors", errs.slice(0, 5).join("\n        "));
   process.stdout.write("\n" + pass + " passed, " + fail + " failed\n");
 } finally {
