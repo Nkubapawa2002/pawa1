@@ -16,7 +16,13 @@ window.TZ_UNIVERSITIES = [
   { name: "College of Business Education (CBE)",                  kind: "college",    city: "Dar es Salaam", lat: -6.8156, lng: 39.2809 },
   { name: "National Institute of Transport (NIT)",                kind: "institute",  city: "Dar es Salaam", lat: -6.8240, lng: 39.2440 },
   { name: "Tanzania Institute of Accountancy (TIA)",              kind: "institute",  city: "Dar es Salaam", lat: -6.8196, lng: 39.2800 },
-  { name: "Mwalimu Nyerere Memorial Academy (Kigamboni)",         kind: "university", city: "Dar es Salaam", lat: -6.8265, lng: 39.3055, aliases: ["mwalimu nyerere", "nyerere academy", "mnma", "kivukoni academy", "chuo cha mwalimu nyerere", "kigamboni ferry academy"] },
+  // Almost nobody types this one's legal name. It is "Mwl. Nyerere" on the sign,
+  // "Mwalimu Nyerere University" in conversation, and LocationIQ cannot geocode
+  // any of those — the online geocoder answers "Unable to geocode" for the full
+  // name and returns a DIFFERENT institute 800 km away in Tabora for the short
+  // one. So the ways people actually say it are listed here, where the local
+  // matcher can reach them without a round trip.
+  { name: "Mwalimu Nyerere Memorial Academy (Kigamboni)",         kind: "university", city: "Dar es Salaam", lat: -6.8265, lng: 39.3055, aliases: ["mwalimu nyerere", "mwl nyerere", "mwalimu nyerere university", "mwl nyerere university", "nyerere academy", "mnma", "kivukoni academy", "chuo cha mwalimu nyerere", "kigamboni ferry academy"] },
 
   // Morogoro
   { name: "Sokoine University of Agriculture (SUA)",              kind: "university", city: "Morogoro",      lat: -6.8489, lng: 37.6533 },
@@ -41,6 +47,11 @@ window.TZ_UNIVERSITIES = [
   { name: "St. Augustine University of Tanzania (SAUT)",          kind: "university", city: "Mwanza",        lat: -2.5717, lng: 32.8967 },
   { name: "Catholic University of Health & Allied Sciences",      kind: "university", city: "Mwanza",        lat: -2.5169, lng: 32.9192 },
   { name: "Bugando University - College",                         kind: "college",    city: "Mwanza",        lat: -2.5160, lng: 32.9180 },
+
+  // Mara — the OTHER university named after Nyerere. Listed so that a search for
+  // "Nyerere university" offers both and the nearer one wins, instead of one of
+  // them being silently unreachable.
+  { name: "Mwalimu Julius K. Nyerere University of Agriculture & Technology (MJNUAT)", kind: "university", city: "Butiama", lat: -1.7667, lng: 34.0167, aliases: ["mjnuat", "nyerere university of agriculture", "butiama university"] },
 
   // Iringa
   { name: "University of Iringa",                                 kind: "university", city: "Iringa",        lat: -7.7700, lng: 35.7000 },
@@ -164,7 +175,10 @@ window.TZ_REGION_CENTERS = [
 //  Used by the Houses page to drop an exact pin on a searched landmark and
 //  measure how far listings (and the user's home) are from it.
 // ----------------------------------------------------------------------------
-window.resolveTzPlace = function (query) {
+// `opts.near` ({lat,lng}) is optional and only ever breaks a TIE between two
+// equally-named places — the reason a Dar listing searching "Nyerere university"
+// gets the Kigamboni campus rather than the one in Mara.
+window.resolveTzPlace = function (query, opts) {
   const norm = (s) => String(s || "").toLowerCase().replace(/[.,()]/g, " ").replace(/\s+/g, " ").trim();
   const t = norm(query);
   if (t.length < 2) return null;
@@ -202,7 +216,32 @@ window.resolveTzPlace = function (query) {
       if (!best || score > best._score) best = { lat: p.lat, lng: p.lng, name: p.name, kind: p.kind, r: p.r, _score: score };
     }
   }
-  return best;
+  if (best) return best;
+
+  // Nothing contained a token literally. That is not the same as "we don't know
+  // this place" — it is usually one wrong letter, an abbreviation, or the same
+  // institution said in Swahili. pawaPlaceMatch scores those properly, so give
+  // it the last word before answering null.
+  //
+  // Strictly additive in two ways, both deliberate. It runs ONLY after the
+  // exact-containment pass above has failed, so no lookup that used to succeed
+  // can change its answer. And it accepts only an `exact` match — every word
+  // typed is a word the place is called, just arranged or translated
+  // differently ("chuo kikuu cha dar es salaam" → University of Dar es Salaam).
+  //
+  // A SPELLING GUESS IS STILL REFUSED HERE, however high it scores. This
+  // function's callers act on its answer with nobody watching, and "Mikoceni"
+  // must keep returning null so the caller offers a choice instead of moving a
+  // map to a letter the user did not type. The guesses live in
+  // closestTzPlaces() below, which exists to be shown to a person.
+  const pm = window.pawaPlaceMatch;
+  if (pm) {
+    const hit = pm.best(query, { min: pm.STRONG, near: opts && opts.near });
+    if (hit && hit.exact) {
+      return { lat: hit.lat, lng: hit.lng, name: hit.name, kind: hit.kind, r: hit.r, _score: hit.score };
+    }
+  }
+  return null;
 };
 
 // ----------------------------------------------------------------------------
@@ -217,11 +256,24 @@ window.resolveTzPlace = function (query) {
 // gazetteer entry by how much of it the query looks like and hands back the
 // nearest few, so the user is always offered somewhere to go.
 //
-// Dice coefficient over character bigrams: cheap, order-insensitive enough to
-// survive a transposition, and it does not need a matrix like Levenshtein.
 // Returns [{ name, lat, lng, kind, score }] best first, score in 0..1.
+//
+// The real scoring lives in pawaPlaceMatch, which knows about abbreviations,
+// Swahili, word importance and how far away each candidate is. What stays here
+// is the ORIGINAL bigram scorer, used only on pages that do not load
+// place-match.js — a raw dice coefficient answers something rather than
+// dead-ending, which was the point of this function in the first place.
 // ----------------------------------------------------------------------------
-window.closestTzPlaces = function (query, limit) {
+window.closestTzPlaces = function (query, limit, opts) {
+  const pm = window.pawaPlaceMatch;
+  if (pm) {
+    // Two letters is not a query. A "did you mean" that answers anything has to
+    // be able to say no, and at two characters every place in the country is
+    // equally plausible — the floor is the original one, kept.
+    if (String(query || "").trim().length < 3) return [];
+    return pm.search(query, { limit: limit || 5, near: opts && opts.near })
+      .map((r) => ({ name: r.name, lat: r.lat, lng: r.lng, kind: r.kind, score: r.score }));
+  }
   const norm = (s) => String(s || "").toLowerCase().replace(/[.,()]/g, " ").replace(/\s+/g, " ").trim();
   const q = norm(query);
   if (q.length < 3) return [];

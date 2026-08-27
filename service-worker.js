@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v305-2026-08-18-national-video";
+const VERSION = "v306-2026-08-26-place-match";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -39,6 +39,7 @@ const APP_SHELL = [
   "./js/lib/geo.js",
   "./js/lib/geo-poly.js",
   "./js/lib/tz-places.js",
+  "./js/lib/place-match.js",
   "./js/lib/video-space.js",
   "./js/pages/video-space-home.js",
   // Explore — the global search. Its four libs are precached together because

@@ -99,6 +99,13 @@
 
   // Core call: cache → LocationIQ → empty on failure. Never throws: callers get
   // [] (search) or {} (reverse) so the map degrades gracefully instead of breaking.
+  // Requests already in the air, keyed exactly like the cache. The cache only
+  // helps AFTER a response lands, so a box that fires a lookup while typing and
+  // then fires the same one again when the user hits the button used to pay for
+  // both — two identical calls, 550 ms apart by the throttle, against a quota
+  // every visitor shares. Second caller now waits on the first one's promise.
+  const inflight = new Map();
+
   async function call(kind, qs) {
     const original = String(qs || "").replace(/^\?/, "");
     const cacheKey = kind + "?" + original;
@@ -108,10 +115,18 @@
       console.warn("[geo] APP_CONFIG.LOCATIONIQ_KEY is not set — geocoding is disabled.");
       return kind === "reverse" ? {} : [];
     }
-    const j = await liqFetch(liqUrl(kind, original), TIMEOUT_MS);
-    if (j == null) return kind === "reverse" ? {} : [];
-    cacheSet(cacheKey, j);
-    return j;
+    const pending = inflight.get(cacheKey);
+    if (pending) return pending;
+
+    const p = liqFetch(liqUrl(kind, original), TIMEOUT_MS)
+      .then((j) => {
+        if (j == null) return kind === "reverse" ? {} : [];
+        cacheSet(cacheKey, j);
+        return j;
+      })
+      .finally(() => inflight.delete(cacheKey));
+    inflight.set(cacheKey, p);
+    return p;
   }
 
   // Kept for backwards-compat with callers that referenced the old gateway API.
@@ -267,22 +282,101 @@
     return kept.filter((s) => s !== q);
   }
 
+  // A gazetteer hit dressed as a suggest() row, so callers cannot tell the two
+  // apart except by the flags they already check.
+  //
+  // `fuzzy` keeps the exact meaning it has always had here, and the line is
+  // drawn at `exact` rather than at a score: a row is only NOT a guess when
+  // every word the person typed is a word the place is actually called. A high
+  // score is not the same thing — "Mikoceni" scores 0.86 against Mikocheni, and
+  // it is still a letter the user did not type.
+  //
+  // That distinction is load-bearing. suggest() is shared by a dozen screens;
+  // most hand the list to a person who taps a row, but four act on hits[0] with
+  // nobody watching (houses.js geocodeAreaFilter, near-me.js, frame.js, ai.js
+  // locate) and drop `fuzzy` rows precisely so a spelling guess can never
+  // silently move a map or filter a list. What changed is only that the guesses
+  // now ARRIVE — on this page they were never even loaded — not that anyone is
+  // newly allowed to act on one.
+  function localRow(c) {
+    return {
+      name: c.name, tag: c.exact ? kindTag(c.kind) : "Closest match",
+      context: c.city && c.city !== c.name ? c.city : "",
+      lat: c.lat, lng: c.lng, full: c.name, id: "tz:" + c.name, r: c.r,
+      local: true, score: c.score,
+      approx: !c.exact, fuzzy: !c.exact,
+      matchedOn: c.matchedOn && c.matchedOn !== c.name ? c.matchedOn : undefined,
+    };
+  }
+  const KIND_TAG = {
+    university: "University", college: "College", institute: "Institute",
+    mall: "Mall", market: "Market", hospital: "Hospital", airport: "Airport",
+    stadium: "Stadium", transport: "Transport", area: "Area", region: "Region",
+  };
+  function kindTag(k) { return KIND_TAG[k] || "Place"; }
+
+  // Two rows are the same place when they carry the same name within ~1.5 km —
+  // enough to catch "Mlimani City Mall" (ours) against "Mlimani City" (theirs)
+  // without collapsing two genuinely different places that share a name.
+  function samePlace(a, b) {
+    const na = String(a.name || "").toLowerCase(), nb = String(b.name || "").toLowerCase();
+    if (!(na.includes(nb) || nb.includes(na))) return false;
+    return Math.abs(a.lat - b.lat) < 0.014 && Math.abs(a.lng - b.lng) < 0.014;
+  }
+
+  // suggest(q, { limit, near }) — turn a typed string into ranked places.
+  //
+  // The order of work here is the whole optimisation. It used to be "ask
+  // LocationIQ, then ask it twice more with fewer words, then finally look in
+  // our own gazetteer if all three came back empty" — up to three SEQUENTIAL
+  // round trips (held 550 ms apart, 8 s timeout, three retries on a 429) to
+  // find places whose coordinates we ship in the page. Worse, the local
+  // gazetteer was only consulted on a completely empty result, so a query like
+  // "Mwl Nyerere University" — which LocationIQ answers with one row for a
+  // different institute 800 km away in Tabora — never reached it at all.
+  //
+  // Now: match locally first (no network, ~5 ms), ask the geocoder once, and
+  // only pay for extra round trips when we still have nothing worth showing.
+  // `near` ({lat,lng}) is optional and only breaks ties between same-named
+  // places — on a listing page it is the listing's own pin.
   async function suggest(q, opts = {}) {
     q = String(q || "").trim();
     if (q.length < 2) return [];
     const limit = opts.limit || 25;
+
+    // 1. What we already know. Free, instant, and often the better answer.
+    const pm = window.pawaPlaceMatch;
+    const locals = pm ? pm.search(q, { near: opts.near, limit: 8 }) : [];
+    // "Strong" here means only "good enough that a dead end is not what we are
+    // about to hit", so it also buys the user out of the rescue round trips
+    // below. It does NOT mean the row may be acted on — see localRow().
+    const haveStrongLocal = locals.length > 0 && locals[0].score >= (pm ? pm.STRONG : 0.82);
+
+    // 2. One geocoder round trip for everything we do not know.
     let list = await rawSearch(q, limit);
-    // Nothing for what they typed — try the looser forms before giving up, and
-    // mark what came back so the caller can say "closest match" rather than
-    // presenting an approximation as the thing that was asked for.
     let loosenedFrom = "";
-    if (!list.length) {
-      for (const alt of loosenings(q)) {
-        list = await rawSearch(alt, limit);
-        if (list.length) { loosenedFrom = alt; break; }
+
+    // 3. Only if that found nothing. A confident local answer buys the user out
+    //    of this entirely — those extra lookups exist to rescue a dead end, and
+    //    we are not at one.
+    if (!list.length && !haveStrongLocal) {
+      // Spelling first: "Mikoceni" is one letter from a ward LocationIQ knows
+      // perfectly well, and asking again with the word spelled the way the
+      // gazetteer spells it costs one trip and answers far more often than
+      // dropping words does.
+      const fixed = pm ? pm.correct(q) : null;
+      if (fixed && fixed.corrected && fixed.query !== q.toLowerCase()) {
+        list = await rawSearch(fixed.query, limit);
+        if (list.length) loosenedFrom = fixed.query;
+      }
+      if (!list.length) {
+        for (const alt of loosenings(q)) {
+          list = await rawSearch(alt, limit);
+          if (list.length) { loosenedFrom = alt; break; }
+        }
       }
     }
-    if (!Array.isArray(list)) return [];
+    if (!Array.isArray(list)) list = [];
     const out = [];
     const seen = new Set();
     for (const it of list) {
@@ -301,27 +395,6 @@
       seen.add(key);
       out.push({ name, tag: tagOf(it), context, lat, lng, full: it.display_name || name, id: key,
                  approx: !!loosenedFrom, matchedOn: loosenedFrom || undefined });
-    }
-
-    // Still nothing the geocoder knows: fall back to the local gazetteer's
-    // nearest-looking places. A misspelling should cost a user a tap, not the
-    // whole feature — "No matches in Tanzania" was a dead end on a screen whose
-    // entire purpose is to pick somewhere.
-    //
-    // `fuzzy` marks these apart from the loosened hits above, and the two are
-    // not the same kind of answer. A loosened hit is a real geocoder result for
-    // words the user actually typed; a fuzzy one is a GUESS at a word they did
-    // not type. So a caller that hands its list to a person may show either —
-    // captioned as approximate — while a caller that acts on hits[0] with
-    // nobody watching must take neither. See the four such callers, each of
-    // which skips `fuzzy` rather than silently moving a map to a spelling
-    // guess: houses.js geocodeAreaFilter, near-me.js, frame.js, ai.js locate.
-    if (!out.length && typeof window.closestTzPlaces === "function") {
-      for (const c of window.closestTzPlaces(q, 5)) {
-        out.push({ name: c.name, tag: "Closest match", context: "", lat: c.lat, lng: c.lng,
-                   full: c.name, id: "near:" + c.name, approx: true, fuzzy: true, score: c.score });
-      }
-      return out;   // already ranked by similarity; the sort below would undo that
     }
 
     // ---- Advanced ranking: match the admin hierarchy the user searches by ----
@@ -349,7 +422,26 @@
       levelRank(a.tag) - levelRank(b.tag) ||
       a.name.length - b.name.length
     );
-    return out;
+
+    // ---- Merge in what we know locally ---------------------------------------
+    // Local hits for a name the person literally typed go FIRST. This is the fix
+    // for the confidently-wrong answer: for "Mwl Nyerere University" the
+    // geocoder's only row is an institute in Tabora, and it is not wrong to show
+    // it — it is wrong to show it alone, at the top, as though it were the
+    // campus in Dar. Spelling guesses go last, flagged `fuzzy`, as the "did you
+    // mean" they are, so they can be offered without being mistaken for answers.
+    //
+    // A local row that names the same place as an online row is dropped in
+    // favour of ours: we have the better name for it and the geocoder's row
+    // carries nothing extra.
+    const strongLocal = [], weakLocal = [];
+    for (const c of locals) {
+      const row = localRow(c);
+      if (out.some((o) => samePlace(o, row))) continue;
+      (row.fuzzy ? weakLocal : strongLocal).push(row);
+    }
+    const merged = strongLocal.concat(out, weakLocal);
+    return merged.slice(0, limit);
   }
 
   // ---- pawaRoute.table(): REAL road distances (not straight-line) ----------
