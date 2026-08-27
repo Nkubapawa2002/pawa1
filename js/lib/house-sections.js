@@ -187,7 +187,7 @@ function moveInHtml(mi) {
     <div class="hx-specs-split__label" style="margin-top:16px">Then, every month</div>
     <ul class="hx-lines">
       <li><span class="hx-line-k">Rent</span><span class="hx-line-v">${esc(window.HouseRooms.money(m.rent))}</span></li>
-      ${m.bills.map(b => `<li${b.amount == null ? ' class="is-muted"' : ""}>
+      ${m.bills.map(b => `<li${b.amount == null && !b.free ? ' class="is-muted"' : ""}${b.free ? ' class="is-free"' : ""}>
         <span class="hx-line-k">${esc(b.label)}</span>
         <span class="hx-line-v">${esc(billValue(b))}</span>
       </li>`).join("")}
@@ -231,6 +231,11 @@ function lineHtml(l) {
 function billValue(b) {
   if (b.billing === "included") return "Included";
   if (b.billing === "metered")  return "Pay as you use";
+  // Stated as costing nothing. This is a fact worth reading, and it must not
+  // render as "TZS 0" (which looks like a data error) or fall through to
+  // "Ask the agent" (which is what it used to do).
+  if (b.free)                   return window.HouseSpec && window.HouseSpec.freeLabel
+                                  ? window.HouseSpec.freeLabel() : "Free";
   if (b.amount != null)         return window.HouseRooms.money(b.amount);
   return "Ask the agent";
 }

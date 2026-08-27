@@ -752,6 +752,57 @@ body[data-page="house"] :focus-visible {
   background: var(--hx-line);
 }
 
+/* A second-level label inside the same block ("What it has" under "What this
+   space is"). Quieter than the first, and it keeps the rule so the two read as
+   one stack rather than two cards. */
+.hx-specs-split__label--sub { margin-top: var(--space-5); }
+
+/* ---- Room characteristics -------------------------------------------------
+   Bathroom inside, tiled floor, sink board, and whatever the agent typed. The
+   catalogue is open on purpose, so these carry no icons: an invented
+   characteristic would be the only chip without one, which is exactly the
+   signal we do not want to send about an agent's own words. */
+.hx-feats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hx-feat {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hx-line);
+  border-radius: var(--radius-pill);
+  background: var(--hx-panel-2);
+  color: var(--hx-ink-soft);
+  font: var(--fw-semibold) var(--text-sm)/1.2 var(--font-app);
+}
+.hx-feat::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--hx-accent);
+  flex-shrink: 0;
+}
+
+/* Sizes are a bracket, not a survey. The page says so wherever one is shown,
+   because a bracket presented without that line reads like a measurement. */
+.hx-size-note {
+  margin: var(--space-3) 0 0;
+  font: var(--fw-regular) var(--text-sm)/1.5 var(--font-app);
+  color: var(--hx-ink-faint);
+}
+.hx-size-hint { color: var(--hx-ink-soft); }
+
+/* A cost stated as nothing is good news, not a missing value: it must not wear
+   the muted styling that means "the agent did not say". */
+.hx-lines li.is-free .hx-line-v { color: var(--hx-accent); font-weight: var(--fw-bold); }
+
 /* Staggered entrance, cheap and short. */
 .hx-spec, .hd-spec { animation: ml-fade-in var(--dur) var(--ease) both; }
 .hx-spec:nth-child(2), .hd-spec:nth-child(2) { animation-delay: 40ms; }

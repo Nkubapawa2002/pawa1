@@ -54,6 +54,22 @@
   var DEPOSIT_NONE   = /^\s*(none|no deposit|hakuna|hamna)\b/i;
   var DEPOSIT_MONTHS = /(\d+)\s*(month|months|mwezi|miezi)/i;
 
+  // "What did the agent mean by this figure" is decided in exactly one place —
+  // house-spec.js — so the form, the money engine and the page can never
+  // disagree about whether 0 means free or means nobody said. The fallbacks
+  // keep this module usable on a page that did not bundle house-spec.js.
+  function cost(v) {
+    var S = window.HouseSpec;
+    if (S && S.parseCost) return S.parseCost(v);
+    var n = Number(v);
+    if (v == null || v === "" || !isFinite(n)) return { known: false, free: false, amount: null };
+    return n <= 0 ? { known: true, free: true, amount: 0 } : { known: true, free: false, amount: n };
+  }
+  function freeWord() {
+    var S = window.HouseSpec;
+    return S && S.freeLabel ? S.freeLabel() : "Free";
+  }
+
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -91,6 +107,8 @@
         vacant: null,
         ensuite: false,
         size: Number(row && row.size_sqm) || null,
+        sizeBand: null,
+        features: [],
         note: "",
         synthetic: true,
       });
@@ -114,6 +132,8 @@
         vacant: r.vacant,
         ensuite: !!r.ensuite,
         size: r.size,
+        sizeBand: r.sizeBand || null,
+        features: Array.isArray(r.features) ? r.features : [],
         note: r.note || "",
         synthetic: !!r.synthetic,
         // vacant === 0 is "every one of these is taken right now", which is a
@@ -246,12 +266,18 @@
     }
 
     // 4. One-off charges the agent itemised (connection fees, keys, a survey).
+    // Zero is an answer, not a gap: "no connection fee" is one of the better
+    // things a listing can say, and it used to be filed with the unknowns and
+    // rendered "Ask the agent" — turning the best news in the listing into a
+    // phone call. cost() tells the three apart: stated, stated-as-free, absent.
     (Array.isArray(row.extra_costs) ? row.extra_costs : []).forEach(function (c) {
       if (!c || !c.label || c.billing !== "oneoff") return;
-      var amt = Number(c.amount);
-      if (Number.isFinite(amt) && amt > 0) {
-        lines.push({ k: c.label, v: money(amt), sub: "one-off", src: "stated" });
-        total += amt;
+      var p = cost(c.amount);
+      if (p.free) {
+        lines.push({ k: c.label, v: freeWord(), sub: "one-off", src: "stated", free: true });
+      } else if (p.known) {
+        lines.push({ k: c.label, v: money(p.amount), sub: "one-off", src: "stated" });
+        total += p.amount;
       } else {
         lines.push({ k: c.label, v: "Ask the agent", src: "open", muted: true });
         open.push(c.label);
@@ -262,10 +288,13 @@
     var bills = [];
     (Array.isArray(row.extra_costs) ? row.extra_costs : []).forEach(function (c) {
       if (!c || !c.label || c.billing === "oneoff") return;
-      var amt = Number(c.amount);
+      var p = cost(c.amount);
       bills.push({
         label: c.label,
-        amount: Number.isFinite(amt) && amt > 0 ? amt : null,
+        // amount 0 with free:true is "water is included". amount null is "we
+        // do not know". They must not collapse into the same null again.
+        amount: p.known ? p.amount : null,
+        free: p.free,
         billing: c.billing || "month",
       });
     });
@@ -283,7 +312,7 @@
         rent: rent,
         bills: bills,
         total: billTotal > 0 ? rent + billTotal : rent,
-        hasUnknownBills: bills.some(function (b) { return b.amount == null && b.billing === "month"; }),
+        hasUnknownBills: bills.some(function (b) { return b.amount == null && !b.free && b.billing === "month"; }),
       },
       simple: false,
     };
@@ -318,13 +347,48 @@
 
   /** The tiles that describe THE SELECTED SPACE — never the building. */
   function roomTiles(room) {
+    var S = window.HouseSpec;
     var out = [];
     out.push(tile(ICONS.tag, room.label, "This space", { feature: true }));
+    // A bracket the agent chose beats a square-metre figure they estimated to
+    // fill a box. Both are shown when both exist — a real measurement is worth
+    // keeping — but the bracket leads, because it is the one that was meant.
+    if (room.sizeBand && S && S.sizeLabel) {
+      out.push(tile(ICONS.size, S.sizeLabel(room.sizeBand), "Size"));
+    }
     if (room.size) out.push(tile(ICONS.size, room.size + ' <small>m&sup2;</small>', "Floor area", { raw: true }));
     out.push(tile(ICONS.bath, room.ensuite ? "Own" : "Shared", "Bathroom"));
     if (room.count > 1) out.push(tile(ICONS.count, room.count, "Of this kind"));
     if (room.periodLabel) out.push(tile(ICONS.clock, room.periodLabel.replace(/^per\s+/i, ""), "Billed per"));
     return out.join("");
+  }
+
+  /**
+   * The characteristics of the selected space — "bathroom inside", "tiled
+   * floor", "sink board", and whatever else the agent wrote.
+   *
+   * These are the facts a renter decides on and the old schema had no box for,
+   * so they used to end up in the description where they cannot be compared.
+   * Rendered as plain chips: no icons, because the catalogue is open and an
+   * agent's invented characteristic would be the only one without a picture.
+   */
+  function roomFeaturesHtml(room) {
+    var S = window.HouseSpec;
+    var labels = S && S.featureLabels ? S.featureLabels(room && room.features)
+      : (Array.isArray(room && room.features) ? room.features.slice() : []);
+    if (!labels.length) return "";
+    return '<ul class="hx-feats">' + labels.map(function (l) {
+      return '<li class="hx-feat">' + esc(l) + '</li>';
+    }).join("") + '</ul>';
+  }
+
+  /** The "judge the rest from the photos" line, shown under a size bracket. */
+  function sizeNoteHtml(room) {
+    var S = window.HouseSpec;
+    if (!room || !room.sizeBand || !S || !S.sizeNote) return "";
+    var hint = S.sizeHint ? S.sizeHint(room.sizeBand) : "";
+    return '<p class="hx-size-note">' + esc(S.sizeNote()) +
+      (hint ? ' <span class="hx-size-hint">' + esc(hint) + '</span>' : "") + '</p>';
   }
 
   /**
@@ -398,7 +462,19 @@
     '<div class="hx-specs-split">' +
       '<div class="hx-specs-split__label">What this space is</div>' +
       '<div class="hx-specs">' + roomTiles(room) + '</div>' +
+      sizeNoteHtml(room) +
+      featuresBlock(room) +
     '</div>';
+  }
+
+  /** The characteristics list, under its own label so it reads as a list of
+   *  facts rather than more tiles. Absent entirely when there are none — an
+   *  empty "Characteristics" heading says nothing and costs a screenful. */
+  function featuresBlock(room) {
+    var html = roomFeaturesHtml(room);
+    if (!html) return "";
+    return '<div class="hx-specs-split__label hx-specs-split__label--sub">' +
+      'What it has' + '</div>' + html;
   }
 
   window.HouseRooms = {
@@ -413,5 +489,7 @@
     tab: tab,
     roomPanel: roomPanel,
     buildingTiles: buildingTiles,
+    roomFeaturesHtml: roomFeaturesHtml,
+    sizeNoteHtml: sizeNoteHtml,
   };
 })();
