@@ -10,12 +10,16 @@
 // the read side ever silently drops away again.
 //
 // What it checks, in the order the page answers them:
-//   1. a plot that rents room by room says "From" and then lists the rooms
-//   2. the cheapest room is marked, because that is what "from" points at
-//   3. a full room is dimmed and struck rather than hidden
+//   1. a plot that rents room by room offers every one of them as a choice
+//   2. the headline price is headed by the space it belongs to, and follows
+//      the reader's choice - which is what the old page's single word "From"
+//      was standing in for, and could not actually promise
+//   3. the cheapest space is marked; a full one is dimmed rather than hidden
 //   4. a room with no price says so instead of showing zero
-//   5. the agent's fact groups render, including one they named themselves
-//   6. a listing with no spec sheet grows no empty cards
+//   5. the agent's fact groups render, including one they named themselves,
+//      and the deposit they wrote in prose becomes a real line in the total
+//   6. a listing with no spec sheet grows no empty cards, and no rail chip
+//      pointing at a card that is not there
 //   7. the directory card says the same two things one screen earlier
 //   8. the room and budget filters read the sheet, so a master room on a
 //      plot whose CHEAPEST room is a single stops being invisible — and
@@ -245,62 +249,114 @@ try {
     }
   };
   const rendered = () => until("the listing to render",
-    () => !!document.querySelector(".hd-title"));
+    () => !!document.querySelector(".hx-hero__title"));
+
+  // Read the room picker and the selected space's panel in one go — after the
+  // rebuild these are what the spec sheet actually becomes on screen.
+  const readRooms = () => page.evaluate(() => ({
+    tabs: [...document.querySelectorAll(".hx-roomtab")].map((b) => ({
+      kind: (b.querySelector(".hx-roomtab__k") || {}).textContent.trim(),
+      price: (b.querySelector(".hx-roomtab__p") || {}).textContent.trim(),
+      taken: b.classList.contains("is-taken"),
+      tagged: !!b.querySelector(".hx-roomtab__flag"),
+      selected: b.getAttribute("aria-selected") === "true",
+    })),
+    selected: {
+      name: (document.querySelector(".hx-room__name") || {}).textContent.trim(),
+      note: ((document.querySelector(".hx-room__note") || {}).textContent || "").trim(),
+      price: ((document.querySelector(".hx-room__price") || {}).textContent || "").replace(/\s+/g, " ").trim(),
+      vacancy: ((document.querySelector(".hx-vacancy__row") || {}).textContent || "").trim(),
+      tiles: [...document.querySelectorAll("#hxRoomPanel .hx-spec")].map((t) =>
+        ((t.querySelector(".hx-spec__lbl") || {}).textContent + ": " +
+         (t.querySelector(".hx-spec__val") || {}).textContent).replace(/\s+/g, " ").trim()),
+    },
+    moneyLead: ((document.querySelector("#sec-money h3") || {}).textContent || "").trim(),
+    moneyPrice: ((document.querySelector(".hd-price") || {}).textContent || "").replace(/\s+/g, " ").trim(),
+  }));
+
+  const pickRoom = async (label) => {
+    await page.evaluate((want) => {
+      const b = [...document.querySelectorAll(".hx-roomtab")]
+        .find((x) => new RegExp(want, "i").test(x.textContent));
+      if (b) b.click();
+    }, label);
+    await new Promise((r) => setTimeout(r, 250));
+  };
 
   // --------------------------------------------------------------------------
-  process.stdout.write("\n1. The library reaches the page at all\n");
+  process.stdout.write("\n1. The libraries reach the page at all\n");
   await page.goto(BASE + "?id=h-spec", { waitUntil: "domcontentloaded", timeout: 30000 });
   await rendered();
   ok(await page.evaluate(() => !!window.HouseSpec),
      "house.html loads js/lib/house-spec.js");
+  ok(await page.evaluate(() => !!window.HouseRooms),
+     "house.html loads js/lib/house-rooms.js");
 
   process.stdout.write("\n2. A plot that rents room by room\n");
-  const rooms = await page.$$eval(".hd-room", (n) => n.map((r) => ({
-    kind: (r.querySelector(".hd-room-k") || {}).textContent.trim(),
-    facts: ((r.querySelector(".hd-room-f") || {}).textContent || "").trim(),
-    note: ((r.querySelector(".hd-room-n") || {}).textContent || "").trim(),
-    price: (r.querySelector(".hd-room-p") || {}).textContent.trim(),
-    taken: r.classList.contains("is-taken"),
-    tagged: !!r.querySelector(".hd-room-tag"),
-  })));
-  ok(rooms.length === 3, "every room type in the sheet gets a row (" + rooms.length + ")",
-     JSON.stringify(rooms));
+  let r = await readRooms();
+  ok(r.tabs.length === 3, "every room type in the sheet gets a tab (" + r.tabs.length + ")",
+     JSON.stringify(r.tabs));
 
-  const single = rooms.find((r) => /Single/i.test(r.kind));
-  const master = rooms.find((r) => /Master/i.test(r.kind));
-  const godown = rooms.find((r) => /Godown/i.test(r.kind));
+  const single = r.tabs.find((t) => /Single/i.test(t.kind));
+  const master = r.tabs.find((t) => /Master/i.test(t.kind));
+  const godown = r.tabs.find((t) => /Godown/i.test(t.kind));
 
   ok(single && /60,000/.test(single.price), "the single room shows its own price",
      JSON.stringify(single));
   ok(master && /150,000/.test(master.price), "the master room shows a different one",
      JSON.stringify(master));
-  ok(single && /1 of 3 free now/.test(single.facts),
-     "how many there are, and how many are free, is stated", JSON.stringify(single));
-  ok(master && /Own bathroom/.test(master.facts) && /18 m²/.test(master.facts),
-     "a self-contained room says so, with its size", JSON.stringify(master));
-  ok(master && /Upstairs, own entrance/.test(master.note),
-     "the sentence the agent wrote about that one room survives", JSON.stringify(master));
 
-  process.stdout.write("\n3. What \"from\" is pointing at\n");
-  const priceHead = await page.$eval(".hd-price", (n) => n.textContent.replace(/\s+/g, " ").trim());
-  ok(/^From/i.test(priceHead),
-     "the headline says From, so 60,000 is not mistaken for the price of the plot",
-     priceHead);
-  ok(single && single.tagged && !(master && master.tagged),
-     "and the cheapest room — only the cheapest — is marked as such",
-     JSON.stringify(rooms.map((r) => [r.kind, r.tagged])));
+  process.stdout.write("\n3. The headline price belongs to a named space\n");
+  // The old page printed "From TZS 60,000" over a plot with four kinds of
+  // space and left the reader to work out which one that was. Now the money
+  // card is headed by the space it is quoting, and changing the space changes
+  // the quote — which is a stronger promise than one word ever was.
+  ok(single && single.selected,
+     "the page opens on the cheapest space that is actually free",
+     JSON.stringify(r.tabs.map((t) => [t.kind, t.selected])));
+  ok(/Single/i.test(r.moneyLead) && /60,000/.test(r.moneyPrice),
+     "and the price card is headed by that space, quoting that space's price",
+     r.moneyLead + " / " + r.moneyPrice);
+  ok(single.tagged && !(master && master.tagged) && !(godown && godown.tagged),
+     "the cheapest space — only the cheapest — is marked as such",
+     JSON.stringify(r.tabs.map((t) => [t.kind, t.tagged])));
 
-  process.stdout.write("\n4. Rooms that cannot be rented, and rooms with no price\n");
-  ok(master && master.taken,
-     "a room with nothing free is dimmed rather than deleted", JSON.stringify(master));
-  ok(single && !single.taken, "one with a vacancy is not", JSON.stringify(single));
+  await pickRoom("Master");
+  r = await readRooms();
+  ok(/Master/i.test(r.moneyLead) && /150,000/.test(r.moneyPrice),
+     "picking the master room moves the headline price to 150,000",
+     r.moneyLead + " / " + r.moneyPrice);
+  ok(/Upstairs, own entrance/.test(r.selected.note),
+     "the sentence the agent wrote about that one room shows with it",
+     JSON.stringify(r.selected));
+  ok(r.selected.tiles.some((t) => /Bathroom: Own/i.test(t)) &&
+     r.selected.tiles.some((t) => /Floor area: 18/.test(t)),
+     "a self-contained room says so, with its own size — not the building's",
+     JSON.stringify(r.selected.tiles));
+  ok(/all taken/i.test(r.selected.vacancy),
+     "a space with nothing free says so outright", JSON.stringify(r.selected));
+  ok(master.taken && !single.taken,
+     "and its tab is dimmed rather than deleted — a full plot still tells you what it rents for",
+     JSON.stringify(r.tabs.map((t) => [t.kind, t.taken])));
+
+  process.stdout.write("\n4. Vacancy, and a room with no price\n");
+  await pickRoom("Single");
+  r = await readRooms();
+  ok(/1 of 3 free now/i.test(r.selected.vacancy),
+     "how many there are, and how many are free, is stated",
+     JSON.stringify(r.selected));
   ok(godown && /Ask the agent/i.test(godown.price),
      "a room with no price asks, instead of printing TZS 0", JSON.stringify(godown));
+  await pickRoom("Godown");
+  r = await readRooms();
+  ok(/Ask the agent/i.test(r.selected.price),
+     "and its panel says the same rather than quoting a figure from another room",
+     JSON.stringify(r.selected));
 
   process.stdout.write("\n5. Everything that is not money\n");
-  const groups = await page.$$eval(".hd-group-card", (n) => n.map((c) => ({
-    title: (c.querySelector("h3") || {}).textContent.trim(),
-    icon: !!c.querySelector(".hd-group-i"),
+  const groups = await page.$$eval(".hx-acc__item", (n) => n.map((c) => ({
+    title: (c.querySelector(".hx-acc__btn span") || {}).textContent.trim(),
+    icon: !!c.querySelector(".hx-acc__btn > svg"),
     lines: [...c.querySelectorAll(".hd-facts li")].map((li) => [
       (li.querySelector(".hd-fact-l") || {}).textContent.trim(),
       (li.querySelector(".hd-fact-v") || {}).textContent.trim(),
@@ -320,10 +376,31 @@ try {
      JSON.stringify(groups.map((g) => g.title)));
   ok(rules && rules.icon, "a preset group keeps its icon");
 
-  // --shot writes what it looks like. house.html repaints the whole palette
-  // on body[data-page="house"], which beats css/theme-light.css on :root — so
-  // this page is always dark, and a card built with literal whites would be a
-  // white slab under pale ink. The assertions above cannot see that.
+  // The deposit is not only displayed any more — house-rooms.js reads the
+  // number back out of the agent's own sentence and puts it in the move-in
+  // total. That is the one place a misparse costs somebody real money, so it
+  // is asserted rather than eyeballed.
+  process.stdout.write("\n5b. The deposit, read back out of the agent's own words\n");
+  await pickRoom("Single");
+  const movein = await page.evaluate(() => ({
+    total: ((document.querySelector(".hx-movein__total") || {}).textContent || "").trim(),
+    lines: [...document.querySelectorAll("#hxMoveinBody .hx-lines li")].map((li) =>
+      li.textContent.replace(/\s+/g, " ").trim()),
+  }));
+  ok(movein.lines.some((l) => /Deposit/.test(l) && /120,000/.test(l)),
+     "\"2 months, refundable\" on a 60,000 room becomes a 120,000 deposit line",
+     JSON.stringify(movein.lines));
+  ok(movein.lines.some((l) => /commission/i.test(l) && /not quoted by this agent/i.test(l)),
+     "an unquoted commission is labelled as this app's assumption, not the agent's price",
+     JSON.stringify(movein.lines));
+  // 60,000 rent (min_months 1) + 120,000 deposit (2 months) + 60,000
+  // commission (one month, assumed) = 240,000. The failure this guards
+  // against is a total that stops at the rent and quietly drops the two
+  // lines the assertions above just proved are on screen.
+  ok(/240,000/.test(movein.total),
+     "the total is the sum, not just the rent", movein.total);
+
+  // --shot writes what it looks like. The assertions above cannot see colour.
   if (process.argv.includes("--shot")) {
     await page.screenshot({ path: "tests/shot_house_spec.png", fullPage: true });
     process.stdout.write("  wrote tests/shot_house_spec.png\n");
@@ -333,17 +410,23 @@ try {
   await page.goto(BASE + "?id=h-plain", { waitUntil: "domcontentloaded", timeout: 30000 });
   await rendered();
   const plain = await page.evaluate(() => ({
-    rooms: document.querySelectorAll(".hd-room").length,
-    roomCards: document.querySelectorAll(".hd-rooms-card").length,
-    groups: document.querySelectorAll(".hd-group-card").length,
+    tabs: document.querySelectorAll(".hx-roomtab").length,
+    groups: document.querySelectorAll(".hx-acc__item").length,
+    amenities: document.querySelectorAll("#sec-amenities").length,
+    lead: ((document.querySelector("#sec-money h3") || {}).textContent || "").trim(),
     price: (document.querySelector(".hd-price") || {}).textContent.replace(/\s+/g, " ").trim(),
+    rail: [...document.querySelectorAll(".hx-rail__link")].map((a) => a.textContent.trim()),
   }));
-  ok(plain.roomCards === 0 && plain.rooms === 0,
-     "no empty room table appears where there is nothing to put in it",
-     JSON.stringify(plain));
+  ok(plain.tabs === 0,
+     "one space at one price gets no picker to choose between", JSON.stringify(plain));
   ok(plain.groups === 0, "and no empty fact cards either", JSON.stringify(plain));
-  ok(!/^From/i.test(plain.price),
+  ok(plain.amenities === 0,
+     "a listing with no amenities gets no amenities card saying so", JSON.stringify(plain));
+  ok(!/^From/i.test(plain.price) && /800,000/.test(plain.price),
      "a whole flat at one price does not claim to start from it", plain.price);
+  ok(!plain.rail.includes("Amenities"),
+     "and the section rail has no chip pointing at a card that is not there",
+     JSON.stringify(plain.rail));
 
   // --------------------------------------------------------------------------
   // 7. The same two facts, one screen earlier.

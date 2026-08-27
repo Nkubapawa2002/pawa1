@@ -1,17 +1,48 @@
 // ============================================================================
 //  House detail page  (house.html?id=h-001)
-//  - Loads the single property from DataStore.getHouses() (DB or fallback)
-//  - Renders photo, header, stats, description, amenities, map, agent card
-//  - Wires Call / WhatsApp / Request-viewing / Get-directions actions
-//  - "Request viewing" auto-generates a Pawa Meet room code and pre-fills a
-//    WhatsApp message to the agent with the deep-link join URL — re-uses
-//    the existing meet.html live-location flow with zero extra wiring.
-//  - Favorites kept in localStorage["pawa_house_favs"] (no auth needed)
+//
+//  WHAT THIS SCREEN IS
+//  One property, told in the order somebody decides in: what it looks like,
+//  which space they would actually take and what THAT space costs to move
+//  into, what the agent promises, where it is, who to call.
+//
+//  THE ARRANGEMENT, AND WHY IT CHANGED
+//  This used to be a flat stack of nine cards that each held a quarter of an
+//  answer. The price sat in one; the months you must pay upfront in a second;
+//  the bills in a third; the agent's commission in a fourth — and nothing ever
+//  added them together. Worse, "Rooms & specifications" drew tiles built from
+//  `room_kind` and `price_tzs`, which are NOT facts about the listing: they are
+//  the CHEAPEST room's category and price, projected onto two columns so old
+//  queries keep working (js/lib/house-spec.js explains why). So a tile reading
+//  "Room: Single" sat beside "4 bedrooms" and, three cards down, a master room
+//  in the price table — three accounts of one building, and no way to tell
+//  which the headline price belonged to.
+//
+//  Now the page has a spine:
+//
+//    hero        the media, with the identity written over it
+//    money       ONE card: this space's price, and the itemised move-in total
+//    rooms       pick a space; the money, the tiles and the vacancy follow it
+//    evidence    description, the agent's own rules/area/services/paperwork,
+//                the bills, the amenities
+//    place       map, pin provenance, nearest main road, commute measure
+//    nearby      what is actually around it
+//    agent       who to reach, and how
+//
+//  A section rail across the top tracks which of those you are reading, and it
+//  is built from the sections that actually rendered — a listing with no
+//  description never gets a chip pointing at nothing.
+//
+//  WHAT LIVES ELSEWHERE
+//    js/lib/house-spec.js   the shape of the spec sheet (rooms[] + groups[])
+//    js/lib/house-rooms.js  the room model, the per-room tiles, the move-in sum
+//    css/house-detail.css   the whole skin, in design-system tokens
+//
+//  Favourites stay in localStorage["pawa_house_favs"] (no auth needed).
 // ============================================================================
 
 window.initHousePage = async () => {
   const bodyEl   = document.getElementById("hdBody");
-  const stickyEl = document.getElementById("hdSticky");
   const params   = new URLSearchParams(location.search);
   const id       = params.get("id");
 
@@ -67,10 +98,11 @@ window.initHousePage = async () => {
 function render(h) {
   const bodyEl   = document.getElementById("hdBody");
   const stickyEl = document.getElementById("hdSticky");
+  const HR       = window.HouseRooms;
 
-  // Media: combine photos[] and videos[] into one carousel. Back-compat:
-  // if the row predates the multi-media migration, photos[] is empty so we
-  // fall back to the single `photo` column.
+  // ---- media -------------------------------------------------------------
+  // photos[] and videos[] become one carousel. Back-compat: a row that predates
+  // the multi-media migration has an empty photos[], so fall back to `photo`.
   const photoList = (Array.isArray(h.photos) && h.photos.length)
     ? h.photos
     : (h.photo ? [h.photo] : []);
@@ -83,319 +115,229 @@ function render(h) {
     slides.push({ kind: "photo", url: "https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/tierra-mallorca-rgJ1J8SDEAY-unsplash.jpg" });
   }
 
-  const pinLine  = pinProvenance(h);
+  // ---- the spaces --------------------------------------------------------
+  // Every priced space in this listing, and the one to land on: the cheapest
+  // that is still free.
+  const roomList = HR ? HR.rooms(h) : [];
+  let picked = HR && roomList.length ? HR.defaultRoom(roomList) : 0;
+
   const listing  = h.listing === "sale" ? "For sale" : "For rent";
   const price    = formatPrice(h);
-  const verified = h.verified ? `<span class="hd-badge verified"> Verified</span>` : "";
-  const typeBadge = `<span class="hd-badge type-${h.type || "house"}">${labelType(h.type)}</span>`;
-  const roomKindBadge = h.room_kind === "single"
-    ? `<span class="hd-badge">Single room</span>`
-    : h.room_kind === "master"
-      ? `<span class="hd-badge">Master room</span>`
-      : "";
-  const isFav    = getFavs().has(h.id);
+  const pinLine  = pinProvenance(h);
 
-  // Rooms & specifications — premium spec tiles with SVG icons. Only tiles
-  // that have data render, so the panel adapts to each listing (a plot shows
-  // size; a room rental headlines its single/master category, etc.).
-  const specs = [];
-  // Property type always shows, so the panel is never empty.
-  specs.push(specTile(SPEC_ICONS.type, labelType(h.type), "Type"));
-  // Room category is the headline fact for room-by-room rentals → accent it.
-  if (h.room_kind === "single" || h.room_kind === "master")
-    specs.push(specTile(SPEC_ICONS.room, h.room_kind === "master" ? "Master" : "Single", "Room", { feature: true }));
-  if (h.bedrooms)
-    specs.push(specTile(SPEC_ICONS.bed, h.bedrooms, h.bedrooms === 1 ? "Bedroom" : "Bedrooms"));
-  if (h.bathrooms)
-    specs.push(specTile(SPEC_ICONS.bath, h.bathrooms, h.bathrooms === 1 ? "Bathroom" : "Bathrooms"));
-  if (h.size_sqm)
-    specs.push(specTile(SPEC_ICONS.size, `${h.size_sqm} <small>m²</small>`, "Floor size", { raw: true }));
-  if (h.furnished && h.furnished !== "n/a" && h.furnished !== "no")
-    specs.push(specTile(SPEC_ICONS.furnished, h.furnished === "yes" ? "Furnished" : "Semi", "Furnishing"));
-  // Minimum months a renter must pay upfront (rent listings only; 1 = implied).
-  if (h.listing === "rent" && Number(h.min_months) > 1)
-    specs.push(specTile(SPEC_ICONS.months, `${h.min_months} <small>mo</small>`, "Pay upfront", { raw: true }));
-  if (h.available_from)
-    specs.push(specTile(SPEC_ICONS.calendar, formatDate(h.available_from), "Available"));
-
-  // Additional costs / bills the agent listed (electricity, water, garbage…).
-  // Shown to the client so they know the full monthly cost before they call.
-  const extraCosts = Array.isArray(h.extra_costs) ? h.extra_costs.filter(c => c && c.label) : [];
-  const fmtMoney = window.formatTZS || ((n) => "TZS " + Number(n || 0).toLocaleString("en-US"));
-  const costsHtml = extraCosts.length ? `
-    <ul class="hd-costs" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;">
-      ${extraCosts.map(c => {
-        const b = c.billing || "month";
-        const hasAmt = c.amount != null && !isNaN(c.amount) && Number(c.amount) > 0;
-        let right;
-        if (b === "included")     right = `<span style="color:#0a6f4d;font-weight:600;">Included in rent</span>`;
-        else if (b === "metered") right = `<span style="color:#6b6960;">Metered — pay as you use</span>`;
-        else if (hasAmt)          right = `<strong>${fmtMoney(c.amount)}${b === "month" ? " / month" : b === "oneoff" ? " one-time" : ""}</strong>`;
-        else                      right = `<span style="color:#6b6960;">Ask agent</span>`;
-        return `<li style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #eef1f4;">
-                  <span style="display:flex;align-items:center;gap:8px;">${costIcon(c.label)} ${esc(c.label)}</span>
-                  <span style="text-align:right;white-space:nowrap;">${right}</span>
-                </li>`;
-      }).join("")}
-    </ul>` : "";
-
-  // Agent commission ("dalali" fee): paid once by the tenant to the agent for
-  // finding the home — SEPARATE from the rent that goes to the landlord. The TZ
-  // standard is one month's rent, so we default to that (or an explicit
-  // agent_fee_tzs the agent set). Sale listings use a different model, so this
-  // only applies to rentals.
-  const isRentListing = (h.listing || "rent") === "rent";
-  const monthsUpfront = Math.max(1, Number(h.min_months) || 1);
-  const agentFee = isRentListing
-    ? (Number(h.agent_fee_tzs) > 0 ? Number(h.agent_fee_tzs) : (Number(h.price_tzs) || 0))
-    : 0;
-  const moveInTotal = (Number(h.price_tzs) || 0) * monthsUpfront + agentFee;
-  const agentFeeHtml = agentFee > 0 ? `
-    <div class="hd-card hd-agent-fee">
-      <h3>Agent fee</h3>
-      <p class="muted" style="margin-top:-4px;">Paid once to the agent for finding the home — separate from the rent you pay the landlord.</p>
-      <ul class="hd-costs" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;">
-        <li style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #eef1f4;">
-          <span style="display:flex;align-items:center;gap:8px;">Agent commission <small style="color:#6b6960;">${Number(h.agent_fee_tzs) > 0 ? "" : "(one month's rent)"}</small></span>
-          <strong style="white-space:nowrap;">${fmtMoney(agentFee)}</strong>
-        </li>
-      </ul>
-      ${Number(h.price_tzs) > 0 ? `<div class="hd-movein-total" style="margin-top:10px;font-size:.92rem;">
-        Estimated to move in: <strong>${fmtMoney(moveInTotal)}</strong>
-        <small style="color:#6b6960;"> (${monthsUpfront} ${monthsUpfront === 1 ? "month" : "months"} rent + agent fee)</small>
-      </div>` : ""}
-    </div>` : "";
-
-  // Amenities list
-  const amenitiesHtml = (h.amenities || []).length
-    ? `<div class="hd-chips">${h.amenities.map(a => `<span class="hd-chip">${amenityIcon(a)} ${labelAmenity(a)}</span>`).join("")}</div>`
-    : `<p class="muted">No amenities listed.</p>`;
-
-  // Agent
+  // ---- agent + links -----------------------------------------------------
   const agentName  = h.agent?.name  || "Listing agent";
   const agentPhone = h.agent?.phone || "";
   const agentPhoneClean = agentPhone.replace(/\s+/g, "");
   const waNumber   = agentPhone.replace(/^\+/, "").replace(/\s+/g, "");
-  const initials   = agentName.split(/\s+/).map(w => w[0]).join("").slice(0,2).toUpperCase();
+  const initials   = agentName.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
-  // Maps / viewing links
-  const mapsUrl    = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`;
-  const meetCode   = roomCodeFor(h.id);
+  const mapsUrl   = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`;
+  const meetCode  = roomCodeFor(h.id);
   // &house=<id> turns the meet room into a "live viewing" — the listing is
   // pinned on the live map and shown in the room's side panel.
-  const meetQuery  = `code=${meetCode}&house=${encodeURIComponent(h.id)}`;
-  const meetUrl    = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}meet.html?${meetQuery}`;
-  const waText     = encodeURIComponent(
+  const meetQuery = `code=${meetCode}&house=${encodeURIComponent(h.id)}`;
+  const meetUrl   = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}meet.html?${meetQuery}`;
+  const waText    = encodeURIComponent(
     `Hi ${agentName}, I'm interested in your listing on Pawa Houses:\n` +
     `"${h.title}" (${listing}, ${price.value} ${price.unit}).\n` +
     `Could we do a live viewing? Join me on Pawa Live Meet — code ${meetCode}: ${meetUrl}`);
-  const waHref     = waNumber ? `https://wa.me/${waNumber}?text=${waText}` : "";
+  const waHref    = waNumber ? `https://wa.me/${waNumber}?text=${waText}` : "";
 
-  // Build the slide and thumbnail markup for the carousel.
-  const slidesHtml = slides.map((s, i) => s.kind === "video"
-    ? `<div class="hd-gallery-slide is-video" data-i="${i}">
-         <video src="${esc(s.url)}" controls playsinline preload="${i === 0 ? "metadata" : "none"}"></video>
-       </div>`
-    : `<div class="hd-gallery-slide" data-i="${i}">
-         <img src="${esc(s.url)}" alt="${esc(h.title)} — photo ${i + 1}"
-              loading="${i === 0 ? "eager" : "lazy"}" decoding="async">
-       </div>`).join("");
-
-  const thumbsHtml = slides.length > 1 ? `
-    <div class="hd-gallery-thumbs" id="hdGalleryThumbs" role="tablist" aria-label="Media">
-      ${slides.map((s, i) => s.kind === "video"
-        ? `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"
-                   aria-label="Open video ${i + 1 - photoList.length}">
-             <video src="${esc(s.url)}" muted playsinline preload="none"></video>
-             <span class="vbadge"></span>
-           </button>`
-        : `<button type="button" class="hd-gallery-thumb ${i === 0 ? "active" : ""}" data-i="${i}" role="tab"
-                   aria-label="Open photo ${i + 1}">
-             <img src="${esc(s.url)}" alt="" loading="lazy" decoding="async">
-           </button>`).join("")}
-    </div>` : "";
-
-  const dotsHtml = slides.length > 1 ? `
-    <div class="hd-gallery-dots" aria-hidden="true">
-      ${slides.map((_, i) => `<span class="hd-gallery-dot ${i === 0 ? "active" : ""}" data-i="${i}"></span>`).join("")}
-    </div>` : "";
+  // ---- sections ----------------------------------------------------------
+  const sections = {
+    "sec-money":     moneySectionHtml(h, roomList, picked),
+    "sec-rooms":     roomsSectionHtml(h, roomList, picked),
+    "sec-about":     aboutSectionHtml(h),
+    "sec-rules":     groupsSectionHtml(h),
+    "sec-costs":     billsSectionHtml(h),
+    "sec-amenities": amenitiesSectionHtml(h),
+    "sec-place":     placeSectionHtml(h, mapsUrl, meetCode, pinLine),
+    "sec-nearby":    nearbySectionHtml(h),
+    "sec-agent":     agentSectionHtml(h, { agentName, agentPhone, agentPhoneClean, waHref, meetCode, initials }),
+  };
+  const present = SECTION_ORDER.filter(id => sections[id]);
 
   bodyEl.innerHTML = `
-    <!-- Media gallery -->
-    <div class="hd-gallery">
-      <div class="hd-gallery-stage" id="hdGalleryStage">${slidesHtml}</div>
-      <div class="hd-hero-badges">
-        <span class="hd-badge">${listing}</span>
-        ${typeBadge}
-        ${roomKindBadge}
-        ${verified}
-      </div>
-      <div class="hd-hero-actions">
-        <button id="hdFavBtn" class="hd-icon-btn ${isFav ? 'fav-active' : ''}" aria-label="Save to favourites" title="Save to favourites">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
-        <button id="hdShareBtn" class="hd-icon-btn" aria-label="Share this listing" title="Share">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-        </button>
-      </div>
-      ${slides.length > 1 ? `
-        <button type="button" class="hd-gallery-nav prev" id="hdGalleryPrev" aria-label="Previous">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <button type="button" class="hd-gallery-nav next" id="hdGalleryNext" aria-label="Next">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        <div class="hd-gallery-counter" id="hdGalleryCounter">1 / ${slides.length}</div>
-        ${dotsHtml}
-      ` : ""}
-      ${thumbsHtml}
-    </div>
-
-    <!-- Header (title + price) -->
-    <div class="hd-header">
-      <h1 class="hd-title">${esc(h.title)}</h1>
-      <div class="hd-loc"> ${esc(h.area || "")}${h.region ? ", " + esc(h.region) : ""}${h.address ? " · " + esc(h.address) : ""}</div>
-      <div class="hd-price">${priceLead(h)}${price.value} <small>${price.unit}</small></div>
-      ${(h.listing === "rent" && Number(h.min_months) > 1) ? `
-        <div class="hd-min-months"> Minimum <strong>${h.min_months} months</strong> upfront${
-          h.price_tzs ? ` — <strong>TZS ${(h.price_tzs * h.min_months).toLocaleString("en-US")}</strong> to move in` : ""
-        }</div>` : ""}
-    </div>
-
-    ${specs.length ? `
-    <div class="hd-card hd-specs-card">
-      <h3>Rooms &amp; specifications</h3>
-      <div class="hd-specs">${specs.join("")}</div>
-    </div>` : ""}
-
-    <!-- The price table comes before the paragraph: when a place rents room by
-         room, "which room, and how much" is the question, and burying it under
-         a description is what pushed agents to type prices into prose. -->
-    ${roomsCardHtml(h)}
-
-    ${h.description ? `
-    <div class="hd-card">
-      <h3>About this property</h3>
-      <p>${esc(h.description)}</p>
-    </div>` : ""}
-
-    <div class="hd-card">
-      <h3>Amenities</h3>
-      ${amenitiesHtml}
-    </div>
-
-    ${costsHtml ? `
-    <div class="hd-card">
-      <h3>Additional costs</h3>
-      <p class="muted" style="margin-top:-4px;">Bills the tenant pays on top of the price shown above.</p>
-      ${costsHtml}
-    </div>` : ""}
-
-    ${agentFeeHtml}
-
-    <!-- Rules, the area, services, paperwork — and anything else the agent
-         named themselves. These are the facts a tenant decides on, and until
-         now they were only ever stored. -->
-    ${groupsHtml(h)}
-
-    <div class="hd-card">
-      <h3>Where it is</h3>
-      <div class="hd-map" id="hdMap"></div>
-      <div class="hd-map-actions">
-        <a href="#" id="hdRouteBtn" role="button"> Route from my location</a>
-        <a href="${mapsUrl}" target="_blank" rel="noopener"> Get directions</a>
-        <a href="meet.html?${meetCode}" target="_blank" rel="noopener"> Live meet with agent</a>
-      </div>
-
-      ${pinLine}
-
-      <!-- How far is this home from the nearest main (tarmac) road? -->
-      <div class="hd-main-road" id="hdMainRoad" hidden></div>
-
-      <!-- Commute tool: how far is this home from your workplace / daily route? -->
-      <div class="hd-commute" id="hdCommute" hidden>
-        <label class="hd-commute-label" for="hdCommuteInput"> How far is this home from your workplace or daily route?</label>
-        <div class="hd-commute-row">
-          <input type="text" id="hdCommuteInput" autocomplete="off"
-            placeholder="e.g. Mlimani City, Muhimbili Hospital, your office area…" />
-          <button type="button" id="hdCommuteBtn" class="hd-commute-btn">Measure</button>
-        </div>
-        <div id="hdCommuteMsg" class="hd-commute-msg" hidden></div>
-        <div id="hdCommuteResults" class="hd-commute-results"></div>
-      </div>
-    </div>
-
-    <!-- What's nearby: an at-a-glance readout of the services around THIS room
-         (schools, hospitals, markets, transport...) so a seeker understands the
-         neighbourhood, not just the four walls. Auto-loaded; hidden until ready. -->
-    <div class="hd-card hd-nearby-card" id="hdNearbyCard" hidden>
-      <h3>What's nearby</h3>
-      <p class="hd-nearby-sub">Important places around this home - schools, hospitals, markets and transport.</p>
-      <div id="hdNearbyList" class="hd-nearby-list"></div>
-    </div>
-
-    <div class="hd-card">
-      <h3>Listing agent</h3>
-      <div class="hd-agent">
-        <div class="hd-agent-avatar">${esc(initials || "?")}</div>
-        <div class="hd-agent-meta">
-          <div class="hd-agent-name">${esc(agentName)}</div>
-          <div class="hd-agent-role">Verified by Pawa · responds within 1 day</div>
-        </div>
-      </div>
-      <div class="hd-cta-row hd-cta-row-mobile-hide">
-        <!-- Message comes first, and that is the point of it being here at
-             all: it is the only one of the three that does not cost the
-             seeker their phone number before they know the room is free. -->
-        ${window.PMReach ? window.PMReach.button(h, { className: "hd-cta hd-cta-msg" }) : ""}
-        ${agentPhone ? `<a class="hd-cta hd-cta-call" href="tel:${agentPhoneClean}"> Call</a>` : ""}
-        ${waHref     ? `<a class="hd-cta hd-cta-wa"   href="${waHref}"  target="_blank" rel="noopener"> WhatsApp</a>` : ""}
-        <a class="hd-cta hd-cta-meet" href="meet.html?${meetCode}" target="_blank" rel="noopener"> Request live viewing</a>
+    ${heroHtml(h, slides, photoList.length, listing)}
+    ${railHtml(present)}
+    <div class="hx-layout">
+      <!-- The aside is first in the document deliberately: on a phone it sits at
+           the top, and DOM order is what the tab key and a screen reader follow.
+           css/house-detail.css moves it to the right-hand rail on desktop by
+           explicit grid placement, not by reordering it. -->
+      <aside class="hx-aside">
+        ${sections["sec-money"] || ""}
+        ${sections["sec-agent"] || ""}
+      </aside>
+      <div class="hx-main">
+        ${sections["sec-rooms"] || ""}
+        ${sections["sec-about"] || ""}
+        ${sections["sec-rules"] || ""}
+        ${sections["sec-costs"] || ""}
+        ${sections["sec-amenities"] || ""}
+        ${sections["sec-place"] || ""}
+        ${sections["sec-nearby"] || ""}
       </div>
     </div>
   `;
 
-  // Wire up the media carousel (prev/next, dots, thumbnails, scroll-snap
-  // keeps the active index in sync, videos pause when scrolled away).
+  // ---- wiring ------------------------------------------------------------
   if (slides.length > 1) wireGallery(slides.length);
   else hookSingleVideoAutopause(bodyEl);
 
-  // ---- Wire up actions ---------------------------------------------------
-  // Favorite (also records save-order so the favorites page can sort by
-  // "recently saved" without needing a per-id timestamp)
-  document.getElementById("hdFavBtn")?.addEventListener("click", () => {
+  wireTopbar(h, price);
+  wireRail(present);
+  wireAccordion();
+  wireMoveIn();
+
+  // The room picker is the spine of the page: changing it re-draws the space's
+  // own panel AND the money card above it, so the two can never disagree.
+  document.querySelectorAll(".hx-roomtab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.dataset.room, 10);
+      if (!Number.isFinite(i) || i === picked) return;
+      picked = i;
+      document.querySelectorAll(".hx-roomtab").forEach(b =>
+        b.setAttribute("aria-selected", String(parseInt(b.dataset.room, 10) === picked)));
+      const panel = document.getElementById("hxRoomPanel");
+      if (panel) panel.innerHTML = HR.roomPanel(roomList[picked]);
+      const money = document.getElementById("sec-money");
+      if (money) {
+        money.innerHTML = moneyInnerHtml(h, roomList, picked);
+        wireMoveIn();
+      }
+    });
+  });
+
+  wireFavShare(h, price);
+  wireSticky(h, stickyEl, { agentPhone, agentPhoneClean, waHref, meetCode });
+  mountMap(h);
+  // The area readout is NOT part of the map. A listing whose survey was saved
+  // when it was posted can answer "what is nearby" with no pin, no tiles and no
+  // network at all — so it is asked here rather than from inside mountMap,
+  // where a missing pin used to take the whole card away with it.
+  renderNearbySummary(h);
+}
+
+// ============================================================================
+// Wiring
+// ============================================================================
+
+/** The top bar takes on its border and the listing's name once the hero goes. */
+function wireTopbar(h, price) {
+  const bar = document.getElementById("hxTopbar");
+  const hero = document.getElementById("hxHero");
+  const title = document.getElementById("hxTopTitle");
+  if (title) title.textContent = h.title || "";
+  if (!bar || !hero || typeof IntersectionObserver !== "function") return;
+  new IntersectionObserver(([e]) => {
+    bar.classList.toggle("is-stuck", !e.isIntersecting);
+  }, { rootMargin: "-56px 0px 0px 0px", threshold: 0 }).observe(hero);
+}
+
+/** Scroll-spy: the rail chip for the section you are reading lights up. */
+function wireRail(ids) {
+  const rail = document.getElementById("hxRail");
+  if (!rail || typeof IntersectionObserver !== "function") return;
+  const links = new Map();
+  rail.querySelectorAll(".hx-rail__link").forEach(a => links.set(a.dataset.sec, a));
+
+  const seen = new Map();
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => seen.set(e.target.id, e.intersectionRatio));
+    // The section with the most of itself on screen wins, so a short card
+    // sandwiched between two long ones never steals the highlight.
+    let best = null, bestRatio = 0;
+    seen.forEach((r, id) => { if (r > bestRatio) { bestRatio = r; best = id; } });
+    links.forEach((a, id) => a.classList.toggle("is-active", id === best && bestRatio > 0));
+  }, { threshold: [0, 0.15, 0.35, 0.6, 0.9], rootMargin: "-96px 0px -40% 0px" });
+
+  ids.forEach(id => { const el = document.getElementById(id); if (el) io.observe(el); });
+
+  // Smooth-scroll without leaving a hash in the URL, which would otherwise
+  // make the browser Back button walk the sections instead of the history.
+  rail.addEventListener("click", (ev) => {
+    const a = ev.target.closest(".hx-rail__link");
+    if (!a) return;
+    const el = document.getElementById(a.dataset.sec);
+    if (!el) return;
+    ev.preventDefault();
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+/** The fact-group accordion. */
+function wireAccordion() {
+  document.querySelectorAll(".hx-acc__btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const open = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", String(!open));
+      const panel = document.getElementById(btn.getAttribute("aria-controls"));
+      if (panel) panel.classList.toggle("is-open", !open);
+    });
+  });
+}
+
+/** The move-in breakdown. Re-bound whenever the money card is re-rendered. */
+function wireMoveIn() {
+  const btn = document.getElementById("hxMoveinBtn");
+  const body = document.getElementById("hxMoveinBody");
+  if (!btn || !body) return;
+  btn.addEventListener("click", () => {
+    const open = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!open));
+    body.classList.toggle("is-open", !open);
+  });
+}
+
+/** Save + share, which now live in the persistent top bar. */
+function wireFavShare(h, price) {
+  const favBtn = document.getElementById("hdFavBtn");
+  const shareBtn = document.getElementById("hdShareBtn");
+  if (favBtn) favBtn.hidden = false;
+  if (shareBtn) shareBtn.hidden = false;
+
+  const paint = () => {
+    if (!favBtn) return;
+    const on = getFavs().has(h.id);
+    favBtn.classList.toggle("is-on", on);
+    favBtn.querySelector("svg")?.setAttribute("fill", on ? "currentColor" : "none");
+    favBtn.setAttribute("aria-pressed", String(on));
+  };
+  paint();
+
+  // Save-order is recorded alongside the set so the favourites page can sort by
+  // "recently saved" without needing a per-id timestamp.
+  favBtn?.addEventListener("click", () => {
     const favs = getFavs();
-    let order; try { order = JSON.parse(localStorage.getItem("pawa_house_fav_order") || "[]"); }
-                catch { order = []; }
+    let order;
+    try { order = JSON.parse(localStorage.getItem("pawa_house_fav_order") || "[]"); }
+    catch { order = []; }
     if (favs.has(h.id)) {
       favs.delete(h.id);
       order = order.filter(x => x !== h.id);
     } else {
       favs.add(h.id);
-      // Move to the end so it sorts as the most recent.
       order = order.filter(x => x !== h.id);
       order.push(h.id);
     }
     localStorage.setItem("pawa_house_favs", JSON.stringify([...favs]));
     localStorage.setItem("pawa_house_fav_order", JSON.stringify(order));
-    const btn = document.getElementById("hdFavBtn");
-    const nowFav = favs.has(h.id);
-    btn.classList.toggle("fav-active", nowFav);
-    btn.querySelector("svg")?.setAttribute("fill", nowFav ? "currentColor" : "none");
+    paint();
   });
 
-  // Share
-  document.getElementById("hdShareBtn")?.addEventListener("click", async () => {
+  shareBtn?.addEventListener("click", async () => {
     const url = `${location.origin}${location.pathname}?id=${h.id}`;
     const text = `${h.title} — ${price.value} ${price.unit} on Pawa Houses`;
     if (navigator.share) {
       try { await navigator.share({ title: h.title, text, url }); } catch (_) {}
       return;
     }
-    // Clipboard API can fail on insecure contexts (http://, some in-app
-    // browsers) or when the user has blocked clipboard access. Fall back
-    // to a hidden <input> + execCommand("copy"), and as a last resort
-    // prompt() so the link is at least selectable.
+    // The Clipboard API fails on insecure contexts (http://, some in-app
+    // browsers) and when the user has blocked clipboard access. Fall back to a
+    // hidden <input> + execCommand("copy"), then to a prompt() the link can at
+    // least be selected out of.
     try {
       await navigator.clipboard.writeText(url);
       alert("Link copied to clipboard");
@@ -415,995 +357,37 @@ function render(h) {
       }
     }
   });
-
-  // Sticky bottom CTAs (phones).
-  //
-  // This bar IS the contact row on a phone — .hd-cta-row-mobile-hide takes the
-  // inline one away below 720px. So the encrypted door has to be here too, or
-  // it exists only for people on a desktop, which is not who is looking for a
-  // room in Mbezi. And the bar now appears for a listing that has an owner but
-  // no phone number, which used to leave a phone visitor with no way to ask at
-  // all.
-  const msgHref = window.PMReach ? window.PMReach.href(window.PMReach.ownerOf(h)) : "";
-  if (agentPhone || msgHref) {
-    const stickyMsg = document.getElementById("hdStickyMsg");
-    if (stickyMsg && msgHref) { stickyMsg.href = msgHref; stickyMsg.hidden = false; }
-    const stickyCall = document.getElementById("hdStickyCall");
-    const stickyWa   = document.getElementById("hdStickyWa");
-    if (agentPhone) {
-      stickyCall.href = `tel:${agentPhoneClean}`;
-      stickyWa.href   = waHref;
-    } else {
-      // No number on the listing: two buttons pointing at nothing are worse
-      // than two buttons that are not there.
-      stickyCall.hidden = true;
-      stickyWa.hidden = true;
-    }
-    document.getElementById("hdStickyMeet").href = `meet.html?${meetCode}`;
-    stickyEl.hidden = false;
-  }
-
-  // ---- Map (centered on the pin, satellite + street labels) -------------
-  if (h.lat != null && h.lng != null) {
-    // Hybrid base (satellite + roads + street names) with a Map ⇄ Satellite
-    // toggle, so buyers can always read which street the home sits on.
-    const map = new maplibregl.Map({
-      container: "hdMap",
-      style: window.pawaGlHybridStyle ? window.pawaGlHybridStyle() : { version: 8, sources: {}, layers: [] },
-      center: [h.lng, h.lat],
-      zoom: 15,
-      maxBounds: [[29.34, -11.75], [40.45, -0.99]]
-    });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-    if (window.pawaGlBasemapToggle) map.addControl(window.pawaGlBasemapToggle(), "top-right");
-    // Maximize / minimize the map in place (shared helper).
-    window.pawaMapExpand && window.pawaMapExpand("hdMap", () => map);
-
-    const pin = document.createElement("div");
-    pin.innerHTML = `
-      <svg width="32" height="42" viewBox="0 0 32 42" fill="none">
-        <path d="M16 0C7.2 0 0 7.2 0 16c0 12 16 26 16 26s16-14 16-26C32 7.2 24.8 0 16 0z" fill="#0a6f4d" stroke="#fff" stroke-width="2"/>
-        <circle cx="16" cy="16" r="6" fill="#fff"/>
-      </svg>`;
-    new maplibregl.Marker({ element: pin, anchor: "bottom" })
-      .setLngLat([h.lng, h.lat])
-      .addTo(map);
-
-    // Draw the REAL driving route from the visitor's location to this house, so
-    // the distance is the actual road, not a straight line.
-    const routeBtn = document.getElementById("hdRouteBtn");
-    routeBtn?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      if (!window.pawaLocate || !window.pawaRoute) return;
-      const idle = routeBtn.textContent;
-      routeBtn.textContent = "Locating…";
-      try {
-        const fix = await window.pawaLocate.best({ targetAccuracy: 80, hardTimeout: 12000 });
-        const r = await window.pawaRoute.route({ lat: fix.lat, lng: fix.lng }, { lat: h.lat, lng: h.lng });
-        if (!r || !r.geojson) { routeBtn.textContent = " Route unavailable"; return; }
-        const ensure = () => map.isStyleLoaded() ? Promise.resolve() : new Promise((res) => map.once("load", res));
-        await ensure();
-        // When more than one road reaches the area, draw the alternatives too
-        // (lighter dashed lines under the main route).
-        const alts = (r.alts || []).filter((a) => a.geojson && Array.isArray(a.geojson.coordinates));
-        // White casing under each coloured line keeps the roads visible on the
-        // satellite-hybrid base. Casings share the line's source, so drop both
-        // layers before the source on cleanup.
-        ["hd-route-alts-casing", "hd-route-alts"].forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-        if (map.getSource("hd-route-alts")) map.removeSource("hd-route-alts");
-        if (alts.length) {
-          map.addSource("hd-route-alts", { type: "geojson", data: {
-            type: "FeatureCollection",
-            features: alts.map((a) => ({ type: "Feature", geometry: a.geojson }))
-          } });
-          map.addLayer({ id: "hd-route-alts-casing", type: "line", source: "hd-route-alts",
-            paint: { "line-color": "#fff", "line-width": 6, "line-opacity": 0.5 } });
-          map.addLayer({ id: "hd-route-alts", type: "line", source: "hd-route-alts",
-            paint: { "line-color": "#0a6f4d", "line-width": 4, "line-opacity": 0.6, "line-dasharray": [2, 1.5] } });
-        }
-        ["hd-route-casing", "hd-route"].forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-        if (map.getSource("hd-route")) map.removeSource("hd-route");
-        map.addSource("hd-route", { type: "geojson", data: { type: "Feature", geometry: r.geojson } });
-        map.addLayer({ id: "hd-route-casing", type: "line", source: "hd-route",
-          paint: { "line-color": "#fff", "line-width": 8, "line-opacity": 0.9 } });
-        map.addLayer({ id: "hd-route", type: "line", source: "hd-route",
-          paint: { "line-color": "#0a6f4d", "line-width": 5, "line-opacity": 0.95 } });
-        new maplibregl.Marker({ color: "#1e40af" }).setLngLat([fix.lng, fix.lat]).addTo(map);
-        // Fit around every road that reaches the home, not just the fastest one.
-        const cs = [].concat(r.geojson.coordinates || [], ...alts.map((a) => a.geojson.coordinates));
-        if (cs.length) {
-          const b = cs.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(cs[0], cs[0]));
-          map.fitBounds(b, { padding: 50, duration: 600 });
-        }
-        routeBtn.textContent = ` ${r.km.toFixed(1)} km by road · ${Math.round(r.durationMin)} min` +
-          (alts.length ? ` · other road: ${alts.map((a) => a.km.toFixed(1) + " km").join(", ")}` : "");
-        routeBtn.title = alts.length
-          ? `Fastest road shown solid; ${alts.length === 1 ? "1 alternative road" : alts.length + " alternative roads"} shown dashed.`
-          : "";
-      } catch (err) {
-        routeBtn.textContent = idle;
-        alert((window.pawaLocate && window.pawaLocate.message ? window.pawaLocate.message(err) : (err && err.message)) || "Couldn't get your location.");
-      }
-    });
-
-    // Nearby amenities overlay (schools, hospitals, markets, transport)
-    attachNearbyOverlay(map, h.lat, h.lng);
-
-    // Readable "What's nearby" summary — auto-loads so the buyer instantly sees
-    // the surrounding services without having to tap the map chips.
-    renderNearbySummary(h.lat, h.lng);
-
-    // Commute tool: measure the distance from this home to the user's workplace.
-    attachCommuteTool(map, h.lat, h.lng);
-
-    // How far is this home from the nearest main (tarmac) road?
-    showNearestMainRoad(h.lat, h.lng);
-  } else {
-    document.getElementById("hdMap").innerHTML =
-      `<div class="hd-state" style="margin:0;border-radius:0;height:100%"><p>No pin set for this listing yet.</p></div>`;
-  }
-}
-
-// ============================================================================
-// Nearby amenities (Overpass / OpenStreetMap, free, no API key)
-// ============================================================================
-// Full set of "nearby infrastructure" categories per docs/SKILL.md 3.2 — all
-// fetched live from OpenStreetMap via the Overpass API. Categories are
-// loaded lazily on first chip-tap (and the first two are auto-loaded
-// when the map opens so the buyer gets immediate context).
-const POI_CATS = [
-  { key: "school",     label: "Schools",     icon: "", color: "#1e40af",
-    q: 'node["amenity"~"school|university|college|kindergarten"](around:RADIUS,LAT,LNG);way["amenity"~"school|university|college|kindergarten"](around:RADIUS,LAT,LNG);' },
-  { key: "hospital",   label: "Hospitals",   icon: "", color: "#b91c1c",
-    q: 'node["amenity"~"hospital|clinic|doctors|pharmacy"](around:RADIUS,LAT,LNG);way["amenity"~"hospital|clinic"](around:RADIUS,LAT,LNG);' },
-  { key: "market",     label: "Markets",     icon: "", color: "#bc5c00",
-    q: 'node["amenity"="marketplace"](around:RADIUS,LAT,LNG);node["shop"~"supermarket|mall|convenience"](around:RADIUS,LAT,LNG);way["amenity"="marketplace"](around:RADIUS,LAT,LNG);way["shop"~"supermarket|mall"](around:RADIUS,LAT,LNG);' },
-  { key: "transport",  label: "Transport",   icon: "", color: "#6b3aa3",
-    q: 'node["highway"="bus_stop"](around:RADIUS,LAT,LNG);node["amenity"~"bus_station|taxi"](around:RADIUS,LAT,LNG);node["railway"="station"](around:RADIUS,LAT,LNG);' },
-  { key: "bank",       label: "Banks / ATMs",icon: "", color: "#0d8050",
-    q: 'node["amenity"~"bank|atm|bureau_de_change"](around:RADIUS,LAT,LNG);' },
-  { key: "food",       label: "Restaurants", icon: "", color: "#c2410c",
-    q: 'node["amenity"~"restaurant|cafe|fast_food|food_court|bar"](around:RADIUS,LAT,LNG);way["amenity"~"restaurant|cafe"](around:RADIUS,LAT,LNG);' },
-  { key: "worship",    label: "Mosques · Churches", icon: "", color: "#7c3aed",
-    q: 'node["amenity"="place_of_worship"](around:RADIUS,LAT,LNG);way["amenity"="place_of_worship"](around:RADIUS,LAT,LNG);' },
-  { key: "leisure",    label: "Parks · Gyms",icon: "", color: "#15803d",
-    q: 'node["leisure"~"park|fitness_centre|sports_centre|playground"](around:RADIUS,LAT,LNG);way["leisure"~"park|fitness_centre|sports_centre|stadium"](around:RADIUS,LAT,LNG);' },
-  { key: "fuel",       label: "Fuel",        icon: "", color: "#1e293b",
-    q: 'node["amenity"="fuel"](around:RADIUS,LAT,LNG);' },
-  { key: "safety",     label: "Police · Fire", icon: "", color: "#155e75",
-    q: 'node["amenity"~"police|fire_station"](around:RADIUS,LAT,LNG);way["amenity"~"police|fire_station"](around:RADIUS,LAT,LNG);' },
-  { key: "post",       label: "Post · Government", icon: "", color: "#92400e",
-    q: 'node["amenity"~"post_office|townhall|courthouse|embassy"](around:RADIUS,LAT,LNG);way["amenity"~"post_office|townhall|courthouse|embassy"](around:RADIUS,LAT,LNG);' }
-];
-
-const POI_RADIUS_M     = 1500;            // 1.5 km around the property
-const POI_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-
-// ---------------------------------------------------------------------------
-// Who put this pin here?
-//
-// Two listings with the same two coordinates have never been the same claim.
-// One was pinned by an agent dragging a marker onto a roof that looked about
-// right from a satellite photo; the other by the person who lives there,
-// standing at the gate, tapping once. A seeker about to spend a Saturday and a
-// daladala fare on a viewing is entitled to know which they are looking at.
-//
-// Said ONLY when it is still exactly true. `exact` goes false the moment the
-// agent moves the marker more than a house's width off what was sent, and this
-// then draws nothing rather than something weaker — an agent correcting a pin
-// that was wrong is doing the right thing, and a listing that hedged about it
-// would teach agents not to correct pins. Silence is the honest default: the
-// absence of the line is not an accusation, it is just the ordinary case.
-//
-// Shape: supabase/features/house/houses_pin.sql.
-// ---------------------------------------------------------------------------
-function pinProvenance(h) {
-  const pin = h && h.pin;
-  if (!pin || typeof pin !== "object" || pin.exact !== true) return "";
-
-  const acc = Number(pin.acc);
-  const within = Number.isFinite(acc) && acc > 0 ? ` \u2014 to within ${Math.round(acc)} m` : "";
-
-  // The agent's own phone has no third party in it, so it gets its own
-  // sentence rather than being forced through one written about somebody else.
-  if (pin.via === "gps") {
-    return provLine(`Pinned by the agent, standing at the property${within}.`);
-  }
-
-  // A name somebody chose for themselves in a room is not the same as one
-  // behind an account, and reading them the same way is how the weaker of the
-  // two borrows the authority of the stronger.
-  const who = pin.from_name
-    ? esc(String(pin.from_name)) + (pin.from_guest ? " (unverified)" : "")
-    : "the person who was there";
-
-  const how = pin.via === "p-message" ? ", and sent from there in an encrypted message"
-            : pin.via === "code"      ? ", and read out from there as a location code"
-            : pin.via === "request"   ? ", and shared from there as it was taken"
-            : "";
-
-  return provLine(`Pinned exactly where ${who} was standing${how}${within}.`);
-}
-
-// The one shape the provenance line is drawn in, so the three sentences above
-// cannot drift into three slightly different rows.
-function provLine(text) {
-  return `<p class="hd-pin-prov">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M20 6 9 17l-5-5"/></svg>
-      <span>${text}</span>
-    </p>`;
-}
-
-function attachNearbyOverlay(map, lat, lng) {
-  const mapEl = document.getElementById("hdMap");
-  if (!mapEl) return;
-
-  // Build the floating toolbar of category chips.
-  const toolbar = document.createElement("div");
-  toolbar.className = "hd-poi-toolbar";
-  toolbar.innerHTML = POI_CATS.map(c =>
-    `<button type="button" class="hd-poi-chip" data-cat="${c.key}">
-       <span>${c.icon}</span><span>${c.label}</span>
-     </button>`
-  ).join("");
-  mapEl.appendChild(toolbar);
-
-  const status = document.createElement("div");
-  status.className = "hd-poi-status";
-  status.hidden = true;
-  mapEl.appendChild(status);
-
-  // Build the stores from POI_CATS so we always have an entry for every
-  // category — the old hardcoded literal only listed the original four
-  // and threw "Cannot read properties of undefined (reading 'forEach')"
-  // when any of the newer chips (bank / food / worship / etc.) was tapped.
-  const markersByCat = Object.fromEntries(POI_CATS.map(c => [c.key, []]));
-  const dataByCat    = Object.fromEntries(POI_CATS.map(c => [c.key, null]));
-
-  toolbar.querySelectorAll(".hd-poi-chip").forEach(chip => {
-    chip.addEventListener("click", async () => {
-      const cat = chip.dataset.cat;
-      const meta = POI_CATS.find(c => c.key === cat);
-      const on  = !chip.classList.contains("active");
-      if (on) {
-        chip.classList.add("active");
-        if (!dataByCat[cat]) {
-          chip.classList.add("loading");
-          showStatus(`Loading nearby ${meta.label}…`);
-          try {
-            dataByCat[cat] = await fetchPois(cat, lat, lng);
-          } catch (e) {
-            console.warn("overpass", cat, e);
-            chip.classList.remove("loading", "active");
-            showStatus(`Couldn't load nearby ${meta.label}.`, 2500);
-            return;
-          }
-          chip.classList.remove("loading");
-        }
-        renderCat(map, cat, dataByCat[cat], markersByCat, { lat, lng });
-        const n = dataByCat[cat].length;
-        showStatus(n
-          ? `${n} result${n === 1 ? "" : "s"} · ${meta.label} within ${POI_RADIUS_M/1000} km`
-          : `No ${meta.label} found nearby`, 2200);
-      } else {
-        chip.classList.remove("active");
-        (markersByCat[cat] || []).forEach(m => m.remove());
-        markersByCat[cat] = [];
-        hideStatus();
-      }
-    });
-  });
-
-  // Tip the user that the chips are tappable — they only fire Overpass on demand.
-  showStatus("Tap a category to see nearby places", 4000);
-
-  function showStatus(text, autoHideMs) {
-    status.textContent = text;
-    status.hidden = false;
-    if (autoHideMs) setTimeout(() => { status.hidden = true; }, autoHideMs);
-  }
-  function hideStatus() { status.hidden = true; }
-}
-
-// Popup HTML for a nearby place. Distance is REAL road km only (never crow-flies):
-// "measuring…" until the matrix answers, then "X km by road", or unavailable.
-function poiPopupHtml(name, catMeta, km, state) {
-  const dist = state === "road"
-    ? `${km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(km < 10 ? 2 : 1) + " km"} by road`
-    : state === "measuring" ? "measuring road distance…"
-    : "road distance unavailable";
-  return `<div class="hd-poi-popup">
-    <strong>${esc(name)}</strong>
-    <div class="pp-meta">${catMeta.icon} ${esc(catMeta.label)} · ${dist}</div>
-  </div>`;
-}
-
-async function renderCat(map, cat, elements, store, anchor) {
-  const catMeta = POI_CATS.find(c => c.key === cat);
-  store[cat].forEach(m => m.remove());
-  store[cat] = [];
-  const entries = [];   // { popup, name, p } — to fill in real road km below
-  for (const el of elements) {
-    const p = el.center || { lat: el.lat, lon: el.lon };
-    if (p.lat == null || p.lon == null) continue;
-    const node = document.createElement("div");
-    node.className = `hd-poi-marker cat-${cat}`;
-    node.style.borderColor = catMeta.color;
-    const name = poiLabel(el, catMeta);
-    node.title = name;
-    // The place's real name (the school's / hospital's actual name) is shown
-    // right on the map under the pin — not hidden behind a tap.
-    node.innerHTML =
-      `<span class="hd-poi-ico">${catMeta.icon}</span>` +
-      `<span class="hd-poi-name">${esc(name)}</span>`;
-    const popup = new maplibregl.Popup({ offset: 12, closeButton: true, maxWidth: "220px" })
-      .setHTML(poiPopupHtml(name, catMeta, null, "measuring"));
-    const mk = new maplibregl.Marker({ element: node, anchor: "center" })
-      .setLngLat([p.lon, p.lat])
-      .setPopup(popup)
-      .addTo(map);
-    store[cat].push(mk);
-    entries.push({ popup, name, p });
-  }
-
-  // Upgrade every popup to the REAL road distance home → place in one matrix
-  // call (OSRM ×2 + Valhalla, cached). No straight-line is ever shown.
-  if (window.pawaRoute && entries.length) {
-    try {
-      const kms = await window.pawaRoute.table(
-        { lat: anchor.lat, lng: anchor.lng },
-        entries.map((e) => ({ lat: e.p.lat, lng: e.p.lon })));
-      entries.forEach((e, i) => {
-        const km = kms && kms[i];
-        e.popup.setHTML(poiPopupHtml(e.name, catMeta,
-          Number.isFinite(km) ? km : null, Number.isFinite(km) ? "road" : "noroad"));
-      });
-    } catch (_) {
-      entries.forEach((e) => e.popup.setHTML(poiPopupHtml(e.name, catMeta, null, "noroad")));
-    }
-  }
-}
-
-async function fetchPois(cat, lat, lng) {
-  const cacheKey = `pawa_pois_${cat}_${lat.toFixed(3)}_${lng.toFixed(3)}_${POI_RADIUS_M}`;
-  try {
-    const cached = JSON.parse(localStorage.getItem(cacheKey) || "null");
-    if (cached && (Date.now() - cached.at) < POI_CACHE_TTL_MS) {
-      return cached.data;
-    }
-  } catch (_) {}
-
-  const meta = POI_CATS.find(c => c.key === cat);
-  const q = `[out:json][timeout:25];(${meta.q.replace(/RADIUS/g, POI_RADIUS_M).replace(/LAT/g, lat).replace(/LNG/g, lng)});out center 60;`;
-  // Two Overpass mirrors — try the second if the first is busy.
-  const endpoints = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter"
-  ];
-  let lastErr;
-  for (const url of endpoints) {
-    try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "data=" + encodeURIComponent(q)
-      });
-      if (!r.ok) throw new Error("Overpass HTTP " + r.status);
-      const j = await r.json();
-      const els = (j.elements || []).filter(e => e.tags); // drop nameless ways' inner nodes
-      try { localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data: els })); } catch (_) {}
-      return els;
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error("Overpass unreachable");
-}
-
-// Best human-readable name for a nearby POI: the real name first (a school's or
-// hospital's actual name), then operator/brand, then a humanised type — never a
-// bare generic category if we can do better.
-function poiLabel(el, catMeta) {
-  const t = el.tags || {};
-  const real = t.name || t["name:en"] || t.official_name || t.operator || t.brand;
-  if (real) return real;
-  const kind = t.amenity || t.shop || t.leisure || t.healthcare || t.office || t.tourism || "";
-  if (kind) { const s = String(kind).replace(/_/g, " "); return s.charAt(0).toUpperCase() + s.slice(1); }
-  return catMeta.label;
-}
-
-// ============================================================================
-// "What's nearby" summary — an at-a-glance, auto-loaded readout of the services
-// around THIS room (schools, hospitals, markets, transport...), so a seeker
-// understands the neighbourhood, not just the listing. ONE combined Overpass
-// query (not one per category), cached 24h. Distances are straight-line and
-// clearly marked "~"; the map markers give the exact road distance on tap.
-// ============================================================================
-const SUMMARY_RADIUS_M = 1500;
-const NEARBY_SUMMARY_GROUPS = [
-  { key: "school",    label: "Schools",             color: "#1e40af", match: t => /^(school|kindergarten|college|university)$/.test(t.amenity || "") },
-  { key: "hospital",  label: "Hospitals & clinics", color: "#b91c1c", match: t => /^(hospital|clinic|doctors|pharmacy)$/.test(t.amenity || "") },
-  { key: "market",    label: "Markets & shops",     color: "#bc5c00", match: t => t.amenity === "marketplace" || /^(supermarket|convenience|mall)$/.test(t.shop || "") },
-  { key: "transport", label: "Transport",           color: "#6b3aa3", match: t => t.highway === "bus_stop" || /^(bus_station|taxi)$/.test(t.amenity || "") || t.railway === "station" || !!t.public_transport },
-  { key: "bank",      label: "Banks & ATMs",        color: "#0d8050", match: t => /^(bank|atm|bureau_de_change)$/.test(t.amenity || "") },
-  { key: "worship",   label: "Mosques & churches",  color: "#7c3aed", match: t => t.amenity === "place_of_worship" },
-];
-
-async function renderNearbySummary(lat, lng) {
-  const card = document.getElementById("hdNearbyCard");
-  const list = document.getElementById("hdNearbyList");
-  if (!card || !list || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
-  card.hidden = false;
-  list.innerHTML = `<p class="hd-nearby-msg">Scanning the area around this home…</p>`;
-
-  let els;
-  try { els = await fetchNearbySummary(lat, lng); }
-  catch (_) { list.innerHTML = `<p class="hd-nearby-msg">Couldn't load nearby places right now — the map below still shows where it is.</p>`; return; }
-
-  const groups = NEARBY_SUMMARY_GROUPS.map(g => {
-    const seen = new Set();
-    const items = [];
-    for (const el of els) {
-      if (!g.match(el.tags || {})) continue;
-      const p = el.center || { lat: el.lat, lon: el.lon };
-      if (p.lat == null || p.lon == null) continue;
-      const name = poiLabel(el, g);
-      const k = name.toLowerCase();
-      if (seen.has(k)) continue;
-      seen.add(k);
-      items.push({ name, dist: haversineMetersHd(lat, lng, p.lat, p.lon) });
-    }
-    items.sort((a, b) => a.dist - b.dist);
-    return { label: g.label, color: g.color, count: items.length, top: items.slice(0, 3) };
-  }).filter(g => g.count > 0);
-
-  if (!groups.length) {
-    list.innerHTML = `<p class="hd-nearby-msg">No tagged services found within ${SUMMARY_RADIUS_M / 1000} km on OpenStreetMap. The map below still shows where it is.</p>`;
-    return;
-  }
-  list.innerHTML = groups.map(g => `
-    <div class="hd-nearby-cat">
-      <div class="hd-nearby-cat-head">
-        <span class="hd-nearby-dot" style="background:${g.color}"></span>
-        <strong>${esc(g.label)}</strong>
-        <span class="hd-nearby-count">${g.count}</span>
-      </div>
-      <ul class="hd-nearby-items">
-        ${g.top.map(it => `<li>
-          <span class="hd-nearby-name">${esc(it.name)}</span>
-          <span class="hd-nearby-dist">~${fmtMetersHd(it.dist)}</span>
-        </li>`).join("")}
-      </ul>
-    </div>`).join("");
-}
-
-async function fetchNearbySummary(lat, lng) {
-  const R = SUMMARY_RADIUS_M;
-  const cacheKey = `pawa_nearby_sum_${lat.toFixed(3)}_${lng.toFixed(3)}_${R}`;
-  try {
-    const c = JSON.parse(localStorage.getItem(cacheKey) || "null");
-    if (c && (Date.now() - c.at) < POI_CACHE_TTL_MS) return c.data;
-  } catch (_) {}
-
-  const q = `[out:json][timeout:25];(` +
-    `node["amenity"~"^(school|kindergarten|college|university|hospital|clinic|doctors|pharmacy|marketplace|bank|atm|bureau_de_change|place_of_worship|bus_station|taxi)$"](around:${R},${lat},${lng});` +
-    `node["shop"~"^(supermarket|convenience|mall)$"](around:${R},${lat},${lng});` +
-    `node["highway"="bus_stop"](around:${R},${lat},${lng});` +
-    `node["railway"="station"](around:${R},${lat},${lng});` +
-    `node["public_transport"](around:${R},${lat},${lng});` +
-    `);out body 150;`;
-  const endpoints = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
-  ];
-  let lastErr;
-  for (const url of endpoints) {
-    // fetch() has no native timeout — abort after 18s so a busy/hung Overpass
-    // mirror can't leave the card stuck on "Scanning…"; we fall through to the
-    // next mirror, then to the graceful failure message.
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 18000);
-    try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "data=" + encodeURIComponent(q),
-        signal: ac.signal,
-      });
-      if (!r.ok) throw new Error("Overpass HTTP " + r.status);
-      const j = await r.json();
-      const els = (j.elements || []).filter(e => e.tags);
-      try { localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data: els })); } catch (_) {}
-      return els;
-    } catch (e) { lastErr = e; }
-    finally { clearTimeout(timer); }
-  }
-  throw lastErr || new Error("Overpass unreachable");
-}
-
-function haversineMetersHd(lat1, lng1, lat2, lng2) {
-  const R = 6371000, toRad = d => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.sqrt(a)));
-}
-function fmtMetersHd(m) { return m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`; }
-
-// ============================================================================
-// Commute tool — "how far is this home from my workplace / daily route?"
-// Geocodes the typed place via LocationIQ (pawaGeo.suggest), then measures the
-// REAL driving route via pawaRoute (OSRM ×2 + Valhalla) — the actual road km +
-// minutes, with the route drawn on the map. NEVER straight-line: if no engine
-// can route it, we say so rather than show a crow-flies number. No match → ask
-// the user for a famous area/landmark near their workplace and try again.
-// ============================================================================
-function attachCommuteTool(map, lat, lng) {
-  const wrap  = document.getElementById("hdCommute");
-  const input = document.getElementById("hdCommuteInput");
-  const btn   = document.getElementById("hdCommuteBtn");
-  const msgEl = document.getElementById("hdCommuteMsg");
-  const resEl = document.getElementById("hdCommuteResults");
-  if (!wrap || !input || !btn || !window.pawaGeo) return;
-  wrap.hidden = false;
-
-  let workMarker = null, lineReady = false, measureSeq = 0;
-
-  function emptyLine() { return { type: "Feature", geometry: { type: "LineString", coordinates: [] } }; }
-  function emptyFC()   { return { type: "FeatureCollection", features: [] }; }
-  function initLine() {
-    if (lineReady) return;
-    const add = () => {
-      // Alternative roads sit UNDER the chosen route so the main one reads first.
-      // Each coloured line gets a white casing beneath it so the roads stay
-      // visible on the satellite-hybrid base (dark imagery swallows raw green).
-      if (!map.getSource("hd-commute-alts")) {
-        map.addSource("hd-commute-alts", { type: "geojson", data: emptyFC() });
-        map.addLayer({ id: "hd-commute-alts-casing", type: "line", source: "hd-commute-alts",
-          paint: { "line-color": "#fff", "line-width": 5, "line-opacity": 0.5 } });
-        map.addLayer({ id: "hd-commute-alts", type: "line", source: "hd-commute-alts",
-          paint: { "line-color": "#0a6f4d", "line-width": 3, "line-opacity": 0.6, "line-dasharray": [2, 1.5] } });
-      }
-      if (!map.getSource("hd-commute-line")) {
-        map.addSource("hd-commute-line", { type: "geojson", data: emptyLine() });
-        map.addLayer({ id: "hd-commute-line-casing", type: "line", source: "hd-commute-line",
-          paint: { "line-color": "#fff", "line-width": 6, "line-opacity": 0.9 } });
-        map.addLayer({ id: "hd-commute-line", type: "line", source: "hd-commute-line",
-          paint: { "line-color": "#0a6f4d", "line-width": 3, "line-opacity": 0.95 } });
-      }
-      lineReady = true;
-    };
-    if (map.isStyleLoaded()) add(); else map.once("load", add);
-  }
-  // Draw either the full road geometry (solid) or a 2-point fallback (dashed).
-  function setLine(coords, dashed) {
-    initLine();
-    const data = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
-    const apply = () => {
-      const s = map.getSource("hd-commute-line"); if (s) s.setData(data);
-      if (map.getLayer("hd-commute-line")) {
-        map.setPaintProperty("hd-commute-line", "line-dasharray", dashed ? [2, 1.5] : [1, 0]);
-        // Real road = brand green; straight-line estimate = amber, so the two are
-        // never confused (matches near-me / services / trucks).
-        map.setPaintProperty("hd-commute-line", "line-color", dashed ? "#b26a00" : "#0a6f4d");
-      }
-    };
-    if (map.getSource && map.getSource("hd-commute-line")) apply(); else map.once("load", apply);
-  }
-  // The OTHER roads that also reach the place (lighter dashed lines).
-  function setAltLines(coordsList) {
-    initLine();
-    const data = {
-      type: "FeatureCollection",
-      features: (coordsList || []).map((c) => ({ type: "Feature", geometry: { type: "LineString", coordinates: c } }))
-    };
-    const apply = () => { const s = map.getSource("hd-commute-alts"); if (s) s.setData(data); };
-    if (map.getSource && map.getSource("hd-commute-alts")) apply(); else map.once("load", apply);
-  }
-  function fitCoords(coords) {
-    try {
-      const b = coords.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
-      map.fitBounds(b, { padding: 70, maxZoom: 15, duration: 600 });
-    } catch (_) {}
-  }
-
-  function showMsg(html, kind) {
-    msgEl.innerHTML = html;
-    msgEl.className = "hd-commute-msg" + (kind ? " " + kind : "");
-    msgEl.hidden = !html;
-  }
-  function fmtKm(km) { return km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(km < 10 ? 2 : 1) + " km"; }
-
-  async function selectPlace(p, rows) {
-    if (!workMarker) {
-      const el = document.createElement("div");
-      el.className = "hd-work-marker";
-      el.textContent = "";
-      workMarker = new maplibregl.Marker({ element: el, anchor: "center" });
-    }
-    workMarker.setLngLat([p.lng, p.lat]).addTo(map);
-    if (rows) rows.forEach((r) => r.el.classList.toggle("active", r.place === p));
-
-    const ctx = p.context ? ` <span class="hd-commute-ctx">(${esc(p.context)})</span>` : "";
-    const seq = ++measureSeq;
-    showMsg(`Measuring the real road distance to <strong>${esc(p.name)}</strong>…`, "");
-
-    // Real driving route (road km + minutes + geometry to draw).
-    let r = null;
-    try {
-      if (window.pawaRoute) r = await window.pawaRoute.route({ lat, lng }, { lat: p.lat, lng: p.lng });
-    } catch (_) {}
-    if (seq !== measureSeq) return;   // user already picked another place
-
-    if (r && r.geojson && Array.isArray(r.geojson.coordinates) && r.geojson.coordinates.length) {
-      p.roadKm = r.km;
-      const alts = (r.alts || []).filter((a) => a.geojson && Array.isArray(a.geojson.coordinates));
-      setLine(r.geojson.coordinates, false);
-      setAltLines(alts.map((a) => a.geojson.coordinates));
-      // Zoom out far enough to show EVERY road that reaches the place.
-      fitCoords([].concat(r.geojson.coordinates, ...alts.map((a) => a.geojson.coordinates)));
-      const altNote = alts.length
-        ? `There ${alts.length === 1 ? "is 1 more road" : `are ${alts.length} more roads`} to reach this area — ` +
-          alts.map((a) => `${fmtKm(a.km)} · ~${Math.round(a.durationMin)} min`).join(", ") +
-          ` (drawn lighter on the map).`
-        : `Measured along the actual road, drawn on the map.`;
-      showMsg(
-        ` <strong>${fmtKm(r.km)} by road</strong> · ~${Math.round(r.durationMin)} min drive ` +
-        `from this home to <strong>${esc(p.name)}</strong>${ctx}. ` +
-        `<span class="hd-commute-note">${altNote}</span>`,
-        "ok"
-      );
-      if (rows) {
-        const row = rows.find((x) => x.place === p);
-        const kmEl = row && row.el.querySelector(".hd-cr-km");
-        if (kmEl) kmEl.textContent = fmtKm(r.km) + " by road";
-      }
-    } else {
-      // No routing engine (OSRM ×2 + Valhalla) could measure it — show the honest
-      // state instead of a misleading straight-line number, and draw no fake line.
-      setLine([], true);
-      setAltLines([]);
-      showMsg(
-        `Couldn’t measure the road distance to <strong>${esc(p.name)}</strong>${ctx} right now. ` +
-        `<span class="hd-commute-note">Please try again in a moment.</span>`,
-        "warn"
-      );
-    }
-  }
-
-  function renderResults(places) {
-    resEl.innerHTML = "";
-    const rows = [];
-    places.forEach((p) => {
-      const el = document.createElement("button");
-      el.type = "button";
-      el.className = "hd-commute-result";
-      // Road distance only — blank until measured (tapping the row routes it).
-      el.innerHTML =
-        `<span class="hd-cr-name">${esc(p.name)}</span>` +
-        `<span class="hd-cr-meta">${esc(p.tag || "Place")}${p.context ? " · " + esc(p.context) : ""}</span>` +
-        `<span class="hd-cr-km">${p.roadKm != null ? fmtKm(p.roadKm) + " by road" : "tap to measure"}</span>`;
-      resEl.appendChild(el);
-      const row = { el, place: p };
-      el.addEventListener("click", () => selectPlace(p, rows));
-      rows.push(row);
-    });
-    return rows;
-  }
-
-  async function run() {
-    const q = input.value.trim();
-    if (q.length < 2) { showMsg("Type your workplace, office area or a place on your daily route.", "warn"); return; }
-    btn.disabled = true; btn.textContent = "Locating…";
-    showMsg(`Searching for “${esc(q)}”…`, "");
-    resEl.innerHTML = "";
-    let places = [];
-    try { places = await window.pawaGeo.suggest(q, { limit: 6 }); } catch (_) { places = []; }
-    btn.disabled = false; btn.textContent = "Measure";
-
-    if (!places.length) {
-      showMsg(
-        `We couldn't find “<strong>${esc(q)}</strong>”. Try a <strong>famous area, market, school or road near your workplace</strong> ` +
-        `(a well-known landmark close by), then measure again.`,
-        "warn"
-      );
-      return;
-    }
-    const rows = renderResults(places);
-    selectPlace(places[0], rows);   // preview the top match; tap another to refine
-
-    // Upgrade every result's distance to the REAL road km in one OSRM matrix
-    // request, so the list ranks places by how far they actually are to drive.
-    if (window.pawaRoute) {
-      window.pawaRoute.table({ lat, lng }, places.map((p) => ({ lat: p.lat, lng: p.lng })))
-        .then((kms) => (kms || []).forEach((km, i) => {
-          if (!Number.isFinite(km) || !rows[i]) return;
-          places[i].roadKm = km;
-          const kmEl = rows[i].el.querySelector(".hd-cr-km");
-          if (kmEl) kmEl.textContent = fmtKm(km) + " by road";
-        }))
-        .catch(() => {});
-    }
-  }
-
-  btn.addEventListener("click", run);
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run(); } });
-}
-
-// ============================================================================
-// Nearest main road — every listing shows how close it is to the tarmac
-// (motorway / trunk / primary / secondary), via the shared pawaRoads helper.
-// ============================================================================
-async function showNearestMainRoad(lat, lng) {
-  const el = document.getElementById("hdMainRoad");
-  if (!el || !window.pawaRoads || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
-  el.hidden = false;
-  el.innerHTML = ` Checking how far the main road is…`;
-  let r;
-  try { r = await window.pawaRoads.nearest({ lat, lng }); } catch (_) { r = undefined; }
-  if (r === undefined) { el.hidden = true; return; }   // lookup failed — say nothing wrong
-  if (r) {
-    const d = r.meters < 1000 ? `${r.meters} m` : `${(r.meters / 1000).toFixed(1)} km`;
-    el.innerHTML = ` <strong>${d}</strong> from the nearest main road` +
-      (r.name ? ` — <strong>${esc(r.name)}</strong>` : "");
-  } else {
-    el.innerHTML = ` More than 3 km from the nearest main road`;
-  }
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-// A single spec tile: trusted SVG icon + value + uppercase label. Value is
-// escaped unless { raw:true } (used for tiles with an inline <small> unit).
-// { feature:true } renders the accented brand-gradient variant.
-function specTile(icon, value, label, opts = {}) {
-  const v = opts.raw ? value : esc(String(value));
-  return `<div class="hd-spec${opts.feature ? " hd-spec--feature" : ""}">
-    <span class="hd-spec__icon" aria-hidden="true">${icon}</span>
-    <span class="hd-spec__val">${v}</span>
-    <span class="hd-spec__lbl">${esc(label)}</span>
-  </div>`;
-}
-
-// Lucide-style line icons (consistent 1.8 stroke) for the spec tiles.
-const SPEC_ICONS = {
-  type:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>`,
-  room:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><circle cx="14.5" cy="12" r="1"/></svg>`,
-  bed:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5"/><path d="M3 18v2M21 18v2"/><path d="M7 11V8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v3"/></svg>`,
-  bath:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M5 12V6a2 2 0 0 1 2-2 2 2 0 0 1 2 2"/><path d="M8 6h2"/><path d="M7 19l-1 2M18 19l1 2"/></svg>`,
-  size:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/></svg>`,
-  furnished: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"/><path d="M3 12a2 2 0 0 1 2 2v3h14v-3a2 2 0 0 1 2-2"/><path d="M5 17v2M19 17v2"/></svg>`,
-  months:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M5 3L2 6M19 3l3 3"/></svg>`,
-  calendar:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`
-};
-
-// ============================================================================
-// The spec sheet — the listing's own account of itself
-//
-// js/lib/house-spec.js owns the shape and the catalogue; agent-houses.js
-// writes it; this is where a client finally reads it. Two halves, drawn
-// differently on purpose:
-//
-//   rooms[]   carry money, so they are a price table. A plot with three
-//             singles at 60,000 and a master at 150,000 is ONE listing with
-//             four rooms, and a table is the only honest way to say that —
-//             a single headline figure has to pick one of them and call the
-//             other three wrong.
-//   groups[]  carry everything else, so they are label→value lines under the
-//             agent's own heading. Nothing is required and no category is
-//             fixed, so the renderer draws what is there and never a
-//             placeholder for what is not.
-//
-// fromRow() rather than row.details: a listing saved before the spec sheet
-// existed still has room_kind + price_tzs, and reading those back as a
-// one-line table means the page says the same kind of thing about an old
-// listing as it does about a new one.
-// ============================================================================
-function money(n) {
-  return (window.formatTZS || ((v) => "TZS " + Number(v || 0).toLocaleString("en-US")))(n);
 }
 
 /**
- * "From " in front of the headline, or nothing.
+ * The sticky action bar.
  *
- * agent-houses.js already puts the CHEAPEST room's price into price_tzs when
- * the agent priced room by room instead of naming an overall figure. That is
- * the right number, but printed bare it reads as the price of the place —
- * and somebody who turns up expecting 60,000 for the master room has been
- * misled by one missing word.
+ * Below 1024px this IS the contact row — the in-page one is hidden there — so
+ * the encrypted door has to be here too, or it exists only for people on a
+ * desktop. The bar also appears for a listing that has an owner but no phone
+ * number, which used to leave a phone visitor with no way to ask at all.
  */
-function priceLead(h) {
-  const HS = window.HouseSpec;
-  if (!HS || !Number(h.price_tzs)) return "";
-  const from = HS.priceFrom(h);
-  return (from && HS.isRoomByRoom(h)) ? `<span class="hd-price-lead">From</span> ` : "";
-}
+function wireSticky(h, stickyEl, ctx) {
+  const { agentPhone, agentPhoneClean, waHref, meetCode } = ctx;
+  const msgHref = window.PMReach ? window.PMReach.href(window.PMReach.ownerOf(h)) : "";
+  if (!agentPhone && !msgHref) return;
 
-function roomsCardHtml(h) {
-  const HS = window.HouseSpec;
-  if (!HS) return "";
-  const rooms = HS.fromRow(h).rooms;
-  // One room that is the whole unit says nothing the header and the spec
-  // tiles have not already said, so it gets no table of its own.
-  if (!rooms.length || !HS.isRoomByRoom(h)) return "";
+  const stickyMsg = document.getElementById("hdStickyMsg");
+  if (stickyMsg && msgHref) { stickyMsg.href = msgHref; stickyMsg.hidden = false; }
 
-  const from = HS.priceFrom(h);
-  const lead = from
-    ? `<p class="hd-rooms-lead">${esc(rooms.length > 1
-        ? `${rooms.length} kinds of space here, from `
-        : "From ")}<strong>${esc(money(from.amount))}</strong> ${esc(HS.periodLabel(from.period))}</p>`
-    : `<p class="hd-rooms-lead">${esc(rooms.length > 1
-        ? `${rooms.length} kinds of space here. Prices on request.`
-        : "Price on request.")}</p>`;
-
-  const cheapest = from ? from.amount : null;
-
-  const rows = rooms.map((r) => {
-    // The facts that qualify a room, in the order somebody asks about them.
-    const facts = [];
-    if (r.ensuite) facts.push("Own bathroom");
-    if (r.size) facts.push(`${r.size} m²`);
-    if (r.count > 1 && r.vacant != null) facts.push(`${r.vacant} of ${r.count} free now`);
-    else if (r.count > 1) facts.push(`${r.count} of these`);
-    else if (r.vacant === 0) facts.push("Taken right now");
-
-    const taken = r.vacant === 0;
-    const price = r.price != null && r.price > 0
-      ? `<strong>${esc(money(r.price))}</strong><small>${esc(HS.periodLabel(r.period))}</small>`
-      : `<span class="hd-room-ask">Ask the agent</span>`;
-    const best = cheapest != null && r.price === cheapest && rooms.length > 1
-      ? `<span class="hd-room-tag">Cheapest</span>` : "";
-
-    return `<li class="hd-room${taken ? " is-taken" : ""}">
-      <span class="hd-room-l">
-        <span class="hd-room-k">${esc(HS.roomLabel(r.kind))}${best}</span>
-        ${facts.length ? `<small class="hd-room-f">${esc(facts.join(" · "))}</small>` : ""}
-        ${r.note ? `<small class="hd-room-n">${esc(r.note)}</small>` : ""}
-      </span>
-      <span class="hd-room-p">${price}</span>
-    </li>`;
-  }).join("");
-
-  return `<div class="hd-card hd-rooms-card">
-    <h3>Rooms &amp; what each one costs</h3>
-    ${lead}
-    <ul class="hd-rooms">${rows}</ul>
-  </div>`;
-}
-
-function groupsHtml(h) {
-  const HS = window.HouseSpec;
-  if (!HS) return "";
-  return HS.fromRow(h).groups.map((g) => {
-    // The preset's icon is ours (a path constant in house-spec.js), so it is
-    // trusted markup. The title is the agent's, so it is escaped — including
-    // when it happens to match a preset.
-    const preset = HS.groupPreset(g.key);
-    const icon = preset
-      ? `<svg class="hd-group-i" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-              aria-hidden="true"><path d="${preset.icon}"/></svg>`
-      : "";
-    const lines = g.items.map((it) => `
-      <li>
-        <span class="hd-fact-l">${esc(it.label)}</span>
-        <span class="hd-fact-v">${esc(it.value)}${
-          it.note ? `<small>${esc(it.note)}</small>` : ""}</span>
-      </li>`).join("");
-    return `<div class="hd-card hd-group-card">
-      <h3>${icon}<span>${esc(g.title)}</span></h3>
-      <ul class="hd-facts">${lines}</ul>
-    </div>`;
-  }).join("");
-}
-
-function stateHtml(title, body) {
-  return `<div class="hd-state"><h3>${esc(title)}</h3><p>${body}</p></div>`;
-}
-
-function emptyState({ title, sub, ctaHref, ctaLabel, danger = false }) {
-  const art = danger
-    ? `<div class="hp-empty__art" style="background:var(--c-danger-soft,#fce4e4);color:var(--c-danger,#b91c1c);box-shadow:inset 0 0 0 1px rgba(185,28,28,.18)">
-         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-           <circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16" r="1"/>
-         </svg>
-       </div>`
-    : `<div class="hp-empty__art" aria-hidden="true">
-         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-           <path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>
-         </svg>
-       </div>`;
-  return `<div class="hp-empty" role="${danger ? 'alert' : 'status'}">
-    ${art}
-    <div class="hp-empty__title">${esc(title)}</div>
-    <div class="hp-empty__sub">${sub}</div>
-    ${ctaHref ? `<a class="hp-empty__cta" href="${ctaHref}">${esc(ctaLabel)}</a>` : ""}
-  </div>`;
-}
-
-function formatPrice(h) {
-  const p = h.price_tzs || 0;
-  let value;
-  if (p >= 1_000_000_000) value = (p / 1_000_000_000).toFixed(2) + "B";
-  else if (p >= 1_000_000) value = (p / 1_000_000).toFixed(p % 1_000_000 === 0 ? 0 : 1) + "M";
-  else if (p >= 1_000)     value = (p / 1_000).toFixed(0) + "k";
-  else value = String(p);
-  const unit = h.listing === "sale" ? "TZS" : `TZS / ${h.period || "month"}`;
-  return { value, unit };
-}
-
-function formatDate(iso) {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  } catch { return iso; }
-}
-
-function labelType(t) {
-  return ({ apartment: "Apartment", house: "House", plot: "Plot", office: "Office", shop: "Shop / business", warehouse: "Warehouse" })[t] || (t || "Property");
-}
-
-function labelAmenity(k) {
-  return ({
-    parking: "Parking",
-    security: "24h security",
-    water_tank: "Water tank",
-    borehole: "Borehole",
-    generator: "Generator",
-    wifi: "Wi-Fi",
-    pool: "Swimming pool",
-    gym: "Gym",
-    garden: "Garden",
-    elevator: "Elevator",
-    water_connection: "Water (utility)",
-    electricity_connection: "Electricity (utility)"
-  })[k] || k.replace(/_/g, " ");
-}
-
-function amenityIcon(k) {
-  return ({
-    parking: "🅿", security: "", water_tank: "", borehole: "",
-    generator: "", wifi: "", pool: "", gym: "",
-    garden: "", elevator: "",
-    water_connection: "", electricity_connection: ""
-  })[k] || "";
-}
-
-// Pick an emoji for an additional-cost line by matching keywords in its label.
-function costIcon(label) {
-  const s = String(label || "").toLowerCase();
-  if (/electric|umeme|luku|power/.test(s))        return "";
-  if (/water|maji/.test(s))                        return "";
-  if (/garbage|waste|taka|rubbish|trash/.test(s))  return "";
-  if (/secur|usalama|guard|askari/.test(s))        return "";
-  if (/internet|wifi|wi-fi|data/.test(s))          return "";
-  if (/gas/.test(s))                               return "";
-  if (/service|maintenance|matengenezo/.test(s))   return "";
-  if (/park/.test(s))                              return "🅿";
-  if (/cable|tv|dstv|startimes/.test(s))           return "";
-  return "";
-}
-
-// Stable 6-character room code derived from the listing id — same listing
-// always yields the same code so multiple buyers + agent land in one room.
-function roomCodeFor(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) { code += chars[h % chars.length]; h = Math.floor(h / chars.length) + 17; }
-  return code;
-}
-
-function getFavs() {
-  try { return new Set(JSON.parse(localStorage.getItem("pawa_house_favs") || "[]")); }
-  catch { return new Set(); }
-}
-
-function esc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const stickyCall = document.getElementById("hdStickyCall");
+  const stickyWa   = document.getElementById("hdStickyWa");
+  if (agentPhone) {
+    stickyCall.href = `tel:${agentPhoneClean}`;
+    stickyWa.href   = waHref;
+  } else {
+    // No number on the listing: two buttons pointing at nothing are worse than
+    // two buttons that are not there.
+    stickyCall.hidden = true;
+    stickyWa.hidden = true;
+  }
+  document.getElementById("hdStickyMeet").href = `meet.html?${meetCode}`;
+  stickyEl.hidden = false;
 }
 
 // ============================================================================

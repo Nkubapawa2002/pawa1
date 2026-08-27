@@ -281,7 +281,7 @@ try {
 
   process.stdout.write("\nA listing with nobody recorded against it\n");
   await page.goto(BASE + "/house.html?id=h-none", { waitUntil: "domcontentloaded", timeout: 30000 });
-  await until("the ownerless listing to render", () => !!document.querySelector(".hd-title"));
+  await until("the ownerless listing to render", () => !!document.querySelector(".hx-hero__title"));
   const none = await page.evaluate(() => ({
     doors: document.querySelectorAll("[data-pm-to]").length,
     call: document.querySelectorAll('a[href^="tel:"]').length,
@@ -323,7 +323,7 @@ try {
   process.stdout.write("\nA listing with an owner but no phone number\n");
   await page.evaluate(() => {}); // keep the page; the next goto reloads fixtures
   await page.goto(BASE + "/house.html?id=h-nophone", { waitUntil: "domcontentloaded", timeout: 30000 });
-  await until("the phoneless listing to render", () => !!document.querySelector(".hd-title"));
+  await until("the phoneless listing to render", () => !!document.querySelector(".hx-hero__title"));
   const noPhone = await page.evaluate(() => {
     const s = document.getElementById("hdSticky");
     const vis = (el) => !!el && !el.hidden && el.getBoundingClientRect().height > 0;

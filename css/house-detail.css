@@ -1,0 +1,1420 @@
+/* ============================================================================
+   house-detail.css — the property detail screen (house.html)
+
+   WHY THIS FILE EXISTS
+   The page used to carry ~460 lines of inline <style> plus a second block that
+   re-pointed a whole second design system (--c-*) at a hand-written "Twilight"
+   palette of raw hexes. Every brand value on the most commercially important
+   screen in the app was therefore a literal that no design-system change could
+   ever reach.
+
+   This file is the same screen rebuilt on the Maisha na Lifeza tokens
+   (css/ds/tokens/, mirrored from the Claude Design project). Rules:
+
+     - Every colour, radius, duration, weight and space is a var(--token).
+     - The page is dark-first and app-faced: --bg-app / --surface-app /
+       --green-emerald / --font-app, which is the Twilight look the page
+       already had, expressed in the system that owns those values.
+     - The --c-* block below is a COMPATIBILITY SHIM, not a palette. Shared
+       classes this page reuses (.hp-empty, .hp-sk-detail from houses-pro.css)
+       are written against --c-*; aliasing them onto real tokens is what lets
+       this page stop depending on css/claude-design.css's warm-cream defaults
+       without forking those components.
+
+   LOAD ORDER MATTERS. This file is linked LAST on house.html, and everything
+   here is scoped to body[data-page="house"] — a token defined on :root by a
+   stylesheet loaded afterwards would otherwise win.
+   ========================================================================== */
+
+/* ===========================================================================
+   1. PAGE PALETTE
+   =========================================================================== */
+body[data-page="house"] {
+  /* --- the page's own semantic names, all sourced from the design system --- */
+  --hx-bg:          var(--bg-app);
+  --hx-panel:       var(--surface-app);
+  --hx-panel-2:     color-mix(in srgb, var(--surface-app) 88%, var(--white) 4%);
+  --hx-line:        var(--border-strong);
+  --hx-line-strong: color-mix(in srgb, var(--white) 16%, transparent);
+  --hx-accent:      var(--green-emerald);
+  --hx-accent-dim:  color-mix(in srgb, var(--green-emerald) 14%, transparent);
+  --hx-accent-line: color-mix(in srgb, var(--green-emerald) 34%, transparent);
+  --hx-gold:        var(--gold-warm);
+  --hx-ink:         var(--text);
+  --hx-ink-soft:    var(--text-soft);
+  --hx-ink-muted:   var(--text-muted);
+  --hx-ink-faint:   var(--text-faint);
+  --hx-glass:       color-mix(in srgb, var(--bg-app) 72%, transparent);
+  --hx-rail:        color-mix(in srgb, var(--white) 5%, transparent);
+
+  /* --- compatibility shim for shared houses-pro.css components (see head) -- */
+  --c-surface:      var(--hx-panel);
+  --c-surface-soft: var(--bg-2);
+  --c-surface-2:    var(--hx-panel-2);
+  --c-bg-elev:      var(--hx-rail);
+  --c-border:       var(--hx-line);
+  --c-text:         var(--hx-ink);
+  --c-text-soft:    var(--hx-ink-soft);
+  --c-text-muted:   var(--hx-ink-muted);
+  --c-text-faint:   var(--hx-ink-faint);
+  --c-brand:        var(--hx-accent);
+  --c-brand-deep:   var(--hx-accent);
+  --c-brand-faint:  var(--hx-accent-dim);
+  --c-brand-soft:   var(--hx-accent-line);
+  --c-accent:       var(--hx-gold);
+  --c-success:      var(--hx-accent);
+  --c-danger:       var(--text-err);
+  --c-font-display: var(--font-app);
+
+  /* The colour is set separately from the gradients on purpose: a `background`
+     shorthand carrying only images resets background-color to transparent, and
+     the page then shows the browser's white canvas on overscroll. */
+  background-color: var(--bg-app);
+  background-image:
+    radial-gradient(76% 46% at 50% -8%, color-mix(in srgb, var(--green-neon) 13%, transparent) 0%, transparent 68%),
+    radial-gradient(58% 40% at 96% 6%,  color-mix(in srgb, var(--gold) 6%, transparent) 0%, transparent 72%),
+    linear-gradient(180deg, var(--bg-app) 0%, var(--bg) 100%);
+  background-attachment: fixed;
+  color: var(--hx-ink);
+  font-family: var(--font-app);
+  font-size: var(--text-base);
+  line-height: var(--lh-normal);
+  min-height: 100vh;
+}
+
+/* This is a pushed detail screen, not a tab: no top nav, no footer, no tab bar. */
+body[data-page="house"] #nav-slot,
+body[data-page="house"] #footer-slot,
+body[data-page="house"] .navbar,
+body[data-page="house"] .footer,
+body[data-page="house"] .bottom-nav { display: none !important; }
+
+body[data-page="house"] ::selection { background: var(--hx-accent-line); color: var(--hx-ink); }
+body[data-page="house"] :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+
+/* ===========================================================================
+   2. TOP BAR — back / save / share, glass, always reachable
+   Replaces the back pill that used to scroll away with the content.
+   =========================================================================== */
+.hx-topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-nav);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  /* js/core/theme.js pins its own 42px light/dark toggle at top:10px right:12px
+     with z-index 1000, i.e. over this bar. Reserve the lane rather than let it
+     land on the share button. */
+  padding-right: calc(var(--space-4) + 58px);
+  padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+  background: var(--hx-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.hx-topbar.is-stuck {
+  border-bottom-color: var(--hx-line);
+  background: color-mix(in srgb, var(--bg-app) 90%, transparent);
+}
+.hx-topbar__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--hit-min);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line-strong);
+  color: var(--hx-ink);
+  font: var(--fw-semibold) var(--text-sm)/1 var(--font-app);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.hx-topbar__back:hover {
+  background: var(--hx-accent-dim);
+  border-color: var(--hx-accent-line);
+  color: var(--hx-ink);
+  text-decoration: none;
+}
+/* The listing's name, revealed only once the hero title has scrolled past — so
+   the bar answers "what am I looking at?" without ever duplicating a heading
+   that is already on screen. */
+.hx-topbar__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--fw-bold) var(--text-sm)/1.2 var(--font-app);
+  color: var(--hx-ink);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  pointer-events: none;
+}
+.hx-topbar.is-stuck .hx-topbar__title { opacity: 1; transform: none; }
+
+.hx-iconbtn {
+  width: var(--hit-min);
+  height: var(--hit-min);
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line-strong);
+  color: var(--hx-ink);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.hx-iconbtn:hover { background: var(--hx-accent-dim); border-color: var(--hx-accent-line); }
+.hx-iconbtn:active { transform: scale(.94); }
+.hx-iconbtn.is-on {
+  color: var(--hx-accent);
+  border-color: var(--hx-accent-line);
+  background: var(--hx-accent-dim);
+}
+
+/* ===========================================================================
+   3. LAYOUT
+   Phones: one column, sticky action bar at the foot.
+   Desktop: the money and the agent lift out into a sticky rail, so the
+   decision stays on screen while the reader works down the evidence.
+   =========================================================================== */
+.hd-wrap {
+  max-width: var(--app-width);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) calc(var(--space-16) + var(--space-12));
+}
+/* The aside comes FIRST in the document, because on a phone the two things a
+   reader wants before scrolling are the price and who is letting it — and DOM
+   order is what a screen reader and the tab key follow, so reordering it in CSS
+   would have made the visual order and the spoken order disagree. Its own CTA
+   row is hidden at this width (the sticky bar carries it), so what lands at the
+   top is identity, not a second set of buttons.
+   On desktop it moves to the right-hand rail by explicit grid placement rather
+   than by `order`, for the same reason. */
+.hx-layout { display: flex; flex-direction: column; }
+.hx-main { min-width: 0; }
+.hx-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+@media (min-width: 1024px) {
+  .hd-wrap { max-width: var(--container); padding-bottom: var(--space-16); }
+  .hx-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: var(--space-6);
+    align-items: start;
+  }
+  .hx-main  { grid-column: 1; grid-row: 1; }
+  .hx-aside {
+    grid-column: 2;
+    grid-row: 1;
+    margin-bottom: 0;
+    position: sticky;
+    top: calc(var(--hit-min) + var(--space-6));
+  }
+}
+
+/* ===========================================================================
+   4. HERO — the gallery, with the identity written over it
+   .hd-gallery* themselves live in houses-pro.css (shared with the results
+   page); everything here is this screen's layer on top of them.
+   =========================================================================== */
+.hx-hero { position: relative; margin-bottom: var(--space-4); }
+.hx-hero .hd-gallery {
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-3);
+  margin-bottom: 0;
+  background: var(--bg-2);
+}
+.hx-hero .hd-gallery-slide { background: var(--bg-2); }
+
+/* Scrim: dark at the head for the badges, dark at the foot for the title.
+   Sits above the media and below the thumb strip. */
+.hx-hero__scrim {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-xl);
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--black) 55%, transparent) 0%, transparent 26%),
+    linear-gradient(0deg,   color-mix(in srgb, var(--black) 82%, transparent) 0%, transparent 46%);
+}
+.hx-hero__id {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: calc(var(--space-12) + var(--space-2));
+  z-index: 2;
+  pointer-events: none;
+}
+.hx-hero__title {
+  margin: 0 0 var(--space-1);
+  font: var(--fw-extra) var(--text-xl)/var(--lh-tight) var(--font-app);
+  letter-spacing: var(--ls-tight);
+  color: var(--white);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .55);
+  overflow-wrap: anywhere;
+}
+.hx-hero__loc {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--fw-medium) var(--text-sm)/1.4 var(--font-app);
+  color: color-mix(in srgb, var(--white) 82%, transparent);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, .6);
+}
+.hx-hero__loc svg { flex: 0 0 auto; opacity: .85; }
+
+.hd-hero-badges {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  right: var(--space-3);
+  z-index: 3;
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+.hd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg-app) 62%, transparent);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--hx-ink);
+  font: var(--fw-bold) var(--text-xs)/1 var(--font-app);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+}
+.hd-badge svg { width: 12px; height: 12px; }
+.hd-badge.verified { color: var(--hx-accent); border-color: var(--hx-accent-line); }
+.hd-badge.is-gold  { color: var(--hx-gold);   border-color: var(--gold-line); }
+
+/* ===========================================================================
+   5. SECTION RAIL — scroll-spy chips
+   A property page is long by nature; this is its table of contents, and it
+   tracks the section actually being read.
+   =========================================================================== */
+.hx-rail {
+  position: sticky;
+  top: calc(var(--hit-min) + var(--space-4));
+  z-index: calc(var(--z-nav) - 1);
+  display: flex;
+  gap: var(--space-1);
+  margin: 0 calc(var(--space-4) * -1) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  background: var(--hx-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+.hx-rail::-webkit-scrollbar { display: none; }
+.hx-rail__link {
+  flex: 0 0 auto;
+  padding: 7px var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--hx-line);
+  background: var(--hx-rail);
+  color: var(--hx-ink-muted);
+  font: var(--fw-semibold) var(--text-xs)/1.4 var(--font-app);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.hx-rail__link:hover { color: var(--hx-ink); text-decoration: none; }
+.hx-rail__link.is-active {
+  color: var(--text-on-brand);
+  background: var(--hx-accent);
+  border-color: var(--hx-accent);
+}
+@media (min-width: 1024px) { .hx-rail { top: var(--space-4); } }
+
+/* ===========================================================================
+   6. CARD PRIMITIVE + SECTION HEADINGS
+   =========================================================================== */
+.hd-card,
+.hx-card {
+  background: var(--hx-panel);
+  border: 1px solid var(--hx-line);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  margin-bottom: var(--space-3);
+  scroll-margin-top: calc(var(--hit-min) * 2 + var(--space-6));
+}
+.hx-aside .hx-card { margin-bottom: 0; }
+
+.hx-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.hx-card__head > svg { flex: 0 0 auto; width: 17px; height: 17px; color: var(--hx-accent); }
+.hd-card h3,
+.hx-card h3 {
+  margin: 0;
+  font: var(--fw-bold) var(--text-xs)/1.3 var(--font-app);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--hx-accent);
+}
+.hx-card__count {
+  margin-left: auto;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--hx-rail);
+  color: var(--hx-ink-muted);
+  font: var(--fw-bold) var(--text-xs)/1.6 var(--font-mono);
+  font-feature-settings: "tnum";
+}
+.hd-card p,
+.hx-card p { margin: 0; color: var(--hx-ink-soft); line-height: var(--lh-relaxed); }
+.hx-sub {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  color: var(--hx-ink-muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+}
+
+/* ===========================================================================
+   7. MONEY PANEL
+   One card answers "what does this cost", instead of the four that used to
+   each hold a different quarter of the answer.
+   =========================================================================== */
+.hx-money {
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--green-emerald) 9%, transparent) 0%, transparent 58%),
+    var(--hx-panel);
+  border-color: var(--hx-accent-line);
+}
+.hx-money__lead {
+  display: block;
+  margin-bottom: var(--space-2);
+  font: var(--fw-bold) var(--text-xs)/1 var(--font-app);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--hx-ink-muted);
+}
+.hd-price {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-extra);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-tight);
+  color: var(--hx-ink);
+}
+.hd-price small {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  color: var(--hx-ink-muted);
+}
+.hx-money__note { margin-top: var(--space-2); color: var(--hx-ink-muted); font-size: var(--text-sm); }
+.hx-money__note strong { color: var(--hx-ink); }
+/* "Price on request" is a sentence, not a figure — so it deliberately does NOT
+   carry .hd-price, which design-system.css forces into the tabular mono face. */
+.hx-money__ask {
+  color: var(--hx-ink-soft);
+  font: var(--fw-semibold) var(--text-base)/var(--lh-normal) var(--font-app);
+}
+
+/* --- move-in estimate: the itemised total, collapsed by default ---------- */
+.hx-movein {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hx-line);
+}
+.hx-movein__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--hit-min);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hx-line-strong);
+  background: var(--hx-rail);
+  color: var(--hx-ink);
+  font-family: var(--font-app);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.hx-movein__toggle:hover { background: var(--hx-accent-dim); border-color: var(--hx-accent-line); }
+.hx-movein__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: var(--fw-semibold) var(--text-sm)/1.2 var(--font-app);
+}
+.hx-movein__label small {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-normal);
+  color: var(--hx-ink-muted);
+}
+.hx-movein__total {
+  margin-left: auto;
+  font: var(--fw-extra) var(--text-md)/1 var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  color: var(--hx-accent);
+  white-space: nowrap;
+}
+.hx-movein__chev { flex: 0 0 auto; color: var(--hx-ink-muted); transition: transform var(--dur) var(--ease); }
+.hx-movein__toggle[aria-expanded="true"] .hx-movein__chev { transform: rotate(180deg); }
+
+.hx-movein__body { display: none; padding-top: var(--space-3); }
+.hx-movein__body.is-open { display: block; animation: ml-fade-in var(--dur) var(--ease) both; }
+
+.hx-lines { list-style: none; margin: 0; padding: 0; }
+.hx-lines li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--hx-line);
+  font-size: var(--text-sm);
+}
+.hx-lines li:first-child { border-top: 0; }
+.hx-line-k { display: flex; flex-direction: column; gap: 1px; color: var(--hx-ink-soft); }
+.hx-line-k small { font-size: var(--text-xs); color: var(--hx-ink-faint); }
+.hx-line-v {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  font-weight: var(--fw-semibold);
+  color: var(--hx-ink);
+}
+.hx-lines li.is-total {
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hx-accent-line);
+}
+.hx-lines li.is-total .hx-line-k { color: var(--hx-ink); font-weight: var(--fw-bold); }
+.hx-lines li.is-total .hx-line-v { color: var(--hx-accent); font-weight: var(--fw-extra); font-size: var(--text-md); }
+.hx-lines li.is-muted .hx-line-v { color: var(--hx-ink-muted); font-weight: var(--fw-normal); font-family: var(--font-app); }
+.hx-movein__caveat {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-warn);
+  border: 1px solid var(--gold-line);
+  color: var(--text-warn);
+  font-size: var(--text-xs);
+  line-height: var(--lh-normal);
+}
+
+/* ===========================================================================
+   8. ROOMS — the rebuilt centrepiece
+   A listing can hold up to 24 priced spaces. The old page printed a static
+   table AND, separately, a tile grid built from two flat columns that only
+   ever described the CHEAPEST of those spaces — two competing accounts of the
+   same building on one screen. Now: pick a space, and the price, the specs,
+   the vacancy and the move-in total all speak about THAT space.
+   =========================================================================== */
+.hx-rooms__picker {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 calc(var(--space-5) * -1) var(--space-4);
+  padding: var(--space-1) var(--space-5) var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.hx-rooms__picker::-webkit-scrollbar { display: none; }
+.hx-roomtab {
+  flex: 0 0 auto;
+  min-width: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hx-line-strong);
+  background: var(--hx-rail);
+  color: var(--hx-ink);
+  font-family: var(--font-app);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+.hx-roomtab:hover { transform: translateY(-2px); border-color: var(--hx-accent-line); }
+.hx-roomtab__k { font: var(--fw-bold) var(--text-sm)/1.25 var(--font-app); }
+.hx-roomtab__p {
+  font: var(--fw-semibold) var(--text-xs)/1.4 var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  color: var(--hx-ink-muted);
+}
+.hx-roomtab[aria-selected="true"] {
+  background: var(--hx-accent-dim);
+  border-color: var(--hx-accent);
+  box-shadow: var(--glow-emerald);
+}
+.hx-roomtab[aria-selected="true"] .hx-roomtab__p { color: var(--hx-accent); }
+.hx-roomtab.is-taken { opacity: .55; }
+.hx-roomtab.is-taken .hx-roomtab__p { text-decoration: line-through; }
+.hx-roomtab__flag {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+  color: var(--hx-gold);
+  font: var(--fw-extra) 10px/1.5 var(--font-app);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+}
+
+/* --- the selected room's own panel -------------------------------------- */
+.hx-room {
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--hx-line);
+  background: var(--hx-panel-2);
+  animation: ml-fade-in var(--dur) var(--ease) both;
+}
+.hx-room__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.hx-room__name { font: var(--fw-bold) var(--text-md)/1.2 var(--font-app); color: var(--hx-ink); }
+.hx-room__note {
+  margin-top: var(--space-1);
+  color: var(--hx-ink-muted);
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+.hx-room__price {
+  text-align: right;
+  white-space: nowrap;
+  font: var(--fw-extra) var(--text-lg)/1 var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  color: var(--hx-accent);
+}
+.hx-room__price small {
+  display: block;
+  margin-top: 3px;
+  font: var(--fw-medium) var(--text-xs)/1 var(--font-app);
+  color: var(--hx-ink-muted);
+}
+.hx-room__price.is-ask {
+  font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app);
+  color: var(--hx-ink-muted);
+}
+
+/* Vacancy meter — "4 of 4 free" as pips, because a bare number does not say
+   whether that is most of them or the last one. */
+.hx-vacancy { margin-top: var(--space-4); }
+.hx-vacancy__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  font: var(--fw-semibold) var(--text-xs)/1.4 var(--font-app);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--hx-ink-muted);
+}
+.hx-vacancy__pips { display: flex; gap: 4px; flex-wrap: wrap; }
+.hx-vacancy__pip {
+  width: 22px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--hx-line-strong);
+}
+.hx-vacancy__pip.is-free { background: var(--hx-accent); }
+.hx-vacancy__pip.is-taken { background: color-mix(in srgb, var(--text-err) 50%, transparent); }
+.hx-vacancy--none .hx-vacancy__row { color: var(--text-err); }
+
+/* ===========================================================================
+   9. SPEC GRID
+   Two grids, labelled apart on purpose: what is true of THIS space, and what
+   is true of the BUILDING. Merging them is how a 4-bedroom column ended up
+   sitting beside a single room's price as though they described one thing.
+   =========================================================================== */
+.hd-specs,
+.hx-specs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2);
+}
+.hd-spec,
+.hx-spec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--hx-rail);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+              background var(--dur-fast) var(--ease);
+}
+.hd-spec:hover,
+.hx-spec:hover {
+  transform: translateY(-2px);
+  border-color: var(--hx-accent-line);
+  background: var(--hx-accent-dim);
+}
+.hd-spec__icon,
+.hx-spec__icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--hx-panel);
+  color: var(--hx-accent);
+}
+.hd-spec__icon svg,
+.hx-spec__icon svg { width: 17px; height: 17px; }
+.hd-spec__val,
+.hx-spec__val {
+  font: var(--fw-bold) var(--text-md)/1.05 var(--font-app);
+  color: var(--hx-ink);
+  font-variant-numeric: tabular-nums;
+}
+.hd-spec__val small,
+.hx-spec__val small { font-size: var(--text-xs); font-weight: var(--fw-semibold); color: var(--hx-ink-muted); }
+.hd-spec__lbl,
+.hx-spec__lbl {
+  font: var(--fw-bold) 11px/1.2 var(--font-app);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--hx-ink-muted);
+}
+/* The accent tile: one fact per grid may be the headline. */
+.hd-spec--feature,
+.hx-spec--feature {
+  background: var(--grad-emerald);
+  border-color: transparent;
+  color: var(--text-on-brand);
+}
+.hd-spec--feature .hd-spec__icon,
+.hx-spec--feature .hx-spec__icon {
+  background: color-mix(in srgb, var(--white) 22%, transparent);
+  color: var(--text-on-brand);
+}
+.hd-spec--feature .hd-spec__val,
+.hx-spec--feature .hx-spec__val { color: var(--text-on-brand); }
+.hd-spec--feature .hd-spec__lbl,
+.hx-spec--feature .hx-spec__lbl { color: color-mix(in srgb, var(--text-on-brand) 76%, transparent); }
+.hd-spec--feature:hover,
+.hx-spec--feature:hover { background: var(--grad-emerald); box-shadow: var(--glow-emerald); }
+
+.hx-specs-split { margin-top: var(--space-5); }
+.hx-specs-split__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  font: var(--fw-bold) var(--text-xs)/1 var(--font-app);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--hx-ink-faint);
+}
+.hx-specs-split__label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hx-line);
+}
+
+/* Staggered entrance, cheap and short. */
+.hx-spec, .hd-spec { animation: ml-fade-in var(--dur) var(--ease) both; }
+.hx-spec:nth-child(2), .hd-spec:nth-child(2) { animation-delay: 40ms; }
+.hx-spec:nth-child(3), .hd-spec:nth-child(3) { animation-delay: 80ms; }
+.hx-spec:nth-child(4), .hd-spec:nth-child(4) { animation-delay: 120ms; }
+.hx-spec:nth-child(5), .hd-spec:nth-child(5) { animation-delay: 160ms; }
+.hx-spec:nth-child(6), .hd-spec:nth-child(6) { animation-delay: 200ms; }
+.hx-spec:nth-child(7), .hd-spec:nth-child(7) { animation-delay: 240ms; }
+.hx-spec:nth-child(8), .hd-spec:nth-child(8) { animation-delay: 280ms; }
+
+/* ===========================================================================
+   10. FACT GROUPS — the agent's own spec sheet, as an accordion
+   Four stacked full-height cards pushed the map and the agent below three
+   screens of text. Same facts, one card, opened on demand.
+   =========================================================================== */
+.hx-acc { display: flex; flex-direction: column; gap: var(--space-2); }
+.hx-acc__item {
+  border: 1px solid var(--hx-line);
+  border-radius: var(--radius-md);
+  background: var(--hx-rail);
+  overflow: hidden;
+}
+.hx-acc__btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--hit-min);
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: 0;
+  color: var(--hx-ink);
+  font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.hx-acc__btn:hover { background: var(--hx-accent-dim); }
+.hx-acc__btn > svg:first-child { flex: 0 0 auto; width: 17px; height: 17px; color: var(--hx-accent); }
+.hx-acc__n {
+  margin-left: auto;
+  font: var(--fw-bold) var(--text-xs)/1.6 var(--font-mono);
+  font-feature-settings: "tnum";
+  color: var(--hx-ink-muted);
+}
+.hx-acc__chev { flex: 0 0 auto; color: var(--hx-ink-muted); transition: transform var(--dur) var(--ease); }
+.hx-acc__btn[aria-expanded="true"] { color: var(--hx-accent); }
+.hx-acc__btn[aria-expanded="true"] .hx-acc__chev { transform: rotate(180deg); }
+.hx-acc__panel { display: none; padding: 0 var(--space-4) var(--space-3); }
+.hx-acc__panel.is-open { display: block; animation: ml-fade-in var(--dur) var(--ease) both; }
+
+.hd-facts { list-style: none; margin: 0; padding: 0; }
+.hd-facts li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--hx-line);
+}
+.hd-facts li:first-child { border-top: 0; }
+.hd-fact-l { flex: 0 0 auto; max-width: 45%; color: var(--hx-ink-muted); font-size: var(--text-sm); }
+.hd-fact-v {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+  color: var(--hx-ink);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+}
+.hd-fact-v small { color: var(--hx-ink-muted); font-size: var(--text-xs); font-style: italic; }
+
+/* ===========================================================================
+   11. BILLS — what lands on top of the rent, every month
+   =========================================================================== */
+.hx-bill { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.hx-bill__k { display: flex; align-items: center; gap: var(--space-2); color: var(--hx-ink-soft); }
+.hx-bill__k svg { flex: 0 0 auto; width: 16px; height: 16px; color: var(--hx-ink-muted); }
+.hx-tag {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font: var(--fw-bold) var(--text-xs)/1.5 var(--font-app);
+}
+.hx-tag--ok   { background: var(--surface-ok);   color: var(--text-ok);      border: 1px solid var(--green-line); }
+.hx-tag--info { background: var(--surface-info); color: var(--text-info);    border: 1px solid color-mix(in srgb, var(--info) 32%, transparent); }
+.hx-tag--ask  { background: var(--hx-rail);      color: var(--hx-ink-muted); border: 1px solid var(--hx-line-strong); }
+
+/* ===========================================================================
+   12. AMENITIES
+   =========================================================================== */
+.hd-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.hd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line-strong);
+  color: var(--hx-ink-soft);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+}
+.hd-chip svg { width: 15px; height: 15px; color: var(--hx-accent); }
+
+/* ===========================================================================
+   13. MAP + LOCATION TOOLS
+   =========================================================================== */
+.hd-map {
+  position: relative;
+  height: 320px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--hx-line-strong);
+}
+.hd-map-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
+.hd-map-actions a,
+.hd-map-actions button {
+  flex: 1 1 150px;
+  min-height: var(--hit-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line-strong);
+  color: var(--hx-ink);
+  font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app);
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.hd-map-actions a:hover,
+.hd-map-actions button:hover {
+  background: var(--hx-accent-dim);
+  border-color: var(--hx-accent-line);
+  color: var(--hx-ink);
+  text-decoration: none;
+}
+.hd-map-actions svg { width: 15px; height: 15px; flex: 0 0 auto; }
+
+/* POI toggle chips floating over the map */
+.hd-poi-toolbar {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  right: 62px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.hd-poi-toolbar::-webkit-scrollbar { display: none; }
+.hd-poi-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg-app) 78%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  color: var(--hx-ink);
+  font: var(--fw-semibold) var(--text-xs)/1.4 var(--font-app);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+.hd-poi-chip:active { transform: scale(.95); }
+.hd-poi-chip.active { background: var(--hx-accent); color: var(--text-on-brand); border-color: var(--hx-accent); }
+.hd-poi-chip svg { flex: 0 0 auto; opacity: .85; }
+.hd-poi-chip.loading::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: 3px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: hd-spin .8s linear infinite;
+}
+@keyframes hd-spin { to { transform: rotate(360deg); } }
+.hd-poi-status {
+  position: absolute;
+  bottom: var(--space-2);
+  left: var(--space-2);
+  z-index: 10;
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg-app) 86%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--hx-ink);
+  font-size: var(--text-xs);
+  pointer-events: none;
+}
+
+/* POI marker pins */
+.hd-poi-marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--hx-panel);
+  border: 2px solid var(--hx-accent);
+  color: var(--hx-ink);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.hd-poi-marker svg { width: 12px; height: 12px; }
+.hd-poi-marker:hover { transform: translate(-50%, -50%) scale(1.2); z-index: 5; }
+.hd-poi-name {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 3px;
+  max-width: 132px;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--bg-app) 88%, transparent);
+  border: 1px solid var(--glass-border);
+  color: var(--hx-ink);
+  font: var(--fw-semibold) 10.5px/1.25 var(--font-app);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.hd-poi-popup { min-width: 160px; font-family: var(--font-app); font-size: var(--text-sm); }
+.hd-poi-popup strong { display: block; margin-bottom: 2px; color: var(--hx-accent); }
+.hd-poi-popup .pp-meta { font-size: var(--text-xs); color: var(--hx-ink-muted); }
+.hd-work-marker {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--hx-panel);
+  border: 2px solid var(--info);
+  color: var(--text-info);
+  box-shadow: var(--shadow-1);
+}
+.hd-work-marker svg { width: 14px; height: 14px; }
+
+/* Pin provenance — said only when it is still exactly true, so it gets the
+   strong success ground rather than a hedged neutral one. */
+.hd-pin-prov {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-ok);
+  border: 1px solid var(--green-line);
+  color: var(--text-ok);
+  font: var(--fw-semibold) var(--text-sm)/var(--lh-normal) var(--font-app);
+}
+.hd-pin-prov svg { flex: 0 0 auto; margin-top: 3px; }
+
+.hd-main-road {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line);
+  color: var(--hx-ink-soft);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+}
+.hd-main-road strong { color: var(--hx-accent); }
+
+/* Commute tool */
+.hd-commute {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px dashed var(--hx-line-strong);
+}
+.hd-commute-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font: var(--fw-bold) var(--text-sm)/1.3 var(--font-app);
+  color: var(--hx-ink);
+}
+.hd-commute-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.hd-commute-row input {
+  flex: 1 1 180px;
+  min-height: var(--hit-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hx-line-strong);
+  background: var(--hx-rail);
+  color: var(--hx-ink);
+  font-family: var(--font-app);
+  font-size: 16px;           /* 16px keeps iOS from zooming the page on focus */
+}
+.hd-commute-row input::placeholder { color: var(--hx-ink-faint); }
+.hd-commute-row input:focus { outline: none; border-color: var(--hx-accent); }
+.hd-commute-btn {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--hx-accent);
+  color: var(--text-on-brand);
+  font: var(--fw-bold) var(--text-sm)/1 var(--font-app);
+  cursor: pointer;
+}
+.hd-commute-btn:disabled { opacity: .6; cursor: default; }
+.hd-commute-msg {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line);
+  color: var(--hx-ink-soft);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+}
+.hd-commute-msg.ok   { background: var(--surface-ok);   border-color: var(--green-line); color: var(--text-ok); }
+.hd-commute-msg.warn { background: var(--surface-warn); border-color: var(--gold-line);  color: var(--text-warn); }
+.hd-commute-ctx  { color: var(--hx-ink-muted); font-weight: var(--fw-normal); }
+.hd-commute-note { display: block; margin-top: 3px; font-size: var(--text-xs); color: var(--hx-ink-muted); }
+.hd-commute-results { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.hd-commute-result {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hx-line-strong);
+  background: var(--hx-rail);
+  color: var(--hx-ink);
+  font-family: var(--font-app);
+  text-align: left;
+  cursor: pointer;
+}
+.hd-commute-result:hover { border-color: var(--hx-accent-line); background: var(--hx-accent-dim); }
+.hd-commute-result.active { border-color: var(--hx-accent); box-shadow: inset 0 0 0 1px var(--hx-accent); }
+.hd-cr-name { font: var(--fw-bold) var(--text-sm)/1.3 var(--font-app); }
+.hd-cr-meta { grid-column: 1; font-size: var(--text-xs); color: var(--hx-ink-muted); }
+.hd-cr-km {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font: var(--fw-extra) var(--text-sm)/1 var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  color: var(--hx-accent);
+}
+
+/* ===========================================================================
+   14. WHAT'S NEARBY
+   =========================================================================== */
+.hd-nearby-sub { margin: calc(var(--space-1) * -1) 0 var(--space-2); color: var(--hx-ink-muted); font-size: var(--text-sm); }
+.hd-nearby-list { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.hd-nearby-msg { margin: var(--space-2) 0 0; color: var(--hx-ink-muted); font-size: var(--text-sm); }
+.hd-nearby-cat {
+  padding: var(--space-3);
+  border: 1px solid var(--hx-line);
+  border-radius: var(--radius-md);
+  background: var(--hx-rail);
+}
+.hd-nearby-cat-head { display: flex; align-items: center; gap: var(--space-2); }
+.hd-nearby-cat-head strong { font: var(--fw-bold) var(--text-sm)/1.3 var(--font-app); }
+.hd-nearby-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.hd-nearby-count {
+  margin-left: auto;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--hx-panel);
+  color: var(--hx-ink-muted);
+  font: var(--fw-bold) var(--text-xs)/1.6 var(--font-mono);
+  font-feature-settings: "tnum";
+}
+.hd-nearby-items { list-style: none; margin: var(--space-2) 0 0; padding: 0; }
+.hd-nearby-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 5px 0;
+  border-top: 1px solid var(--hx-line);
+  font-size: var(--text-sm);
+}
+.hd-nearby-items li:first-child { border-top: 0; }
+.hd-nearby-name { color: var(--hx-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-nearby-dist {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  font-size: var(--text-xs);
+  color: var(--hx-ink-muted);
+}
+/* Where the readout came from: the listing's own stored survey, or a live
+   OpenStreetMap scan. Not the same claim, so not the same wording. */
+.hx-nearby-src {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--hx-ink-faint);
+}
+
+/* ===========================================================================
+   15. AGENT + CALLS TO ACTION
+   =========================================================================== */
+.hd-agent { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.hd-agent-avatar {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--grad-emerald);
+  color: var(--text-on-brand);
+  font: var(--fw-extra) var(--text-md)/1 var(--font-app);
+}
+.hd-agent-meta { flex: 1; min-width: 0; }
+.hd-agent-name { font: var(--fw-bold) var(--text-base)/1.3 var(--font-app); color: var(--hx-ink); }
+.hd-agent-role { color: var(--hx-ink-muted); font-size: var(--text-xs); }
+
+.hd-cta-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.hd-cta {
+  min-height: var(--hit-min);
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  font: var(--fw-bold) var(--text-sm)/1.2 var(--font-app);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+.hd-cta svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.hd-cta:active { transform: scale(.97); }
+.hd-cta:hover { opacity: .92; text-decoration: none; }
+.hd-cta-msg {
+  grid-column: span 2;
+  flex-wrap: wrap;
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-accent-line);
+  color: var(--hx-accent);
+}
+.hd-cta-msg small {
+  flex-basis: 100%;
+  margin-top: 2px;
+  text-align: center;
+  font: var(--fw-medium) var(--text-xs)/1.3 var(--font-app);
+  color: var(--hx-ink-muted);
+}
+.hd-cta-call { background: var(--hx-accent); color: var(--text-on-brand); }
+.hd-cta-wa   { background: var(--whatsapp);  color: var(--text-on-brand); }
+.hd-cta-meet { background: var(--hx-gold);   color: var(--text-on-brand); grid-column: span 2; }
+
+/* Sticky action bar — the whole contact row on a phone. */
+.hd-sticky {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-sheet);
+  padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--bg-app) 94%, transparent);
+  border-top: 1px solid var(--hx-line-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-3);
+}
+.hd-sticky-inner { display: flex; gap: var(--space-1); max-width: 600px; margin: 0 auto; }
+.hd-sticky-inner > a { flex: 1 1 0; min-width: 0; }
+.hd-sticky .hd-cta { padding: var(--space-2) 4px; font-size: var(--text-xs); }
+.hd-sticky .hd-cta-msg-sticky {
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-accent-line);
+  color: var(--hx-accent);
+}
+
+/* ===========================================================================
+   16. STATES — skeleton, empty, error
+   houses-pro.css ships a LIGHT shimmer; on this page it strobes white. These
+   re-point it at the dark surfaces rather than forking the component.
+   =========================================================================== */
+body[data-page="house"] .hp-sk,
+body[data-page="house"] .hp-sk-detail__hero,
+body[data-page="house"] .hp-sk-card__photo {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--white) 4%, transparent) 0%,
+    color-mix(in srgb, var(--white) 10%, transparent) 50%,
+    color-mix(in srgb, var(--white) 4%, transparent) 100%);
+  background-size: 200% 100%;
+}
+body[data-page="house"] .hp-sk-detail__hero { border-radius: var(--radius-xl); }
+body[data-page="house"] .hp-sk-detail__panel {
+  background: var(--hx-panel);
+  border-color: var(--hx-line);
+  border-radius: var(--radius-xl);
+}
+body[data-page="house"] .hp-empty {
+  background: var(--hx-panel);
+  border-color: var(--hx-line-strong);
+  border-radius: var(--radius-xl);
+}
+body[data-page="house"] .hp-empty__art {
+  background: var(--hx-accent-dim);
+  color: var(--hx-accent);
+  box-shadow: inset 0 0 0 1px var(--hx-accent-line);
+}
+body[data-page="house"] .hp-empty__title { font-family: var(--font-app); color: var(--hx-ink); }
+body[data-page="house"] .hp-empty__sub { color: var(--hx-ink-muted); }
+body[data-page="house"] .hp-empty__cta { background: var(--hx-accent); color: var(--text-on-brand); }
+body[data-page="house"] .hp-empty__cta:hover { background: var(--green-bright); color: var(--text-on-brand); }
+body[data-page="house"] .hp-skip-link { background: var(--hx-accent); color: var(--text-on-brand); }
+
+.hd-state {
+  padding: var(--space-12) var(--space-5);
+  text-align: center;
+  border-radius: var(--radius-xl);
+  background: var(--hx-panel);
+  border: 1px dashed var(--hx-line-strong);
+  color: var(--hx-ink-muted);
+}
+.hd-state h3 {
+  margin-bottom: var(--space-2);
+  color: var(--hx-ink);
+  font-size: var(--text-md);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ===========================================================================
+   17. RESPONSIVE
+   =========================================================================== */
+@media (max-width: 1023px) {
+  .hd-sticky { display: block; }
+  .hd-cta-row-mobile-hide { display: none; }
+}
+@media (max-width: 600px) {
+  .hd-wrap { padding: var(--space-3) var(--space-3) calc(var(--space-16) + var(--space-8)); }
+  .hx-topbar { padding-left: var(--space-3); padding-right: var(--space-3); }
+  .hx-rail {
+    margin-left: calc(var(--space-3) * -1);
+    margin-right: calc(var(--space-3) * -1);
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  .hd-card, .hx-card { padding: var(--space-4); border-radius: var(--radius-lg); }
+  .hx-rooms__picker {
+    margin-left: calc(var(--space-4) * -1);
+    margin-right: calc(var(--space-4) * -1);
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .hx-hero__title { font-size: var(--text-lg); }
+  .hd-price { font-size: var(--text-xl); }
+  .hd-specs, .hx-specs { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+  .hd-spec, .hx-spec { padding: var(--space-3); }
+}
+
+/* ===========================================================================
+   18. LIGHT THEME
+   js/core/theme.js rides on every page and stamps data-theme on <html>. This
+   screen used to hardcode one dark palette, so that toggle was a control that
+   visibly did nothing here — the one thing a control must never be.
+   Because everything above is written in --hx-* names, the whole screen flips
+   by re-pointing sixteen of them. What follows the palette are the handful of
+   places that reach past --hx-* to a dark-only token and therefore need saying
+   twice: chrome that sits on the page (not on a photo), the status tints, and
+   the skeleton shimmer, which subtracts light on a light ground rather than
+   adding it.
+   =========================================================================== */
+:root[data-theme="light"] body[data-page="house"] {
+  --hx-panel:       var(--white);
+  --hx-panel-2:     var(--gray-light);
+  --hx-line:        var(--border-light);
+  --hx-line-strong: color-mix(in srgb, var(--black) 16%, transparent);
+  /* --green, not --green-emerald: the neon app accent is a 1.4:1 contrast
+     against white. The foundation brand green clears AA as text. */
+  --hx-accent:      var(--green);
+  --hx-accent-dim:  color-mix(in srgb, var(--green) 8%, transparent);
+  --hx-accent-line: color-mix(in srgb, var(--green) 28%, transparent);
+  --hx-gold:        var(--gold-dark);
+  --hx-ink:         var(--text-ink);
+  --hx-ink-soft:    color-mix(in srgb, var(--text-ink) 84%, transparent);
+  --hx-ink-muted:   var(--gray);
+  --hx-ink-faint:   color-mix(in srgb, var(--gray) 72%, transparent);
+  --hx-glass:       color-mix(in srgb, var(--white) 78%, transparent);
+  --hx-rail:        var(--gray-light);
+
+  background:
+    radial-gradient(76% 46% at 50% -8%, color-mix(in srgb, var(--green) 8%, transparent) 0%, transparent 68%),
+    linear-gradient(180deg, var(--gray-light) 0%, var(--white) 100%);
+  color: var(--text-ink);
+}
+:root[data-theme="light"] .hx-topbar.is-stuck { background: color-mix(in srgb, var(--white) 92%, transparent); }
+:root[data-theme="light"] .hd-sticky { background: color-mix(in srgb, var(--white) 95%, transparent); }
+/* Fills stay brand-coloured; the ink on them flips, because --text-on-brand is
+   a near-black meant for the neon green and this green is much darker. */
+:root[data-theme="light"] .hd-cta-call,
+:root[data-theme="light"] .hd-commute-btn,
+:root[data-theme="light"] .hx-rail__link.is-active,
+:root[data-theme="light"] .hd-poi-chip.active { color: var(--white); }
+:root[data-theme="light"] .hd-pin-prov {
+  background: var(--green-light);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+  color: var(--green-dark);
+}
+:root[data-theme="light"] .hx-tag--ok {
+  background: var(--green-light);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+  color: var(--green-dark);
+}
+:root[data-theme="light"] .hx-tag--info,
+:root[data-theme="light"] .hd-commute-msg.ok { color: var(--text-ink); }
+:root[data-theme="light"] .hd-commute-msg.ok {
+  background: var(--green-light);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+  color: var(--green-dark);
+}
+:root[data-theme="light"] .hx-movein__caveat,
+:root[data-theme="light"] .hd-commute-msg.warn {
+  background: var(--gold-soft);
+  border-color: var(--gold-line);
+  color: color-mix(in srgb, var(--gold-dark) 70%, var(--black));
+}
+:root[data-theme="light"] body[data-page="house"] .hp-sk,
+:root[data-theme="light"] body[data-page="house"] .hp-sk-detail__hero,
+:root[data-theme="light"] body[data-page="house"] .hp-sk-card__photo {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--black) 6%, transparent) 0%,
+    color-mix(in srgb, var(--black) 12%, transparent) 50%,
+    color-mix(in srgb, var(--black) 6%, transparent) 100%);
+  background-size: 200% 100%;
+}
+
+/* ===========================================================================
+   19. MOTION
+   =========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="house"] *,
+  body[data-page="house"] *::before,
+  body[data-page="house"] *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .hx-spec:hover, .hd-spec:hover, .hx-roomtab:hover { transform: none; }
+}
