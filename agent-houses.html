@@ -521,6 +521,84 @@
       background: var(--c-surface, #fff); color: var(--c-text, #1a1915); width: 100%;
     }
     .ah-room-grid .ah-wide { grid-column: 1 / -1; }
+
+    /* ---- Size bracket -------------------------------------------------
+       Three taps instead of a square-metre box nobody could fill honestly.
+       The buttons are wide and stacked on a phone because they carry a hint
+       line each, and the hint is what makes the bracket mean the same thing
+       to every agent. */
+    .ah-band { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+    .ah-band__q {
+      font-size: .74rem; font-weight: 700; color: var(--c-text-muted, #6b6960);
+      text-transform: uppercase; letter-spacing: .4px;
+    }
+    .ah-band__row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .ah-band__b {
+      display: flex; flex-direction: column; gap: 2px; text-align: left;
+      padding: 9px 10px; border-radius: 10px; cursor: pointer; font: inherit;
+      border: 1px solid var(--c-border, #e7e4dd);
+      background: var(--c-surface, #fff); color: var(--c-text, #1a1915);
+      min-height: 44px;
+    }
+    .ah-band__b strong { font-size: .86rem; font-weight: 700; }
+    .ah-band__b small { font-size: .7rem; font-weight: 400; opacity: .72; line-height: 1.25; }
+    .ah-band__b:hover { border-color: var(--c-brand, #0a6f4d); }
+    .ah-band__b.is-on {
+      border-color: var(--c-brand, #0a6f4d);
+      background: var(--c-brand-faint, #eef7f2);
+      box-shadow: inset 0 0 0 1px var(--c-brand, #0a6f4d);
+    }
+    .ah-band__help { font-size: .72rem; color: var(--c-text-muted, #6b6960); margin: 2px 0 0; line-height: 1.4; }
+    @media (max-width: 420px) { .ah-band__row { grid-template-columns: 1fr; } }
+
+    /* ---- Room characteristics ----------------------------------------
+       Chosen items first, because that is the answer; the suggestion bank
+       second, because it is only a shortcut to it. */
+    .ah-feats { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .ah-feats__on {
+      display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0;
+    }
+    .ah-feats__on.is-empty::before {
+      content: attr(data-empty);
+      font-size: .76rem; color: var(--c-text-muted, #6b6960); font-style: italic;
+    }
+    .ah-feats__on li {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 6px 5px 11px; border-radius: 20px;
+      background: var(--c-brand-faint, #eef7f2);
+      border: 1px solid var(--c-brand-soft, #cde7db);
+      color: var(--c-brand-deep, #064a33);
+      font-size: .8rem; font-weight: 600;
+    }
+    .ah-feats__on li button {
+      border: 0; background: none; cursor: pointer; font: inherit; line-height: 1;
+      color: inherit; opacity: .6; padding: 2px 4px; border-radius: 50%;
+    }
+    .ah-feats__on li button:hover { opacity: 1; }
+    .ah-feats__grp { margin-top: 6px; }
+    .ah-feats__gt {
+      display: block; font-size: .68rem; font-weight: 700; letter-spacing: .4px;
+      text-transform: uppercase; color: var(--c-text-muted, #6b6960); margin-bottom: 4px;
+    }
+    .ah-feats__chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .ah-fg {
+      border: 1px dashed var(--c-border, #e7e4dd); background: transparent;
+      color: var(--c-text-soft, #3f3d36); border-radius: 20px;
+      padding: 5px 10px; font: inherit; font-size: .78rem; font-weight: 600;
+      cursor: pointer; line-height: 1.2;
+    }
+    .ah-fg:hover { border-color: var(--c-brand, #0a6f4d); color: var(--c-brand-deep, #064a33); border-style: solid; }
+    /* Already on the list. Kept visible rather than removed, so the bank does
+       not reshuffle under the agent's thumb every time they tap one. */
+    .ah-fg.is-used { opacity: .38; pointer-events: none; text-decoration: line-through; }
+    .ah-feats__own { display: flex; gap: 6px; }
+    .ah-feats__own input { flex: 1; min-width: 0; }
+    .ah-feats__addb {
+      flex: 0 0 auto; width: 44px; border-radius: 8px; cursor: pointer; font: inherit;
+      font-size: 1.1rem; font-weight: 700;
+      border: 1px solid var(--c-brand, #0a6f4d);
+      background: var(--c-brand, #0a6f4d); color: #fff;
+    }
     .ah-room-check {
       display: flex; flex-direction: row !important; align-items: center; gap: 8px;
       font-size: .8rem; cursor: pointer; align-self: end; padding-bottom: 9px;
