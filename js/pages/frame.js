@@ -28,8 +28,8 @@
     transport:  { label: "Transport", emoji: "", color: "#2563eb", weight: 3.0 },
     market:     { label: "Market",    emoji: "", color: "#d97706", weight: 3.0 },
     learning:   { label: "Learning",  emoji: "", color: "#0891b2", weight: 2.5 },
-    health:     { label: "Health",    emoji: "", color: "#dc2626", weight: 2.0 },
-    money:      { label: "Money",     emoji: "", color: "#16a34a", weight: 2.0 },
+    health:     { label: "Health",    emoji: "", color: cssToken("--danger", "#dc2626"), weight: 2.0 },
+    money:      { label: "Money",     emoji: "", color: cssToken("--success", "#16a34a"), weight: 2.0 },
     worship:    { label: "Worship",   emoji: "", color: "#7c3aed", weight: 1.5 },
     government: { label: "Government", emoji: "", color: "#475569", weight: 1.5 },
     leisure:    { label: "Leisure",   emoji: "", color: "#db2777", weight: 1.0 },
@@ -136,6 +136,23 @@
     .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
   const num = (v) => { const n = +v; return Number.isFinite(n) ? n : null; };
+
+  // ---- colours, resolved from the design system at run time ----------------
+  // Read rather than typed, so a brand change reaches the map instead of
+  // stopping at the stylesheet. Same helper the other map pages use.
+  function cssToken(name, fallback) {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    } catch (_) { return fallback; }
+  }
+  // The frame's own geometry — walls, the line to the carrying road, the centre
+  // dot. This was the deep brand green (#0a6f4d), drawn on a dark basemap and,
+  // by default, on satellite imagery: the walls of the frame were the one thing
+  // on the map you could not see. The app's dark-surface accent is the emerald,
+  // which is what every other map layer in this app already draws with.
+  const WALL   = () => cssToken("--green-emerald", "#2EE6A6");
+  const INK_ON = () => cssToken("--text-on-brand", "#051a10");
 
   function haversineKm(aLat, aLng, bLat, bLng) {
     const R = 6371, rad = (d) => (d * Math.PI) / 180;
@@ -385,7 +402,7 @@
   }
 
   function scoreColor(s) {
-    if (s >= 70) return "#0a6f4d";
+    if (s >= 70) return cssToken("--green", "#0a6f4d");
     if (s >= 45) return "#d97706";
     return "#9a3412";
   }
@@ -670,7 +687,7 @@
   // ---- student-catchment card ----------------------------------------------
   function catchmentCardHtml(cat) {
     if (!cat || !cat.unis || !cat.unis.length) {
-      return `<div class="fr-card fr-uni"><h3>&#127891; Student catchment</h3>
+      return `<div class="fr-card fr-uni"><h3>Student catchment</h3>
         <div class="fr-uni-none">No university or college within 5 km — not a student-driven area. (A campus pulls the densest, most reliable room &amp; food demand there is, so a frame near one plays a different game.)</div></div>`;
     }
     const n = cat.nearest, km = n.meters / 1000, band = studentBand(km);
@@ -680,7 +697,7 @@
       `<div class="fr-uni-row"><span class="fr-uni-n">${i + 1}</span><span class="fr-uni-name">${esc(u.name)}</span><span class="fr-uni-dist">${distM(u.meters)}</span></div>`).join("");
     const lead = `You're <b>${distM(n.meters)}</b> from <b>${esc(n.name)}</b> — the <b>${esc(band.label.toLowerCase())}</b>. ${esc(band.note)}. Student density here: <b>${esc(band.density)}</b>.`;
     return `<div class="fr-card fr-uni">
-      <h3>&#127891; Student catchment — the campus opportunity</h3>
+      <h3>Student catchment — the campus opportunity</h3>
       <div class="fr-uni-lead">${lead}</div>
       <div class="fr-uni-ladder">${ladder}</div>
       <div class="fr-uni-sub">${cat.unis.length} campus${cat.unis.length > 1 ? "es" : ""} within 5 km — nearest first</div>
@@ -746,7 +763,7 @@
       ? `It sits on a customer-carrying road right by ${esc(near.d.name)} — list here and you're in front of the people heading there every day.`
       : `It sits on a carrying road close to the area's pull points — maximum passing customers.`;
     return `<div class="fr-card fr-best">
-      <h3>★ Best spot to list here</h3>
+      <h3>Best spot to list here</h3>
       <div class="fr-best-where">${where.join(" · ")}</div>
       <div class="fr-best-why">${why}</div>
       <button type="button" class="fr-best-btn" id="frBestZoom">Show this spot on the map</button>
@@ -1009,8 +1026,8 @@
 
     // The walls — the frame circle.
     L.circle([center.lat, center.lng], {
-      radius: radiusM, color: "#0a6f4d", weight: 2, opacity: .9,
-      fillColor: "#0a6f4d", fillOpacity: .06, dashArray: "6 6",
+      radius: radiusM, color: WALL(), weight: 2, opacity: .9,
+      fillColor: WALL(), fillOpacity: .06, dashArray: "6 6",
     }).addTo(frameLayer);
 
     // Optional ward outline (if LocationIQ found a real boundary).
@@ -1066,7 +1083,7 @@
     const nr = roads[0];
     if (nr && nr.near && Number.isFinite(nr.near.lat) && nr.meters > 15) {
       L.polyline([[center.lat, center.lng], [nr.near.lat, nr.near.lng]],
-        { color: "#0a6f4d", weight: 2, opacity: .85, dashArray: "4 5", interactive: false }).addTo(roadNetLayer);
+        { color: WALL(), weight: 2, opacity: .85, dashArray: "4 5", interactive: false }).addTo(roadNetLayer);
       L.marker([nr.near.lat, nr.near.lng], { interactive: false,
         icon: L.divIcon({ className: "", html: `<div class="fr-roadtag">${distM(nr.meters)}</div>`, iconSize: [1, 1] }) }).addTo(roadNetLayer);
     }
@@ -1111,7 +1128,7 @@
       const main = (window.pawaRoads && window.pawaRoads.nearestInSet) ? window.pawaRoads.nearestInSet(o, mainSet) : null;
       if (any && any.near && Number.isFinite(any.near.lat) && any.meters > 12) {
         L.polyline([[o.lat, o.lng], [any.near.lat, any.near.lng]],
-          { color: "#0a6f4d", weight: 1.5, opacity: .6, dashArray: "3 5", interactive: false }).addTo(ownLayer);
+          { color: WALL(), weight: 1.5, opacity: .6, dashArray: "3 5", interactive: false }).addTo(ownLayer);
       }
       const icon = L.divIcon({
         className: "", html: `<div class="fr-pin own"><span>${o.emoji}</span></div>`,
@@ -1148,7 +1165,7 @@
 
     if (centerMarker) map.removeLayer(centerMarker);
     centerMarker = L.circleMarker([center.lat, center.lng], {
-      radius: 7, color: "#fff", weight: 2, fillColor: "#0a6f4d", fillOpacity: 1,
+      radius: 7, color: INK_ON(), weight: 2, fillColor: WALL(), fillOpacity: 1,
     }).addTo(map).bindPopup("Frame centre");
 
     try { map.fitBounds(L.circle([center.lat, center.lng], { radius: radiusM }).getBounds().pad(0.15)); } catch (_) {}

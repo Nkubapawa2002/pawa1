@@ -25,10 +25,14 @@ const BASE = "http://localhost:8080";
 // unreadable light screen once (dark-theme ink on a cream ground). They are on
 // this list because that mistake is invisible until somebody with a light
 // phone opens the page.
+// frame.html earns its place for the same reason: it carries a whole dark
+// palette on body[data-page="frame"], and its two primary controls are painted
+// by premium.css and neon-pro.css with !important, one of which only misbehaves
+// in light mode. That is invisible until somebody with a light phone opens it.
 const PAGES = process.argv[2]
   ? [process.argv[2]]
   : ["index.html", "houses.html", "login.html", "services.html", "chat.html",
-     "p-message.html", "agent.html?u=nobody"];
+     "p-message.html", "frame.html", "agent.html?u=nobody"];
 
 // Only ever reached when something is genuinely wrong: the pass path resolves
 // as soon as the attribute lands, typically in tens of milliseconds.

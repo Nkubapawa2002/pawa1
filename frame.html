@@ -103,9 +103,9 @@
 
     /* ---- Gap panel verdict ---- */
     .fr-gap-verdict { display: inline-block; font-weight: 800; font-size: .8rem; padding: 4px 11px; border-radius: 999px; margin-bottom: 8px; }
-    .fr-gap-open   { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
-    .fr-gap-gap    { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-    .fr-gap-proven { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .fr-gap-open   { background: var(--fr-ok-bg);   color: var(--fr-ok-ink);   border: 1px solid var(--fr-ok-line); }
+    .fr-gap-gap    { background: var(--fr-warn-bg); color: var(--fr-warn-ink); border: 1px solid var(--fr-warn-line); }
+    .fr-gap-proven { background: var(--fr-info-bg); color: var(--fr-info-ink); border: 1px solid var(--fr-info-line); }
     .fr-gap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
     .fr-stat { background: var(--c-surface-2, #f6f4ee); border-radius: 10px; padding: 9px 11px; }
     .fr-stat b { display: block; font-size: 1.35rem; font-weight: 800; color: var(--c-text, #1a1915); line-height: 1; }
@@ -173,7 +173,7 @@
     .fr-act-t { font-weight: 700; font-size: .88rem; color: #eafff6; }
     .fr-act-t small { font-weight: 700; color: #ffd98a; font-size: .72rem; margin-left: 6px; }
     .fr-act-d { font-size: .8rem; color: #a9d4c6; margin-top: 1px; line-height: 1.4; }
-    .fr-act-meter { height: 4px; border-radius: 3px; background: rgba(255,255,255,.1); margin-top: 6px; overflow: hidden; }
+    .fr-act-meter { height: 4px; border-radius: 3px; background: var(--fr-track); margin-top: 6px; overflow: hidden; }
     .fr-act-meter i { display: block; height: 100%; background: linear-gradient(90deg,#2fd397,#7fe9c4); border-radius: 3px; }
     .fr-people { font-size: .82rem; color: #bfe9da; margin-top: 12px; line-height: 1.5; }
     .fr-people b { color: #eafff6; }
@@ -188,16 +188,16 @@
     .fr-rc { font-size: .6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: #fff; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; }
     .fr-road-name { flex: 1; min-width: 0; font-weight: 600; color: var(--c-text, #1a1915); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fr-road-dist { font-weight: 800; color: var(--c-text, #3a382f); flex-shrink: 0; }
-    .fr-node { margin-top: 11px; padding: 10px 12px; border-radius: 11px; background: #fff7ed; border: 1px solid #fed7aa; font-size: .85rem; color: #9a3412; line-height: 1.5; }
-    .fr-node b { color: #7c2d12; }
+    .fr-node { margin-top: 11px; padding: 10px 12px; border-radius: 11px; background: var(--fr-warn-bg); border: 1px solid var(--fr-warn-line); font-size: .85rem; color: var(--fr-warn-ink); line-height: 1.5; }
+    .fr-node b { color: var(--fr-warn-ink); font-weight: 800; }
     .fr-road-note { font-size: .82rem; color: var(--c-muted, #6b6960); margin-top: 9px; line-height: 1.45; }
     .fr-road-sub { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--c-muted, #8a8678); margin: 12px 0 2px; }
     .fr-road-row.other .fr-road-name { font-weight: 500; color: var(--c-muted, #6b6960); }
     .fr-road-row.other .fr-rc { opacity: .82; }
 
     /* ---- Best spot to list ---- */
-    .fr-best { border: 1px solid #f0c674; background: linear-gradient(180deg, #fffaf0, #fff); }
-    .fr-best h3 { color: #b45309; }
+    .fr-best { border: 1px solid var(--fr-warn-line); background: var(--fr-feature); }
+    .fr-best h3 { color: var(--fr-warn-ink); }
     .fr-best-where { font-size: .95rem; font-weight: 700; color: var(--c-text, #1a1915); line-height: 1.5; margin: 2px 0 6px; }
     .fr-best-where b { color: #b45309; }
     .fr-best-why { font-size: .85rem; color: var(--c-muted, #6b6960); line-height: 1.5; margin-bottom: 11px; }
@@ -240,7 +240,7 @@
     .fr-dest-t small { font-weight: 700; color: var(--c-accent, #bc5c00); font-size: .72rem; margin-left: 6px; }
     .fr-dest-d { font-size: .82rem; color: var(--c-muted, #6b6960); margin-top: 1px; }
     .fr-dest-d b { color: var(--c-text, #3a382f); }
-    .fr-dest-meter { height: 5px; border-radius: 3px; background: #ece9e1; margin-top: 6px; overflow: hidden; }
+    .fr-dest-meter { height: 5px; border-radius: 3px; background: var(--fr-track); margin-top: 6px; overflow: hidden; }
     .fr-dest-meter i { display: block; height: 100%; background: linear-gradient(90deg, #f0a92e, #ffd98a); border-radius: 3px; }
 
     /* Map: distance tag + junction node */
@@ -304,6 +304,35 @@
       --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
       --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-accent: #F6C45A; --c-success: #2EE6A6;
+
+      /* ---- semantic surfaces, set once per theme ------------------------
+         The cards below used to hardcode a light palette (#ecfdf5 verdict
+         chips, #fff7ed junction note, #fffaf0 best-spot, #ece9e1 meter
+         tracks). Those literals sat inside a page that this block re-skins
+         to dark, and a literal cannot be re-skinned — so a cream card kept
+         landing in the middle of a dark screen and the page never looked
+         finished. They are page-scoped vars now, given dark values here and
+         light values in the theme block at the bottom, so every card follows
+         the theme the way the tokenised ones already did.
+
+         Page-scoped rather than the design system's --surface-ok / --text-ok:
+         css/theme-light.css redefines --surface-app, --text and --border for
+         light, but NOT the ok/warn/err/info pairs, which stay at their dark
+         values. Reaching for them straight would have re-broken light mode. */
+      /* No fallbacks: design-system.css is linked on this page, so every one
+         of these resolves — and a hardcoded fallback is exactly the literal
+         this indirection exists to remove. */
+      --fr-ok-bg:     var(--surface-ok);
+      --fr-ok-ink:    var(--text-ok);
+      --fr-ok-line:   color-mix(in srgb, var(--text-ok) 28%, transparent);
+      --fr-warn-bg:   var(--surface-warn);
+      --fr-warn-ink:  var(--text-warn);
+      --fr-warn-line: var(--gold-line);
+      --fr-info-bg:   var(--surface-info);
+      --fr-info-ink:  var(--text-info);
+      --fr-info-line: color-mix(in srgb, var(--text-info) 30%, transparent);
+      --fr-track:     rgba(255,255,255,.10);   /* meter / progress groove */
+      --fr-feature:   linear-gradient(180deg, rgba(246,196,90,.10), rgba(246,196,90,.02));
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
       color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
     }
@@ -311,7 +340,22 @@
     body[data-page="frame"] .page-title { color: #fff; }
     body[data-page="frame"] .page-subtitle { color: rgba(233,243,238,.7); }
     body[data-page="frame"] .container { padding-bottom: 96px; }
-    body[data-page="frame"] input, body[data-page="frame"] select { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14); }
+    /* !important, because two global sheets paint these with !important and
+       nothing else can answer that:
+         premium.css   input[type="text"] … { background: rgba(255,255,255,.78) !important }
+         neon-pro.css  input, select, textarea { background: rgba(7,18,13,.7) !important }
+       The search box is an input[type=text], so premium's near-white fill won
+       and put the theme's pale ink on it at 1.10:1 — the field read as a grey
+       slab and what you typed was invisible. The radius picker is a <select>,
+       where neon-pro loads later and wins, which is the same fault mirrored
+       into the light theme (dark fill, #1a1915 ink, 1.08:1). Both controls are
+       stated explicitly here, per theme, so neither sheet decides them. */
+    body[data-page="frame"] input,
+    body[data-page="frame"] select {
+      background: rgba(255,255,255,.05) !important;
+      color: #E9F3EE !important;
+      border-color: rgba(255,255,255,.14) !important;
+    }
     body[data-page="frame"] input::placeholder { color: rgba(233,243,238,.4); }
     body[data-page="frame"] .fr-btn.ghost, body[data-page="frame"] .fr-actions .ghost { background: rgba(255,255,255,.05); color: #E9F3EE; }
     /* dark text on the bright green/gold fills for AA contrast */
@@ -337,9 +381,28 @@
        #06170F on the brand green is the right call in the dark theme, where
        the brand is a bright mint. In light the brand resolves to #0a6f4d and
        that same dark ink measures 2.98:1, so the filled buttons take white. */
+    /* The light half of the semantic surfaces defined in the block above.
+       theme-light.css carries these as --n-* names, so they are read from
+       there where it has one and given the same value inline as a fallback. */
+    :root[data-theme="light"] body[data-page="frame"] {
+      --fr-ok-bg:     var(--n-surface-ok);
+      --fr-ok-ink:    var(--n-text-ok);
+      --fr-ok-line:   color-mix(in srgb, var(--n-text-ok) 22%, transparent);
+      --fr-warn-bg:   var(--n-surface-warn);
+      --fr-warn-ink:  var(--n-text-warn);
+      --fr-warn-line: color-mix(in srgb, var(--n-text-warn) 20%, transparent);
+      --fr-info-bg:   var(--n-surface-info, #e8effc);
+      --fr-info-ink:  var(--n-text-info, #1d4ed8);
+      --fr-info-line: color-mix(in srgb, var(--n-text-info, #1d4ed8) 20%, transparent);
+      --fr-track:     rgba(20, 30, 25, .10);
+      --fr-feature:   linear-gradient(180deg, #fffaf0, #ffffff);
+    }
+
     :root[data-theme="light"] body[data-page="frame"] input,
     :root[data-theme="light"] body[data-page="frame"] select {
-      background: #ffffff; color: #1a1915; border-color: rgba(20, 30, 25, .16);
+      background: #ffffff !important;
+      color: #1a1915 !important;
+      border-color: rgba(20, 30, 25, .16) !important;
     }
     :root[data-theme="light"] body[data-page="frame"] input::placeholder { color: #6b6960; }
     :root[data-theme="light"] body[data-page="frame"] .fr-btn.ghost,
