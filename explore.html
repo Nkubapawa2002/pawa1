@@ -52,6 +52,73 @@
       --k-truck: #F6C45A;
       --k-service: #A855F7;
       --k-job: #FF8A4C;
+      /* The atmosphere behind the header. A variable rather than a literal
+         precisely so the light theme can answer it: as a hardcoded dark
+         radial it printed the kicker at 1.3:1 on its own page. */
+      --wash: radial-gradient(900px 620px at 50% -12%, #11231C 0%, rgba(7, 12, 10, 0) 62%);
+      --ph: rgba(231, 241, 236, .4);
+      --chip-ink: rgba(231, 241, 236, .72);
+      /* The <select> chevron. The WHOLE image is the variable, not its colour:
+         CSS does not interpolate var() inside a url() data URI, so a --chev
+         holding just a hex would have resolved to nothing and every dropdown
+         on the page would have lost its arrow. */
+      --chev-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23EAF1EE' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      /* Ink on an accent fill. Near-black is right on mint and wrong on
+         the dark green the accent becomes in light, where it measured
+         2.64:1 on its own button. */
+      --on-accent: #06170F;
+      /* Location has its own colour on this page: it is a fact about the
+         device, not a brand action, and the map legend leans on the same
+         family. Only the value changes between themes, never the role. */
+      --loc: #9FD8FF;
+      --loc-strong: #DDF0FF;
+      --loc-soft: rgba(110, 200, 255, .12);
+      --loc-line: rgba(110, 200, 255, .3);
+      --loc-hover: rgba(110, 200, 255, .2);
+      --loc-on: rgba(110, 200, 255, .26);
+    }
+    /* Light.
+       Explore had no light palette at all: it declared the dark one on :root
+       and never linked css/theme-light.css, so the whole page stayed dark
+       while the tab bar and the theme toggle beside it flipped. One page in a
+       different theme from the bar it sits in reads as a bug, not a choice.
+
+       Declared HERE rather than in theme-light.css on purpose. The trap this
+       repo has hit before is that a page's own :root block loads after the
+       link and wins; [data-theme="light"] adds the specificity that settles
+       it either way, so the swap is one block rather than a second copy of
+       every rule.
+
+       Values are chosen for CONTRAST, not for being the same hue. The mint
+       accent is 1.5:1 on white, which is a decoration rather than a word, so
+       it becomes #0a6647 (6.6:1 on the cream ground). The four category
+       colours are darkened for the same reason: they carry meaning on a chip
+       and a map pill, and a legend nobody can read is not a legend. */
+    :root[data-theme="light"] {
+      --bg: #FAF9F5;
+      --surface: #FFFFFF;
+      --surface-2: #F2F1EA;
+      --line: rgba(20, 20, 15, .12);
+      --line-strong: rgba(20, 20, 15, .22);
+      --text: #1a1915;
+      --muted: #4b493f;
+      --faint: #6b6960;
+      --accent: #0a6647;
+      --k-room: #0a6647;
+      --k-truck: #8a6100;
+      --k-service: #6b3fa0;
+      --k-job: #a33b0c;
+      --wash: radial-gradient(900px 620px at 50% -12%, rgba(10, 102, 71, .07) 0%, rgba(250, 249, 245, 0) 62%);
+      --ph: #6b6960;
+      --chip-ink: #35332c;
+      --chev-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1915' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      --on-accent: #ffffff;
+      --loc: #14557d;
+      --loc-strong: #0d3d5c;
+      --loc-soft: rgba(20, 85, 125, .08);
+      --loc-line: rgba(20, 85, 125, .28);
+      --loc-hover: rgba(20, 85, 125, .14);
+      --loc-on: rgba(20, 85, 125, .18);
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
@@ -65,7 +132,7 @@
     .xp {
       max-width: 620px; margin: 0 auto;
       padding: 18px 16px 40px;
-      background: radial-gradient(900px 620px at 50% -12%, #11231C 0%, rgba(7, 12, 10, 0) 62%);
+      background: var(--wash);
       min-height: 100vh;
     }
     button, input, select { font-family: inherit; }
@@ -107,7 +174,7 @@
       flex: 1; min-width: 0; background: none; border: 0; outline: none;
       color: var(--text); font-size: 15px;
     }
-    .xp-search-box input::placeholder { color: rgba(231, 241, 236, .4); }
+    .xp-search-box input::placeholder { color: var(--ph); }
     .xp-clear {
       flex: none; background: none; border: 0; padding: 2px; cursor: pointer;
       color: var(--faint); display: none;
@@ -121,6 +188,15 @@
     .xp-go:active { transform: scale(.96); }
 
     /* Example queries — the fastest way to teach what this box accepts. */
+    /* Both chip strips scroll sideways and used to end in a chip sliced clean
+       through by the viewport edge, which reads as a rendering fault rather
+       than as "there is more". The mask fades the last few pixels instead. */
+    .xp-examples, .xp-scopes {
+      -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 30px), transparent);
+      mask-image: linear-gradient(90deg, #000 calc(100% - 30px), transparent);
+      -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+      -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+    }
     .xp-examples { display: flex; gap: 8px; overflow-x: auto; margin: 12px -16px 0; padding: 0 16px 2px; scrollbar-width: none; }
     .xp-examples::-webkit-scrollbar { display: none; }
     .xp-ex {
@@ -137,7 +213,7 @@
       flex: none; display: inline-flex; align-items: center; gap: 7px;
       padding: 9px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap;
       background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
-      color: rgba(231, 241, 236, .72); font-size: 13px; font-weight: 700;
+      color: var(--chip-ink); font-size: 13px; font-weight: 700;
       transition: background .16s ease, color .16s ease, border-color .16s ease;
     }
     .xp-scope b { font-weight: 800; font-size: 11.5px; opacity: .7; }
@@ -153,47 +229,108 @@
     .xp-scope.active[data-k="service"] { border-color: rgba(168, 85, 247, .5); }
     .xp-scope.active[data-k="job"]     { border-color: rgba(255, 138, 76, .5); }
 
-    /* ── Controls: where, how far, what order ── */
-    .xp-controls {
-      display: grid; grid-template-columns: 1fr auto; gap: 9px;
-      margin-top: 14px;
+    /* ── WHERE ──────────────────────────────────────────────────────────
+       One bar, one sheet. The place input, the region picker and the radius
+       picker used to sit open and stacked, three full-width controls asking
+       one question in three vocabularies. Collapsed, the page states the
+       answer as a sentence and the controls are one tap away.
+
+       The summary is a real sentence, not a label plus a value: "Mwanza,
+       within 15 km" reads; "Region: Mwanza / Radius: 15" is a form somebody
+       has to assemble in their head. */
+    .xp-where {
+      display: grid; grid-template-columns: 1fr auto; gap: 9px; margin-top: 14px;
     }
+    .xp-where-sum {
+      display: flex; align-items: center; gap: 10px; min-width: 0; width: 100%;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 14px; padding: 9px 13px; cursor: pointer;
+      font: inherit; color: var(--text); text-align: left;
+      transition: border-color .16s ease;
+    }
+    .xp-where-sum:hover { border-color: var(--line-strong); }
+    .xp-where-sum > svg:first-child { flex: none; color: var(--accent); }
+    .xp-where-tx { flex: 1; min-width: 0; }
+    .xp-where-lbl {
+      display: block; font-size: 10px; font-weight: 800; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--faint);
+    }
+    .xp-where-val {
+      display: block; margin-top: 1px; font-size: 14px; font-weight: 700;
+      color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .xp-where-chev { flex: none; color: var(--muted); transition: transform .18s ease; }
+    .xp-where-sum[aria-expanded="true"] .xp-where-chev { transform: rotate(180deg); }
+    .xp-where-sum:focus-visible { outline: 2px solid rgba(46, 230, 166, .6); outline-offset: 1px; }
+
+    /* The sheet. Not a modal: it pushes the page down rather than covering it,
+       because the results underneath are the thing being narrowed and watching
+       the count change while you change the radius is the whole point. */
+    .xp-sheet {
+      margin-top: 9px; padding: 13px;
+      background: var(--surface); border: 1px solid var(--line-strong);
+      border-radius: 16px; display: grid; gap: 11px;
+      animation: xpSheetIn .18s ease;
+    }
+    .xp-sheet[hidden] { display: none; }
+    @keyframes xpSheetIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    .xp-field { display: block; min-width: 0; }
+    .xp-field-lbl {
+      display: block; margin-bottom: 5px; font-size: 11px; font-weight: 800;
+      letter-spacing: .05em; text-transform: uppercase; color: var(--faint);
+    }
+    .xp-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .xp-field .xp-select { width: 100%; }
+    .xp-sheet-done {
+      margin-top: 2px; padding: 11px; border: 0; border-radius: 13px; cursor: pointer;
+      background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13.5px; font-weight: 800;
+    }
+    @media (prefers-reduced-motion: reduce) { .xp-sheet { animation: none; } }
+
     .xp-place {
       display: flex; align-items: center; gap: 9px; min-width: 0;
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: 14px; padding: 11px 13px;
+      background: rgba(255, 255, 255, .04); border: 1px solid var(--line);
+      border-radius: 13px; padding: 11px 13px;
     }
     .xp-place svg { flex: none; color: var(--accent); }
     .xp-place input {
       flex: 1; min-width: 0; background: none; border: 0; outline: none;
       color: var(--text); font-size: 14px; font-weight: 600;
     }
-    .xp-place input::placeholder { color: rgba(231, 241, 236, .4); font-weight: 500; }
+    .xp-place input::placeholder { color: var(--ph); font-weight: 500; }
     .xp-near {
       flex: none; display: inline-flex; align-items: center; gap: 7px;
       padding: 11px 15px; border-radius: 14px; cursor: pointer;
-      background: rgba(110, 200, 255, .12); border: 1px solid rgba(110, 200, 255, .3);
-      color: #9FD8FF; font-size: 13px; font-weight: 700; white-space: nowrap;
+      background: var(--loc-soft); border: 1px solid var(--loc-line);
+      color: var(--loc); font-size: 13px; font-weight: 700; white-space: nowrap;
     }
-    .xp-near:hover { background: rgba(110, 200, 255, .2); }
-    .xp-near.is-on { background: rgba(110, 200, 255, .26); color: #DDF0FF; }
+    .xp-near:hover { background: var(--loc-hover); }
+    .xp-near.is-on { background: var(--loc-on); color: var(--loc-strong); }
     .xp-near:disabled { opacity: .55; cursor: progress; }
 
-    .xp-row2 { display: flex; gap: 9px; margin-top: 9px; flex-wrap: wrap; }
-    /* The region picker changes what the whole page is about, so it gets its
-       own line on a phone rather than being one of three equal dropdowns. */
-    @media (max-width: 520px) { #xpRegion { flex: 1 0 100%; } }
     .xp-select {
       flex: 1; min-width: 140px;
       background: var(--surface); border: 1px solid var(--line);
       border-radius: 14px; padding: 11px 13px;
       color: var(--text); font-size: 13.5px; font-weight: 600;
       appearance: none; cursor: pointer;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23EAF1EE' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-image: var(--chev-img);
       background-repeat: no-repeat; background-position: right 12px center; background-size: 11px;
       padding-right: 32px;
     }
     .xp-select:focus-visible { outline: 2px solid rgba(46, 230, 166, .6); outline-offset: 1px; }
+    /* Sort, in the results bar. Smaller than a sheet control on purpose: it
+       reorders what is already on screen rather than changing what is on it,
+       so it should not carry the same weight as the WHERE bar above. */
+    .xp-select.is-inline {
+      flex: none; min-width: 0; padding: 11px 28px 11px 13px;
+      font-size: 12.5px; border-radius: 999px; background-size: 10px;
+      background-position: right 10px center;
+      /* 40px, not the 32px the padding alone gave it. This is a control people
+         reach for on a moving daladala, and tests/mobile_audit.mjs is right to
+         refuse anything smaller however tidy it looks on a desktop. */
+      min-height: var(--hit-min, 44px);
+    }
 
     /* ── "Here's what I understood" — the parse, shown back ── */
     .xp-read { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
@@ -204,16 +341,20 @@
       background: rgba(46, 230, 166, .1); border: 1px solid rgba(46, 230, 166, .28);
       color: #8DF0CB; font-size: 12px; font-weight: 700;
     }
-    .xp-tag.is-place { background: rgba(110, 200, 255, .1); border-color: rgba(110, 200, 255, .3); color: #A8DCFF; }
+    .xp-tag.is-place { background: var(--loc-soft); border-color: var(--loc-line); color: var(--loc); }
     .xp-tag.is-money { background: rgba(246, 196, 90, .1); border-color: rgba(246, 196, 90, .3); color: #F7D999; }
     .xp-tag-x { background: none; border: 0; padding: 0; margin-left: 1px; cursor: pointer; color: inherit; opacity: .6; line-height: 1; }
     .xp-tag-x:hover { opacity: 1; }
 
     /* ── Status line ── */
     .xp-status {
-      display: flex; align-items: baseline; justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between;
       gap: 10px; margin: 22px 0 12px; flex-wrap: wrap;
     }
+    /* Sort and the view toggle travel together: both change how the SAME
+       results are presented, which is a different kind of control from the
+       ones above that change what the results are. */
+    .xp-status-r { display: flex; align-items: center; gap: 8px; flex: none; }
     .xp-count { font-size: 16px; font-weight: 800; }
     .xp-count span { color: var(--muted); font-weight: 600; font-size: 13px; }
     .xp-note { font-size: 12.5px; color: var(--faint); }
@@ -235,7 +376,7 @@
       background: none; color: var(--muted); font-size: 12.5px; font-weight: 700;
       transition: background .16s ease, color .16s ease;
     }
-    .xp-view button.active { background: var(--accent); color: #06170F; }
+    .xp-view button.active { background: var(--accent); color: var(--on-accent); }
     .xp-view button:focus-visible { outline: 2px solid rgba(46, 230, 166, .7); outline-offset: 2px; }
 
     /* ── Map ──
@@ -415,7 +556,7 @@
     }
     .xp-meta { font-size: 12.5px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .xp-meta .xp-sep { opacity: .4; }
-    .xp-dist { color: #9FD8FF; font-weight: 700; }
+    .xp-dist { color: var(--loc); font-weight: 700; }
     .xp-dist.is-road::after { content: " by road"; font-weight: 500; opacity: .7; }
     .xp-price { margin-top: auto; padding-top: 7px; font-size: 16px; font-weight: 800; color: var(--accent); }
     .xp-price small { font-size: 11.5px; font-weight: 600; color: var(--faint); margin-left: 3px; }
@@ -499,7 +640,11 @@
     .xp-more[hidden] { display: none; }
 
     @media (max-width: 420px) {
-      .xp-controls { grid-template-columns: 1fr; }
+      /* WHERE and "Near me" stay on ONE row even at 320px: the summary
+         truncates, and stacking them would put back the second row this
+         whole rearrangement existed to remove. */
+      .xp-near span { display: none; }
+      .xp-near { padding: 11px 13px; }
       .xp-thumb { width: 82px; height: 82px; }
       .xp-title { font-size: 23px; }
     }
@@ -549,26 +694,55 @@
 
     <div class="xp-scopes" id="xpScopes" role="tablist" aria-label="What to search"></div>
 
-    <div class="xp-controls">
-      <label class="xp-place">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
-        <input id="xpPlace" type="text" autocomplete="off"
-               data-i18n-placeholder="xp_place_ph" placeholder="Anywhere in Tanzania" />
-      </label>
+    <!-- WHERE. One line that says the current scope in words, and a sheet
+         holding the three controls that set it. They used to sit stacked and
+         open on the page, which read as three separate questions when it is
+         one: place, region and radius are a single decision about where to
+         look, and only one of them is usually doing any work. -->
+    <div class="xp-where">
+      <button class="xp-where-sum" id="xpWhereBtn" type="button"
+              aria-expanded="false" aria-controls="xpWhereSheet">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+        <span class="xp-where-tx">
+          <span class="xp-where-lbl" data-i18n="xp_where_lbl">Where</span>
+          <span class="xp-where-val" id="xpWhereVal" data-i18n="xp_where_any">Anywhere in Tanzania</span>
+        </span>
+        <svg class="xp-where-chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <!-- Keeps its own tap target rather than living inside the sheet: "near
+           me" is the single most common answer to "where", and burying the
+           common answer one tap deeper to tidy the page is a bad trade. -->
       <button class="xp-near" id="xpNear" type="button">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="8.4" opacity=".55"/></svg>
         <span data-i18n="xp_near_me">Near me</span>
       </button>
     </div>
 
-    <div class="xp-row2">
-      <!-- Browse any region as though you lived in it. Picking one moves the
-           whole engine there: results are scoped to that region, distances are
-           measured from it, and the companion rails and road times follow. -->
-      <select class="xp-select" id="xpRegion" data-i18n-aria-label="xp_region_label"
-              aria-label="Region to browse"></select>
-      <select class="xp-select" id="xpRadius" aria-label="Search radius"></select>
-      <select class="xp-select" id="xpSort" aria-label="Sort results"></select>
+    <div class="xp-sheet" id="xpWhereSheet" hidden>
+      <label class="xp-field">
+        <span class="xp-field-lbl" data-i18n="xp_f_place">Place</span>
+        <span class="xp-place">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+          <input id="xpPlace" type="text" autocomplete="off"
+                 data-i18n-placeholder="xp_place_ph" placeholder="Anywhere in Tanzania" />
+        </span>
+      </label>
+      <div class="xp-field-row">
+        <label class="xp-field">
+          <!-- Browse any region as though you lived in it. Picking one moves
+               the whole engine there: results are scoped to that region,
+               distances are measured from it, and the companion rails and road
+               times follow. -->
+          <span class="xp-field-lbl" data-i18n="xp_f_region">Region</span>
+          <select class="xp-select" id="xpRegion" data-i18n-aria-label="xp_region_label"
+                  aria-label="Region to browse"></select>
+        </label>
+        <label class="xp-field">
+          <span class="xp-field-lbl" data-i18n="xp_f_radius">How far</span>
+          <select class="xp-select" id="xpRadius" aria-label="Search radius"></select>
+        </label>
+      </div>
+      <button class="xp-sheet-done" id="xpWhereDone" type="button" data-i18n="xp_done">Done</button>
     </div>
 
     <div class="xp-read" id="xpRead" aria-live="polite"></div>
@@ -577,6 +751,8 @@
 
     <div class="xp-status">
       <div class="xp-count" id="xpCount"></div>
+      <div class="xp-status-r">
+        <select class="xp-select is-inline" id="xpSort" aria-label="Sort results"></select>
       <div class="xp-view" role="group" aria-label="View">
         <button type="button" id="xpViewList" class="active" aria-pressed="true">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
@@ -586,6 +762,7 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
           <span data-i18n="xp_v_map">Map</span>
         </button>
+      </div>
       </div>
     </div>
     <div class="xp-note" id="xpNote" style="margin:-6px 0 12px;"></div>

@@ -102,10 +102,10 @@
     ],
     leisure: [
       { key: "social",      ic: "", label: "Socialising & nightlife", desc: "Bars, food & gatherings come alive in the evening.", parts: ["evening", "night"], who: ["youth", "residents"] },
-      { key: "sport",       ic: "⚽", label: "Sport & recreation", desc: "Exercise, matches and weekend crowds.", parts: ["morning", "evening"], who: ["residents"] },
+      { key: "sport",       ic: "", label: "Sport & recreation", desc: "Exercise, matches and weekend crowds.", parts: ["morning", "evening"], who: ["residents"] },
     ],
     fuel: [
-      { key: "refuel",      ic: "⛽", label: "Refuelling & transit stops", desc: "Drivers pass through — peaks at the rush hours.", parts: ["dawn", "morning", "evening"], who: ["drivers"] },
+      { key: "refuel",      ic: "", label: "Refuelling & transit stops", desc: "Drivers pass through — peaks at the rush hours.", parts: ["dawn", "morning", "evening"], who: ["drivers"] },
     ],
   };
 

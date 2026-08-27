@@ -30,6 +30,79 @@ change the design system and pull (below).
    are hover-only and sparing. No emoji in UI chrome — icons are Lucide-style
    stroke SVGs.
 
+## Three rules on every screen, checked every time
+
+These are not style preferences. Check all three before calling any visual work
+done, and fix what you find on the screen you are already touching.
+
+### 1. No emoji. Anywhere.
+
+Not in a heading, not in a button, not as a placeholder for a missing photo,
+not in a map pill, not in a chart legend. If you find one, remove it.
+
+An emoji renders differently on every phone, carries no `currentColor` so it
+ignores the theme, cannot be sized against the text beside it, and is read
+aloud by a screen reader as whatever its vendor happened to name it. A room is
+not a house emoji; it is a room. Where a mark is genuinely needed, use a
+Lucide-style stroke SVG, which inherits colour, scales with the type, and can be
+given a real `aria-label` or hidden outright.
+
+The one thing an emoji is still allowed to be is an Artifact favicon, because
+that field takes nothing else.
+
+### 2. No spaced dash inside a sentence.
+
+Not `—`, not `–`, not ` - `. In user-visible copy a dash between spaces is
+almost always a comma, a colon, or a full stop that was avoided.
+
+```
+WRONG   Rooms, trucks and services — anywhere in Tanzania.
+RIGHT   Rooms, trucks and services, anywhere in Tanzania.
+
+WRONG   Nothing within 5 km — widened to 15 km.
+RIGHT   Nothing within 5 km. Widened to 15 km.
+
+WRONG   showing 40 — zoom in for more
+RIGHT   showing 40. Zoom in for more.
+```
+
+Two sentences read faster than one long one on a 390px screen, and they
+translate cleanly, which a dash does not: Swahili has no equivalent habit, so a
+dash carried across becomes a stray mark rather than a pause. A hyphen inside a
+word (`self-contained`, `end-to-end`, `PN-Zaki`, `near-me.html`) is a different
+character doing a different job and stays.
+
+This applies to **copy a person reads**: `js/core/i18n.js` strings, page text,
+`aria-label`s, button labels, empty states, placeholders. Code comments and
+`docs/*.md` are written for developers and are not in scope.
+
+### 3. Every string exists in English and Swahili.
+
+Both, always, and nothing else. A key defined once in `js/core/i18n.js` is a
+bug: the site falls back to English mid-page and a Swahili reader gets a
+half-translated screen, which is worse than an English one because they cannot
+tell which half they are looking at.
+
+Never hardcode a visible string in a page or a `js/pages/*.js` file. It goes in
+`i18n.js` under both `en` and `sw`, and is reached through `data-i18n` in
+markup or `t("key", "English fallback")` in script.
+
+Keep the Swahili plain. It is read on a phone, often on mobile data, often by
+somebody in a hurry. Prefer the everyday word over the formal one.
+
+```bash
+node tests/i18n_coverage.mjs      # 0 untranslated across the wired pages
+```
+
+To find keys that exist in only one language:
+
+```bash
+node -e 'const s=require("fs").readFileSync("js/core/i18n.js","utf8");
+const c={};for(const m of s.matchAll(/^\s{4}([a-z0-9_]+):/gm))c[m[1]]=(c[m[1]]||0)+1;
+console.log(Object.entries(c).filter(([,v])=>v===1).map(([k])=>k).join("
+")||"none")'
+```
+
 ## Reaching for the right token
 
 | Need | Token |

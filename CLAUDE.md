@@ -23,7 +23,23 @@ node scripts/design/check_tokens.mjs   # literals that should be tokens
 ```
 
 Rules, the token table, the sync procedure and two known traps live in the
-`design` skill (`.claude/skills/design/SKILL.md`) — read it before any UI work.
+`design` skill (`.claude/skills/design/SKILL.md`). Read it before any UI work.
+
+Three of those rules are checked on **every** screen, every time, and are worth
+knowing before you open a file:
+
+1. **No emoji.** Anywhere in the UI. Use a Lucide-style stroke SVG, which
+   inherits colour and scales with the type.
+2. **No spaced dash inside a sentence** (`—`, `–`, ` - `) in copy a person
+   reads. It is a comma, a colon or a full stop that was avoided. A hyphen
+   inside a word is fine.
+3. **English and Swahili, both, always.** Every visible string lives in
+   `js/core/i18n.js` under `en` and `sw`. A key defined once is a bug.
+
+```bash
+node tests/i18n_coverage.mjs      # both languages, every wired page
+node tests/copy_rules_test.mjs    # emoji and spaced dashes in UI copy
+```
 
 ## Backend
 

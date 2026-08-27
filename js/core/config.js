@@ -495,8 +495,8 @@ window.pawaDemandSpec = (r) => {
   const typeLc = String(r.type || "").toLowerCase();
   soft.filter((s) => s.toLowerCase() !== typeLc)
     .forEach((s) => chips.push(`<span class="pds-c s">${esc(s)}</span>`));
-  if (must) chips.push(`<span class="pds-line pds-must">✔ ${T("rp_must_label")}: ${esc(must)}</span>`);
-  if (avoid) chips.push(`<span class="pds-line pds-avoid">⛔ ${T("ds_avoid")}: ${esc(avoid)}</span>`);
+  if (must) chips.push(`<span class="pds-line pds-must"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="13" height="13" style="vertical-align:-2px"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> ${T("rp_must_label")}: ${esc(must)}</span>`);
+  if (avoid) chips.push(`<span class="pds-line pds-avoid"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="13" height="13" style="vertical-align:-2px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.2"/><path d="M5.6 5.6l12.8 12.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg> ${T("ds_avoid")}: ${esc(avoid)}</span>`);
   return `<div class="pds">${chips.join("")}</div>`;
 };
 
@@ -540,7 +540,7 @@ window.renderAgentClientTip = (opts) => {
     "background:linear-gradient(180deg,#fffaf0,#ffffff);box-shadow:0 1px 3px rgba(0,0,0,.05);";
   el.innerHTML =
     '<div style="display:flex;gap:12px;padding:14px 16px;align-items:flex-start;font-family:inherit;">' +
-      '<div style="font-size:1.5rem;line-height:1;flex-shrink:0;">💼</div>' +
+      '<div style="line-height:0;flex-shrink:0;color:var(--green-neon,#10b981)">' + '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="22" height="22">' + '<rect x="3" y="7" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/>' + '<path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' + '<path d="M3 12h18" stroke="currentColor" stroke-width="1.8"/></svg>' + '</div>' +
       '<div style="flex:1;min-width:0;">' +
         '<div style="font-weight:800;color:#7a5a10;font-size:1rem;margin:0 0 3px;">Your client list is your business</div>' +
         '<p style="margin:0 0 8px;font-size:.88rem;line-height:1.5;color:#5b5036;">' + captureHint +

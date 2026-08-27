@@ -3422,7 +3422,7 @@ create policy "house-photos upload" on storage.objects for insert
       const spec = window.pawaDemandSpec ? window.pawaDemandSpec(r) : "";
       return `<div class="ah-wait-row${reason ? " ah-misfit" : ""}">
         <div class="ah-wait-who">
-          <strong>${esc(r.name || tr("ahw_waiting_renter"))}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> ${tr("adb_your_district")}</span>` : ""}${reason ? ` <span class="ah-misfit-chip" title="${tr("ahw_misfit_title")}">⚠ ${esc(reason)}</span>` : ""}
+          <strong>${esc(r.name || tr("ahw_waiting_renter"))}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> ${tr("adb_your_district")}</span>` : ""}${reason ? ` <span class="ah-misfit-chip" title="${tr("ahw_misfit_title")}">${esc(reason)}</span>` : ""}
           ${r.area ? `<small>${esc(r.area)}</small>` : ""}
           ${spec}
           ${neededByChip(r.needed_by)}

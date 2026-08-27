@@ -29,6 +29,28 @@
 (function () {
   "use strict";
 
+  // ---- marks --------------------------------------------------------------
+  //  Stroke SVGs, not emoji. An emoji is a different picture on every phone,
+  //  carries its own colour so it ignores the theme, cannot be sized against
+  //  the text beside it, and is announced by a screen reader as whatever its
+  //  vendor happened to name it. These take currentColor, scale with the type,
+  //  and are hidden from assistive tech, which is right: every one of them
+  //  sits next to a word that already says the same thing.
+  const IC = {
+    home: '<svg class="ar-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<path d="M3.5 10.6 12 4l8.5 6.6V19a1.6 1.6 0 0 1-1.6 1.6H5.1A1.6 1.6 0 0 1 3.5 19z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>' +
+      '<path d="M9.6 20.6v-6h4.8v6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    service: '<svg class="ar-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<path d="M14.7 6.3a3.9 3.9 0 0 0 5 5l-7.4 7.4a2.4 2.4 0 0 1-3.4-3.4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>' +
+      '<path d="M6.4 4.2 4.2 6.4l3 3 2.2-2.2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    pin: '<svg class="ar-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z" stroke="currentColor" stroke-width="1.8"/>' +
+      '<circle cx="12" cy="10" r="2.3" stroke="currentColor" stroke-width="1.8"/></svg>',
+    search: '<svg class="ar-ic is-big" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<circle cx="11" cy="11" r="6.4" stroke="currentColor" stroke-width="1.8"/>' +
+      '<path d="m15.8 15.8 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  };
+
   // Fallback circle radius (metres) by admin level, used only when no real
   // boundary polygon is available. Bigger levels → bigger circle; the tag match
   // below still captures the rest of a large region by name.
@@ -221,7 +243,7 @@
 
   function suggestRowHtml(p, i) {
     const count = (p.houses || p.services)
-      ? `<span class="ar-sg-count">${p.houses ? p.houses + "🏠" : ""}${p.houses && p.services ? " " : ""}${p.services ? p.services + "🛠" : ""}</span>`
+      ? `<span class="ar-sg-count">${p.houses ? p.houses + IC.home : ""}${p.houses && p.services ? " " : ""}${p.services ? p.services + IC.service : ""}</span>`
       : "";
     const ctx = p.context && !/^tanzania$/i.test(p.context) ? `<span class="ar-sg-ctx">${esc(p.context)}</span>` : "";
     return `<button type="button" class="ar-sg-row${i === activeSuggest ? " active" : ""}" data-i="${i}" role="option">
@@ -331,14 +353,14 @@
     const photoStyle = img ? `background-image:url('${esc(img)}')` : "";
     return `<a class="ar-card" href="house.html?id=${encodeURIComponent(h.id)}">
         <span class="ar-card-photo" style="${photoStyle}">
-          ${img ? "" : `<span class="ar-card-ph">🏠</span>`}
+          ${img ? "" : `<span class="ar-card-ph">${IC.home}</span>`}
           ${h.verified ? `<span class="ar-badge verified">✓ Verified</span>` : ""}
           ${Number.isFinite(km) ? `<span class="ar-badge dist">${kmText(km)}</span>` : ""}
         </span>
         <span class="ar-card-body">
           <span class="ar-card-price">${price}</span>
           <span class="ar-card-title">${esc(h.title || "Property")}</span>
-          ${loc ? `<span class="ar-card-meta">📍 ${esc(loc)}</span>` : ""}
+          ${loc ? `<span class="ar-card-meta">${IC.pin} ${esc(loc)}</span>` : ""}
           ${beds ? `<span class="ar-card-tags"><span>${esc(beds)}</span>${h.type ? `<span>${esc(h.type)}</span>` : ""}</span>` : ""}
         </span>
       </a>`;
@@ -353,7 +375,7 @@
     const photoStyle = img ? `background-image:url('${esc(img)}')` : "";
     return `<a class="ar-card" href="service.html?id=${encodeURIComponent(s.id)}">
         <span class="ar-card-photo svc" style="${photoStyle}">
-          ${img ? "" : `<span class="ar-card-ph">🛠</span>`}
+          ${img ? "" : `<span class="ar-card-ph">${IC.service}</span>`}
           <span class="ar-badge cat">${esc(cat)}</span>
           ${s.verified ? `<span class="ar-badge verified">✓ Verified</span>` : ""}
           ${Number.isFinite(km) ? `<span class="ar-badge dist">${kmText(km)}</span>` : ""}
@@ -361,7 +383,7 @@
         <span class="ar-card-body">
           <span class="ar-card-price">${price}</span>
           <span class="ar-card-title">${esc(s.title || cat)}</span>
-          ${loc ? `<span class="ar-card-meta">📍 ${esc(loc)}</span>` : ""}
+          ${loc ? `<span class="ar-card-meta">${IC.pin} ${esc(loc)}</span>` : ""}
           ${s.experience_years ? `<span class="ar-card-tags"><span>${esc(s.experience_years)} yrs exp</span></span>` : ""}
         </span>
       </a>`;
@@ -405,15 +427,15 @@
     seg.hidden = false;
     seg.innerHTML = `
       <button type="button" class="ar-seg-btn${view === "all" ? " active" : ""}" data-view="all">All <b>${total}</b></button>
-      <button type="button" class="ar-seg-btn${view === "houses" ? " active" : ""}" data-view="houses">🏠 Homes <b>${hRows.length}</b></button>
-      <button type="button" class="ar-seg-btn${view === "services" ? " active" : ""}" data-view="services">🛠 Services <b>${sRows.length}</b></button>`;
+      <button type="button" class="ar-seg-btn${view === "houses" ? " active" : ""}" data-view="houses">${IC.home} Homes <b>${hRows.length}</b></button>
+      <button type="button" class="ar-seg-btn${view === "services" ? " active" : ""}" data-view="services">${IC.service} Services <b>${sRows.length}</b></button>`;
     seg.querySelectorAll(".ar-seg-btn").forEach((b) =>
       b.addEventListener("click", () => setView(b.dataset.view)));
 
     // Result sections.
     if (!total) {
       results.innerHTML = `<div class="ar-empty">
-          <div class="ar-empty-ic">🔍</div>
+          <div class="ar-empty-ic">${IC.search}</div>
           <b>Nothing listed in ${esc(chosen.name)} yet</b>
           <span>Be the first — <a href="agent-houses.html">list a house</a> or <a href="agent-services.html">offer a service</a> here. Or try a nearby area.</span>
         </div>`;
@@ -422,16 +444,16 @@
     }
     const blocks = [];
     if (view !== "services" && hRows.length) {
-      blocks.push(`<div class="ar-sec"><div class="ar-sec-head"><h2>🏠 Homes in ${esc(chosen.name)}</h2><a href="houses.html">All homes →</a></div>
+      blocks.push(`<div class="ar-sec"><div class="ar-sec-head"><h2>${IC.home} Homes in ${esc(chosen.name)}</h2><a href="houses.html">All homes →</a></div>
         <div class="ar-grid">${hRows.map(houseCard).join("")}</div></div>`);
     }
     if (view !== "houses" && sRows.length) {
-      blocks.push(`<div class="ar-sec"><div class="ar-sec-head"><h2>🛠 Services in ${esc(chosen.name)}</h2><a href="services.html">All services →</a></div>
+      blocks.push(`<div class="ar-sec"><div class="ar-sec-head"><h2>${IC.service} Services in ${esc(chosen.name)}</h2><a href="services.html">All services →</a></div>
         <div class="ar-grid">${sRows.map(serviceCard).join("")}</div></div>`);
     }
     if (!blocks.length) {
       const none = view === "houses" ? "homes" : "services";
-      blocks.push(`<div class="ar-empty"><div class="ar-empty-ic">🔍</div><b>No ${none} in ${esc(chosen.name)} yet</b><span>Switch the filter above to see what is here.</span></div>`);
+      blocks.push(`<div class="ar-empty"><div class="ar-empty-ic">${IC.search}</div><b>No ${none} in ${esc(chosen.name)} yet</b><span>Switch the filter above to see what is here.</span></div>`);
     }
     results.innerHTML = blocks.join("");
     renderMarkers([...hRows.map((h) => ({ o: h, kind: "house" })), ...sRows.map((s) => ({ o: s, kind: "service" }))]);

@@ -573,7 +573,7 @@
         <div class="rp-row">
           <label for="rpRegion">${T("rp_region_label")} <small>${T("rp_region_small")}</small></label>
           <select id="rpRegion"><option value="">${T("rp_region_choose")}</option></select>
-          <button id="rpLoc" class="rp-loc" type="button">📍 ${T("rp_use_loc")}</button>
+          <button id="rpLoc" class="rp-loc" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="14" height="14" style="vertical-align:-2px"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="10" r="2.4" stroke="currentColor" stroke-width="1.9"/></svg> ${T("rp_use_loc")}</button>
         </div>
 
         <div class="rp-row">
@@ -847,7 +847,7 @@
           a.city || a.town || a.city_district].filter(Boolean).join(", "));
         if (label && !whereEl.value.trim()) {
           whereEl.value = label;
-          pickedEl.textContent = "📍 " + label;
+          pickedEl.textContent = label;
           pickedEl.hidden = false;
         }
       } catch (_) {}
@@ -1000,7 +1000,7 @@
       } catch (e) {
         setMsg((window.pawaLocate && window.pawaLocate.message) ? window.pawaLocate.message(e) : T("rp_loc_fail"));
       } finally {
-        locEl.disabled = false; locEl.textContent = "📍 " + T("rp_use_loc");
+        locEl.disabled = false; locEl.textContent = T("rp_use_loc");
       }
     });
 
@@ -1014,7 +1014,7 @@
         const h = list[+b.dataset.i];
         picked = { lat: +h.lat, lng: +h.lng, name: h.name, region: (h.context ? String(h.context).split(",").map((s) => s.trim()).pop() : "") };
         whereEl.value = simplifyArea(h.name + (h.context ? ", " + h.context : ""));
-        pickedEl.textContent = "📍 " + (h.name || "") + (h.context ? " · " + h.context : "");
+        pickedEl.textContent = (h.name || "") + (h.context ? " · " + h.context : "");
         pickedEl.hidden = false;
         sugEl.hidden = true;
         // Choosing a place from the list is as deliberate as dropping a pin, so

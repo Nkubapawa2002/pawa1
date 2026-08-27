@@ -103,7 +103,13 @@
       background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); border-radius: 18px;
     }
     .ar-intro-ic { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
-      background: rgba(46,230,166,.13); font-size: 20px; }
+      background: rgba(46,230,166,.13); color: #2EE6A6; }
+    /* The mark inside. It was an emoji, deleted in an earlier sweep, which left
+       three blank green squares on the page for anyone who looked. A stroke SVG
+       takes the box's own colour, so it cannot fall out that way again, and
+       font-size is gone because an SVG is not text. */
+    .ar-intro-ic svg { width: 21px; height: 21px; }
+    :root[data-theme="light"] .ar-intro-ic { color: #0a6647; background: rgba(10,102,71,.10); }
     .ar-intro-card h3 { margin: 0 0 3px; font-size: 15px; font-weight: 800; color: #fff; }
     .ar-intro-card p { margin: 0; font-size: 13px; color: rgba(233,243,238,.62); line-height: 1.5; }
 
@@ -151,7 +157,15 @@
     .ar-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,.4); }
     .ar-card-photo { position: relative; aspect-ratio: 4/3; background: #0f1714 center/cover no-repeat; display: block; }
     .ar-card-photo.svc { background-color: #16130c; }
-    .ar-card-ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2rem; opacity: .5; }
+    .ar-card-ph { position: absolute; inset: 0; display: grid; place-items: center; opacity: .45; }
+    /* The marks that replaced the emoji. Sized in em, so each one scales with
+       the text it sits beside rather than needing a rule per position, and
+       coloured by currentColor, which an emoji could never do. */
+    .ar-ic { width: 1.05em; height: 1.05em; vertical-align: -.16em; flex: none; }
+    .ar-ic.is-big { width: 30px; height: 30px; vertical-align: 0; }
+    .ar-card-ph .ar-ic { width: 34px; height: 34px; }
+    .ar-sg-count .ar-ic { width: 12px; height: 12px; vertical-align: -.12em; margin-left: 1px; }
+    .ar-seg-btn .ar-ic { margin-right: 3px; }
     .ar-badge { position: absolute; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 999px;
       background: rgba(6,12,9,.7); color: #fff; -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
     .ar-badge.verified { top: 8px; left: 8px; color: #2EE6A6; }
@@ -169,7 +183,7 @@
 
     /* Empty state */
     .ar-empty { text-align: center; padding: 44px 20px; color: rgba(233,243,238,.6); display: flex; flex-direction: column; gap: 6px; }
-    .ar-empty-ic { font-size: 32px; }
+    .ar-empty-ic { color: rgba(233,243,238,.4); line-height: 0; }
     .ar-empty b { color: #EAF1EE; font-size: 15.5px; }
     .ar-empty a { color: #2EE6A6; font-weight: 700; text-decoration: none; }
 
@@ -207,7 +221,7 @@
     <header class="ar-head">
       <div class="ar-kicker">Browse anywhere</div>
       <h1 class="ar-title" data-i18n="ar_title">Explore an area</h1>
-      <p class="ar-lead" data-i18n="ar_lead">Type any region, district, ward or village no location needed and see every home and service available there.</p>
+      <p class="ar-lead" data-i18n="ar_lead">Type any region, district, ward or village. No location needed. See every home and service available there.</p>
     </header>
 
     <div class="ar-searchwrap">
@@ -228,16 +242,16 @@
     <!-- Before a place is chosen: explain the three things you can do here. -->
     <div class="ar-intro" id="arIntro">
       <div class="ar-intro-card">
-        <div class="ar-intro-ic"></div>
+        <div class="ar-intro-ic"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.3" stroke="currentColor" stroke-width="1.8"/><path d="m15.7 15.7 4.1 4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
         <div><h3 data-i18n="ar_h_search">Search by name, not GPS</h3><p data-i18n-html="ar_p_search">Looking somewhere you're not? Just type the place: a region like <b>Mwanza</b>, a district like <b>Kinondoni</b>, or a ward/village like <b>kariako</b>.</p></div>
       </div>
       <div class="ar-intro-card">
-        <div class="ar-intro-ic"></div>
-        <div><h3 data-i18n="ar_h_side">Homes &amp; services together</h3><p data-i18n-html="ar_p_side">See every house for rent or sale <em>and</em> every local service provider listed in that area side by side.</p></div>
+        <div class="ar-intro-ic"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.2 9.9 8 6.2l4.8 3.7V17a1.3 1.3 0 0 1-1.3 1.3H4.5A1.3 1.3 0 0 1 3.2 17z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M17.6 6.4a2.6 2.6 0 0 0 3.3 3.3l-4.6 4.6a1.6 1.6 0 0 1-2.3-2.3z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+        <div><h3 data-i18n="ar_h_side">Homes and services together</h3><p data-i18n-html="ar_p_side">See every house for rent or sale <em>and</em> every local service provider listed in that area side by side.</p></div>
       </div>
       <div class="ar-intro-card">
-        <div class="ar-intro-ic"></div>
-        <div><h3 data-i18n="ar_h_ward">Accurate to the ward</h3><p data-i18n-html="ar_p_ward">We match against the real administrative boundary of the place you pick, so results are genuinely <b>there</b> not just nearby.</p></div>
+        <div class="ar-intro-ic"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9.3 4.4 4 6.6v13l5.3-2.2 5.4 2.2 5.3-2.2v-13l-5.3 2.2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.3 4.4v13M14.7 6.6v13" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+        <div><h3 data-i18n="ar_h_ward">Accurate to the ward</h3><p data-i18n-html="ar_p_ward">We match against the real administrative boundary of the place you pick, so results are genuinely <b>there</b>, not just nearby.</p></div>
       </div>
     </div>
 

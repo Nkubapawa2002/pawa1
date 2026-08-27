@@ -60,6 +60,7 @@
   var el = {};
   ["xpForm", "xpBox", "xpQ", "xpClear", "xpExamples", "xpScopes", "xpPlace",
    "xpNear", "xpRegion", "xpRadius", "xpSort", "xpRead", "xpWarn", "xpCount", "xpNote",
+   "xpWhereBtn", "xpWhereVal", "xpWhereSheet", "xpWhereDone",
    "xpSkeleton", "xpResults", "xpMore", "xpEmpty", "xpWiden", "xpReset",
    "xpLang", "xpLangLabel",
    "xpViewList", "xpViewMap", "xpMapWrap", "xpMap", "xpMapMsg", "xpMapRedo",
@@ -204,6 +205,35 @@
     return best;
   }
 
+  /**
+   * WHERE, in words.
+   *
+   * The bar replaced three stacked controls that each answered "where" in a
+   * different vocabulary: a place input, a region select and a radius select.
+   * Collapsed, the page has to SAY what it is currently doing, or the controls
+   * have simply been hidden rather than tidied.
+   *
+   * Precedence matches what the engine actually does: an explicit anchor beats
+   * a region, because the anchor is what distances are measured from. Radius
+   * is a qualifier on whichever of those is in charge, and is left off
+   * entirely when it is 0, since "Anywhere, within 0 km" is nonsense.
+   */
+  function whereSummary() {
+    var place = "";
+    if (anchor && anchor.source === "gps") place = t("xp_near_me", "Near me");
+    else if (anchor && anchor.name) place = anchor.name;
+    else if (region) place = region;
+
+    if (!place) return t("xp_where_any", "Anywhere in Tanzania");
+    if (!radiusKm) return place;
+    return t("xp_where_within", "{p}, within {n} km")
+      .replace("{p}", place).replace("{n}", String(radiusKm));
+  }
+
+  function paintWhere() {
+    if (el.xpWhereVal) el.xpWhereVal.textContent = whereSummary();
+  }
+
   function fillRegionSelect() {
     if (!el.xpRegion) return;
     var opts = ['<option value="">' + esc(t("xp_region_any", "All of Tanzania")) + "</option>"];
@@ -279,6 +309,11 @@
 
   function run(opts) {
     opts = opts || {};
+    // Before the early return, not after: the summary describes the CONTROLS,
+    // which are set long before the catalogue finishes loading, and a bar
+    // reading "Anywhere in Tanzania" over a search of Mwanza is the exact lie
+    // collapsing these controls could introduce.
+    paintWhere();
     if (!catalogue) return;
     if (!opts.keepPage) shown = PAGE;
 
@@ -450,7 +485,7 @@
     if (region) {
       tags.push({
         cls: "is-place", key: "region",
-        text: "🗺 " + region +
+        text: region +
               (anchor && anchor.source === "region" && radiusKm ? " · " + radiusKm + " km" : ""),
       });
     }
@@ -459,7 +494,7 @@
     if (anchor && anchor.source !== "region") {
       tags.push({
         cls: "is-place", key: "place",
-        text: (anchor.source === "gps" ? "📍 " : "") + anchor.name +
+        text: anchor.name +
               (radiusKm ? " · " + radiusKm + " km" : ""),
       });
     }
@@ -634,16 +669,35 @@
       // left standing after the region is cleared is a stale lie.
       var emptyT = document.getElementById("xpEmptyT");
       var emptyP = document.getElementById("xpEmptyP");
+      // Three different empty states, because they have three different
+      // causes and only one of them is the visitor's to fix.
+      //
+      //   nothing asked for + nothing in the catalogue -> the data did not
+      //     load. "Try fewer words" is nonsense advice when no words were
+      //     typed, and it quietly blames the reader for an outage.
+      //   a region is set -> name it, and say what dropping it would find.
+      //   otherwise -> the search really did come up empty.
+      var askedNothing = !(el.xpQ && el.xpQ.value.trim()) && !region && !anchor;
+      var catalogueEmpty = !catalogue || !catalogue.items || !catalogue.items.length;
+
       if (emptyT) {
-        emptyT.textContent = region
+        emptyT.textContent = askedNothing && catalogueEmpty
+          ? t("xp_empty_none_t", "Nothing to show yet")
+          : region
           ? t("xp_empty_region_t", "Nothing in {r}", { r: region })
           : t("xp_empty_t", "Nothing matched that");
       }
       if (emptyP) {
-        emptyP.textContent = region && regionElsewhere
+        emptyP.textContent = askedNothing && catalogueEmpty
+          ? t("xp_empty_none_p", "No listings have loaded. Check your connection, or try again in a moment.")
+          : region && regionElsewhere
           ? t("xp_empty_region_p", "{n} match this search elsewhere in Tanzania.", { n: regionElsewhere })
           : t("xp_empty_p", "Try fewer words, a wider radius, or search the whole country.");
       }
+      // Neither button means anything when nothing loaded: widening an empty
+      // catalogue finds an empty catalogue, and there is nothing to reset.
+      if (el.xpWiden) el.xpWiden.hidden = askedNothing && catalogueEmpty;
+      if (el.xpReset) el.xpReset.hidden = askedNothing && catalogueEmpty;
       if (el.xpWiden) {
         el.xpWiden.textContent = region
           ? t("xp_widen_region", "Search all of Tanzania instead")
@@ -1032,6 +1086,21 @@
     // and a filter you have to press Enter to apply feels broken next to a
     // search box that updates as you type.
     var placeTimer = null;
+    // The WHERE sheet. It only shows and hides: every control inside already
+    // triggers its own search, so opening the sheet must not run one, and
+    // closing it must not either.
+    var toggleWhere = function (open) {
+      if (!el.xpWhereSheet || !el.xpWhereBtn) return;
+      var next = open == null ? el.xpWhereSheet.hidden : open;
+      el.xpWhereSheet.hidden = !next;
+      el.xpWhereBtn.setAttribute("aria-expanded", next ? "true" : "false");
+      // Focus the first field on open so a keyboard lands inside the thing it
+      // just asked for rather than back at the top of the page.
+      if (next && el.xpPlace) { try { el.xpPlace.focus({ preventScroll: true }); } catch (_) {} }
+    };
+    el.xpWhereBtn && el.xpWhereBtn.addEventListener("click", function () { toggleWhere(); });
+    el.xpWhereDone && el.xpWhereDone.addEventListener("click", function () { toggleWhere(false); });
+
     el.xpPlace && el.xpPlace.addEventListener("input", function () {
       clearTimeout(placeTimer);
       var v = el.xpPlace.value;
