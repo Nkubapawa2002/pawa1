@@ -46,10 +46,19 @@ const FIXTURES = {
       lat: MBEZI.lat, lng: MBEZI.lng, created_at: now, owner_user_id: "o1",
       amenities: [], photos: [], videos: [], min_months: 1,
       agent: { name: "Asha Mmbaga", phone: "+255700000001" },
+      // Water costs nothing here, and saying so is the point: a stated zero is
+      // a fact worth reading, and it used to render "Ask the agent".
+      extra_costs: [
+        { label: "Water", amount: 0, billing: "month" },
+        { label: "Service charge", amount: 12000, billing: "month" },
+        { label: "Rubbish", amount: null, billing: "month" },
+      ],
       details: {
         v: 1,
         rooms: [
           { kind: "single", price: 60000, period: "month", count: 3, vacant: 1,
+            sizeBand: "medium",
+            features: ["bath_inside", "tiles", "sink_board", "Mango tree at the door"],
             ensuite: false, size: null, note: "" },
           { kind: "master", price: 150000, period: "month", count: 1, vacant: 0,
             ensuite: true, size: 18, note: "Upstairs, own entrance" },
@@ -399,6 +408,51 @@ try {
   // lines the assertions above just proved are on screen.
   ok(/240,000/.test(movein.total),
      "the total is the sum, not just the rent", movein.total);
+
+  // The three things a listing can now say about ONE space that it could not
+  // say before: how big it is without pretending to have measured it, what it
+  // actually has, and that something costs nothing.
+  process.stdout.write("\n5c. What the space is, and what it has\n");
+  const space = await page.evaluate(() => {
+    const txt = (s) => (document.querySelector(s) || {}).textContent || "";
+    return {
+      tiles: [...document.querySelectorAll(".hx-spec")].map((t) => ({
+        lbl: (t.querySelector(".hx-spec__lbl") || {}).textContent?.trim(),
+        val: (t.querySelector(".hx-spec__val") || {}).textContent?.trim(),
+      })),
+      note: txt(".hx-size-note").replace(/\s+/g, " ").trim(),
+      feats: [...document.querySelectorAll(".hx-feat")].map((f) => f.textContent.trim()),
+      bills: [...document.querySelectorAll("#hxMoveinBody .hx-lines li")].map((li) =>
+        li.textContent.replace(/\s+/g, " ").trim()),
+      freeRow: (document.querySelector("#hxMoveinBody .hx-lines li.is-free") || {})
+        .textContent?.replace(/\s+/g, " ").trim() || "",
+    };
+  });
+
+  const sizeTile = space.tiles.find((t) => /^Size$/i.test(t.lbl || ""));
+  ok(sizeTile && /Medium/i.test(sizeTile.val || ""),
+     "the size reads as a bracket the agent chose", JSON.stringify(space.tiles));
+  ok(!space.tiles.some((t) => /m²|sq/i.test(t.val || "")),
+     "and no square-metre figure is invented beside it", JSON.stringify(space.tiles));
+  ok(/photos/i.test(space.note),
+     "the page says the photos are the real measure", space.note);
+
+  ok(space.feats.includes("Bathroom inside the room"),
+     "the characteristic a renter decides on is on the page", JSON.stringify(space.feats));
+  ok(space.feats.includes("Tiled floor") && space.feats.includes("Sink board fitted"),
+     "so are the finish and the kitchen", JSON.stringify(space.feats));
+  ok(space.feats.includes("Mango tree at the door"),
+     "and the agent's own words, exactly as they typed them",
+     JSON.stringify(space.feats));
+
+  ok(/Free/i.test(space.freeRow) && /Water/i.test(space.freeRow),
+     "water at zero reads Free, not TZS 0 and not Ask the agent", space.freeRow);
+  ok(!space.bills.some((l) => /Water/i.test(l) && /Ask the agent/i.test(l)),
+     "the best news in the listing is not filed as a missing value",
+     JSON.stringify(space.bills));
+  ok(space.bills.some((l) => /Rubbish/i.test(l) && /Ask the agent/i.test(l)),
+     "while a cost nobody stated is still honestly unknown",
+     JSON.stringify(space.bills));
 
   // --shot writes what it looks like. The assertions above cannot see colour.
   if (process.argv.includes("--shot")) {

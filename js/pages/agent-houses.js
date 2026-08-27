@@ -2243,14 +2243,42 @@ create policy "house-photos upload" on storage.objects for insert
           <input class="ah-r-vacant" type="number" min="0" max="99" step="1" placeholder="—"
                  value="${r.vacant == null ? "" : Number(r.vacant)}">
         </label>
-        <label>${esc(tr("ah_room_size"))}
-          <input class="ah-r-size" type="number" min="0" step="1" placeholder="—"
-                 value="${r.size == null ? "" : Number(r.size)}">
-        </label>
         <label class="ah-room-check">
           <input class="ah-r-ensuite" type="checkbox"${r.ensuite ? " checked" : ""}>
           <span>${esc(tr("ah_room_ensuite"))}</span>
         </label>
+        <div class="ah-wide ah-band">
+          <span class="ah-band__q">${esc(HS.t("size_q"))}</span>
+          <div class="ah-band__row" role="group">
+            ${HS.SIZE_BANDS.map(b => `
+              <button type="button" class="ah-band__b${r.sizeBand === b.key ? " is-on" : ""}"
+                      data-band="${b.key}" aria-pressed="${r.sizeBand === b.key ? "true" : "false"}">
+                <strong>${esc(HS.say(b))}</strong>
+                <small>${esc(HS.say(b.hint))}</small>
+              </button>`).join("")}
+          </div>
+          <p class="ah-band__help">${esc(HS.t("size_help"))}</p>
+        </div>
+        <div class="ah-wide ah-feats">
+          <span class="ah-band__q">${esc(HS.t("feats_q"))}</span>
+          <ul class="ah-feats__on" data-empty="${esc(HS.t("feats_none"))}"></ul>
+          <div class="ah-feats__pick">
+            ${HS.FEATURE_GROUPS.map(g => `
+              <div class="ah-feats__grp">
+                <span class="ah-feats__gt">${esc(HS.say(g.title))}</span>
+                <div class="ah-feats__chips">
+                  ${g.items.map(it => `
+                    <button type="button" class="ah-fg" data-feat="${esc(it.key)}">+ ${esc(HS.say(it))}</button>`).join("")}
+                </div>
+              </div>`).join("")}
+          </div>
+          <div class="ah-feats__own">
+            <input class="ah-r-featown" type="text" maxlength="60"
+                   placeholder="${esc(HS.t("feats_add"))}">
+            <button type="button" class="ah-feats__addb">+</button>
+          </div>
+          <p class="ah-band__help">${esc(HS.t("feats_help"))}</p>
+        </div>
         <label class="ah-wide">${esc(tr("ah_room_note"))}
           <input class="ah-r-note" type="text" maxlength="200"
                  placeholder="${esc(tr("ah_room_note_ph"))}" value="${esc(r.note || "")}">
@@ -2258,6 +2286,7 @@ create policy "house-photos upload" on storage.objects for insert
       </div>`;
     node.querySelector(".ah-x").addEventListener("click", () => { node.remove(); renderRoomSuggest(); });
     node.querySelector(".ah-r-kind").addEventListener("input", renderRoomSuggest);
+    wireRoomExtras(node, r);
     fRoomsList.appendChild(node);
     renderRoomSuggest();
     return node;
@@ -2267,18 +2296,97 @@ create policy "house-photos upload" on storage.objects for insert
     if (!fRoomsList) return [];
     return Array.from(fRoomsList.querySelectorAll(".ah-room")).map(n => {
       const val = (sel) => n.querySelector(sel).value;
-      const price = val(".ah-r-price"), vacant = val(".ah-r-vacant"), size = val(".ah-r-size");
+      const price = val(".ah-r-price"), vacant = val(".ah-r-vacant");
+      const on = n.querySelector(".ah-band__b.is-on");
       return {
         kind:    roomKeyFor(val(".ah-r-kind")),
         price:   price === "" ? null : Number(price),
         period:  val(".ah-r-period"),
         count:   Number(val(".ah-r-count")) || 1,
         vacant:  vacant === "" ? null : Number(vacant),
-        size:    size === "" ? null : Number(size),
+        // The square-metre box is gone from the form, but a listing that was
+        // saved with a real measurement keeps it: the number is parked on the
+        // node at build time and written straight back out. Dropping it would
+        // silently delete a fact on the next edit.
+        size:    n.dataset.sizeSqm === "" ? null : Number(n.dataset.sizeSqm),
+        sizeBand: on ? on.dataset.band : null,
+        features: readFeatures(n),
         ensuite: n.querySelector(".ah-r-ensuite").checked,
         note:    val(".ah-r-note").trim(),
       };
     }).filter(r => r.kind || r.price != null);
+  }
+
+  // ---- the size bracket and the characteristics, per room row -------------
+  // Both are stored on the row's own DOM so collectRooms() stays a pure read of
+  // the form, the way every other field on it already works.
+
+  /** Characteristics currently chosen on this row, in the order they were added. */
+  function readFeatures(node) {
+    return Array.from(node.querySelectorAll(".ah-feats__on li"))
+      .map(li => li.dataset.feat)
+      .filter(Boolean);
+  }
+
+  function drawChosenFeatures(node) {
+    const list = node.querySelector(".ah-feats__on");
+    const chosen = readFeatures(node);
+    // Grey out an offered chip once it is on the list; a typed one has no chip
+    // to grey, which is fine — the list itself is the record.
+    node.querySelectorAll(".ah-fg").forEach(b => {
+      b.classList.toggle("is-used", chosen.indexOf(b.dataset.feat) >= 0);
+    });
+    list.classList.toggle("is-empty", chosen.length === 0);
+  }
+
+  function addFeature(node, value) {
+    const v = String(value || "").trim().slice(0, 60);
+    if (!v) return;
+    const list = node.querySelector(".ah-feats__on");
+    // Case-insensitive, so tapping a chip after typing the same words by hand
+    // does not put the fact on the listing twice.
+    const have = readFeatures(node).map(x => x.toLowerCase());
+    if (have.indexOf(v.toLowerCase()) >= 0) return;
+    const li = document.createElement("li");
+    li.dataset.feat = v;
+    li.innerHTML = `<span></span><button type="button" aria-label="${esc(HS.t("remove"))}">×</button>`;
+    li.querySelector("span").textContent = HS.featureLabel(v);
+    li.querySelector("button").addEventListener("click", () => {
+      li.remove(); drawChosenFeatures(node);
+    });
+    list.appendChild(li);
+    drawChosenFeatures(node);
+  }
+
+  function wireRoomExtras(node, r) {
+    // Park any existing square-metre figure; see collectRooms().
+    node.dataset.sizeSqm = r && r.size != null ? String(Number(r.size)) : "";
+
+    node.querySelectorAll(".ah-band__b").forEach(b => {
+      b.addEventListener("click", () => {
+        const was = b.classList.contains("is-on");
+        node.querySelectorAll(".ah-band__b").forEach(o => {
+          o.classList.remove("is-on"); o.setAttribute("aria-pressed", "false");
+        });
+        // Tapping the chosen bracket again clears it. A bracket nobody meant to
+        // set is worse than none, and there is otherwise no way back to "unsaid".
+        if (!was) { b.classList.add("is-on"); b.setAttribute("aria-pressed", "true"); }
+      });
+    });
+
+    node.querySelectorAll(".ah-fg").forEach(b => {
+      b.addEventListener("click", () => addFeature(node, b.dataset.feat));
+    });
+    const own = node.querySelector(".ah-r-featown");
+    const addb = node.querySelector(".ah-feats__addb");
+    const take = () => { addFeature(node, own.value); own.value = ""; own.focus(); };
+    addb.addEventListener("click", take);
+    own.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); take(); }
+    });
+
+    (Array.isArray(r && r.features) ? r.features : []).forEach(f => addFeature(node, f));
+    drawChosenFeatures(node);
   }
 
   /** One-tap chips for every kind not already on the list. */

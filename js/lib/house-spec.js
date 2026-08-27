@@ -266,6 +266,22 @@
 
   var FREE_LABEL = { en: "Free", sw: "Bure" };
 
+  // The handful of UI labels that belong to this catalogue. They live here for
+  // the reason stated at the top of the file: a label and the list it labels
+  // drift apart when they live in two dictionaries, and these are read only by
+  // the form and the page that draw SIZE_BANDS and FEATURE_GROUPS.
+  var UI = {
+    size_q:      { en: "How big is it?",            sw: "Ni kubwa kiasi gani?" },
+    size_help:   { en: "Pick the bracket — the photos show the rest.",
+                   sw: "Chagua kadirio — picha zinaonyesha mengine." },
+    feats_q:     { en: "What does it have?",        sw: "Ina nini?" },
+    feats_help:  { en: "Tap what fits. Anything not here, type it — your words are kept as written.",
+                   sw: "Gusa vinavyofaa. Kisichopo, kiandike — maneno yako yanahifadhiwa." },
+    feats_add:   { en: "Add your own…",           sw: "Ongeza chako…" },
+    feats_none:  { en: "Nothing chosen yet",        sw: "Hakuna kilichochaguliwa" },
+    remove:      { en: "Remove",                    sw: "Ondoa" },
+  };
+
   // ------------------------------------------------------------ group presets
   // Each item is a LINE the agent can add: a label, and values worth offering.
   // Every one of them is editable and none is required — the suggestions exist
@@ -752,6 +768,7 @@
     sizeNote: function () { return say(SIZE_PHOTO_NOTE); },
     parseCost: parseCost,
     freeLabel: function () { return say(FREE_LABEL); },
+    t: function (key) { return UI[key] ? say(UI[key]) : ""; },
     groupPreset: function (key) { return GROUP_BY_KEY[key] || null; },
     say: say,
     normalize: normalize,
