@@ -142,6 +142,8 @@
        house-ui.js publishes esc/ico/ICO, and house-place.js calls ico() while
        building its category table at parse time, so ui must already have run.
        house.js comes last because the inline script below calls into it. -->
+  <!-- Reads the money house-rooms.js works out and draws where it goes. -->
+  <script src="js/lib/house-cost-chart.js"></script>
   <script src="js/lib/house-ui.js"></script>
   <script src="js/lib/house-sections.js"></script>
   <script src="js/lib/house-area.js"></script>

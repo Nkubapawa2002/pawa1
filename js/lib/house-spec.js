@@ -119,8 +119,8 @@
   // The line shown wherever a size is shown. It is the same sentence every
   // time, on purpose: a bracket is a bracket, and the photos are the detail.
   var SIZE_PHOTO_NOTE = {
-    en: "Sizes are a bracket, not a survey — the photos are the real measure.",
-    sw: "Ukubwa ni kadirio, si upimaji — picha ndizo kipimo halisi.",
+    en: "Sizes are a bracket, not a survey. The photos are the real measure.",
+    sw: "Ukubwa ni kadirio, si upimaji. Picha ndizo kipimo halisi.",
   };
 
   // ------------------------------------------------- room characteristics
@@ -272,14 +272,44 @@
   // the form and the page that draw SIZE_BANDS and FEATURE_GROUPS.
   var UI = {
     size_q:      { en: "How big is it?",            sw: "Ni kubwa kiasi gani?" },
-    size_help:   { en: "Pick the bracket — the photos show the rest.",
-                   sw: "Chagua kadirio — picha zinaonyesha mengine." },
+    size_help:   { en: "Pick the bracket. The photos show the rest.",
+                   sw: "Chagua kadirio. Picha zinaonyesha mengine." },
     feats_q:     { en: "What does it have?",        sw: "Ina nini?" },
-    feats_help:  { en: "Tap what fits. Anything not here, type it — your words are kept as written.",
-                   sw: "Gusa vinavyofaa. Kisichopo, kiandike — maneno yako yanahifadhiwa." },
+    feats_help:  { en: "Tap what fits. Anything not here, type it. Your words are kept as written.",
+                   sw: "Gusa vinavyofaa. Kisichopo, kiandike. Maneno yako yanahifadhiwa." },
     feats_add:   { en: "Add your own…",           sw: "Ongeza chako…" },
     feats_none:  { en: "Nothing chosen yet",        sw: "Hakuna kilichochaguliwa" },
     remove:      { en: "Remove",                    sw: "Ondoa" },
+
+    // The cost chart's own words. Here rather than in js/core/i18n.js for the
+    // same reason as everything above: they only ever appear next to the money
+    // this file already models, and a label that lives away from its data
+    // drifts from it.
+    cost_movein: { en: "To move in",                sw: "Kuhamia" },
+    cost_month:  { en: "Every month after that",    sw: "Kila mwezi baada ya hapo" },
+    cost_open:   { en: "Not priced",                sw: "Haijapangiwa bei" },
+    cost_table:  { en: "See the figures as a table", sw: "Ona takwimu kwa jedwali" },
+    cost_item:   { en: "Item",                      sw: "Kipengele" },
+    cost_amount: { en: "Amount",                    sw: "Kiasi" },
+    cost_total:  { en: "Total priced",              sw: "Jumla yenye bei" },
+    cost_assumed: { en: "assumed",                  sw: "makadirio" },
+    cost_assumed_full: { en: "this app's assumption, not the agent's price",
+                         sw: "makadirio ya app hii, si bei ya dalali" },
+
+    // The money lines themselves. These were English-only in house-rooms.js,
+    // which meant a Swahili reader met the chart's chrome in Swahili and every
+    // figure beside it in English.
+    m_rent:      { en: "Rent",                      sw: "Kodi" },
+    m_price:     { en: "Price",                     sw: "Bei" },
+    m_first:     { en: "First month's rent",        sw: "Kodi ya mwezi wa kwanza" },
+    m_upfront:   { en: "months' rent, upfront",     sw: "miezi ya kodi, kabla" },
+    m_deposit:   { en: "Deposit",                   sw: "Dhamana" },
+    m_none:      { en: "None",                      sw: "Hakuna" },
+    m_fee:       { en: "Agent commission",          sw: "Kamisheni ya dalali" },
+    m_fee_sub:   { en: "usually one month's rent, not quoted by this agent",
+                   sw: "kwa kawaida kodi ya mwezi mmoja, haijatajwa na dalali huyu" },
+    m_ask:       { en: "Ask the agent",             sw: "Muulize dalali" },
+    m_oneoff:    { en: "one-off",                   sw: "mara moja" },
   };
 
   // ------------------------------------------------------------ group presets

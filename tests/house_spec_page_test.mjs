@@ -391,17 +391,25 @@ try {
   // is asserted rather than eyeballed.
   process.stdout.write("\n5b. The deposit, read back out of the agent's own words\n");
   await pickRoom("Single");
+  // The itemised list was replaced by the cost chart: the same figures now
+  // live in its legend (and again in its table view), so reading them from
+  // .hx-lines would be reading a list that no longer renders.
   const movein = await page.evaluate(() => ({
     total: ((document.querySelector(".hx-movein__total") || {}).textContent || "").trim(),
-    lines: [...document.querySelectorAll("#hxMoveinBody .hx-lines li")].map((li) =>
+    lines: [...document.querySelectorAll("#hxMoveinBody .hcc-key__i")].map((li) =>
       li.textContent.replace(/\s+/g, " ").trim()),
+    caveats: [...document.querySelectorAll(".hx-movein__caveat")].map((c) =>
+      c.textContent.replace(/\s+/g, " ").trim()),
   }));
   ok(movein.lines.some((l) => /Deposit/.test(l) && /120,000/.test(l)),
      "\"2 months, refundable\" on a 60,000 room becomes a 120,000 deposit line",
      JSON.stringify(movein.lines));
-  ok(movein.lines.some((l) => /commission/i.test(l) && /not quoted by this agent/i.test(l)),
-     "an unquoted commission is labelled as this app's assumption, not the agent's price",
+  ok(movein.lines.some((l) => /commission/i.test(l) && /assumed/i.test(l)),
+     "an unquoted commission is marked assumed in the legend",
      JSON.stringify(movein.lines));
+  ok(movein.caveats.some((c) => /not a quote from this agent/i.test(c)),
+     "and the page still says so in words, not only in a hatch",
+     JSON.stringify(movein.caveats));
   // 60,000 rent (min_months 1) + 120,000 deposit (2 months) + 60,000
   // commission (one month, assumed) = 240,000. The failure this guards
   // against is a total that stops at the rent and quietly drops the two
@@ -422,9 +430,11 @@ try {
       })),
       note: txt(".hx-size-note").replace(/\s+/g, " ").trim(),
       feats: [...document.querySelectorAll(".hx-feat")].map((f) => f.textContent.trim()),
-      bills: [...document.querySelectorAll("#hxMoveinBody .hx-lines li")].map((li) =>
-        li.textContent.replace(/\s+/g, " ").trim()),
-      freeRow: (document.querySelector("#hxMoveinBody .hx-lines li.is-free") || {})
+      barLabels: [...document.querySelectorAll("#hxMoveinBody .hcc-seg")].map((sg) =>
+        sg.getAttribute("aria-label") || ""),
+      freeRow: (document.querySelector("#hxMoveinBody .hcc-aside--free") || {})
+        .textContent?.replace(/\s+/g, " ").trim() || "",
+      openRow: (document.querySelector("#hxMoveinBody .hcc-aside--open") || {})
         .textContent?.replace(/\s+/g, " ").trim() || "",
     };
   });
@@ -445,14 +455,17 @@ try {
      "and the agent's own words, exactly as they typed them",
      JSON.stringify(space.feats));
 
+  // A free thing has no width and an unknown has no value, so neither can be a
+  // bar segment. Both must still be named — that is the whole point.
   ok(/Free/i.test(space.freeRow) && /Water/i.test(space.freeRow),
-     "water at zero reads Free, not TZS 0 and not Ask the agent", space.freeRow);
-  ok(!space.bills.some((l) => /Water/i.test(l) && /Ask the agent/i.test(l)),
-     "the best news in the listing is not filed as a missing value",
-     JSON.stringify(space.bills));
-  ok(space.bills.some((l) => /Rubbish/i.test(l) && /Ask the agent/i.test(l)),
-     "while a cost nobody stated is still honestly unknown",
-     JSON.stringify(space.bills));
+     "water at zero is named as Free beside the bar, not dropped by the geometry",
+     space.freeRow);
+  ok(!/Water/i.test(space.barLabels.join(" ")),
+     "and is not faked as a zero-width segment", JSON.stringify(space.barLabels));
+  ok(/Rubbish/i.test(space.openRow),
+     "a cost nobody stated is named as not priced", space.openRow);
+  ok(!/Rubbish/i.test(space.barLabels.join(" ")),
+     "and is not drawn as though it were a number", JSON.stringify(space.barLabels));
 
   // --shot writes what it looks like. The assertions above cannot see colour.
   if (process.argv.includes("--shot")) {

@@ -182,6 +182,12 @@ function moveInHtml(mi) {
     caveats.push(`The commission here is the market standard of one month's rent, not a quote from this agent. Confirm it before you sign.`);
   }
 
+  // The chart carries the same figures in its legend and again in its table
+  // view, so rendering the itemised lists as well would put every number on
+  // screen twice in a row. The lists stay as the fallback for a page that did
+  // not bundle the chart.
+  const chart = window.HouseCostChart ? window.HouseCostChart.render(mi) : "";
+
   const m = mi.monthly;
   const monthlyBlock = !m ? "" : `
     <div class="hx-specs-split__label" style="margin-top:16px">Then, every month</div>
@@ -208,6 +214,7 @@ function moveInHtml(mi) {
         <span class="hx-movein__chev">${ico(ICO.chevron, 16)}</span>
       </button>
       <div class="hx-movein__body" id="hxMoveinBody">
+        ${chart || `
         <ul class="hx-lines">
           ${mi.lines.map(lineHtml).join("")}
           ${mi.total != null ? `<li class="is-total">
@@ -215,7 +222,7 @@ function moveInHtml(mi) {
             <span class="hx-line-v">${esc(total)}</span>
           </li>` : ""}
         </ul>
-        ${monthlyBlock}
+        ${monthlyBlock}`}
         ${caveats.map(c => `<p class="hx-movein__caveat">${c}</p>`).join("")}
       </div>
     </div>`;
@@ -237,7 +244,7 @@ function billValue(b) {
   if (b.free)                   return window.HouseSpec && window.HouseSpec.freeLabel
                                   ? window.HouseSpec.freeLabel() : "Free";
   if (b.amount != null)         return window.HouseRooms.money(b.amount);
-  return "Ask the agent";
+  return (window.HouseSpec && window.HouseSpec.t && window.HouseSpec.t("m_ask")) || "Ask the agent";
 }
 
 function joinList(a) {
