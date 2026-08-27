@@ -1266,9 +1266,19 @@
     if (btn) { btn.disabled = true; btn.textContent = "Finding…"; }
     try {
       // Gazetteer-first if the page bundled tz-places, else LocationIQ suggest.
+      //
+      // The global is `resolveTzPlace`. This asked for `pawaResolvePlace`,
+      // which is defined nowhere in the app, so the gazetteer branch had never
+      // run once — every search fell through to the raw geocoder, and "Mwenge"
+      // came back as a place in Tabora Region rather than the Dar node. It is
+      // also synchronous and returns a plain object, so the old `.catch()` on
+      // its return value would have thrown the moment the name was corrected;
+      // hence the wrap rather than a bare await.
       let hit = null;
-      if (window.pawaResolvePlace) {
-        const r = await window.pawaResolvePlace(q).catch(() => null);
+      if (window.resolveTzPlace) {
+        const r = await Promise.resolve()
+          .then(() => window.resolveTzPlace(q))
+          .catch(() => null);
         if (r && Number.isFinite(r.lat) && Number.isFinite(r.lng)) hit = r;
       }
       if (!hit) {

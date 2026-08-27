@@ -420,6 +420,13 @@
   <script src="js/core/config.js"></script>
   <script src="js/lib/fx.js"></script>
   <script src="js/lib/geo.js"></script>
+  <!-- The gazetteer and the local matcher. Without these, searchPlace() falls
+       straight through to raw LocationIQ, which answers "Mwenge" with a place
+       in Tabora Region — 800 km from the Dar node everybody means — and the
+       whole frame is then read against the wrong area. Every other page that
+       resolves a typed place already loads both. -->
+  <script src="js/lib/tz-places.js"></script>
+  <script src="js/lib/place-match.js"></script>
   <script src="js/core/i18n.js"></script>
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>
