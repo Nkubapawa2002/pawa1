@@ -733,16 +733,16 @@ try {
   await page.click("#segAi"); await sleep(300);
   const warn = await page.$eval("#paneAi .pm-note", (n) => n.textContent);
   ok(/not end-to-end encrypted/i.test(warn), "the assistant pane warns before anything is typed", warn.slice(0, 80));
-  const aiBadge = await page.$eval("#pmAiRow .pm-badge", (n) => n.textContent);
-  ok(/not encrypted/i.test(aiBadge), "its row carries the warning too", aiBadge);
+  const aiBadge = await page.$eval("#pmAiRow .pz-hero-name .pm-badge", (n) => n.textContent);
+  ok(/not encrypted/i.test(aiBadge), "and the badge beside its name says so too", aiBadge);
 
-  await page.evaluate(() => document.querySelector('#pmAiRow [data-ai]')?.click());
+  await page.evaluate(() => document.querySelector('#pmAiRow [data-pz="open"]')?.click());
   await sleep(500);
   const aiLock = await page.$eval("#pmLockText", (n) => n.textContent);
   ok(/not encrypted/i.test(aiLock),
      "and opening it FLIPS the header lock — the two kinds of thread never look alike", aiLock);
   const aiNote = await page.$eval("#pmConvNote", (n) => n.textContent);
-  ok(/assistant reads/i.test(aiNote), "with the reason stated in the composer", aiNote);
+  ok(/PN-Zaki reads/i.test(aiNote), "with the reason stated in the composer", aiNote);
 
   section("8. Announcing is for admins only");
   // Asserted on what is DRAWN, not on the attribute: [hidden] is only a UA

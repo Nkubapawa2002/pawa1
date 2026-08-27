@@ -27,6 +27,11 @@
   <!-- Presence, work kinds and the link to a storefront — shared with
        agent.html so the two screens speak one visual language. -->
   <link rel="stylesheet" href="css/pm-shared.css" />
+  <!-- PN-Zaki: the assistant hero, the answer bubbles and the voice dock.
+       Its colours resolve through the --pm-* palette defined on <body>
+       below, so it follows this page's light/dark swap without a second
+       copy of every rule. -->
+  <link rel="stylesheet" href="css/pn-zaki.css" />
   <!-- A pin somebody sends is only useful if it can be looked at. Leaflet is
        what every other map on the site uses (explore, near-me, the services
        and trucks pin pickers), so a map here is the same map, not a second
@@ -654,26 +659,22 @@
       <div id="pmPeople"></div>
     </section>
 
+    <!-- PN-Zaki.
+
+         This pane used to be a warning, a one-line row, and a link out to
+         chat.html where an "AI Assistant" tab sat beside a "Voice AI" tab that
+         kept its own separate conversation. Typing a question and then
+         speaking one meant two histories neither of which knew about the
+         other, and a spoken answer you could not scroll back to.
+
+         Now the assistant IS here — brain, tools and voice — and the only
+         thing left on chat.html is the support phone numbers. The whole pane
+         is drawn by js/lib/pn-zaki-ui.js from translated strings: hero, the
+         six things worth asking, the honest warning, and the way to a human.
+    -->
     <section class="pm-pane" id="paneAi">
-      <div class="pm-note warn" data-i18n-html="pm_ai_warn">
-        <b>The assistant is not end-to-end encrypted.</b> A model that answers you has to read
-        what you wrote. Ask it about places, prices and how the site works — not about anything
-        you would only tell one person.
-      </div>
       <div id="pmAiRow"></div>
 
-      <!-- The voice agent and the support phone numbers still live on
-           chat.html, which lost its own tab when P-Message took the slot. One
-           row keeps them reachable rather than orphaning a working page — and
-           the assistant above calls the same js/lib/ai.js that chat.html
-           calls, so there is one AI engine here, not two. -->
-      <a class="pm-row" href="chat.html" style="text-decoration:none">
-        <span class="pm-av is-cast"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1A19.5 19.5 0 0 1 4.7 12 19.8 19.8 0 0 1 1.6 3.4 2 2 0 0 1 3.6 1.1h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.5 2.1L7.9 8.7a16 16 0 0 0 6 6l1-1a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7A2 2 0 0 1 21.7 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
-        <span class="pm-rtx">
-          <span class="pm-name" data-i18n="pm_voice">Voice agent and support</span>
-          <span class="pm-sub" data-i18n="pm_voice_d">Talk to the AI by voice, or call a real person on the support line.</span>
-        </span>
-      </a>
     </section>
   </main>
 
@@ -696,11 +697,18 @@
               data-i18n="pm_members" hidden>Members</button>
       <button class="pm-btn ghost" id="pmVerify" type="button" style="padding:7px 11px;font-size:11.5px"
               data-i18n="pm_verify">Verify</button>
+      <!-- Only ever shown on the PN-Zaki thread. It opens the voice dock; it
+           does NOT open the microphone — that is the dock's own button, and
+           the two are deliberately separate taps. -->
+      <button class="pz-mic-btn" id="pmVoiceBtn" type="button" hidden
+              data-i18n-aria-label="pz_talk" aria-label="Talk to it"></button>
     </div>
     <!-- Raised when the other side's key is not the one this device wrote
          down. It sits above the log rather than below it because it is about
          everything that follows, not about the last message. -->
     <div class="pm-trust-bar" id="pmTrustBar" hidden></div>
+    <!-- PN-Zaki's voice dock. Filled by js/lib/pn-zaki-ui.js on first use. -->
+    <div class="pz-dock" id="pmVoiceDock" hidden></div>
     <div class="pm-log" id="pmLog"></div>
     <div class="pm-conv-note" id="pmConvNote"></div>
     <!-- What this message is answering. Above the composer rather than inside
@@ -783,6 +791,16 @@
        page starts it once boot() knows there is an identity to be present as. -->
   <script src="js/lib/pm-presence.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
+  <!-- PN-Zaki. Order matters: ai-tools registers window.AITools, which
+       pn-zaki folds into its system prompt at load; gemini-chat and
+       gemini-voice are the primary text and voice transports. Each of the
+       three calls a Supabase Edge Function that holds the provider key as a
+       server secret — nothing here ever sees one. -->
+  <script src="js/pages/ai-tools.js"></script>
+  <script src="js/pages/gemini-chat.js"></script>
+  <script src="js/pages/gemini-voice.js"></script>
+  <script src="js/lib/pn-zaki.js"></script>
+  <script src="js/lib/pn-zaki-ui.js"></script>
   <script src="js/pages/p-message.js"></script>
   <script src="js/core/app-shell.js"></script>
   <script src="js/core/sw-register.js"></script>

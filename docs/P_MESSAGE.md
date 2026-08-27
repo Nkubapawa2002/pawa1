@@ -50,10 +50,13 @@ the promise.
 - **The key lives on one device.** Clearing the browser's data destroys the
   history, permanently. That is why a brand-new device is offered a passphrase
   backup code *before* it has anything to lose.
-- **The assistant thread is not encrypted and never can be.** A model that
-  answers you has to read you. It sits in its own pane, with its own warning,
-  and opening it flips the header lock to say so. Making the two look alike
-  would be the single most dishonest thing this feature could do.
+- **PN-Zaki is not encrypted and never can be.** A model that answers you has
+  to read you. It sits in its own pane, with its own warning, a badge beside
+  its name, and opening it flips the header lock to say so. Making the two
+  look alike would be the single most dishonest thing this feature could do.
+  The microphone follows the same rule in reverse: the voice button exists on
+  that thread ONLY, because offering to record a sentence into an end-to-end
+  encrypted conversation would be a promise this page cannot keep.
 
 ---
 
@@ -397,7 +400,26 @@ supabase/features/message/p_message_replies.sql  reply_to on both send paths (AP
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
 css/pm-identity.css                     their styling, so it travels with them
 profile.html · js/pages/profile.js      the account tab
+
+PN-Zaki — the third pane. The assistant and the voice agent used to be two
+tabs on chat.html with two separate conversations; they are one thread here,
+and chat.html keeps only the support phone numbers.
+
+js/lib/pn-zaki.js                       the brain: prompt, tools, fallbacks, voice. NO DOM
+js/lib/pn-zaki-ui.js                    the pane, the answer bubbles, the voice dock
+css/pn-zaki.css                         its skin; colours resolve through the page's --pm-*
+js/pages/ai-tools.js                    the lookup belt (allowlisted, RLS-bounded, ≤8 rows)
+js/pages/gemini-chat.js                 text transport → the gemini-chat Edge Function
+js/pages/gemini-voice.js                the Gemini Live session, opened with an EPHEMERAL token
+js/lib/ai.js                            the Anthropic fallback → ai-chat / ai-think / ai-map
+chat.html · js/pages/chat.js            contact support, and nothing else
 ```
+
+No provider key is in the browser, and moving the assistant did not move one.
+`gemini-chat`, `gemini-token` and `ai-chat` each hold their key as a Supabase
+Edge Function secret; the page carries only the public anon key. If making
+voice work ever seems to require a key in `js/core/config.js`, the fix is a
+function deploy, not a constant.
 
 Anonymous sign-ins are enabled on the project
 (`external_anonymous_users_enabled`). Turning that off disables guest chat;
@@ -424,6 +446,7 @@ for the same reason.
 | `tests/p_message_presence_db_test.mjs` | 31 — against the **real database**: that `pm_presence` is readable through no policy at all, that the storefront refuses anon and guests and returns no phone number, and that a reply cannot name a message in another conversation |
 | `tests/p_message_guest_test.mjs` | 19 — against the real database: mostly proving the DOWNSIDE was closed (a guest cannot post a house, a service or an agent profile) rather than that the feature works |
 | `tests/profile_page_test.mjs` | 41 — Profile's three states, and that a guest is never offered a door the database will refuse |
+| `tests/_shot_pn_zaki.mjs` | 30 — PN-Zaki in both themes: the pane, an answered question (bullets, page links and money all rendered from one stubbed reply), the voice dock, `?seg=ai`, and the assertion that no AI client survives on `chat.html`. The model is stubbed at `fetch`, not at the network — puppeteer's cross-origin interception does not reliably settle a POST, and this test is about what PN-Zaki does with a reply |
 
 Run the middle one only when you mean to — it writes to production.
 
@@ -431,12 +454,16 @@ Run the middle one only when you mean to — it writes to production.
 
 ## Known gaps
 
-- **The assistant needs its edge function.** `ai-chat` is not deployed, so the
-  assistant answers "not available right now". Deploying it without an
-  Anthropic key would make it worse, not better.
-- **`chat.html` still has its own AI tab**, an older doorway to the same
-  `js/lib/ai.js` engine. Not a second engine, but it is a second doorway —
-  worth folding into P-Message when the voice agent moves.
+- **PN-Zaki degrades quietly, by design.** Three brains in order: `gemini-chat`
+  (the free tier this project runs on), then `ai-chat` (Anthropic, costs
+  money, currently not deployed), then a local regex answer that only ever
+  points at pages. With none of them reachable the third one still replies, so
+  the thread is never a dead text box — but a reply from the third one must
+  never quote a listing, and it does not.
+- **Voice needs `gemini-token` deployed.** Without it the voice button is
+  hidden rather than shown-and-broken: a missing key is a fact about the
+  deployment, and a button that always fails teaches people the feature is
+  broken rather than absent.
 - **One device per person.** Adding a second device means restoring the backup
   code onto it; there is no multi-device key sync.
 - **A guest cannot upgrade in place.** Signing in after chatting as a guest

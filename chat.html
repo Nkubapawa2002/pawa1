@@ -4,214 +4,238 @@
   <script src="js/core/theme.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Chat — Maisha na Lifeza</title>
+  <title>Contact support — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
 
-    <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#0a6f4d" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="css/mobile.css" />
-<!-- pawa-mobile-bundle -->
-    <link rel="stylesheet" href="css/premium.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <!-- premium.css is deliberately NOT loaded, for the same reason p-message
+       and explore leave it out: it force-styles every control to a near-white
+       glass pill with !important, which is wrong on a dark page, and answering
+       !important with more !important is a war neither file wins. -->
   <link rel="stylesheet" href="css/claude-design.css" />
-  <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
-
-  <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+  <!-- The PN-Zaki orb, reused for the one card that points at it. -->
+  <link rel="stylesheet" href="css/pn-zaki.css" />
   <style>
-    /* ── Layout, both themes ───────────────────────────────────────────── */
-    body[data-page="chat"] {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
-    }
-    body[data-page="chat"] .page-hero { display: none; }
-    body[data-page="chat"] .container { padding-bottom: 96px; }
-    body[data-page="chat"] .chat-container { max-width: 600px; }
-    body[data-page="chat"] #nav-slot, body[data-page="chat"] #footer-slot { display: none !important; }
-
     /* =====================================================================
-       Twilight dark re-skin (Claude design) for the Messages (chat) tab.
-       The chat shell uses the older --white/--green base palette (not the
-       --c-* tokens), so the components are re-coloured directly.
+       Contact support.
 
-       Scoped to the dark theme: unscoped, this sets --c-text on <body>, which
-       a custom property reaches before :root, so css/theme-light.css could not
-       flip it. `:not([data-theme="light"])` covers the explicit dark attribute
-       and the no-attribute default alike.
+       This page used to be three tabs: an AI assistant, a voice agent, and
+       these phone numbers. The first two moved to PN-Zaki inside P-Message,
+       where typing and speaking are one conversation rather than two tabs
+       with two histories. What is left is the thing that was never an
+       assistant — a person, on a phone.
+
+       So the page is not a chat screen with two tabs removed. It is a short
+       page about reaching somebody, and the numbers are the largest thing on
+       it.
+
+       COLOUR. Every value below is a token, and the light/dark swap is one
+       block rather than a second copy of every rule. The palette is defined
+       on <body> because that is what p-message does and the two pages sit one
+       tap apart; a custom property on <body> reaches a rule before :root, so
+       css/theme-light.css cannot flip it — hence the explicit light block.
+       (See the design skill's first trap.)
        ===================================================================== */
-    :root:not([data-theme="light"]) body[data-page="chat"] {
-      --c-text: #E9F3EE; --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6;
-      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE;
+    body[data-page="support"] {
+      --sp-ground: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
+      --sp-ink: #E9F3EE;
+      --sp-ink-soft: rgba(233,243,238,.62);
+      --sp-ink-faint: rgba(233,243,238,.5);
+      --sp-card: var(--surface-app);
+      --sp-line: rgba(255,255,255,.08);
+      --sp-field: rgba(255,255,255,.05);
+      --sp-brand: var(--green-emerald);
+      --sp-brand-soft: rgba(46,230,166,.14);
+      --sp-brand-line: rgba(46,230,166,.28);
+      --sp-on-brand: #06170F;
+      --sp-wa: var(--whatsapp);
+      --sp-wa-soft: rgba(37,211,102,.14);
+      --sp-wa-line: rgba(37,211,102,.3);
+      --sp-violet: #C594FF;
+      --sp-violet-soft: rgba(197,148,255,.14);
+
+      /* PN-Zaki's own names, so the one card pointing at it looks like it. */
+      --pz-card: var(--sp-card); --pz-line: var(--sp-line); --pz-field: var(--sp-field);
+      --pz-ink: var(--sp-ink); --pz-ink-soft: var(--sp-ink-soft); --pz-ink-faint: var(--sp-ink-faint);
+      --pz-brand: var(--sp-brand); --pz-brand-soft: var(--sp-brand-soft);
+      --pz-brand-line: var(--sp-brand-line); --pz-on-brand: var(--sp-on-brand);
+
+      --c-surface: var(--sp-card); --c-border: var(--sp-line);
+      --c-text: var(--sp-ink); --c-text-muted: var(--sp-ink-soft);
+      background: var(--sp-ground); color: var(--sp-ink);
+      font-family: var(--font-app, 'Plus Jakarta Sans', system-ui, sans-serif);
+      min-height: 100vh;
     }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-container { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-messages,
-    :root:not([data-theme="light"]) body[data-page="chat"] .va-transcript { background: transparent; }
-    :root:not([data-theme="light"]) body[data-page="chat"] .msg.assistant .msg-bubble { background: rgba(255,255,255,.06); color: #E9F3EE; border-color: rgba(255,255,255,.10); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .msg.user .msg-bubble { background: #2EE6A6; color: #06170F; }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-input-bar { background: rgba(255,255,255,.03); border-top: 1px solid rgba(255,255,255,.08); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-input-bar input,
-    :root:not([data-theme="light"]) body[data-page="chat"] .va-text-bar input {
-      background: rgba(255,255,255,.05); color: #E9F3EE; border: 1px solid rgba(255,255,255,.12);
+    /* Light values are picked for contrast, not for being the same hue: the
+       brand mint is 1.5:1 on white, which is a decoration rather than a word.
+       #0a6647 is 6.6:1 on the cream ground. */
+    :root[data-theme="light"] body[data-page="support"] {
+      --sp-ground: linear-gradient(180deg, #FAF9F5 0%, #F2F1EA 100%);
+      --sp-ink: #1a1915;
+      --sp-ink-soft: #4b493f;
+      --sp-ink-faint: #6b6960;
+      --sp-card: #ffffff;
+      --sp-line: rgba(20,20,15,.12);
+      --sp-field: rgba(20,20,15,.04);
+      --sp-brand: #0a6647;
+      --sp-brand-soft: rgba(10,102,71,.10);
+      --sp-brand-line: rgba(10,102,71,.30);
+      --sp-on-brand: #ffffff;
+      --sp-wa: #0f7a3d;
+      --sp-wa-soft: rgba(15,122,61,.10);
+      --sp-wa-line: rgba(15,122,61,.3);
+      --sp-violet: #6b3fa0;
+      --sp-violet-soft: rgba(107,63,160,.10);
     }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-input-bar input::placeholder,
-    :root:not([data-theme="light"]) body[data-page="chat"] .va-text-bar input::placeholder { color: rgba(233,243,238,.4); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-input-bar button,
-    :root:not([data-theme="light"]) body[data-page="chat"] .va-text-bar button { background: #2EE6A6; color: #06170F; }
-    :root:not([data-theme="light"]) body[data-page="chat"] .suggestion-chip { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.12); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .suggestion-chip:hover { background: #2EE6A6; color: #06170F; border-color: #2EE6A6; }
-    /* css/styles.css fills the tab bar and the support panel with the legacy
-       --white / --gray-light, which are white in BOTH themes. The tab ink here
-       is near-white, so unless the bar loses its white fill the dark theme
-       prints pale ink on a white slab (measured 1.41:1 on "Contact Support"). */
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-tab-bar { background: transparent; border-bottom-color: rgba(255,255,255,.1); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .support-body { background: transparent; }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-tab { color: rgba(233,243,238,.6); }
-    /* premium.css fills the active tab with --grad-brand and prints #fff on it
-       with !important — white on that gradient's mint end is 2.76:1. Only
-       !important can answer !important. Mint fill + near-black ink is what the
-       rest of this page's dark skin already uses for an active control. */
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-tab.active {
-      background: #2EE6A6 !important; color: #06170F !important; box-shadow: none !important;
+
+    body[data-page="support"] #nav-slot,
+    body[data-page="support"] #footer-slot { display: none !important; }
+    body[data-page="support"] .page-hero { display: none; }
+
+    .sp-shell { max-width: 640px; margin: 0 auto; padding: 22px 14px 0; }
+    /* The floating theme toggle owns the top-right corner on every page, so
+       the title stops before it rather than being drawn underneath it. */
+    .sp-h { padding-right: 52px; }
+    /* font-family is stated because css/claude-design.css gives every h1/h2 a
+       serif, and this page sits one tap from p-message, which is in the app
+       face. Two adjacent screens in two typefaces read as two products. */
+    .sp-title { margin: 0; font-family: inherit; font-size: 22px; font-weight: 800;
+      letter-spacing: -.01em; color: var(--sp-ink); }
+    .sp-lede { margin: 7px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--sp-ink-soft); max-width: 46ch; }
+
+    .sp-body { max-width: 640px; margin: 0 auto; padding: 18px 14px 0; }
+    .sp-h2 {
+      font-family: inherit; font-size: 11px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--sp-ink-faint); margin: 0 2px 9px;
     }
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-mic-btn,
-    :root:not([data-theme="light"]) body[data-page="chat"] .chat-voice-toggle { border-color: rgba(255,255,255,.14); color: rgba(233,243,238,.7); background: rgba(255,255,255,.04); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .va-hint { color: rgba(233,243,238,.6); }
-    :root:not([data-theme="light"]) body[data-page="chat"] .support-intro { color: rgba(233,243,238,.7); }
+    /* A micro-label is two or three words. A whole sentence set in 11px caps
+       with .08em tracking is a headline nobody can read at a glance, so the
+       one heading here that is really a sentence is set as one. */
+    .sp-h2.is-said {
+      font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none;
+      line-height: 1.5; color: var(--sp-ink-soft); margin-bottom: 10px;
+    }
+
+    /* ---- a person -------------------------------------------------------
+       Three rows deep on purpose: their job, their name, their number. The
+       job comes first because "who should I be calling about this?" is the
+       question somebody arrives with, and a name answers a different one.
+
+       The number is mono with tabular figures — it is the payload of the
+       whole page, and the shape of the digits is what a person checks against
+       what they are about to dial. */
+    .sp-card {
+      display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;
+      background: var(--sp-card); border: 1px solid var(--sp-line);
+      border-radius: var(--radius-xl, 24px); padding: 15px; margin-bottom: 10px;
+    }
+    .sp-av {
+      flex: 0 0 auto; width: 42px; height: 42px; border-radius: var(--radius-md, 14px);
+      display: grid; place-items: center;
+      background: var(--sp-brand-soft); color: var(--sp-brand);
+    }
+    .sp-av svg { width: 21px; height: 21px; }
+    .sp-tx { flex: 1 1 160px; min-width: 0; }
+    .sp-role {
+      display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .07em;
+      text-transform: uppercase; padding: 2px 6px; border-radius: var(--radius-xs, 6px);
+      background: var(--sp-violet-soft); color: var(--sp-violet);
+    }
+    .sp-name { display: block; margin-top: 6px; font-size: 15.5px; font-weight: 800; color: var(--sp-ink); }
+    .sp-phone {
+      display: block; margin-top: 3px; font-size: 13.5px; color: var(--sp-ink-soft);
+      font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+      font-feature-settings: "tnum", "zero"; letter-spacing: .01em;
+    }
+    /* The two actions take the full width of the card on a phone. A "Call"
+       button that is 70px wide beside a name is a target somebody misses while
+       walking, and this is a page people open while something has gone wrong. */
+    .sp-acts { display: flex; gap: 8px; flex: 1 1 100%; }
+    .sp-btn {
+      flex: 1 1 0; min-height: var(--hit-min, 44px);
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      border-radius: var(--radius-md, 14px); padding: 11px 12px;
+      font-size: 13.5px; font-weight: 800; text-decoration: none;
+      border: 1px solid transparent;
+      transition: transform var(--dur-fast, 140ms) var(--ease, ease);
+    }
+    .sp-btn svg { width: 16px; height: 16px; flex: 0 0 auto; }
+    .sp-btn:active { transform: translateY(1px); }
+    .sp-btn.is-call { background: var(--sp-brand); color: var(--sp-on-brand); }
+    .sp-btn.is-wa {
+      background: var(--sp-wa-soft); color: var(--sp-wa); border-color: var(--sp-wa-line);
+    }
+    .sp-empty {
+      text-align: center; padding: 30px 16px; font-size: 13.5px; line-height: 1.6;
+      color: var(--sp-ink-soft); background: var(--sp-field);
+      border: 1px solid var(--sp-line); border-radius: var(--radius-lg, 18px);
+    }
+
+    /* ---- the way back to PN-Zaki ---------------------------------------
+       The assistant used to be two tabs at the top of this page. Somebody who
+       knows that will come here looking for it, and a page that simply no
+       longer has it would read as a feature having been deleted. So it is
+       said, once, with the door beside it — and below the numbers, because a
+       person who came here for a person should not have to scroll past a
+       machine to find one. */
+    .sp-zaki {
+      display: flex; align-items: center; gap: 12px; margin-top: 6px;
+      background: var(--sp-card); border: 1px solid var(--sp-line);
+      border-radius: var(--radius-xl, 24px); padding: 14px; text-decoration: none;
+      transition: border-color var(--dur-fast, 140ms) var(--ease, ease);
+    }
+    .sp-zaki:hover { border-color: var(--sp-brand-line); }
+    .sp-zaki-tx { flex: 1; min-width: 0; }
+    .sp-zaki-t { display: block; font-size: 14px; font-weight: 800; color: var(--sp-ink); }
+    .sp-zaki-d { display: block; margin-top: 3px; font-size: 12px; line-height: 1.5; color: var(--sp-ink-soft); }
+    .sp-zaki-go { flex: 0 0 auto; font-size: 20px; line-height: 1; color: var(--sp-ink-faint); }
+
+    .sp-foot {
+      margin: 18px 2px 0; font-size: 11.5px; line-height: 1.6; color: var(--sp-ink-faint);
+    }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
-<body data-page="chat" data-app-shell="chat.html">
+<body data-page="support" data-app-shell="chat.html">
   <div id="nav-slot"></div>
 
-  <main class="container" style="padding-top:8px;padding-bottom:8px">
-    <div class="chat-container">
-
-      <!-- Tab bar -->
-      <div class="chat-tab-bar">
-        <button class="chat-tab active" id="tabAi" onclick="window.switchChatTab('ai')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-          <span data-i18n="chat_tab_ai">AI Assistant</span>
-        </button>
-        <button class="chat-tab" id="tabVoice" onclick="window.switchChatTab('voice')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="23"/>
-            <line x1="8" y1="23" x2="16" y2="23"/>
-          </svg>
-          <span>Voice AI</span>
-        </button>
-        <button class="chat-tab" id="tabSupport" onclick="window.switchChatTab('support')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.35 2 2 0 0 1 3.6 1.13h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.73a16 16 0 0 0 6 6l.96-.96a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16z"/>
-          </svg>
-          <span data-i18n="chat_tab_support">Contact Support</span>
-        </button>
-      </div>
-
-      <!-- AI Chat panel -->
-      <div id="panelAi" class="chat-panel active">
-        <div class="chat-header">
-          <div class="avatar">P</div>
-          <div>
-            <div style="font-weight:700" data-i18n="chat_title">Chat with Pawa Assistant</div>
-            <small style="opacity:0.85" data-i18n="chat_sub">Ask about homes to rent, daily services, day jobs, or getting around.</small>
-          </div>
-          <button type="button" id="voiceModeBtn" class="chat-voice-toggle" title="Enable voice mode">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-            <span class="vmt-label">Voice</span>
-          </button>
-        </div>
-        <div class="voice-listening-banner" id="voiceBanner">
-          <span class="voice-listen-dot"></span>
-          <span id="voiceBannerText">Listening…</span>
-        </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <div class="suggestions" id="suggestions"></div>
-        <form class="chat-input-bar" id="chatForm">
-          <button type="button" id="chatMicBtn" class="chat-mic-btn" title="Voice input">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-          </button>
-          <input type="text" id="chatInput" data-i18n-placeholder="chat_placeholder" placeholder="Type your question..." autocomplete="off" />
-          <button type="submit" data-i18n="chat_send">Send</button>
-        </form>
-      </div>
-
-      <!-- Voice AI panel (Gemini Live) -->
-      <div id="panelVoice" class="chat-panel">
-        <div class="va-panel">
-
-          <!-- Status bar -->
-          <div class="va-status-bar">
-            <span class="va-state-badge" id="vaStateBadge">IDLE</span>
-            <span class="va-model-tag">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-               · Pawa AI
-            </span>
-          </div>
-
-          <!-- Big mic button (same style as Jarvis) -->
-          <div class="va-mic-area">
-            <div class="mic-wrapper">
-              <div class="mic-rings" id="vaMicRings"></div>
-              <button class="mic-btn" id="vaMicBtn" title="Start voice conversation">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                  <line x1="12" y1="19" x2="12" y2="23"/>
-                  <line x1="8" y1="23" x2="16" y2="23"/>
-                </svg>
-              </button>
-            </div>
-            <p class="va-hint" id="vaHint">Tap to start voice conversation with Pawa</p>
-          </div>
-
-          <!-- Live transcript -->
-          <div class="va-transcript chat-messages" id="vaMessages"></div>
-
-          <!-- Text fallback while connected -->
-          <form class="va-text-bar" id="vaTextBar">
-            <input type="text" id="vaTextInput" placeholder="Or type a message…" autocomplete="off" />
-            <button type="submit">Send</button>
-          </form>
-
-        </div>
-      </div>
-
-      <!-- Support Contacts panel -->
-      <div id="panelSupport" class="chat-panel">
-        <div class="chat-header">
-          <div class="avatar" style="font-size:1.2rem"></div>
-          <div>
-            <div style="font-weight:700" data-i18n="support_title">Support Contacts</div>
-            <small style="opacity:0.85" data-i18n="support_sub">Reach our team directly for any inconvenience.</small>
-          </div>
-        </div>
-        <div class="support-body">
-          <p class="support-intro" data-i18n="support_sub">Reach our team directly for any issue with any issues even for any suggestions.</p>
-          <div id="supportContactsList"></div>
-        </div>
-      </div>
-
+  <header class="sp-shell">
+    <div class="sp-h">
+      <h1 class="sp-title" data-i18n="support_page_t">Contact support</h1>
+      <p class="sp-lede" data-i18n="support_page_d">A real person on the Pawa line — for anything an
+        assistant cannot settle: a payment, a dispute, a listing that is wrong.</p>
     </div>
+  </header>
+
+  <main class="sp-body">
+    <h2 class="sp-h2" data-i18n="support_title">Support Contacts</h2>
+    <div id="supportContactsList"></div>
+
+    <h2 class="sp-h2 is-said" style="margin-top:26px" data-i18n="support_to_ai">Looking for the
+      assistant? PN-Zaki now lives in P-Message.</h2>
+    <a class="sp-zaki" href="p-message.html?seg=ai">
+      <span class="pz-orb" data-state="idle" aria-hidden="true"><i class="pz-orb-ring"></i><b class="pz-orb-mark">PZ</b></span>
+      <span class="sp-zaki-tx">
+        <span class="sp-zaki-t" data-i18n="support_to_ai_go">Open PN-Zaki</span>
+        <span class="sp-zaki-d" data-i18n="pz_hero_sub">Knows every listing, price and page on Pawa.
+          Ask by typing, or talk to it.</span>
+      </span>
+      <span class="sp-zaki-go" aria-hidden="true">›</span>
+    </a>
+
+    <p class="sp-foot" data-i18n="support_sub">Reach our team directly for any issue with a home,
+      service, or booking.</p>
   </main>
 
+  <div class="app-shell-pad"></div>
   <div id="footer-slot"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -221,26 +245,19 @@
   <script src="js/core/auth.js"></script>
   <script src="js/core/nav.js"></script>
   <script src="js/pages/tenant.js"></script>
-  <script src="js/lib/ai.js"></script>
-  <script src="js/pages/ai-tools.js"></script>
-  <script src="js/pages/gemini-chat.js"></script>
-  <script src="js/pages/gemini-voice.js"></script>
+  <!-- No AI client, no voice engine and no tool belt are loaded here any
+       more. They all moved to PN-Zaki (js/lib/pn-zaki.js), which p-message.html
+       loads. This page holds phone numbers. -->
   <script src="js/pages/chat.js"></script>
   <script>
-    // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js). This is the
-    // "Messages" tab destination.
     window.applyTranslations();
     (async () => {
       await (window.loadTenantContext && window.loadTenantContext());
-      const sysPrompt = await window.initChatPage();   // returns the system prompt
-      window.initVoiceTab(sysPrompt || "");
       window.renderSupportContacts();
     })();
   </script>
 
-    <script src="js/core/app-shell.js"></script>
-    <script src="js/core/sw-register.js"></script>
-<!-- pawa-mobile-bundle -->
-  <script src="js/core/premium.js" defer></script>
+  <script src="js/core/app-shell.js"></script>
+  <script src="js/core/sw-register.js"></script>
 </body>
 </html>

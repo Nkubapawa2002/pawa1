@@ -38,8 +38,9 @@
     // It was missing from this map entirely, which silently lit Home.
     "share-location.html": "pchat",
     "p-message.html": "pmessage",
-    // chat.html keeps the assistant, the voice agent and the support numbers.
-    // P-Message links to it rather than swallowing it.
+    // chat.html is the support numbers, and only those: the assistant and the
+    // voice agent are PN-Zaki now, inside P-Message itself. It still lights
+    // this tab because P-Message is the page that links to it.
     "chat.html": "pmessage", "meet.html": "pmessage",
     "profile.html": "profile",
     "login.html": "profile", "agent-houses.html": "profile",

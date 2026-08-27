@@ -94,7 +94,7 @@ const BREADTH_PAGES = [
   { file: "services.html", label: "Services" },
   { file: "service.html?id=x", label: "Service" },
   { file: "favorites.html", label: "Saved" },
-  { file: "chat.html", label: "Chat" },
+  { file: "chat.html", label: "Support" },
   { file: "login.html", label: "Sign in" },
   { file: "agent.html?u=nobody", label: "Agent storefront" },
   { file: "agent-houses.html", label: "Houses portal" },

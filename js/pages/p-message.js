@@ -8,10 +8,13 @@
 //  Three things here are load-bearing and easy to undo by accident:
 //
 //   1. THE LOCK LINE TELLS THE TRUTH. It reads "End-to-end encrypted" on human
-//      threads and flips to a warning on the assistant thread, which cannot be
+//      threads and flips to a warning on the PN-Zaki thread, which cannot be
 //      encrypted because a model that answers you has to read you. Making
 //      those two look alike would be the single most dishonest thing this page
-//      could do.
+//      could do. The microphone follows the same rule: the voice button exists
+//      ONLY on that thread, because offering to record a sentence into an
+//      end-to-end encrypted conversation would be a promise this page cannot
+//      keep.
 //   2. A MESSAGE THAT WILL NOT DECRYPT IS SHOWN, NOT HIDDEN. It means this
 //      device's key cannot open it. A gap in a conversation is far more
 //      alarming than a line saying why.
@@ -37,6 +40,7 @@
    "pmGate", "paneChats", "panePeople", "paneAi", "pmInbox", "pmSearch", "pmRegion",
    "pmPeople", "pmAiRow", "pmConv", "pmBack", "pmConvName", "pmConvSub", "pmVerify",
    "pmLog", "pmConvNote", "pmComposeForm", "pmInput", "pmSendBtn", "pmModalBack", "pmModal",
+   "pmVoiceBtn", "pmVoiceDock",
    "pmTrustBar", "pmWho", "pmCount", "pmCats", "pmShort", "pmMembers", "pmReplyBar",
    "pmPlaceBtn", "pmAttach", "pmPlaceHint", "pmMapSheet", "pmMapBack", "pmMapName", "pmMapSub",
    "pmMapCanvas", "pmMapActs"]
@@ -171,7 +175,8 @@
     if (!me.userId) {
       lock(true);
       showGuestGate();
-      renderAiRow();
+      renderAiPane();
+      takeRequestedZaki();
       return;
     }
 
@@ -209,7 +214,8 @@
       if (err && err.message === "LOCKED") {
         lock(true);
         showUnlockGate();
-        renderAiRow();
+        renderAiPane();
+        takeRequestedZaki();
         return;
       }
       gate('<div class="pm-note warn">' + esc(t("pm_setup_failed", "Could not set up encryption on this device.")) +
@@ -227,7 +233,8 @@
 
     await refreshInbox();
     watchInbox();
-    renderAiRow();
+    renderAiPane();
+    takeRequestedZaki();
     // Last, because it opens a conversation over the inbox it needs drawn
     // first — and because everything above must work whether or not the link
     // carried a person.
@@ -237,6 +244,31 @@
     // cannot know who the pin is for.
     try { takeRequestedPlace(); } catch (_) {}
     try { await openRequestedPeer(); } catch (_) {}
+  }
+
+  /**
+   * A link that asked for PN-Zaki: p-message.html?seg=ai, plus two optional
+   * extras — &ask=<question> to open it already asking, and &voice=1 to open
+   * it with the voice dock showing.
+   *
+   * The dock SHOWING is not the microphone RUNNING. A link that could start
+   * recording is a link somebody could send you, and no query string on this
+   * site is allowed to open a microphone; the dock's own button does that,
+   * with a tap, on this device, by the person holding it.
+   *
+   * chat.html is the caller that matters: the assistant used to be two tabs
+   * at the top of that page, so somebody who knows it from before will go
+   * there looking, and this is the door back.
+   */
+  function takeRequestedZaki() {
+    var q;
+    try { q = new URLSearchParams(location.search); } catch (_) { return false; }
+    if ((q.get("seg") || "") !== "ai") return false;
+    showSeg("ai");
+    var ask = String(q.get("ask") || "").slice(0, 300).trim();
+    var voice = q.get("voice") === "1";
+    if (ask || voice) openAi({ ask: ask || null, voice: voice });
+    return true;
   }
 
   /**
@@ -866,12 +898,31 @@
     // here?". Neither applies to the assistant.
     el.pmVerify.hidden = info.kind !== "direct" || !info.otherId;
     if (el.pmMembers) el.pmMembers.hidden = info.kind !== "group";
+    // Cleared for every thread and re-offered below for PN-Zaki's alone. A
+    // microphone on an encrypted thread would be a promise this page cannot
+    // keep, and a dock left open from the last thread would be worse than
+    // that: it would be one that looks like it applies here.
+    if (el.pmVoiceBtn) el.pmVoiceBtn.hidden = true;
+    if (voiceUI) voiceUI.hide();
+    // The pin button is the other way round: every human thread has it, and
+    // PN-Zaki does not. Sending a location to a model is an offer to hand over
+    // where you are to something that cannot travel there — and the composer
+    // would then carry an attachment the send path silently drops.
+    if (el.pmPlaceBtn) el.pmPlaceBtn.hidden = info.kind === "ai";
     if (info.kind === "group") countMembers(info);
     el.pmLog.innerHTML = '<div class="pm-empty">' + esc(t("pm_loading", "Loading…")) + "</div>";
 
     if (info.kind === "ai") {
-      lock(false, t("pm_lock_ai", "Not encrypted — the assistant reads this"));
-      el.pmConvNote.textContent = t("pm_ai_note", "The assistant reads these messages. Do not send anything private.");
+      lock(false, t("pm_lock_ai", "Not encrypted — PN-Zaki reads this"));
+      el.pmConvNote.textContent = t("pm_ai_note", "PN-Zaki reads these messages. Do not send anything private.");
+      // Hidden rather than disabled when voice cannot work here: a missing
+      // Supabase URL or a browser with no getUserMedia is a fact about the
+      // deployment, and a button that always fails teaches people the feature
+      // is broken rather than absent.
+      if (el.pmVoiceBtn && window.PNZaki && window.PNZaki.voiceAvailable()) {
+        el.pmVoiceBtn.hidden = false;
+        if (!el.pmVoiceBtn.innerHTML && window.PNZakiUI) el.pmVoiceBtn.innerHTML = window.PNZakiUI.ICON.mic;
+      }
       renderAiLog();
       return;
     }
@@ -1299,6 +1350,10 @@
 
   function closeThread() {
     open = null;
+    // Walking away from PN-Zaki hangs up. A live microphone behind a screen
+    // you have left is the one bug in this feature nobody would forgive.
+    if (voiceUI) voiceUI.hide();
+    if (el.pmVoiceBtn) el.pmVoiceBtn.hidden = true;
     clearReply();
     clearAttach();
     closePlaceMap();
@@ -1952,10 +2007,22 @@
     });
   }
 
-  // ---- the assistant -------------------------------------------------------
-  // Deliberately a separate, local, UNENCRYPTED thread. It reuses window.AI
-  // (js/lib/ai.js), the same client chat.html uses — there is no second AI
-  // engine here, only a second doorway to the one that exists.
+  // ---- PN-Zaki -------------------------------------------------------------
+  //
+  //  The brain, the tool belt and the voice session are in js/lib/pn-zaki.js;
+  //  what any of it looks like is in js/lib/pn-zaki-ui.js. This page owns
+  //  exactly two things: WHERE PN-Zaki is drawn, and the log.
+  //
+  //  The log is localStorage, on this device, on purpose. Every other thread
+  //  on this screen is on the server because it has to reach somebody else;
+  //  this one has nowhere to go, and the single thread here that is NOT
+  //  end-to-end encrypted is also the one there is no reason to keep a server
+  //  copy of. Clearing the browser loses it, which is the honest trade.
+  //
+  //  A spoken line and a typed line land in the SAME log, in order. That is
+  //  the whole point of folding the old "Voice AI" tab into this thread: ask
+  //  by voice, scroll back to the answer an hour later, then type a follow-up
+  //  that the model still has the context for.
   function aiLog() {
     try { return JSON.parse(localStorage.getItem(AI_STORE) || "[]"); } catch (_) { return []; }
   }
@@ -1963,50 +2030,94 @@
     try { localStorage.setItem(AI_STORE, JSON.stringify(rows.slice(-40))); } catch (_) {}
   }
 
-  function renderAiRow() {
-    if (!el.pmAiRow) return;
+  function renderAiPane() {
+    if (!el.pmAiRow || !window.PNZakiUI) return;
     var last = aiLog().slice(-1)[0];
-    el.pmAiRow.innerHTML = '<button class="pm-row" data-ai="1">' +
-      '<span class="pm-av is-ai">AI</span><span class="pm-rtx">' +
-      '<span class="pm-name">' + esc(t("pm_ai_name", "Maisha assistant")) +
-      ' <span class="pm-badge warn">' + esc(t("pm_badge_open", "Not encrypted")) + "</span></span>" +
-      '<span class="pm-sub">' + esc(last ? last.text : t("pm_ai_sub", "Ask about rooms, prices, or how something works")) +
-      "</span></span></button>";
+    window.PNZakiUI.renderPane(el.pmAiRow, {
+      t: t,
+      last: last ? last.text : "",
+      onOpen: function () { openAi(); },
+      onVoice: function () { openAi({ voice: true }); },
+      onAsk: function (q) { openAi({ ask: q }); },
+    });
   }
 
-  function renderAiLog() {
-    var rows = aiLog();
-    if (!rows.length) {
-      el.pmLog.innerHTML = '<div class="pm-empty">' +
-        esc(t("pm_ai_empty", "Ask anything about the site, an area, or what a fair price looks like.")) + "</div>";
-      return;
-    }
-    el.pmLog.innerHTML = rows.map(function (m) {
-      return '<div class="pm-msg' + (m.role === "user" ? " mine" : "") + '">' + esc(m.text) + "</div>";
-    }).join("");
-    el.pmLog.scrollTop = el.pmLog.scrollHeight;
+  function renderAiLog(thinking) {
+    if (!el.pmLog || !window.PNZakiUI) return;
+    window.PNZakiUI.renderLog(el.pmLog, aiLog(), { t: t, thinking: !!thinking });
+  }
+
+  // The dock is built the first time something asks for it and then kept, so
+  // the mic can be shown and hidden without rebuilding a live audio session
+  // underneath it.
+  var voiceUI = null;
+  function voiceDock() {
+    if (voiceUI) return voiceUI;
+    if (!window.PNZakiUI || !el.pmVoiceDock) return null;
+    voiceUI = window.PNZakiUI.attachVoice({
+      dock: el.pmVoiceDock,
+      t: t,
+      // A transcript is a message. It is appended to the same log a typed
+      // message goes to, and the log is RE-READ from storage first: a line
+      // spoken while a typed question was still in flight would otherwise be
+      // overwritten by that question's stale copy of the rows.
+      onLine: function (role, text) {
+        var rows = aiLog();
+        rows.push({ role: role === "user" ? "user" : "assistant", text: text, voice: true });
+        saveAiLog(rows);
+        if (open && open.kind === "ai") renderAiLog();
+        renderAiPane();
+      },
+      onState: function (state) {
+        if (!el.pmVoiceBtn) return;
+        el.pmVoiceBtn.classList.toggle("is-on", state !== "idle" && state !== "error");
+      },
+      onHide: function () {
+        if (el.pmVoiceBtn) el.pmVoiceBtn.classList.remove("is-on");
+      },
+    });
+    return voiceUI;
+  }
+
+  // The one door into the PN-Zaki thread, from all three ways in: the hero
+  // button, the voice button, and a tapped suggestion.
+  function openAi(opts) {
+    opts = opts || {};
+    openThread({
+      threadId: AI_THREAD, kind: "ai",
+      name: t("pm_ai_name", "PN-Zaki assistant"),
+      sub: t("pm_ai_sub_voice", "AI \u00b7 type or talk \u00b7 not encrypted"),
+    });
+    if (opts.voice) { var d = voiceDock(); if (d) d.show(); }
+    // A tapped suggestion is a question somebody asked, not text put in a box
+    // for them to press send on — the tap WAS the send.
+    if (opts.ask) sendToAi(opts.ask);
   }
 
   async function sendToAi(text) {
     var rows = aiLog();
     rows.push({ role: "user", text: text });
-    saveAiLog(rows); renderAiLog();
+    saveAiLog(rows);
+    renderAiLog(true);
     el.pmSendBtn.disabled = true;
+    var answer;
     try {
-      if (!window.AI) throw new Error("AI unavailable");
-      var res = await window.AI.chat({
-        messages: rows.map(function (m) { return { role: m.role === "user" ? "user" : "assistant", content: m.text }; }),
-        system: "You are the assistant for Maisha na Lifeza, a Tanzanian marketplace for rooms, " +
-          "trucks, daily services and day jobs. Answer briefly, in the language the user writes in " +
-          "(English or Swahili). You cannot see the user's private messages.",
-      });
-      rows.push({ role: "assistant", text: res.reply || "…" });
+      if (!window.PNZaki) throw new Error("PN-Zaki unavailable");
+      answer = (await window.PNZaki.ask(text)).text;
     } catch (err) {
-      // The edge function is not deployed in every environment. Say that
-      // plainly rather than leaving a message that never gets an answer.
-      rows.push({ role: "assistant", text: t("pm_ai_down", "The assistant is not available right now.") });
+      // Every brain being unreachable is a deployment fact, not a mystery.
+      // Say so plainly rather than leaving a question that never gets an
+      // answer sitting at the bottom of the log.
+      answer = t("pm_ai_down", "PN-Zaki is not available right now.");
     }
-    saveAiLog(rows); renderAiLog(); renderAiRow();
+    // Re-read rather than reusing the array from before the await: a spoken
+    // line may have landed in the log while the model was thinking, and
+    // pushing onto the stale copy would delete it.
+    rows = aiLog();
+    rows.push({ role: "assistant", text: answer });
+    saveAiLog(rows);
+    if (open && open.kind === "ai") renderAiLog();
+    renderAiPane();
     el.pmSendBtn.disabled = false;
   }
 
@@ -2494,10 +2605,18 @@
       } finally { row.disabled = false; }
     });
 
-    el.pmAiRow && el.pmAiRow.addEventListener("click", function (e) {
-      if (!e.target.closest("[data-ai]")) return;
-      openThread({ threadId: AI_THREAD, kind: "ai", name: t("pm_ai_name", "Maisha assistant"),
-        sub: t("pm_ai_sub2", "Not encrypted") });
+    // The PN-Zaki pane binds its own handlers once, inside
+    // js/lib/pn-zaki-ui.js — it is redrawn after every message, and a listener
+    // added here on each redraw is the accumulating-handler bug documented at
+    // the top of this file.
+
+    // The header microphone shows and hides the dock. It does NOT start
+    // recording: that is the dock's own button, and keeping them separate is
+    // what stops a thread being opened from opening a microphone.
+    el.pmVoiceBtn && el.pmVoiceBtn.addEventListener("click", function () {
+      var d = voiceDock();
+      if (!d) return;
+      if (d.visible()) d.hide(); else d.show();
     });
 
     // One delegated listener on the log, bound once. The log's innerHTML is

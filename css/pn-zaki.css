@@ -1,0 +1,279 @@
+/* ============================================================================
+   css/pn-zaki.css — PN-Zaki's skin.
+
+   PORTABILITY. Every colour resolves through a --pz-* name whose default is
+   the host page's palette. On p-message.html those are the --pm-* variables
+   defined on <body>; anywhere else they fall through to the design-system
+   tokens. That is why nothing below reads --pm-* directly a second time: one
+   mapping block at the top, and the rest of the file is host-agnostic.
+
+   Per the design skill's first trap: p-message defines --pm-* on <body>, and a
+   custom property on <body> beats one on :root. So the mapping lives on
+   :root AND is re-stated for the page — the page's block wins, which is
+   exactly what is wanted, and the :root copy keeps this file usable on a page
+   that has no --pm-* at all.
+   ============================================================================ */
+
+:root {
+  --pz-card: var(--surface-app);
+  --pz-line: var(--glass-border, rgba(255,255,255,.08));
+  --pz-field: rgba(255,255,255,.05);
+  --pz-ink: var(--text, #E9F3EE);
+  --pz-ink-soft: var(--text-muted);
+  --pz-ink-faint: var(--text-faint);
+  --pz-brand: var(--green-emerald);
+  --pz-brand-soft: rgba(46,230,166,.14);
+  --pz-brand-line: rgba(46,230,166,.28);
+  --pz-on-brand: #06170F;
+  --pz-gold: var(--gold-warm, #F6C45A);
+  --pz-gold-soft: rgba(246,196,90,.16);
+  --pz-violet: #C594FF;
+  --pz-violet-soft: rgba(197,148,255,.14);
+}
+
+body[data-page="p-message"] {
+  --pz-card: var(--pm-card);
+  --pz-line: var(--pm-line);
+  --pz-field: var(--pm-field);
+  --pz-ink: var(--pm-ink);
+  --pz-ink-soft: var(--pm-ink-soft);
+  --pz-ink-faint: var(--pm-ink-faint);
+  --pz-brand: var(--pm-brand);
+  --pz-brand-soft: var(--pm-brand-soft);
+  --pz-brand-line: var(--pm-brand-line);
+  --pz-on-brand: var(--pm-on-brand);
+  --pz-gold: var(--pm-gold);
+  --pz-gold-soft: var(--pm-gold-soft);
+  --pz-violet: var(--pm-violet);
+  --pz-violet-soft: var(--pm-violet-soft);
+}
+
+/* ── The orb ────────────────────────────────────────────────────────────────
+   One element in four states. The ring is a conic gradient masked to a hairline
+   — a real ring, not a border, so it can rotate without the monogram rotating
+   with it. It is STILL at rest: an avatar that pulses forever is decoration,
+   and the whole point of this one is that its movement is the status.
+
+   The mark inside is "PZ" in the display face, never an emoji or a photo of a
+   person — this is a program and the avatar should not pretend otherwise.
+   ────────────────────────────────────────────────────────────────────────── */
+.pz-orb {
+  position: relative; flex: 0 0 auto;
+  width: 46px; height: 46px; border-radius: var(--radius-pill);
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 34% 30%, var(--pz-brand-soft), transparent 68%), var(--pz-field);
+  color: var(--pz-brand);
+}
+.pz-orb-ring {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: conic-gradient(from 0deg,
+    transparent 0deg, var(--pz-brand) 70deg, var(--pz-gold) 150deg, transparent 240deg, transparent 360deg);
+  /* The mask turns the filled disc into a 1.6px ring. Both properties are
+     needed: WebKit still wants the prefixed one on iOS. */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.6px));
+  opacity: .5;
+}
+.pz-orb-mark {
+  font-family: var(--font-display, 'Orbitron', system-ui, sans-serif);
+  font-size: 13px; font-weight: 800; letter-spacing: .06em; color: var(--pz-brand);
+}
+.pz-orb-icon { display: grid; place-items: center; color: var(--pz-brand); }
+.pz-orb-icon svg { width: 19px; height: 19px; }
+.pz-orb.is-big { width: 62px; height: 62px; }
+.pz-orb.is-big .pz-orb-mark { font-size: 17px; }
+
+/* Listening breathes; thinking spins; speaking glows. Each is one property so
+   a state change never fights a half-finished animation on another. */
+.pz-orb[data-state="listening"] .pz-orb-ring { opacity: 1; animation: pzBreathe 2.4s ease-in-out infinite; }
+.pz-orb[data-state="connecting"] .pz-orb-ring,
+.pz-orb[data-state="thinking"] .pz-orb-ring { opacity: 1; animation: pzSpin 1.1s linear infinite; }
+.pz-orb[data-state="speaking"] .pz-orb-ring { opacity: 1; animation: pzSpin 3.4s linear infinite; }
+.pz-orb[data-state="speaking"] { box-shadow: var(--glow-emerald, 0 10px 24px rgba(46,230,166,.28)); }
+.pz-orb[data-state="error"] .pz-orb-ring {
+  opacity: 1; background: conic-gradient(from 0deg, transparent 0deg, var(--pz-gold) 120deg, transparent 260deg);
+}
+@keyframes pzSpin { to { transform: rotate(360deg); } }
+@keyframes pzBreathe { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+
+/* ── The hero ───────────────────────────────────────────────────────────── */
+.pz-hero {
+  position: relative; overflow: hidden;
+  background: var(--pz-card); border: 1px solid var(--pz-line);
+  border-radius: var(--radius-xl, 24px); padding: 15px 15px 13px; margin-bottom: 14px;
+}
+/* A single soft wash rather than a gradient border: a glowing outline on a
+   card that sits above a list of ordinary rows reads as an advert. This reads
+   as a surface with a light on it. */
+.pz-hero::before {
+  content: ""; position: absolute; inset: -40% 40% 55% -20%; pointer-events: none;
+  background: radial-gradient(closest-side, var(--pz-brand-soft), transparent 72%);
+}
+.pz-hero-top { position: relative; display: flex; align-items: center; gap: 12px; }
+.pz-hero-tx { min-width: 0; flex: 1; }
+.pz-hero-name {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font-size: 16px; font-weight: 800; color: var(--pz-ink); letter-spacing: -.01em;
+}
+.pz-tag {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: var(--radius-xs, 6px);
+  background: var(--pz-gold-soft); color: var(--pz-gold);
+}
+.pz-hero-sub {
+  display: block; margin-top: 4px; font-size: 12.5px; line-height: 1.5; color: var(--pz-ink-soft);
+  /* Two lines, then an ellipsis: the subtitle doubles as the last thing said,
+     and a four-line quotation of the previous answer pushes the two buttons —
+     the reason the card exists — off a phone screen. */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pz-hero-acts { position: relative; display: flex; gap: 8px; margin-top: 14px; }
+.pz-cta {
+  flex: 1 1 0; min-height: var(--hit-min, 44px);
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  background: var(--pz-brand); color: var(--pz-on-brand); border: 1px solid transparent;
+  border-radius: var(--radius-md, 14px); padding: 11px 12px;
+  font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer;
+  transition: transform var(--dur-fast, 140ms) var(--ease, ease), box-shadow var(--dur-fast, 140ms) var(--ease, ease);
+}
+.pz-cta svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.pz-cta:hover { box-shadow: var(--glow-emerald, 0 10px 24px rgba(46,230,166,.28)); }
+.pz-cta:active { transform: translateY(1px); }
+.pz-cta.is-ghost {
+  background: var(--pz-field); color: var(--pz-ink); border-color: var(--pz-line);
+}
+.pz-cta.is-ghost:hover { border-color: var(--pz-brand-line); color: var(--pz-brand); box-shadow: none; }
+
+/* ── Capability chips ───────────────────────────────────────────────────────
+   A blank text box is the hardest thing to answer. These are the six questions
+   this assistant is actually good at, phrased as the user would ask them — a
+   tap sends the full sentence, so the first turn of the conversation is a real
+   question rather than a keyword.
+
+   They wrap rather than scroll sideways: unlike the category strip further up
+   the page these are not a filter you return to, they are read once and then
+   never again, so costing two rows once is cheaper than hiding four of six. */
+.pz-caps-h {
+  font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--pz-ink-faint); margin: 0 2px 8px;
+}
+.pz-caps { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 15px; }
+.pz-cap {
+  background: var(--pz-field); border: 1px solid var(--pz-line); color: var(--pz-ink-soft);
+  border-radius: var(--radius-pill, 999px); padding: 9px 13px;
+  font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: left;
+  transition: border-color var(--dur-fast, 140ms) var(--ease, ease), color var(--dur-fast, 140ms) var(--ease, ease);
+}
+.pz-cap:hover { border-color: var(--pz-brand-line); color: var(--pz-brand); }
+
+.pz-warn { margin-bottom: 15px; }
+.pz-support .pz-av svg { width: 17px; height: 17px; }
+.pz-support { text-decoration: none; }
+
+/* ── The empty conversation ─────────────────────────────────────────────── */
+.pz-empty { text-align: center; padding: 46px 20px; display: grid; justify-items: center; gap: 12px; }
+.pz-empty h3 { margin: 0; font-size: 16px; font-weight: 800; color: var(--pz-ink); }
+.pz-empty p { margin: 0; max-width: 300px; font-size: 13px; line-height: 1.6; color: var(--pz-ink-soft); }
+
+/* ── An answer ──────────────────────────────────────────────────────────────
+   Assistant replies carry lists, links and money, so the bubble has to be a
+   small document rather than a run of text. The user's own bubbles inherit the
+   page's .pm-msg.mine and are left alone — an answer should look different
+   from a question. */
+.pz-msg .pz-body { white-space: normal; }
+.pz-msg .pz-list { margin: 6px 0 2px; padding-left: 17px; display: grid; gap: 4px; }
+.pz-msg .pz-list li { line-height: 1.45; }
+.pz-msg .pz-link {
+  color: var(--pz-brand); font-weight: 700; text-decoration: none;
+  border-bottom: 1px solid var(--pz-brand-line);
+}
+.pz-msg .pz-link:hover { border-bottom-color: var(--pz-brand); }
+.pz-msg .pz-money {
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-feature-settings: "tnum", "zero"; font-size: .95em; font-weight: 700;
+  /* "TZS" and its digits are one word. Left to wrap they land on two lines and
+     the price reads as a currency code followed by an unrelated number. */
+  white-space: nowrap;
+}
+.pz-msg .pz-code {
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: .9em; background: var(--pz-field); border-radius: var(--radius-xs, 6px); padding: 1px 5px;
+}
+/* A line that arrived by microphone is the model's best guess at what it
+   heard. Saying so is not a disclaimer — it is the difference between "you
+   said that" and "I think you said that", and only one of those is true. */
+.pz-voice-mark {
+  display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--pz-ink-faint);
+}
+.pz-voice-mark svg { width: 11px; height: 11px; }
+.pz-msg.is-voice { border-style: dashed; }
+
+/* Three dots while a turn is in flight. It is a message bubble, in the log, in
+   the position the answer will appear — so the answer replaces it rather than
+   arriving somewhere else after a spinner elsewhere stopped. */
+.pz-thinking { display: inline-flex; gap: 5px; align-items: center; padding: 13px 14px; }
+.pz-thinking span {
+  width: 6px; height: 6px; border-radius: var(--radius-pill, 999px); background: var(--pz-ink-faint);
+  animation: pzDot 1.2s ease-in-out infinite;
+}
+.pz-thinking span:nth-child(2) { animation-delay: .18s; }
+.pz-thinking span:nth-child(3) { animation-delay: .36s; }
+@keyframes pzDot { 0%,60%,100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* ── The voice dock ─────────────────────────────────────────────────────────
+   A strip between the header and the log. It never replaces the log: turning
+   the mic on must not take away what was already said, which was the whole
+   fault of the old two-tab design this replaces. */
+.pz-dock {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-bottom: 1px solid var(--pz-line);
+  background: var(--pz-field);
+}
+.pz-dock[hidden] { display: none; }
+.pz-dock-mic {
+  flex: 0 0 auto; background: none; border: 0; padding: 0; cursor: pointer;
+  min-width: var(--hit-min, 44px); min-height: var(--hit-min, 44px);
+  display: grid; place-items: center;
+}
+.pz-dock-tx { flex: 1; min-width: 0; }
+.pz-state { display: block; font-size: 13px; font-weight: 800; color: var(--pz-ink); }
+.pz-hint { display: block; margin-top: 1px; font-size: 11.5px; line-height: 1.4; color: var(--pz-ink-soft); }
+.pz-dock[data-state="error"] .pz-state { color: var(--pz-gold); }
+.pz-dock-x {
+  flex: 0 0 auto; background: none; border: 0; color: var(--pz-ink-soft);
+  font-size: 21px; line-height: 1; cursor: pointer; padding: 4px 8px;
+}
+.pz-dock-x:hover { color: var(--pz-ink); }
+
+/* The header's own way in. It is a toggle for the dock, not for the
+   microphone — see js/lib/pn-zaki-ui.js on why those are two taps. */
+.pz-mic-btn {
+  flex: 0 0 auto; background: var(--pz-field); border: 1px solid var(--pz-line);
+  color: var(--pz-ink-soft); border-radius: var(--radius, 12px);
+  width: 38px; height: 34px; display: grid; place-items: center; cursor: pointer; padding: 0;
+}
+.pz-mic-btn svg { width: 17px; height: 17px; }
+.pz-mic-btn:hover { border-color: var(--pz-brand-line); color: var(--pz-brand); }
+.pz-mic-btn.is-on { background: var(--pz-brand-soft); border-color: var(--pz-brand-line); color: var(--pz-brand); }
+
+/* ── Motion off ─────────────────────────────────────────────────────────────
+   Every animation here is a status indicator, and each one has a word beside
+   it saying the same thing — so removing the motion removes nothing but the
+   motion. */
+@media (prefers-reduced-motion: reduce) {
+  .pz-orb-ring, .pz-thinking span { animation: none !important; }
+  .pz-orb[data-state="listening"] .pz-orb-ring,
+  .pz-orb[data-state="thinking"] .pz-orb-ring,
+  .pz-orb[data-state="speaking"] .pz-orb-ring { opacity: 1; }
+  .pz-thinking span { opacity: .55; }
+  .pz-cta { transition: none; }
+}
+
+/* Two columns for the hero actions is already the phone layout; on a desktop
+   the pane is a 640px column, so the only thing that changes is that the chips
+   stop being the widest thing on screen. */
+@media (min-width: 900px) {
+  .pz-cap { font-size: 13px; }
+}
