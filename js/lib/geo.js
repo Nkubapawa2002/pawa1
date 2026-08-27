@@ -920,7 +920,7 @@
 
   async function mainRoadsAround(center, radiusM) {
     const lat = +(center && center.lat), lng = +(center && center.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { roads: [], junctions: [] };
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { roads: [], junctions: [], ok: false };
     const r = Math.min(Math.max(radiusM || ROAD_RADIUS_M, 500), 6000);
 
     const cacheKey = `roadsv2:${lat.toFixed(4)},${lng.toFixed(4)},${r}`;
@@ -933,7 +933,11 @@
     const BROAD = '"highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)$"';
     const q = `[out:json][timeout:25];(way[${BROAD}](around:${r},${lat.toFixed(5)},${lng.toFixed(5)}););out tags geom 700;`;
     const j = await overpassFetch(q);
-    if (!j || !Array.isArray(j.elements)) return { roads: [], others: [], junctions: [] };
+    // `ok: false` — Overpass gave us nothing, which is NOT the same as "there
+    // are no roads here". Without this flag the caller cannot tell a failed
+    // lookup from a genuinely roadless catchment, and the Frame page was
+    // printing the second whenever it hit the first.
+    if (!j || !Array.isArray(j.elements)) return { roads: [], others: [], junctions: [], ok: false };
     const ways = j.elements.filter((e) => e.type === "way" && Array.isArray(e.geometry) && e.geometry.length > 1);
 
     // Group the many OSM ways of one road into a single entry (min distance +
@@ -992,7 +996,7 @@
       dedup.push(jct);
     }
 
-    const result = { roads, others, junctions: dedup };
+    const result = { roads, others, junctions: dedup, ok: true };
     cacheSet(cacheKey, result);
     return result;
   }

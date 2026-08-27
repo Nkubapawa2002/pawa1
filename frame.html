@@ -82,6 +82,15 @@
       flex-shrink: 0; width: 76px; height: 76px; border-radius: 18px; display: flex; flex-direction: column;
       align-items: center; justify-content: center; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.15);
     }
+    /* A frame whose magnets never arrived is not a low-scoring frame — it is
+       an unscored one, and it must not wear a number-shaped badge that invites
+       comparison with a real score. */
+    .fr-score--none {
+      background: var(--c-surface-2, #f6f4ee);
+      color: var(--c-muted, #6b6960);
+      box-shadow: none;
+      border: 1px dashed var(--c-border, #e7e4dd);
+    }
     .fr-score b { font-size: 1.7rem; line-height: 1; font-weight: 800; }
     .fr-score span { font-size: .58rem; text-transform: uppercase; letter-spacing: .5px; opacity: .9; margin-top: 2px; }
 

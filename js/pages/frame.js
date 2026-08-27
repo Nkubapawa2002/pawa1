@@ -162,22 +162,81 @@
   }
 
   // ---- Overpass: one call → every magnet + shared service in the frame -----
-  async function overpassFetch(query) {
-    for (const url of OVERPASS_EPS) {
-      try {
-        const ac = new AbortController();
-        const t = setTimeout(() => ac.abort(), 26000);
-        const r = await fetch(url, {
-          method: "POST", signal: ac.signal,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "data=" + encodeURIComponent(query),
-        });
-        clearTimeout(t);
-        if (r.ok) return await r.json();
-      } catch (_) { /* try next endpoint */ }
+  //
+  // Overpass has two failure modes and this used to see neither of them.
+  //
+  //   429  the public endpoints are shared and rate-limit hard. Measured from
+  //        this app: two clean 200s (536 elements each) then a 429 with none.
+  //        That is the common case, not the rare one.
+  //   200 + "remark"
+  //        a query that runs out of time or memory still answers 200, with
+  //        valid JSON, a `remark`, and only the elements it managed to gather.
+  //        Nothing read `remark`, so a truncated answer was indistinguishable
+  //        from a complete one — the page counted what arrived and reported it
+  //        as the whole area.
+  //
+  // Both now come back named, so the caller can say "not measured" instead of
+  // reporting a confident zero.
+  const OVERPASS_TIMEOUT_MS = 26000;
+  const OVERPASS_BACKOFF_MS = 1200;
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function overpassOnce(url, query) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), OVERPASS_TIMEOUT_MS);
+    try {
+      const r = await fetch(url, {
+        method: "POST", signal: ac.signal,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "data=" + encodeURIComponent(query),
+      });
+      if (r.status === 429 || r.status === 504) return { retryable: true, status: r.status };
+      if (!r.ok) return { status: r.status };
+      const j = await r.json();
+      // The documented partial-result signal. Treated as "incomplete", never
+      // as "this is what is there".
+      const remark = j && typeof j.remark === "string" ? j.remark : "";
+      if (remark && /timed out|out of memory|error/i.test(remark)) {
+        return { json: j, partial: true, remark: remark, status: r.status };
+      }
+      return { json: j, status: r.status };
+    } catch (e) {
+      // An abort is a timeout, which is worth one more try on the next host.
+      return { retryable: true, status: 0, aborted: e && e.name === "AbortError" };
+    } finally {
+      clearTimeout(t);
     }
-    return null;
   }
+
+  /**
+   * @returns {{json:Object|null, partial:boolean, remark:string, rateLimited:boolean}}
+   *   json === null means nothing was measured at all.
+   */
+  async function overpassFetch(query) {
+    let rateLimited = false;
+    for (let i = 0; i < OVERPASS_EPS.length; i++) {
+      const res = await overpassOnce(OVERPASS_EPS[i], query);
+      if (res.json) {
+        return { json: res.json, partial: !!res.partial, remark: res.remark || "", rateLimited: false };
+      }
+      if (res.retryable) {
+        if (res.status === 429) rateLimited = true;
+        // Polite backoff before moving on — these are free, shared hosts, and
+        // hammering them is what earns the 429 in the first place.
+        if (i < OVERPASS_EPS.length - 1) await sleep(OVERPASS_BACKOFF_MS);
+      }
+    }
+    return { json: null, partial: false, remark: "", rateLimited: rateLimited };
+  }
+
+  // Magnets barely move, so a frame that has already been read is not worth a
+  // second round trip — docs/frame.MD §9 asks for exactly this. Re-reading the
+  // same spot (a radius change and back, a tab switch, a retry) is the easiest
+  // 429 to stop causing.
+  const magnetCache = new Map();
+  const MAGNET_CACHE_MAX = 24;
+  const magnetKey = (c, rM) => `${c.lat.toFixed(4)},${c.lng.toFixed(4)}@${rM}`;
 
   // Map an OSM element's tags → { magnet: <class|null>, service: <bool> }.
   // A node can be both (a marketplace is a magnet AND a shared service).
@@ -215,11 +274,19 @@
       `nwr["leisure"~"^(stadium|sports_centre|park)$"](around:${rM},${c.lat},${c.lng});` +
       `);out center tags 600;`;
 
-    const j = await overpassFetch(q);
+    const key = magnetKey(c, rM);
+    if (magnetCache.has(key)) return magnetCache.get(key);
+
+    const res = await overpassFetch(q);
+    const j = res.json;
     const counts = {}; Object.keys(MAGNETS).forEach((k) => (counts[k] = 0));
     let serviceCount = 0;
     const pins = [];
-    if (!j || !Array.isArray(j.elements)) return { counts, serviceCount, pins, ok: false };
+    // Nothing arrived. Note WHY, so the page can say "not measured" and name
+    // the reason, rather than reporting these zeros as the area's magnets.
+    if (!j || !Array.isArray(j.elements)) {
+      return { counts, serviceCount, pins, ok: false, partial: false, rateLimited: res.rateLimited };
+    }
 
     for (const el of j.elements) {
       const { magnet, service, tag } = classify(el.tags);
@@ -234,7 +301,20 @@
         pins.push({ lat, lng, name, cls: magnet, tag, named });
       }
     }
-    return { counts, serviceCount, pins, ok: true };
+    const out = {
+      counts, serviceCount, pins,
+      ok: !res.partial,          // a truncated answer is not an answer
+      partial: !!res.partial,
+      remark: res.remark || "",
+      rateLimited: false,
+    };
+    // Only a complete read is worth keeping — caching a partial one would make
+    // a bad answer sticky for the rest of the session.
+    if (out.ok) {
+      if (magnetCache.size >= MAGNET_CACHE_MAX) magnetCache.delete(magnetCache.keys().next().value);
+      magnetCache.set(key, out);
+    }
+    return out;
   }
 
   // ---- University / student catchment (the campus opportunity) -------------
@@ -254,7 +334,8 @@
 
   async function readUniversityCatchment(c) {
     const q = `[out:json][timeout:25];(nwr["amenity"~"^(university|college)$"](around:${UNI_RADIUS_M},${c.lat},${c.lng}););out center tags 80;`;
-    const j = await overpassFetch(q);
+    const ures = await overpassFetch(q);
+    const j = ures.json;
     if (!j || !Array.isArray(j.elements)) return { unis: [], nearest: null, score: 0, ok: false };
     const seen = new Set();
     const unis = [];
@@ -576,9 +657,14 @@
   function roadsCardHtml(roadsData) {
     const roads = (roadsData && roadsData.roads) || [];
     const junctions = (roadsData && roadsData.junctions) || [];
+    // A failed lookup and a genuinely roadless catchment both arrive here with
+    // an empty array. Only one of them means "access is the weak point".
+    const roadsOk = !roadsData || roadsData.ok !== false;
     if (!roads.length) {
       return `<div class="fr-card"><h3>Roads &amp; nodes — the root</h3>
-        <div class="fr-road-note">No motorway, trunk, primary or secondary road reaches this frame. People here depend on feeder / murram roads — access is the weak point, and that caps how much trade the spot can pull.</div></div>`;
+        <div class="fr-road-note">${roadsOk
+          ? `No motorway, trunk, primary or secondary road reaches this frame. People here depend on feeder / murram roads — access is the weak point, and that caps how much trade the spot can pull.`
+          : `The road network could not be read for this spot — OpenStreetMap did not answer. No conclusion about access is drawn from that; try again in a moment.`}</div></div>`;
     }
     const n = roads[0];
     const head = `Nearest main road: <b>${esc(n.name)}</b> — ${n.meters <= 15 ? "<b>you're right on it</b>" : "<b>" + distM(n.meters) + "</b> away"} ` +
@@ -785,16 +871,31 @@
     // A close junction of two main roads makes this a NODE — the money point.
     const nearJ = (model.roadsData && model.roadsData.junctions && model.roadsData.junctions[0]) || null;
     const isNode = nearJ && nearJ.meters <= 300;
-    const frameName = isNode ? (dom1 ? `${dom1.label} node frame` : "Road-node frame")
+    // With no magnet read, every name below is a conclusion drawn from data
+    // that never arrived. "Quiet residential frame" was the worst of them: a
+    // failed Overpass call and a genuinely quiet ward produced the same three
+    // words, and only a grey hint line above the panel told them apart.
+    const measured = model.magnetsOk;
+    const frameName = !measured ? (areaName ? `Frame at ${areaName}` : "This frame")
+      : isNode ? (dom1 ? `${dom1.label} node frame` : "Road-node frame")
       : dom1 ? `${dom1.label} frame` : (model.magnetPull < 4 ? "Quiet residential frame" : "Mixed frame");
 
     // ---- "why" sentence ----
     const tops = topClasses(counts, 2).map((k) => `${MAGNETS[k].emoji} ${MAGNETS[k].label.toLowerCase()} (${counts[k]})`);
     const roadBit = road
       ? `on ${esc(road.name)}${/motorway|trunk|primary/.test(road.highway || "") ? " — a carrying road" : ""}`
-      : "no major road mapped nearby";
+      : (model.roadsData && model.roadsData.ok === false)
+        ? "the road network was not read for this spot"
+        : "no major road mapped nearby";
     const whyParts = [];
-    if (tops.length) whyParts.push(`anchored by ${tops.join(" + ")}`);
+    if (!measured) {
+      whyParts.push(model.magnetsRateLimited
+        ? "the map service is rate-limiting us, so the magnets here were not counted"
+        : model.magnetsPartial
+          ? "the map service only part-answered, so the magnets here were not counted"
+          : "the map service did not answer, so the magnets here were not counted");
+    }
+    if (measured && tops.length) whyParts.push(`anchored by ${tops.join(" + ")}`);
     whyParts.push(roadBit);
     if (isNode && nearJ.roads) whyParts.push(`at a road node where ${esc(nearJ.roads.slice(0, 2).join(" × "))} meet — a money point`);
     // Universities are too important to bury — call out the student belt up top.
@@ -807,14 +908,18 @@
         whyParts.push(`inside ${esc(cat.nearest.name)}'s ${esc(cb.label.toLowerCase())} (${distM(cat.nearest.meters)})`);
     }
     const gapVerdict = verdict(model);
-    if (gapVerdict.key === "open") whyParts.push("strong footfall with little Pawa supply yet — an open frame");
-    else if (gapVerdict.key === "gap") whyParts.push(`demand here is outrunning supply — a gap to fill`);
-    else if (gapVerdict.key === "proven") whyParts.push("already well supplied — optimise & add adjacent products");
+    if (measured) {
+      if (gapVerdict.key === "open") whyParts.push("strong footfall with little Pawa supply yet — an open frame");
+      else if (gapVerdict.key === "gap") whyParts.push(`demand here is outrunning supply — a gap to fill`);
+      else if (gapVerdict.key === "proven") whyParts.push("already well supplied — optimise & add adjacent products");
+    }
 
     // ---- magnet chips ----
     const chips = topClasses(counts, 6).map((k) =>
       `<span class="fr-chip" style="background:${MAGNETS[k].color}">${MAGNETS[k].emoji} ${MAGNETS[k].label} <small>${counts[k]}</small></span>`
-    ).join("") || `<span class="fr-layer-d">No notable magnets mapped here yet.</span>`;
+    ).join("") || (measured
+      ? `<span class="fr-layer-d">No notable magnets mapped here yet.</span>`
+      : `<span class="fr-layer-d">Not counted — the map service (OpenStreetMap) did not answer for this spot. This is not the same as “there are none here”. Try again in a moment.</span>`);
 
     const layer = (ic, t, d) => `<div class="fr-layer"><div class="fr-layer-ic">${ic}</div><div class="fr-layer-b"><div class="fr-layer-t">${t}</div><div class="fr-layer-d">${d}</div></div></div>`;
 
@@ -822,10 +927,14 @@
     const njCount = (model.roadsData && model.roadsData.junctions && model.roadsData.junctions.length) || 0;
     const roadDesc = road
       ? `Nearest: <strong>${esc(road.name)}</strong> · ${distM(road.meters)} away. ${roadCount} main road${roadCount === 1 ? "" : "s"} reach the frame${njCount ? `, ${njCount} junction${njCount === 1 ? "" : "s"}` : ""} — full breakdown below.`
-      : "No motorway / trunk / primary / secondary road within the frame — a feeder catchment, not a carrying node.";
+      : (model.roadsData && model.roadsData.ok === false)
+        ? "Not measured — the road lookup did not answer for this spot."
+        : "No motorway / trunk / primary / secondary road within the frame — a feeder catchment, not a carrying node.";
 
-    const popDesc = `${pop.type}. Estimated pull is <strong>${model.magnetPull >= 30 ? "high" : model.magnetPull >= 12 ? "moderate" : "light"}</strong> ` +
-      `(${counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0} magnets, ${serviceCount} shared-service points). Lead with: <strong>${pop.lead}</strong>.`;
+    const popDesc = measured
+      ? `${pop.type}. Estimated pull is <strong>${model.magnetPull >= 30 ? "high" : model.magnetPull >= 12 ? "moderate" : "light"}</strong> ` +
+        `(${counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0} magnets, ${serviceCount} shared-service points). Lead with: <strong>${pop.lead}</strong>.`
+      : `Not estimated. The population read is built from the magnet and shared-service counts, and those did not arrive for this spot.`;
 
     const engine = inferEngine(counts, jobsIn, trucksN, dom);
 
@@ -842,41 +951,50 @@
              <div class="fr-frame-name">${esc(frameName)}</div>
              <div class="fr-frame-area">${esc(areaName || "Selected area")} · ${(radiusM / 1000).toFixed(radiusM % 1000 ? 1 : 0)} km frame</div>
            </div>
-           <div class="fr-score" style="background:${sColor}"><b>${sc.total}</b><span>Frame score</span></div>
+           ${measured
+             ? `<div class="fr-score" style="background:${sColor}"><b>${sc.total}</b><span>Frame score</span></div>`
+             : `<div class="fr-score fr-score--none"><b>&mdash;</b><span>Not scored</span></div>`}
          </div>
          <div class="fr-why">${whyParts.join("; ")}.</div>
        </div>` +
 
-      // daily life of the frame — the activities the area runs on, hour by hour
-      lifeCardHtml(life, pop.lead) +
-
-      // student catchment — the campus opportunity (universities/colleges ≤5 km)
-      catchmentCardHtml(model.catchment) +
-
-      // roads & nodes — the root: every main road measured + junctions
-      roadsCardHtml(model.roadsData) +
-
-      // most-visited destinations + the roads people use to reach them
-      destinationsCardHtml(model.destinations) +
-
-      // the single best spot to plant a new listing
-      bestSpotCardHtml(model.best) +
+      // Daily life, the destinations and the best spot are all built from the
+      // magnet pins. With no pins they do not degrade into "a quiet spot" —
+      // they are withheld, and one card says why, once, instead of five cards
+      // each describing an empty area that nobody measured.
+      (measured
+        ? lifeCardHtml(life, pop.lead) +
+          catchmentCardHtml(model.catchment) +
+          roadsCardHtml(model.roadsData) +
+          destinationsCardHtml(model.destinations) +
+          bestSpotCardHtml(model.best)
+        : `<div class="fr-card">
+             <h3>What this frame does all day</h3>
+             <div class="fr-layer-d">Not read. The daily rhythm, the student catchment, the places people go and the best spot to list are all built from the magnets around this point, and OpenStreetMap did not answer for it. Nothing about this area is implied by that — the read simply has not happened yet.</div>
+           </div>` +
+          roadsCardHtml(model.roadsData)) +
 
       // four-layer readout
       `<div class="fr-card">
          <h3>The four layers</h3>
          ${layer("", "Magnets — what gathers the crowd", `<div class="fr-chips">${chips}</div>`)}
-         ${layer("", "Shared services — what many people use", `${serviceCount} everyday-need points (food, money, fuel, pharmacy, kiosks) inside the frame — the footfall proxy.`)}
+         ${layer("", "Shared services — what many people use", measured
+             ? `${serviceCount} everyday-need points (food, money, fuel, pharmacy, kiosks) inside the frame — the footfall proxy.`
+             : `Not counted — this comes from the same map service that did not answer above.`)}
          ${layer("", "Population — who sits here", popDesc)}
-         ${layer("", "Key operation — how it earns", engine)}
+         ${layer("", "Key operation — how it earns", measured
+             ? engine
+             : `Not inferred — the engine is read from the mix of magnets, which was not counted.`)}
          ${layer("", "The carrying road — the river", roadDesc)}
        </div>` +
 
       // gap panel
       `<div class="fr-card">
          <h3>Demand vs supply — the gap</h3>
-         <span class="fr-gap-verdict ${gapVerdict.cls}">${gapVerdict.label}</span>
-         <div class="fr-layer-d">${gapVerdict.note}</div>
+         ${measured
+           ? `<span class="fr-gap-verdict ${gapVerdict.cls}">${gapVerdict.label}</span>
+              <div class="fr-layer-d">${gapVerdict.note}</div>`
+           : `<div class="fr-layer-d">No verdict — weighing demand against supply needs the footfall read that did not arrive. Pawa's own numbers below are real and are worth reading on their own.</div>`}
          <div class="fr-gap-grid">
            <div class="fr-stat"><b>${rooms + servicesN + trucksN}</b><span>Pawa listings here<br>${rooms} frame${rooms === 1 ? "" : "s"} · ${servicesN} services · ${trucksN} trucks</span></div>
            <div class="fr-stat"><b>${demandCount + jobsIn}</b><span>Revealed demand<br>${demandCount} waiting renters · ${jobsIn} day-job posts</span></div>
@@ -1184,7 +1302,7 @@
       loadOwn(),
       loadDemand(center, radiusM),
       reverseName(center),
-      (window.pawaRoads ? window.pawaRoads.around(center, radiusM).catch(() => ({ roads: [], junctions: [] })) : Promise.resolve({ roads: [], junctions: [] })),
+      (window.pawaRoads ? window.pawaRoads.around(center, radiusM).catch(() => ({ roads: [], junctions: [], ok: false })) : Promise.resolve({ roads: [], junctions: [], ok: false })),
       (window.pawaGeo ? window.pawaGeo.boundary({ lat: center.lat, lng: center.lng }).catch(() => null) : Promise.resolve(null)),
       readUniversityCatchment(center).catch(() => ({ unis: [], nearest: null, score: 0 })),
     ]);
@@ -1238,13 +1356,27 @@
       magnetPull: sc.magnetPull, supply, demandCount: demandIn.length, jobsIn: jobsIn.length,
       rooms: roomsIn.length, servicesN: servicesIn.length, trucksN: trucksIn.length,
       pins: mag.pins, ownPins, boundaryGeo: boundary && boundary.geojson,
+      // Whether layers 1 and 2 were actually measured. Everything derived from
+      // the magnet counts — the frame's name, its score, its population type,
+      // its verdict — is only meaningful when this is true.
+      magnetsOk: mag.ok !== false,
+      magnetsPartial: !!mag.partial,
+      magnetsRateLimited: !!mag.rateLimited,
     };
 
     renderPanel(model);
     drawFrame(model);
-    setHint(mag.ok
-      ? `Frame read. Tap another spot on the map, search a place, or change the frame size to read elsewhere.`
-      : `Map data (OSM) was slow to answer, so magnets may be incomplete — Pawa's own listings & demand are still shown. Try again or pick another spot.`);
+    // Name the actual cause. "Slow to answer" was the only thing this ever
+    // said, including when the real answer was a 429 — which is fixed by
+    // waiting, not by picking another spot.
+    setHint(
+      mag.ok
+        ? `Frame read. Tap another spot on the map, search a place, or change the frame size to read elsewhere.`
+      : mag.rateLimited
+        ? `OpenStreetMap is rate-limiting us right now, so the magnets and shared services were <strong>not counted</strong> — that is not the same as none being here. The roads and Pawa's own listings &amp; demand below are real. Try again in a minute.`
+      : mag.partial
+        ? `OpenStreetMap only part-answered for this spot, so the magnet counts would have been short — they are <strong>not shown</strong> rather than shown wrong. The roads and Pawa's own data below are real. Try again, or read a smaller frame.`
+        : `OpenStreetMap did not answer, so the magnets and shared services were <strong>not counted</strong> — that is not the same as none being here. The roads and Pawa's own listings &amp; demand below are real. Try again in a moment.`);
     busy = false;
   }
 
