@@ -184,10 +184,10 @@
        rule below ever flipped. :not([data-theme="light"]) covers both the
        explicit dark attribute and the no-attribute default. */
     :root:not([data-theme="light"]) body[data-page="jobs"] {
-      --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-surface: var(--surface-app); --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
       --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
-      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-brand-on: #06170F; --c-brand-faint: rgba(46,230,166,.10); --c-brand-soft: rgba(46,230,166,.30);
+      --c-brand: var(--green-emerald); --c-brand-deep: var(--green-emerald); --c-brand-on: #06170F; --c-brand-faint: rgba(46,230,166,.10); --c-brand-soft: rgba(46,230,166,.30);
       --c-accent: #F6C45A; --c-success: #2EE6A6; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
       color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
