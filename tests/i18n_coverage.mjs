@@ -32,6 +32,9 @@ const BASE = "http://localhost:8080";
 // report anything about it, and a page nobody checks is where the untranslated
 // strings collect.
 const PAGES = process.argv[2] ? [process.argv[2]] : [
+  // The home screen, which was missing from this list while carrying the three
+  // bands whose every string is new. It is the first page anybody sees.
+  "index.html",
   "p-chat.html",
   "p-message.html",
   // An agent's storefront draws almost everything from JS, so its untranslated

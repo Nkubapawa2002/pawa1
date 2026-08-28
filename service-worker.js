@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v307-2026-08-27-pn-zaki";
+const VERSION = "v308-2026-08-28-home-bands";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -68,6 +68,11 @@ const APP_SHELL = [
   "./js/lib/agent-demand-board.js",
   "./js/core/nav.js",
   "./js/pages/home-app.js",
+  // The home Frame / earn / trust bands, and the service catalogue the trust
+  // strip counts. Both are on the critical path for the home screen: without
+  // the catalogue the first stat has nothing to count.
+  "./js/pages/home-bands.js",
+  "./js/lib/service-categories.js",
   "./js/core/app-shell.js",
   "./js/core/theme.js",
   "./js/pages/tenant.js",

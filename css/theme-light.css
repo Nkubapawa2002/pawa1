@@ -283,4 +283,7 @@
   border-color: var(--c-border);
   box-shadow: 0 10px 26px rgba(20, 30, 25, 0.08);
 }
-:root[data-theme="light"] .ha-trust .vline { background: var(--c-border); }
+/* The dividers used to be .vline spacer elements. They are now a border on
+   each tile after the first, so a stat the homepage declines to claim takes
+   its divider with it (js/pages/home-bands.js). */
+:root[data-theme="light"] .ha-trust > .ha-stat + .ha-stat { border-left-color: var(--c-border); }

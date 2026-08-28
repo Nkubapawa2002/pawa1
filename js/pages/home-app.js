@@ -220,23 +220,9 @@
     } catch (_) {}
   }
 
-  // ---- trust-strip count-up ---------------------------------------------
-  function countUp() {
-    document.querySelectorAll(".ha-stat-num[data-to]").forEach((el) => {
-      const target = Number(el.dataset.to) || 0;
-      const suffix = el.dataset.suffix || "";
-      const start = performance.now(), dur = 1400;
-      const tick = (now) => {
-        const k = Math.min(1, (now - start) / dur);
-        el.textContent = Math.round(target * (1 - Math.pow(1 - k, 3))) + suffix;
-        if (k < 1) requestAnimationFrame(tick);
-      };
-      const io = new IntersectionObserver((ents) => {
-        ents.forEach((e) => { if (e.isIntersecting) { requestAnimationFrame(tick); io.disconnect(); } });
-      }, { threshold: 0.4 });
-      io.observe(el);
-    });
-  }
+  // The trust strip used to count up to three numbers written into the markup
+  // (15 / 26 / 100+). It now reads real figures instead, and that plus the two
+  // rotating bands live in js/pages/home-bands.js.
 
   // ---- language toggle (shares the site-wide setLang) --------------------
   function wireLang() {
@@ -256,7 +242,6 @@
     wireSearch();
     wireLang();
     hydrateUser();
-    countUp();
     renderFeatured();
     renderFeed("houses");
   });

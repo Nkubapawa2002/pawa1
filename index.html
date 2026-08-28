@@ -4,7 +4,7 @@
   <script src="js/core/theme.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Pnzaki, Maisha na Lifeza Homes Daily Services in Tanzania</title>
+  <title>PN-Zaki, Homes and Daily Services in Tanzania</title>
   <link rel="stylesheet" href="css/styles.css" />
 
     <link rel="manifest" href="manifest.json" />
@@ -258,34 +258,120 @@
     .ha-card .ha-price small { color: rgba(231,241,236,.45); }
     .ha-empty { text-align: center; padding: 44px 20px; color: rgba(231,241,236,.55); display: flex; flex-direction: column; gap: 4px; }
     .ha-empty b { color: rgba(231,241,236,.8); font-size: 15px; }
-    .ha-trust { display: flex; gap: 10px; background: #121817; border: 1px solid rgba(255,255,255,.07); border-radius: 22px; padding: 16px 10px; margin-top: 26px; }
-    .ha-trust > div { flex: 1; text-align: center; }
-    .ha-trust .vline { width: 1px; background: rgba(255,255,255,.08); flex: none; }
-    .ha-stat-num { font-size: 21px; font-weight: 800; color: #2EE6A6; }
-    .ha-stat-num.gold { color: #FFC24B; }
-    .ha-stat-lbl { font-size: 11px; color: rgba(231,241,236,.55); margin-top: 2px; font-weight: 600; }
-    .ha-earn { position: relative; overflow: hidden; border-radius: 24px; padding: 22px; margin-top: 14px; background: linear-gradient(135deg, #1C8F6B 0%, #0E5C45 100%); }
+    /* ═══════════════════════════════════════════════════════════════════════
+       The three self-advancing bands. Driven by js/pages/home-bands.js.
+
+       One shared motion vocabulary across all three: a band that changes what
+       it is saying fades the new line up (ha-band-in), and a band that is
+       counting down to its next change sweeps a hairline (ha-band-sweep).
+       The sweep is not decoration, it is the rotation's clock: the script
+       advances on its animationend, so what you see is what is running.
+       ═══════════════════════════════════════════════════════════════════════ */
+    @keyframes ha-band-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+    @keyframes ha-band-sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+    .ha-band-bar { position: relative; height: 2px; border-radius: var(--radius-pill); overflow: hidden; background: rgba(255,255,255,.16); }
+    .ha-band-bar > span { display: block; height: 100%; width: 100%; transform-origin: 0 50%; background: rgba(255,255,255,.8); animation: ha-band-sweep 6s linear; }
+
+    /* ── Trust strip ───────────────────────────────────────────────────────
+       Every figure here is read from real data at run time, so the markup
+       ships no number at all. A stat that resolves to zero is removed rather
+       than shown: the divider is a border on the tile, not a spacer element,
+       so a hidden tile takes its divider with it and the row stays even. */
+    .ha-trust { display: flex; background: var(--surface-app); border: 1px solid var(--border-strong); border-radius: var(--radius-xl); padding: var(--space-4) var(--space-2); margin-top: 26px; }
+    .ha-trust > .ha-stat { flex: 1; min-width: 0; text-align: center; padding: 0 var(--space-2); }
+    .ha-trust > .ha-stat + .ha-stat { border-left: 1px solid var(--border-strong); }
+    /* Tabular mono: the count-up changes every frame, and proportional digits
+       make the number jiggle while it climbs. */
+    .ha-stat-num { font-family: var(--font-mono); font-feature-settings: "tnum","zero"; font-size: 21px; font-weight: 700; color: var(--green-emerald); }
+    .ha-stat-num.gold { color: var(--gold-warm); }
+    .ha-stat-lbl { font-size: 11px; color: rgba(231,241,236,.55); margin-top: 3px; font-weight: 600; line-height: 1.3; }
+
+    /* ── Earn band ─────────────────────────────────────────────────────────
+       --ha-earn-ink is the gradient's own dark end, reused as the button ink.
+       It is page-local rather than a brand token because nothing outside this
+       band needs it. */
+    .ha-earn { --ha-earn-ink: #0E5C45;
+      position: relative; overflow: hidden; border-radius: var(--radius-xl);
+      padding: var(--space-6); margin-top: 14px; background: var(--grad-earn); }
     .ha-earn::after { content: ""; position: absolute; right: -30px; top: -30px; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,201,75,.18); }
-    .ha-earn-k { position: relative; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.72); }
-    .ha-earn-t { position: relative; font-size: 19px; font-weight: 800; color: #fff; margin-top: 7px; max-width: 260px; line-height: 1.3; }
-    .ha-earn-s { position: relative; font-size: 13px; color: rgba(255,255,255,.82); margin-top: 6px; max-width: 280px; line-height: 1.45; }
-    .ha-earn-btns { position: relative; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
-    .ha-earn-btns a { background: #fff; color: #0E5C45; border: 0; padding: 11px 19px; border-radius: 13px; font-weight: 800; font-size: 13.5px; text-decoration: none; }
+    .ha-earn > * { position: relative; }
+    .ha-earn-k { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.72); }
+    .ha-earn-t { font-size: 19px; font-weight: 800; color: #fff; margin-top: 7px; max-width: 260px; line-height: 1.3; }
+    .ha-earn-s { font-size: 13px; color: rgba(255,255,255,.82); margin-top: 6px; max-width: 300px; line-height: 1.45; }
+    /* min-height holds two lines open. The three proof lines are different
+       lengths, and without it the buttons below would hop on every rotation. */
+    .ha-earn-proof { display: flex; align-items: flex-start; gap: 9px; margin-top: 14px; max-width: 320px; min-height: 36px; }
+    .ha-earn-proof > svg { flex: none; margin-top: 1px; color: var(--gold-warm); }
+    .ha-earn-pf { font-size: 12.5px; font-weight: 600; color: #fff; line-height: 1.45; }
+    .ha-earn-pf.is-in { animation: ha-band-in var(--dur-slow) var(--ease) both; }
+    .ha-earn .ha-band-bar { margin-top: 13px; max-width: 320px; }
+    .ha-earn-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .ha-earn-btns a { background: #fff; color: var(--ha-earn-ink); border: 0; padding: 11px 19px; border-radius: var(--radius); font-weight: 800; font-size: 13.5px; text-decoration: none; min-height: var(--hit-min); display: inline-flex; align-items: center; }
     /* Was rgba(255,255,255,.16): white-on-that measured 4.06:1, under AA. A
-       dark translucent fill reads the same way — quiet, secondary — at ~7:1. */
+       dark translucent fill reads the same way, quiet and secondary, at ~7:1. */
     .ha-earn-btns a.ghost { background: rgba(4,32,23,.30); color: #fff; border: 1px solid rgba(255,255,255,.55); }
-    /* Frame band — the strategic "read an area as a room for business" lens */
-    .ha-frame { position: relative; overflow: hidden; border-radius: 24px; padding: 22px; margin-top: 22px; background: linear-gradient(135deg, #2A1E5C 0%, #4326A6 55%, #6D3BD6 100%); }
-    .ha-frame::after { content: ""; position: absolute; right: -40px; top: -40px; width: 170px; height: 170px; border-radius: 50%; background: rgba(246,196,90,.16); }
-    .ha-frame-k { position: relative; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.74); }
-    .ha-frame-t { position: relative; font-size: 20px; font-weight: 800; color: #fff; margin-top: 7px; max-width: 300px; line-height: 1.28; }
-    .ha-frame-s { position: relative; font-size: 13px; color: rgba(255,255,255,.84); margin-top: 7px; max-width: 330px; line-height: 1.5; }
-    .ha-frame-pts { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 14px 0 4px; }
-    .ha-frame-pt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: #EAE7FB; }
-    .ha-frame-pt .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
-    .ha-frame-btns { position: relative; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-    .ha-frame-btns a { background: #fff; color: #3320A0; border: 0; padding: 11px 20px; border-radius: 13px; font-weight: 800; font-size: 13.5px; text-decoration: none; }
-    .ha-frame-btns a.ghost { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); }
+
+    /* ── Frame band ────────────────────────────────────────────────────────
+       Four lenses on an area, one at a time. The violet ground and two of the
+       four lens accents have no equivalent in the design system (the brand is
+       green and gold), so they are declared once here as page-local names
+       instead of being scattered through the rules as literals. */
+    .ha-frame {
+      --ha-frame-violet: #C594FF;
+      --ha-frame-amber:  #FF9B5C;
+      --ha-frame-ink:    #3320A0;
+      position: relative; overflow: hidden; border-radius: var(--radius-xl);
+      padding: var(--space-6); margin-top: 22px;
+      background: linear-gradient(135deg, #2A1E5C 0%, #4326A6 55%, #6D3BD6 100%); }
+    .ha-frame::after { content: ""; position: absolute; right: -40px; top: -40px; width: 170px; height: 170px; border-radius: 50%; background: rgba(252,209,22,.14); }
+    .ha-frame > * { position: relative; }
+    .ha-frame-k { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.74); }
+    .ha-frame-t { font-size: 20px; font-weight: 800; color: #fff; margin-top: 7px; max-width: 300px; line-height: 1.28; }
+    .ha-frame-s { font-size: 13px; color: rgba(255,255,255,.84); margin-top: 7px; max-width: 330px; line-height: 1.5; }
+
+    .ha-frame-pts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
+    .ha-frame-pt {
+      display: flex; align-items: center; gap: 9px; text-align: left;
+      font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.3;
+      /* .66 measured 4.13:1 on the violet ground, under AA for 12.5px text.
+         An unselected lens is still a label somebody has to read to choose it,
+         so it is dimmed by its background and its dot, not by its ink. */
+      color: rgba(234,231,251,.86); background: rgba(255,255,255,.05);
+      border: 1px solid transparent; border-radius: var(--radius);
+      padding: 9px 11px; min-height: var(--hit-min); cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+    .ha-frame-pt .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ha-lens); opacity: .45; transition: opacity var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+    .ha-frame-pt.l1 { --ha-lens: var(--green-emerald); }
+    .ha-frame-pt.l2 { --ha-lens: var(--gold-warm); }
+    .ha-frame-pt.l3 { --ha-lens: var(--ha-frame-violet); }
+    .ha-frame-pt.l4 { --ha-lens: var(--ha-frame-amber); }
+    .ha-frame-pt:hover { color: #fff; background: rgba(255,255,255,.10); }
+    .ha-frame-pt:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    .ha-frame-pt.is-on { color: #fff; background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.30); }
+    .ha-frame-pt.is-on .dot { opacity: 1; box-shadow: 0 0 0 3px var(--border-strong); }
+
+    /* Same trick as the earn proof line: hold three lines open so swapping
+       lenses never moves the "Open the Frame" button out from under a thumb. */
+    .ha-frame-d { margin: 13px 0 0; max-width: 340px; min-height: 54px; font-size: 12.5px; line-height: 1.5; color: rgba(234,231,251,.94); }
+    .ha-frame-d.is-in { animation: ha-band-in var(--dur-slow) var(--ease) both; }
+    .ha-frame .ha-band-bar { margin-top: 12px; max-width: 340px; }
+    .ha-frame-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .ha-frame-btns a { background: #fff; color: var(--ha-frame-ink); border: 0; padding: 11px 20px; border-radius: var(--radius); font-weight: 800; font-size: 13.5px; text-decoration: none; min-height: var(--hit-min); display: inline-flex; align-items: center; }
+
+    /* Nothing moves on its own for a reader who asked for that. The script
+       also stops advancing, so the bands sit on their first lens and line. */
+    @media (prefers-reduced-motion: reduce) {
+      .ha-band-bar { display: none; }
+      .ha-frame-d.is-in, .ha-earn-pf.is-in { animation: none; }
+      .ha-frame-pt { transition: none; }
+    }
+
+    @media (max-width: 360px) {
+      .ha-frame-pts { grid-template-columns: 1fr; }
+      .ha-frame-d { min-height: 40px; }
+    }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
 </head>
@@ -427,41 +513,77 @@
 
     <!-- Frame band — the strategic lens: read any area as a "room for business"
          BEFORE listing. Placed just above the earn/list band so the funnel reads
-         "understand the area -> then list in it". -->
-    <div class="ha-frame">
+         "understand the area -> then list in it".
+
+         The four lenses are a tablist that advances itself, one every six
+         seconds, each with a line of its own underneath. Tapping one pins it
+         and stops the rotation for good: a reader who chose a lens is reading
+         it, not waiting for the next. js/pages/home-bands.js. -->
+    <div class="ha-frame" id="haFrame">
       <div class="ha-frame-k" data-i18n="home_frame_kicker">The Frame</div>
       <div class="ha-frame-t" data-i18n="home_frame_title">Read any area as a room for business</div>
-      <div class="ha-frame-s" data-i18n="home_frame_sub">Before you rent, list or open a service, see what makes a place work - who gathers there, the roads that carry them, and where demand beats supply.</div>
-      <div class="ha-frame-pts">
-        <div class="ha-frame-pt"><span class="dot" style="background:#2EE6A6"></span><span data-i18n="home_frame_p1">Magnets that gather people</span></div>
-        <div class="ha-frame-pt"><span class="dot" style="background:#F6C45A"></span><span data-i18n="home_frame_p2">Roads and nodes that carry them</span></div>
-        <div class="ha-frame-pt"><span class="dot" style="background:#C594FF"></span><span data-i18n="home_frame_p3">The daily life of the place</span></div>
-        <div class="ha-frame-pt"><span class="dot" style="background:#FF9B5C"></span><span data-i18n="home_frame_p4">Where demand beats supply</span></div>
+      <div class="ha-frame-s" data-i18n="home_frame_sub">Before you rent, list or open a service, see what makes a place work. Who gathers there, the roads that carry them, and where demand beats supply.</div>
+      <div class="ha-frame-pts" role="tablist" data-i18n-aria-label="home_frame_lenses" aria-label="The four lenses on an area">
+        <button type="button" role="tab" class="ha-frame-pt l1" data-lens="0" data-copy="home_frame_p1_d" aria-controls="haFrameCopy" aria-selected="true">
+          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p1">Magnets that gather people</span>
+        </button>
+        <button type="button" role="tab" class="ha-frame-pt l2" data-lens="1" data-copy="home_frame_p2_d" aria-controls="haFrameCopy" aria-selected="false" tabindex="-1">
+          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p2">Roads and nodes that carry them</span>
+        </button>
+        <button type="button" role="tab" class="ha-frame-pt l3" data-lens="2" data-copy="home_frame_p3_d" aria-controls="haFrameCopy" aria-selected="false" tabindex="-1">
+          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p3">The daily life of the place</span>
+        </button>
+        <button type="button" role="tab" class="ha-frame-pt l4" data-lens="3" data-copy="home_frame_p4_d" aria-controls="haFrameCopy" aria-selected="false" tabindex="-1">
+          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p4">Where demand beats supply</span>
+        </button>
       </div>
+      <p class="ha-frame-d" id="haFrameCopy" role="tabpanel" aria-live="polite" data-i18n="home_frame_p1_d">Schools, markets, offices, bus stands. The reason anybody is on that street at all.</p>
+      <div class="ha-band-bar ha-frame-bar" aria-hidden="true"><span></span></div>
       <div class="ha-frame-btns">
         <a href="frame.html" data-i18n="home_frame_cta">Open the Frame</a>
       </div>
     </div>
 
     <!-- earn band — surfaced high (above the long feed) so agents can list
-         their house/service without scrolling past every nearby listing -->
-    <div class="ha-earn">
-      <div class="ha-earn-k" data-i18n="home_earn_kicker">Earn with Pnzaki Maisha na Lifeza</div>
-      <div class="ha-earn-t" data-i18n="home_list_title">Earn with Maisha na Lifeza</div>
-      <div class="ha-earn-s" data-i18n="home_list_sub">List your house or offer your service reach customers near you and get paid directly.</div>
+         their house/service without scrolling past every nearby listing.
+         The proof line under the pitch rotates through three facts about how
+         listing actually works. Facts, not money promises. -->
+    <div class="ha-earn" id="haEarn">
+      <div class="ha-earn-k" data-i18n="home_earn_kicker">List and earn</div>
+      <div class="ha-earn-t" data-i18n="home_list_title">Earn with PN-Zaki</div>
+      <div class="ha-earn-s" data-i18n="home_list_sub">Put your room or your trade in front of the people already searching near you. You set the price, and they call you directly.</div>
+      <div class="ha-earn-proof">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 12l2.2 2.2 4.8-4.7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="ha-earn-pf" id="haEarnProof" aria-live="polite"
+              data-keys="home_earn_pf1,home_earn_pf2,home_earn_pf3"
+              data-i18n="home_earn_pf1">Your number sits on the listing. Customers reach you, not an office.</span>
+      </div>
+      <div class="ha-band-bar ha-earn-bar" aria-hidden="true"><span></span></div>
       <div class="ha-earn-btns">
         <a href="agent-houses.html" data-i18n="home_list_house">List your house</a>
         <a href="agent-services.html" class="ghost" data-i18n="home_list_service">Offer a service</a>
       </div>
     </div>
 
-    <!-- trust strip -->
-    <div class="ha-trust">
-      <div><div class="ha-stat-num" data-to="15">0</div><div class="ha-stat-lbl" data-i18n="home_stat_categories">Service categories</div></div>
-      <div class="vline"></div>
-      <div><div class="ha-stat-num" data-to="26">0</div><div class="ha-stat-lbl" data-i18n="home_stat_regions">Mainland regions</div></div>
-      <div class="vline"></div>
-      <div><div class="ha-stat-num gold" data-to="100" data-suffix="+">0</div><div class="ha-stat-lbl" data-i18n="home_stat_providers">Verified providers</div></div>
+    <!-- trust strip — no numbers in the markup on purpose. Each figure is read
+         from real data by js/pages/home-bands.js (the service catalogue, the
+         regions table, the verified listings actually posted) and a tile whose
+         figure comes back zero is dropped rather than shown as a 0. Hidden
+         until the first read lands, so the page never claims anything it has
+         not counted. -->
+    <div class="ha-trust" hidden>
+      <div class="ha-stat" data-stat="categories">
+        <div class="ha-stat-num"></div>
+        <div class="ha-stat-lbl" data-i18n="home_stat_categories">Service categories</div>
+      </div>
+      <div class="ha-stat" data-stat="regions">
+        <div class="ha-stat-num"></div>
+        <div class="ha-stat-lbl" data-i18n="home_stat_regions">Mainland regions</div>
+      </div>
+      <div class="ha-stat" data-stat="providers">
+        <div class="ha-stat-num gold"></div>
+        <div class="ha-stat-lbl" data-i18n="home_stat_providers">Verified providers</div>
+      </div>
     </div>
 
     <!-- listing feed (switches with the category chips) — moved below the
@@ -602,7 +724,10 @@
     <!-- tz-places supplies the places request-place.js resolves against. -->
     <script src="js/lib/tz-places.js"></script>
     <script src="js/lib/place-match.js"></script>
+    <!-- The catalogue the trust strip counts, then the three bands it drives. -->
+    <script src="js/lib/service-categories.js"></script>
     <script src="js/pages/home-app.js"></script>
+    <script src="js/pages/home-bands.js"></script>
     <script src="js/core/app-shell.js"></script>
     <script src="js/core/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->
