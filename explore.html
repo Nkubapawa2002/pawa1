@@ -140,9 +140,15 @@
 
     /* ── Header ── */
     .xp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    .xp-kicker { font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
-    .xp-title { font-size: 26px; font-weight: 800; margin: 4px 0 0; line-height: 1.1; }
-    .xp-sub { font-size: 13px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+    /* Sized to hold "Everything, one search" on two short lines at 390px and
+       one line from 420px up, rather than the 26px that wrapped it hard. */
+    .xp-title { font-size: var(--text-lg); font-weight: var(--fw-extra); margin: 0;
+      line-height: var(--lh-tight); letter-spacing: var(--ls-tight); }
+    .xp-sub { font-size: var(--text-sm); color: var(--muted); margin: var(--space-1) 0 0;
+      line-height: var(--lh-snug); }
+    /* An introduction, not a status line. Once there is a query or a filter,
+       the page has something better to say in that space. */
+    .xp-sub[hidden] { display: none; }
     /* js/core/theme.js pins its own light/dark toggle at top-right, fixed, on
        every page. Reserve its width so the two controls sit side by side
        instead of on top of each other. */
@@ -191,6 +197,35 @@
     /* Both chip strips scroll sideways and used to end in a chip sliced clean
        through by the viewport edge, which reads as a rendering fault rather
        than as "there is more". The mask fades the last few pixels instead. */
+    /* ---- Grouped browse -----------------------------------------------
+       With nothing typed, results are sectioned by kind instead of ranked
+       into one column. The heading carries the count, so the shape of the
+       catalogue is readable without filtering to find it out, and the dot is
+       the same colour as that kind's scope chip and map pin, so the three
+       surfaces agree about what a truck looks like. */
+    .xp-group { margin: 0 0 var(--space-6); }
+    .xp-group-h { display: flex; align-items: center; gap: var(--space-2);
+      margin: 0 0 var(--space-3); }
+    .xp-group-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); flex: none; }
+    .xp-group[data-k="room"]    .xp-group-dot { background: var(--k-room); }
+    .xp-group[data-k="truck"]   .xp-group-dot { background: var(--k-truck); }
+    .xp-group[data-k="service"] .xp-group-dot { background: var(--k-service); }
+    .xp-group[data-k="job"]     .xp-group-dot { background: var(--k-job); }
+    .xp-group-t { font-size: var(--text-sm); font-weight: var(--fw-extra);
+      letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--text);
+      margin: 0; }
+    /* The count is the point of the heading, so it is not a whisper. Mono and
+       tabular so a 9 and a 21 line up down the page. */
+    .xp-group-n { font-family: var(--font-mono); font-feature-settings: "tnum","zero";
+      font-size: var(--text-xs); font-weight: var(--fw-bold); color: var(--muted);
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: var(--radius-pill); padding: 1px var(--space-2); }
+    .xp-group-all { display: block; width: 100%; min-height: var(--hit-min);
+      margin-top: var(--space-2); background: none; border: 1px dashed var(--line-strong);
+      border-radius: var(--radius); color: var(--text); font: inherit;
+      font-size: var(--text-sm); font-weight: var(--fw-bold); cursor: pointer; }
+    .xp-group-all:hover { border-color: var(--accent); color: var(--accent); border-style: solid; }
+
     .xp-examples, .xp-scopes {
       -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 30px), transparent);
       mask-image: linear-gradient(90deg, #000 calc(100% - 30px), transparent);
@@ -520,6 +555,35 @@
       transition: transform .16s ease, border-color .2s ease;
     }
     .xp-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+    /* The stretched link. It covers the whole card face so the card still taps
+       through to the listing exactly as it did when it WAS an <a>, and it sits
+       at the bottom of the stack so the actions below can be reached. Hidden
+       from the accessibility tree and out of the tab order, because the title
+       inside is the accessible name and two tab stops onto the same
+       destination is one too many. */
+    .xp-card-hit { position: absolute; inset: 0; z-index: 0; }
+    .xp-card-in, .xp-card-acts { position: relative; z-index: 1; }
+    /* ...but only the button in that row is clickable, so the rest of the row
+       does not steal taps from the card face behind it. */
+    .xp-card-acts { pointer-events: none; display: flex; justify-content: flex-end;
+      padding: 0 var(--space-3) var(--space-3); margin-top: calc(var(--space-2) * -1); }
+    .xp-reach {
+      pointer-events: auto;
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+      min-height: var(--hit-min); padding: 0 var(--space-4);
+      border-radius: var(--radius-pill); text-decoration: none;
+      background: rgba(46, 230, 166, .10); border: 1px solid rgba(46, 230, 166, .30);
+      color: var(--accent); font-size: var(--text-xs); font-weight: var(--fw-bold);
+    }
+    .xp-reach:hover { background: rgba(46, 230, 166, .18); border-color: var(--accent); }
+    .xp-reach small { display: none; }
+    /* The mint tint is a dark-theme value. On cream it is the deep green the
+       rest of the page already switches to, at a weight that stays a button
+       rather than becoming a second price. */
+    :root[data-theme="light"] .xp-reach {
+      background: rgba(10, 102, 71, .08); border-color: rgba(10, 102, 71, .32);
+    }
+    :root[data-theme="light"] .xp-reach:hover { background: rgba(10, 102, 71, .14); }
     /* Briefly marks the card you arrived at from a map pin, so the scroll
        lands somewhere obvious instead of in the middle of an identical list. */
     .xp-card.is-focus {
@@ -562,12 +626,18 @@
     .xp-price small { font-size: 11.5px; font-weight: 600; color: var(--faint); margin-left: 3px; }
     .xp-price.is-ask { color: var(--muted); font-size: 13.5px; font-weight: 700; }
     .xp-badges { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; }
+    /* The badge carried a hardcoded near-black pill and no light value, so on
+       cream it became a dark blob holding a dark-green tick at roughly 2:1.
+       The ground is the card's own surface in both themes now, which is what
+       it was always trying to be. */
     .xp-verified {
-      display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px;
-      border-radius: 999px; background: rgba(8, 16, 12, .78);
-      border: 1px solid rgba(46, 230, 166, .5); color: var(--k-room);
-      font-size: 9.5px; font-weight: 800;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: var(--radius-pill);
+      background: var(--surface); border: 1px solid rgba(46, 230, 166, .5);
+      color: var(--k-room);
     }
+    .xp-verified svg { display: block; }
+    :root[data-theme="light"] .xp-verified { border-color: rgba(10, 102, 71, .45); }
 
     /* ── Companion rail — the cross-vertical match ── */
     .xp-comp { border-top: 1px dashed var(--line-strong); margin: 0 12px; padding: 11px 0 12px; }
@@ -660,13 +730,18 @@
   <div id="nav-slot"></div>
 
   <main class="xp">
+    <!-- The header used to be a kicker, a two-line title and a four-line
+         paragraph: about 500px of a 390px phone before the search box, which
+         is the one thing this page exists for. "EXPLORE" was also said three
+         times over, in the kicker, in the h1, and by the lit tab at the
+         bottom of the screen. The kicker is gone and the paragraph is one
+         line, which it can afford to be because it stops being shown the
+         moment somebody actually searches (see #xpSub in explore.js). -->
     <header class="xp-head">
       <div>
-        <div class="xp-kicker" data-i18n="xp_kicker">Explore</div>
         <h1 class="xp-title" data-i18n="xp_title">Everything, one search</h1>
-        <p class="xp-sub" data-i18n="xp_sub">
-          Rooms, trucks, services and day jobs — anywhere in Tanzania.
-          Find a room and we'll show you the trucks that can move you in.
+        <p class="xp-sub" id="xpSub" data-i18n="xp_sub">
+          Rooms, trucks, services and day jobs, anywhere in Tanzania.
         </p>
       </div>
       <button class="xp-lang" id="xpLang" type="button" aria-label="Switch language">
@@ -831,6 +906,10 @@
        listing actually offers, so a search for "master" reaches a plot whose
        cheapest room — and therefore whose room_kind column — is a single. -->
   <script src="js/lib/house-spec.js"></script>
+  <!-- "Message" on a result card. The same door houses, trucks and services
+       already open, so the word, the URL shape and the no-owner guard are
+       decided once in that file rather than four times. -->
+  <script src="js/lib/pm-reach.js"></script>
   <script src="js/lib/explore-index.js"></script>
   <script src="js/lib/explore-query.js"></script>
   <script src="js/lib/explore-rank.js"></script>

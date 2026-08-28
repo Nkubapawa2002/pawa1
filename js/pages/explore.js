@@ -145,6 +145,13 @@
     el.xpExamples.innerHTML = html;
   }
 
+  /** The one place the scope changes, whichever control asked for it. */
+  function setScope(next) {
+    scope = next;
+    renderScopes();
+    run();
+  }
+
   function renderScopes() {
     if (!el.xpScopes) return;
     var meta = window.ExploreIndex.KIND_META;
@@ -378,6 +385,11 @@
     }
 
     lastResults = out.results;
+    // The introduction stands down as soon as the page has something truer to
+    // say in that space. It explains what Explore IS, which is only useful
+    // before somebody has started using it.
+    var sub = document.getElementById("xpSub");
+    if (sub) sub.hidden = !isBrowse(intent) || !!region || !!anchor;
     renderRead(intent);
     renderResults(out, intent);
     syncUrl(intent);
@@ -557,6 +569,33 @@
            (unit ? "<small>" + esc(unit) + "</small>" : "") + "</div>";
   }
 
+  /**
+   * "Message" on a search result.
+   *
+   * Explore listed twenty-one things and offered no way to reach a single one
+   * of them: every card was a link to a detail page, and the contact was one
+   * navigation further on. The owner id was already sitting on every indexed
+   * item (`ownerId`, set in explore-index.js) and simply never used.
+   *
+   * js/lib/pm-reach.js owns the decisions — the URL shape, the word, and the
+   * rule that a listing with no owner recorded gets NO button rather than a
+   * dead one. This asks it, and does not re-decide any of them. Day jobs carry
+   * no owner id in the index, so they get nothing here, which is correct: the
+   * jobs board has its own claim flow.
+   */
+  function reachHtml(it) {
+    if (!window.PMReach || !it.ownerId) return "";
+    var btn = window.PMReach.button(it.ownerId, {
+      className: "xp-reach",
+      // No sub-label: the honest "no phone number needed" line earns its space
+      // on a detail page where it is the argument for tapping. On a card in a
+      // list of twenty-one it would be twenty-one repetitions of a sentence
+      // nobody reads twice.
+      sub: false,
+    });
+    return btn ? '<div class="xp-card-acts">' + btn + "</div>" : "";
+  }
+
   function cardHtml(row, idx) {
     var it = row.item;
     var where = [it.area, it.region].filter(Boolean).join(", ");
@@ -568,10 +607,26 @@
     var thumb = '<i class="xp-thumb-ic">' + kindIcon(it.kind, 30) + "</i>" +
       (it.photo ? '<img src="' + esc(it.photo) + '" alt="" loading="lazy" decoding="async" />' : "");
 
-    return '<a class="xp-card" href="' + esc(it.href) + '" data-id="' + esc(it.id) + '">' +
+    // The card was a single <a> wrapping everything, which is why it could
+    // never offer an action: an <a> inside an <a> is invalid, and the browser
+    // un-nests it. It is an <article> now with a STRETCHED link over the whole
+    // face, so the tap target is unchanged for anybody who just wants to open
+    // the listing, and anything with a higher stacking order — the Message
+    // button below — sits on top of it and gets its own taps.
+    return '<article class="xp-card" data-id="' + esc(it.id) + '">' +
+      '<a class="xp-card-hit" href="' + esc(it.href) + '" tabindex="-1" aria-hidden="true"></a>' +
       '<div class="xp-card-in">' +
         '<div class="xp-thumb' + (it.photo ? " has-img" : "") + '">' + thumb +
-          (it.verified ? '<div class="xp-badges"><span class="xp-verified">✓</span></div>' : "") +
+          (it.verified
+            // A stroke SVG rather than the ✓ character: it takes currentColor,
+            // so it follows the theme, and it can carry a real label instead of
+            // being read aloud as whatever the font calls that glyph.
+            ? '<div class="xp-badges"><span class="xp-verified" role="img" aria-label="' +
+                esc(t("xp_verified", "Verified")) + '">' +
+                '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"' +
+                ' stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<path d="m5 13 4 4L19 7"/></svg></span></div>'
+            : "") +
         "</div>" +
         '<div class="xp-body">' +
           '<span class="xp-kind" data-k="' + it.kind + '">' + esc(t("xp_one_" + it.kind, meta.one)) + "</span>" +
@@ -592,7 +647,8 @@
       // and would have to survive CSS.escape to be selectable. The index is
       // ours, and always safe.
       '<div data-comp="' + idx + '"></div>' +
-      "</a>";
+      reachHtml(it) +
+      "</article>";
   }
 
   function railHtml(group) {
@@ -615,6 +671,72 @@
         }).join("") +
       "</div>" +
     "</div>";
+  }
+
+  // How many of each kind a grouped browse shows before it offers the rest.
+  var GROUP_PREVIEW = 4;
+  // The running order of the sections. Not by count: a browse should open on
+  // the thing this marketplace is mostly for, and rooms are why people come.
+  // Trucks earn second place because "found a room, now move into it" is the
+  // journey the whole cross-vertical idea is built around.
+  var GROUP_ORDER = ["room", "truck", "service", "job"];
+
+  /**
+   * Is this a browse rather than a search?
+   *
+   * Three conditions, and all three matter. A typed query is a question and
+   * deserves a ranked answer. A chosen scope means the reader has already said
+   * which kind they want, so grouping by kind would draw one heading over the
+   * whole list. And a chosen sort ("cheapest", "nearest") is an instruction
+   * about ONE ordering across everything, which sections would quietly break.
+   */
+  function isBrowse(intent) {
+    var typed = !!(el.xpQ && el.xpQ.value.trim());
+    var asked = !!(intent && intent.text);
+    return scope === "all" && sort === "best" && !typed && !asked;
+  }
+
+  /**
+   * The catalogue, in sections, each still internally ranked.
+   *
+   * Empty kinds are skipped rather than shown as a heading with nothing under
+   * it, which is the same rule the homepage trust strip follows: a zero is
+   * worse than an absence, because it looks like a claim.
+   */
+  function groupedHtml(rows) {
+    var meta = window.ExploreIndex.KIND_META;
+    var buckets = {};
+    rows.forEach(function (r) {
+      var k = r.item.kind;
+      (buckets[k] = buckets[k] || []).push(r);
+    });
+
+    var idx = 0;
+    return GROUP_ORDER.filter(function (k) { return (buckets[k] || []).length; })
+      .map(function (k) {
+        var all = buckets[k];
+        var head = t("xp_k_" + k, meta[k].label);
+        var body = all.slice(0, GROUP_PREVIEW).map(function (r) {
+          // Rails key off this index, and so does nothing else in a grouped
+          // render; it stays unique across sections so the two shapes cannot
+          // collide if rails are ever offered here.
+          return cardHtml(r, idx++);
+        }).join("");
+        var rest = all.length - Math.min(all.length, GROUP_PREVIEW);
+        return '<section class="xp-group" data-k="' + esc(k) + '">' +
+          '<div class="xp-group-h">' +
+            '<span class="xp-group-dot" aria-hidden="true"></span>' +
+            '<h2 class="xp-group-t">' + esc(head) + "</h2>" +
+            '<span class="xp-group-n">' + esc(String(all.length)) + "</span>" +
+          "</div>" +
+          body +
+          (rest > 0
+            ? '<button type="button" class="xp-group-all" data-seeall="' + esc(k) + '">' +
+                esc(t("xp_see_all", "See all {n}", { n: all.length })) +
+              "</button>"
+            : "") +
+          "</section>";
+      }).join("");
   }
 
   function renderResults(out, intent) {
@@ -710,15 +832,35 @@
     }
     if (el.xpEmpty) el.xpEmpty.hidden = true;
 
-    el.xpResults.innerHTML = page.map(cardHtml).join("");
+    // A BROWSE IS NOT A SEARCH, and it should not be given the same shape.
+    //
+    // With a query typed, one ranked column is exactly right: the reader asked
+    // a question and the best answer belongs at the top whatever kind it is.
+    // With NOTHING typed there is no question, so ranking twenty-one listings
+    // of four different kinds into one column answers nobody: a day job sat
+    // above a room above another job, and the only way to learn that nine of
+    // them were rooms was to read all twenty-one. The counts existed the whole
+    // time, on the scope chips, three hundred pixels further up.
+    //
+    // So a browse is grouped and a search is ranked. groupedHtml() keeps the
+    // ranking inside each section, so the best room is still the first room.
+    var browsing = isBrowse(intent);
+    el.xpResults.innerHTML = browsing
+      ? groupedHtml(rows)
+      : page.map(cardHtml).join("");
 
     if (el.xpMore) {
       var left = rows.length - page.length;
-      el.xpMore.hidden = left <= 0 || view === "map";
+      // Grouped browsing has its own per-section "see all", which is a better
+      // offer than "show 24 more" of a mixture.
+      el.xpMore.hidden = browsing || left <= 0 || view === "map";
       el.xpMore.textContent = t("xp_more", "Show {n} more", { n: Math.min(PAGE, left) });
     }
 
-    renderRails(page);
+    // Rails hang off card positions, and a grouped render has its own running
+    // order, so they are a search-only affordance. Offering "trucks near this
+    // place" under a browse would also be answering a question nobody asked.
+    if (!browsing) renderRails(page);
     // The map draws the WHOLE ranked set, not just the visible page: "show 24
     // more" is a list affordance, and a map that only plotted the first
     // screenful would be lying about where things are.
@@ -1077,9 +1219,23 @@
     el.xpScopes && el.xpScopes.addEventListener("click", function (e) {
       var b = e.target.closest("[data-k]");
       if (!b) return;
-      scope = b.dataset.k;
-      renderScopes();
-      run();
+      setScope(b.dataset.k);
+    });
+
+    // "See all 9" under a grouped section is the SAME action as tapping the
+    // scope chip for that kind, and it says so by moving the chip. Two
+    // controls that quietly did the same thing differently would be two
+    // controls to keep in step; this is one, reached from two places.
+    el.xpResults && el.xpResults.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-seeall]");
+      if (!b) return;
+      e.preventDefault();
+      setScope(b.dataset.seeall);
+      // Back to the top of the results, not the top of the page: the reader
+      // asked to see more of one kind, so the answer should be under their
+      // thumb rather than four scrolls away.
+      var bar = document.querySelector(".xp-status");
+      if (bar && bar.scrollIntoView) bar.scrollIntoView({ block: "start", behavior: "smooth" });
     });
 
     // The location box resolves on pause, not on submit: a place is a filter,
