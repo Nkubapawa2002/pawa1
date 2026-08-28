@@ -25,7 +25,12 @@
 }
 @media (min-width: 560px) { .pm-modal { border-radius: 20px; } }
 
-.pm-modal h2 { font-size: 18px; font-weight: 800; margin: 0 0 4px; color: #EAF1EE; }
+/* The face is restated rather than inherited. .pm-modal sets the app face, but
+   the shared stylesheets style bare `h2`, and an element rule beats an
+   inherited value, so every dialog heading on these two app-shell screens was
+   coming out in the editorial serif while the words under it were not. */
+.pm-modal h2 { font-family: var(--font-app); font-size: 18px; font-weight: 800;
+  margin: 0 0 4px; color: #EAF1EE; }
 .pm-modal p { font-size: 13px; color: rgba(233, 243, 238, .6); line-height: 1.55; margin: 0 0 13px; }
 .pm-modal label { display: block; font-size: 12px; font-weight: 700; color: rgba(233, 243, 238, .7); margin: 12px 0 5px; }
 .pm-modal input, .pm-modal select, .pm-modal textarea {
@@ -38,7 +43,7 @@
 .pm-modal-acts .pm-btn { flex: 1; }
 
 .pm-btn {
-  background: #2EE6A6; color: #06170F; border: 0; border-radius: 12px; padding: 11px 16px;
+  background: var(--green-emerald); color: #06170F; border: 0; border-radius: 12px; padding: 11px 16px;
   font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer;
 }
 .pm-btn.ghost { background: rgba(255, 255, 255, .06); color: #E9F3EE; border: 1px solid rgba(255, 255, 255, .08); }
@@ -47,7 +52,7 @@
 /* The safety number, sized to be read aloud from arm's length. */
 .pm-big-fp {
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 21px; letter-spacing: .06em;
-  text-align: center; color: #2EE6A6; background: rgba(46, 230, 166, .08);
+  text-align: center; color: var(--green-emerald); background: rgba(46, 230, 166, .08);
   border: 1px solid rgba(46, 230, 166, .2); border-radius: 14px; padding: 15px; margin: 6px 0 4px;
 }
 /* The backup code: long, must wrap, must be selectable in full. */
@@ -58,7 +63,7 @@
 }
 .pm-msg-out { font-size: 12.5px; margin-top: 11px; min-height: 17px; color: rgba(233, 243, 238, .6); }
 .pm-msg-out.bad { color: #ff8a7a; }
-.pm-msg-out.good { color: #2EE6A6; }
+.pm-msg-out.good { color: var(--green-emerald); }
 
 :root[data-theme="light"] .pm-modal {
   background: #ffffff; border-color: var(--c-border, rgba(20, 20, 15, .12));
@@ -67,6 +72,13 @@
 :root[data-theme="light"] .pm-modal p,
 :root[data-theme="light"] .pm-modal label,
 :root[data-theme="light"] .pm-msg-out { color: var(--c-text-muted, #6b6960); }
+/* The two states had no light values at all, so the rule above repainted the
+   NEUTRAL message and left success and failure on their dark-theme inks: the
+   emerald at about 1.5:1 on cream, and the coral at about 2.3:1. Those are the
+   two sentences that most need reading, and one of them is the one telling
+   somebody their code did not work. */
+:root[data-theme="light"] .pm-msg-out.bad { color: #a3123c; }
+:root[data-theme="light"] .pm-msg-out.good { color: #0a6647; }
 :root[data-theme="light"] .pm-modal input,
 :root[data-theme="light"] .pm-modal select,
 :root[data-theme="light"] .pm-modal textarea,
@@ -96,7 +108,7 @@
   padding: 2px 6px; border-radius: 6px;
   background: rgba(255, 255, 255, .08); color: rgba(233, 243, 238, .7);
 }
-.pm-trust-badge.is-ok { background: rgba(46, 230, 166, .16); color: #2EE6A6; }
+.pm-trust-badge.is-ok { background: rgba(46, 230, 166, .16); color: var(--green-emerald); }
 .pm-trust-badge.is-changed { background: rgba(255, 138, 122, .18); color: #ff8a7a; }
 
 /* The alarm. Deliberately the loudest thing in the dialog: it is the only

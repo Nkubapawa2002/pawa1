@@ -1811,6 +1811,11 @@
       not_found: t("pmp_r_notfound", "No such code."),
       rate_limited: t("pmp_r_rate", "Too many tries. Wait a moment."),
       signin: t("pmp_r_signin", "Sign in to open a code."),
+      // Without this line the guest gate's own visitors — which is most of the
+      // people who are handed a code — got "That did not work" and retyped it,
+      // because nothing told them the account was the problem rather than the
+      // characters.
+      forbidden: t("pmp_r_forbidden", "You are here as a guest, and a code needs an account. Sign in, then open it."),
       offline: t("pmp_r_offline", "You are offline."),
     }[reason] || t("pmp_r_failed", "That did not work.");
   }
@@ -1855,11 +1860,111 @@
       '<span class="pm-at-body">' +
         esc(pendingPlace.label || window.PlaceBook.coords(pendingPlace.lat, pendingPlace.lng)) +
       "</span></span>" +
+      // The way out of this conversation. Everything else on this strip sends
+      // the pin down the thread that is open; this turns it into nine
+      // characters that work for somebody who is not in it, and who may not be
+      // on this site at all. See mintPlaceCode().
+      '<button class="pm-place-b" type="button" id="pmAttachCode">' +
+        esc(t("pmp_give_code", "Give a code")) + "</button>" +
       '<button class="pm-rb-x" type="button" id="pmAttachX" aria-label="' +
         esc(t("pmp_detach", "Do not send it")) + '">×</button>';
     el.pmAttach.hidden = false;
     var x = document.getElementById("pmAttachX");
     if (x) x.addEventListener("click", clearAttach);
+    var mk = document.getElementById("pmAttachCode");
+    if (mk) mk.addEventListener("click", function () { mintPlaceCode(pendingPlace); });
+  }
+
+  /**
+   * The same pin, addressed to ANYBODY.
+   *
+   * A message reaches the person at the other end of the thread. A code reaches
+   * whoever you can say nine characters to: on the phone, over WhatsApp, in a
+   * shop, to somebody with no account and no intention of making one. That is
+   * the gap this closes, and it is why the button sits on the attachment strip
+   * rather than in the picker — by the time a pin is waiting there, the place
+   * is settled and the only remaining question is who gets it.
+   *
+   * No second engine: js/lib/loc-share.js mints it, exactly as
+   * share-location.html does. The coordinates are sealed under the code in this
+   * browser before anything is uploaded, so the server stores ciphertext and
+   * never the code. Losing the code loses the place, which is the point.
+   */
+  async function mintPlaceCode(place) {
+    if (!place) return;
+    if (!window.LocShare || !window.LocCode) {
+      pickMsg(t("pmp_code_unavailable", "Codes are not available right now."), "err");
+      return;
+    }
+    modal("<h2>" + esc(t("pmp_mk_t", "Give this place as a code")) + "</h2>" +
+      "<p>" + esc(t("pmp_mk_d",
+        "Nine characters anyone can type in, even without an account here. Read them out on the phone or send them however you like. We cannot read the place either.")) + "</p>" +
+      '<div class="pm-pick-opts">' +
+        '<label>' + esc(t("pmp_mk_ttl", "Works for")) +
+          '<select id="pmMkTtl">' +
+            '<option value="30">' + esc(t("pmp_mk_30", "30 minutes")) + "</option>" +
+            '<option value="120" selected>' + esc(t("pmp_mk_120", "2 hours")) + "</option>" +
+            '<option value="1440">' + esc(t("pmp_mk_1440", "24 hours")) + "</option>" +
+          "</select></label>" +
+        '<label>' + esc(t("pmp_mk_opens", "Can be opened")) +
+          '<select id="pmMkOpens">' +
+            '<option value="1" selected>' + esc(t("pmp_mk_o1", "once")) + "</option>" +
+            '<option value="3">' + esc(t("pmp_mk_o3", "3 times")) + "</option>" +
+            '<option value="10">' + esc(t("pmp_mk_o10", "10 times")) + "</option>" +
+          "</select></label>" +
+      "</div>" +
+      '<button class="pm-btn" id="pmMkGo" type="button" style="width:100%;margin-top:11px">' +
+        esc(t("pmp_mk_go", "Make the code")) + "</button>" +
+      '<div class="pm-msg-out" id="pmMkOut"></div>' +
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn ghost" id="pmMkClose" type="button">' + esc(t("pm_close", "Close")) + "</button>" +
+      "</div>");
+
+    document.getElementById("pmMkClose").addEventListener("click", closeModal);
+    document.getElementById("pmMkGo").addEventListener("click", async function () {
+      var go = this, out = document.getElementById("pmMkOut");
+      go.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pmp_mk_making", "Making a code…");
+
+      var res = await window.LocShare.create(
+        { lat: place.lat, lng: place.lng, acc: place.acc, label: place.label || "" },
+        { ttlMinutes: Number(document.getElementById("pmMkTtl").value) || 120,
+          maxOpens: Number(document.getElementById("pmMkOpens").value) || 1 });
+
+      if (!res.ok) {
+        go.disabled = false;
+        out.className = "pm-msg-out bad";
+        out.textContent = mintReason(res.reason);
+        return;
+      }
+
+      var pretty = window.LocCode.format(res.share.code);
+      go.hidden = true;
+      out.className = "pm-msg-out good";
+      out.innerHTML =
+        '<div class="pm-code-big">' + esc(pretty) + "</div>" +
+        "<p>" + esc(t("pmp_mk_say",
+          "Read these to them. O is the number zero; I and L are the number one.")) + "</p>" +
+        '<button class="pm-btn" id="pmMkCopy" type="button" style="width:100%">' +
+          esc(t("pmp_mk_copy", "Copy the code")) + "</button>";
+      document.getElementById("pmMkCopy").addEventListener("click", function () {
+        var self = this;
+        try { navigator.clipboard.writeText(pretty); } catch (_) {}
+        self.textContent = t("pmp_mk_copied", "Copied");
+      });
+    });
+  }
+
+  /** Why a code could not be minted, as the ordinary thing it is. */
+  function mintReason(reason) {
+    return {
+      offline: t("pmp_mk_r_offline", "No connection. Try again when you are back online."),
+      busy: t("pmp_mk_r_busy", "Too many codes at once. Wait a moment and try again."),
+      exhausted: t("pmp_mk_r_exhausted", "Codes are unavailable right now. Send the pin in the message instead."),
+      ticket: t("pmp_mk_r_ticket", "That attempt timed out. Tap it again."),
+      signin: t("pmp_mk_r_signin", "Sign in to make a code."),
+    }[reason] || t("pmp_mk_r_failed", "Could not make a code. Send the pin in the message instead.");
   }
 
   /**

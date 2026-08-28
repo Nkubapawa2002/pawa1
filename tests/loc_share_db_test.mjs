@@ -4,8 +4,9 @@
 // loc_code_test.mjs proves the nine characters and the sealing are sound in
 // isolation. This proves the other half, which is the half that can be quietly
 // wrong: that the tables are unreachable except through the functions, that a
-// wrong code costs the caller something, that a guest cannot open a share, and
-// that the row sitting in the database really does contain no location.
+// wrong code costs the caller something, that a guest is metered rather than
+// trusted, and that the row sitting in the database really does contain no
+// location.
 //
 // Every statement runs under an explicit role — `anon` for the person at the
 // house who has no account, `authenticated` for the agent — because as
@@ -173,14 +174,50 @@ try {
     ok(r.opens === 1 && r.max_opens === 1, "the open was counted");
   }
 
-  section("4. A guest is not an account");
+  section("4. A guest may open a code, and is metered for it");
   {
+    // This used to assert 'forbidden'. It was the right fence for the wrong
+    // reason: P-Message's front door signs people in anonymously, so the rule
+    // refused most of the people who are ever handed a code, and it refused
+    // them with a status neither page had a sentence for. What replaces it is
+    // a budget rather than a ban, because the thing that made the old rule
+    // necessary — a guest can mint a new account per request — is defeated by
+    // a GLOBAL count and not by a per-account one.
+    // Registered for cleanup BEFORE they are used. The misses below are guest
+    // misses, and a guest miss left behind spends the global budget for an
+    // hour: a test that forgets this degrades the live feature for real
+    // guests, not just for itself.
+    usedAccounts.add("loctest_guest");
+    usedAccounts.add("loctest_guest2");
+
     const s = await share(PLACE);
     const [r] = await asGuest("loctest_guest", `select * from public.loc_share_open(${literal(s.handle)});`);
-    ok(r.status === "forbidden", "an anonymous guest session cannot open a share", r && r.status);
-    ok(r.cipher === null, "and is handed no ciphertext to work on offline");
+    ok(r.status === "ok", "a guest opens a code they were given", r && r.status);
+    ok(r.cipher !== null, "and is handed the ciphertext to unseal with the code");
 
-    // Not a guest, just not signed in at all.
+    // Wrong codes still cost a guest something, and sooner than an account.
+    const bogus = "f".repeat(64);
+    let last = null;
+    for (let i = 0; i < 4; i++) {
+      [last] = await asGuest("loctest_guest2",
+        `select * from public.loc_share_open(${literal(bogus)});`);
+    }
+    ok(last.status === "rate_limited",
+       "a guest guessing is stopped after three misses, not ten", last && last.status);
+
+    const [gm] = await runSql(
+      `select count(*)::int as n from public.loc_share_misses
+        where user_id = 'loctest_guest2' and is_guest;`);
+    ok(gm.n === 3, "and every one of those misses is recorded AS a guest miss", "n=" + gm.n);
+
+    // The load-bearing half: a guest who rotates accounts is still metered,
+    // because the global count does not care which account missed.
+    const [gg] = await runSql(
+      `select count(*)::int as n from public.loc_share_misses
+        where is_guest and missed_at > now() - interval '1 hour';`);
+    ok(gg.n >= 3, "the global guest budget sees them all, whatever they call themselves", "n=" + gg.n);
+
+    // Not a guest, just not signed in at all. Unchanged.
     const e = await threw(() => asAnon(`select * from public.loc_share_open(${literal(s.handle)});`));
     ok(e !== null, "and anon has no permission to call it at all", e && e.message.slice(0, 80));
   }

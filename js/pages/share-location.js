@@ -91,8 +91,15 @@
     if (!maps[id]) {
       maps[id] = window.L.map(box, { attributionControl: false, zoomControl: false })
         .setView([lat, lng], 17);
-      window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 })
-        .addTo(maps[id]);
+      // Through the shared chain like every other map, rather than straight at
+      // tile.openstreetmap.org, whose usage policy asks applications not to
+      // use it and whose tiles carry no imagery at all. This is the map that
+      // shows somebody exactly where they are standing, so aerial context is
+      // the whole point of it.
+      // control:false because this map is a 200px confirmation thumbnail, with
+      // no room for Leaflet's layer switcher. The base is added either way.
+      if (window.addSatelliteHybrid) window.addSatelliteHybrid(maps[id], { control: false });
+      else window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(maps[id]);
       maps[id].__marker = window.L.marker([lat, lng]).addTo(maps[id]);
     } else {
       maps[id].setView([lat, lng], 17);
@@ -173,7 +180,7 @@
       <div class="sl-coords">${esc(Number(lat).toFixed(6))}, ${esc(Number(lng).toFixed(6))}</div>
       <div class="sl-acc">${esc(acc)}</div>
       <div class="sl-actions">
-        <button id="slSend" class="sl-act sl-act-primary" type="button">${esc(T("sl_send_link"))}</button>
+        <button id="slSendLink" class="sl-act sl-act-primary" type="button">${esc(T("sl_send_link"))}</button>
         <a id="slOpen" class="sl-act" href="${esc(url)}" target="_blank" rel="noopener">${esc(T("sl_open_maps"))}</a>
       </div>
 
@@ -205,8 +212,14 @@
 
       <button id="slAgain" class="sl-again" type="button">${esc(T("sl_again"))}</button>`;
 
+    // slSendLink, NOT slSend. `<section id="slSend">` is the whole send panel
+    // and this button lives inside it, so naming the button slSend put two of
+    // that id in the document: getElementById returned the SECTION, the share
+    // handler bound to the entire panel, and every later tap in it — "Make a
+    // code", the dropdowns, the map, "Start again" — opened the share sheet
+    // instead of doing its own job.
     const text = `${T("sl_share_text")}\n${url}`;
-    $("slSend").addEventListener("click", async () => {
+    $("slSendLink").addEventListener("click", async () => {
       const how = await handOver(text, url, T("sl_share_title"));
       if (how === "copied") statusEl.textContent = T("sl_copied");
     });
@@ -259,7 +272,9 @@
 
     make.disabled = false;
     if (!res.ok) {
-      out.className = "sl-msg bad";
+      // is-bad, not bad: the stylesheet only ever defined .sl-msg.is-bad,
+      // so every failure on this page was being painted in the SUCCESS mint.
+      out.className = "sl-msg is-bad";
       out.textContent = mintReason(res.reason);
       return;
     }
@@ -350,7 +365,7 @@
       const r = await window.LocShare.open(input.value);
       go.disabled = false;
       if (!r.ok) {
-        msg.className = "sl-msg bad";
+        msg.className = "sl-msg is-bad";
         msg.textContent = openReason(r.reason);
         return;
       }
@@ -398,7 +413,12 @@
       revoked: T("sl_r_revoked", "The person who made it cancelled it."),
       not_found: T("sl_r_notfound", "No place under that code. Check the characters."),
       rate_limited: T("sl_r_rate", "Too many tries. Wait a minute, then try again."),
-      signin: T("sl_r_signin_open", "Sign in first — opening a code needs an account."),
+      signin: T("sl_r_signin_open", "Sign in first. Opening a code needs an account."),
+      // The one that had no sentence, so it fell through to "try again in a
+      // moment" — advice about something that could never work. The database
+      // answers 'forbidden' when the account opening the code is not one it
+      // will meter, and no amount of retrying changes that.
+      forbidden: T("sl_r_forbidden", "This device is browsing as a guest, and a code needs an account. Sign in, then type it again."),
       offline: T("sl_r_offline", "No connection. Try again when you're back online."),
     }[reason] || T("sl_r_failed_open", "Couldn't open that code. Try again in a moment.");
   }

@@ -126,9 +126,14 @@ create index if not exists loc_share_tickets_issued_idx on public.loc_share_tick
 create table if not exists public.loc_share_misses (
   id        bigserial primary key,
   user_id   text not null,
+  is_guest  boolean not null default false,
   missed_at timestamptz not null default now()
 );
 create index if not exists loc_share_misses_idx on public.loc_share_misses (user_id, missed_at);
+-- Guests are metered as one crowd rather than one account at a time, so the
+-- global count over an hour is its own partial index.
+create index if not exists loc_share_misses_guest_idx
+  on public.loc_share_misses (missed_at) where is_guest;
 
 -- ------------------------------------------------------------ the maths -----
 -- A 4-round unbalanced Feistel network on 25 bits (13 | 12).
@@ -277,21 +282,40 @@ declare
   s public.loc_share_secrets%rowtype;
   row_ public.loc_shares%rowtype;
   uid text := public.app_uid();
+  guest boolean := public.app_is_guest();
   misses int;
+  -- Named rather than sprinkled through the branches: these three numbers are
+  -- the whole security argument and somebody tuning them should see them
+  -- together. See supabase/migrations/2026-08-28_loc_share_guest_open.sql for
+  -- why a guest is metered rather than refused.
+  account_hourly constant int := 10;
+  guest_hourly   constant int := 3;
+  guests_hourly  constant int := 120;
 begin
   status := 'forbidden'; cipher := null; iv := null;
   expires_at := null; opens := null; max_opens := null;
 
-  -- Signing in is what makes the ten-misses-an-hour rule mean anything: an
-  -- anonymous caller can be a new caller every request. Guests are anonymous
-  -- accounts, so app_is_guest() is checked too — the same fence the catalogue
-  -- uses.
-  if uid is null or public.app_is_guest() then return next; return; end if;
+  -- Signed out entirely is refused: there is no identity to meter, and the
+  -- EXECUTE grant already stops it one layer earlier.
+  if uid is null then return next; return; end if;
   if p_handle !~ '^[0-9a-f]{64}$' then status := 'not_found'; return next; return; end if;
 
-  select count(*) into misses from public.loc_share_misses
-    where user_id = uid and missed_at > now() - interval '1 hour';
-  if misses >= 10 then status := 'rate_limited'; return next; return; end if;
+  -- A guest account is free to mint, so counting per account does not slow a
+  -- guest down at all. The global budget is the one that does; the per-guest
+  -- one only keeps an honest typo from eating it.
+  if guest then
+    select count(*) into misses from public.loc_share_misses
+      where is_guest and missed_at > now() - interval '1 hour';
+    if misses >= guests_hourly then status := 'rate_limited'; return next; return; end if;
+
+    select count(*) into misses from public.loc_share_misses
+      where user_id = uid and missed_at > now() - interval '1 hour';
+    if misses >= guest_hourly then status := 'rate_limited'; return next; return; end if;
+  else
+    select count(*) into misses from public.loc_share_misses
+      where user_id = uid and missed_at > now() - interval '1 hour';
+    if misses >= account_hourly then status := 'rate_limited'; return next; return; end if;
+  end if;
 
   select * into s from public.loc_share_secrets where id = 1;
 
@@ -300,7 +324,7 @@ begin
     for update;
 
   if not found then
-    insert into public.loc_share_misses (user_id) values (uid);
+    insert into public.loc_share_misses (user_id, is_guest) values (uid, guest);
     status := 'not_found'; return next; return;
   end if;
 
@@ -418,7 +442,9 @@ grant execute on function public.loc_share_ticket() to anon, authenticated;
 grant execute on function public.loc_share_create(text, text, text, text, integer, integer, text)
   to anon, authenticated;
 -- Opening is the one that hands back a location, so it is the one that needs
--- an account behind it.
+-- an account behind it. A GUEST account counts: it is metered inside the
+-- function rather than refused at the door, because the guest gate is how most
+-- people who are handed a code arrive.
 grant execute on function public.loc_share_open(text) to authenticated;
 grant execute on function public.loc_share_manage(text, text, boolean) to anon, authenticated;
 
