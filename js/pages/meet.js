@@ -339,14 +339,15 @@ const _initMeetPageImpl = () => {
     if (!map) return;
     _styleMode = _styleMode === "satellite" ? "streets" : "satellite";
     if (_styleMode === "streets") {
+      // Was a raw tile.openstreetmap.org raster, which OSM's tile usage policy
+      // asks applications not to use. The shared chain serves the same street
+      // map from whichever provider is currently healthy.
+      const B = window.PawaBasemaps;
+      const street = B.pick("street");
       map.setStyle({
         version: 8,
-        sources: {
-          osm: { type: "raster", tileSize: 256, maxzoom: 19,
-                 tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-                 attribution: "© OpenStreetMap contributors" }
-        },
-        layers: [{ id: "osm", type: "raster", source: "osm" }]
+        sources: { pawa_street: B.glSource(street, 19) },
+        layers: [{ id: "pawa_street", type: "raster", source: "pawa_street" }]
       });
     } else {
       // Re-init brings back satellite + overlays + all peer layers.
@@ -1460,85 +1461,28 @@ const _initMeetPageImpl = () => {
   // ====================================================================
   //  Map
   // ====================================================================
+  // The two providers ship disjoint font catalogues, and MapLibre asks the
+  // glyph server for the whole stack at once, so naming both fonts fails on
+  // both servers. PawaBasemaps knows which server the style points at and
+  // which stack that server has. The Mapbox-only face this page used to name
+  // outright is the fallback for the unkeyed case, where nothing draws anyway.
+  function labelFont() {
+    const g = window.PawaBasemaps && window.PawaBasemaps.glyphs();
+    return (g && g.font) || ["DIN Offc Pro Medium", "Arial Unicode MS Regular"];
+  }
+
   function initMap() {
-    const _mbToken = window.APP_CONFIG?.MAPBOX_TOKEN || "";
-    // Use Mapbox satellite when a token is set; fall back to free OSM raster tiles
-    // when it isn't, so the map still renders on deployments without a Mapbox key.
-    const style = _mbToken
-      ? {
-          version: 8,
-          glyphs: `https://api.mapbox.com/fonts/v1/mapbox/{fontstack}/{range}.pbf?access_token=${_mbToken}`,
-          sprite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/sprite?access_token=${_mbToken}`,
-          sources: {
-            satellite: {
-              type: "raster",
-              tiles: [`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${_mbToken}`],
-              tileSize: 512,
-              attribution: "© <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> © <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
-            }
-          },
-          layers: [{ id: "satellite", type: "raster", source: "satellite" }]
-        }
-      : {
-          // Esri World Imagery (satellite) + Esri reference overlays for
-          // roads/transportation and place/country labels — gives a "hybrid"
-          // satellite-with-streets view like Google Maps Hybrid. All free,
-          // no token required.
-          version: 8,
-          sources: {
-            esri: {
-              type: "raster",
-              tiles: [
-                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              ],
-              tileSize: 256,
-              maxzoom: 19,
-              attribution: "Tiles © <a href='https://www.esri.com/'>Esri</a>, Maxar, Earthstar Geographics, and the GIS User Community"
-            },
-            esri_transport: {
-              type: "raster",
-              tiles: [
-                "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
-              ],
-              tileSize: 256,
-              maxzoom: 19
-            },
-            esri_labels: {
-              type: "raster",
-              tiles: [
-                "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-              ],
-              tileSize: 256,
-              maxzoom: 19
-            },
-            // Carto Voyager labels-only — adds street names + POIs on top of
-            // the Esri satellite imagery so users can read street labels
-            // when zoomed into a neighbourhood (Esri's transport/places
-            // layers alone don't show street names).
-            carto_streets: {
-              type: "raster",
-              tiles: [
-                "https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
-                "https://b.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
-                "https://c.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
-                "https://d.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png"
-              ],
-              tileSize: 256,
-              maxzoom: 19,
-              attribution: "© <a href='https://carto.com/attributions'>CARTO</a> © OpenStreetMap contributors"
-            }
-          },
-          layers: [
-            { id: "esri",           type: "raster", source: "esri" },
-            { id: "esri_transport", type: "raster", source: "esri_transport" },
-            { id: "esri_labels",    type: "raster", source: "esri_labels" },
-            // Show street labels from zoom 12 upward (city/neighbourhood
-            // level) — at lower zooms the Esri labels are enough and
-            // overlaying both gets cluttered.
-            { id: "carto_streets",  type: "raster", source: "carto_streets",
-              minzoom: 12 }
-          ]
-        };
+    // This page used to carry its own ninety-line copy of the hybrid basemap:
+    // Mapbox when a token happened to be set, otherwise Esri imagery plus two
+    // Esri reference overlays plus CARTO labels. That is the same picture
+    // pawaGlHybridStyle() draws for every other map in the app, so it draws
+    // this one too, and meet inherits the provider chain and the failover with
+    // it. Two things were quietly wrong in the copy and are fixed by the move:
+    // the glyphs URL existed only on the Mapbox branch, so on every deploy
+    // without a token the city names and peer-distance labels below never
+    // rendered at all; and the free branch had no way to recover when Esri or
+    // CARTO started refusing tiles.
+    const style = window.pawaGlHybridStyle();
     map = new maplibregl.Map({
       container: "map",
       style,
@@ -1580,7 +1524,7 @@ const _initMeetPageImpl = () => {
       map.addLayer({ id: "tz-city-names", type: "symbol", source: "tz-cities",
         minzoom: 4, maxzoom: 9,
         layout: { "text-field": ["get", "name"], "text-size": 11,
-                  "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Regular"],
+                  "text-font": labelFont(),
                   "text-anchor": "top", "text-offset": [0, 0.5] },
         paint: { "text-color": "#00ff88", "text-halo-color": "rgba(0,0,0,0.8)", "text-halo-width": 1.5 }
       });
@@ -1620,7 +1564,7 @@ const _initMeetPageImpl = () => {
         layout: {
           "text-field": ["get", "dist"],
           "text-size": 11,
-          "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Regular"],
+          "text-font": labelFont(),
           "text-anchor": "center",
           "text-allow-overlap": true,
           "text-ignore-placement": true

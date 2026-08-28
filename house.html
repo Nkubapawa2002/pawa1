@@ -110,6 +110,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script src="js/core/config.js"></script>
+  <!-- The Mapbox token, which cannot live in a tracked file. Gitignored,
+       so it 404s harmlessly on a deploy that does not ship it, leaving the
+       MapTiler key from config.js to carry the map. -->
+  <script src="js/config.local.js"></script>
   <script src="js/core/i18n.js"></script>
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>

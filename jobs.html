@@ -9,102 +9,169 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    .jobs-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    /* ---------------------------------------------------------------------
+       Day jobs board. Colours, spacing and radii come from the design system
+       (css/ds/tokens) through the page's --c-* palette, which is set once per
+       theme at the bottom of this head. Nothing here spells a brand value out.
+       --------------------------------------------------------------------- */
+    .jobs-layout { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); align-items: start; }
     @media (max-width: 900px) { .jobs-layout { grid-template-columns: 1fr; } }
-    .jobs-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+
+    /* Icons. Every mark on this board is a Lucide-style stroke SVG that takes
+       its colour from the text beside it, so a single rule sizes all of them
+       and they follow the theme without being told to. */
+    .ji { width: 1.05em; height: 1.05em; flex: 0 0 auto; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
+    .job-company, .job-req, .jq-label, .job-mycode,
+    .job-meta > span, .job-dist { display: inline-flex; align-items: center; gap: var(--space-2); }
+    .job-req, .job-mycode { align-items: flex-start; }
+    .job-req .ji, .job-mycode .ji { margin-top: .1em; }
+
+    .jobs-toolbar { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; margin: var(--space-4) 0; }
     .jobs-toolbar .spacer { flex: 1; }
-    /* Outline buttons float directly on the dark page photo — give them a
-       solid surface so their labels stay readable. */
-    .jobs-toolbar .btn-outline {
-      background: #fff !important;
-      color: var(--c-brand-deep, #064a33) !important;
-      border: 1px solid var(--c-brand, #0a6f4d);
+    .jobs-toolbar .btn { min-height: var(--hit-min); }
+    /* On a phone the flex row wrapped into a ragged three-line stack with the
+       count wedged beside a button and "Post a job" stranded on its own right
+       edge. A two-column grid gives the primary action the full width it earns
+       and lets the two secondary buttons pair off underneath it. */
+    @media (max-width: 560px) {
+      .jobs-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+      .jobs-toolbar .spacer { display: none; }
+      /* A grid item defaults to min-width:auto, so the shared button styles
+         (generous side padding, no wrapping) held these wider than their track
+         and both secondary buttons ran off the right edge of the phone. */
+      .jobs-toolbar .btn {
+        min-width: 0; width: 100%; padding-left: var(--space-3); padding-right: var(--space-3);
+        white-space: normal; line-height: var(--lh-snug); text-align: center;
+      }
+      #jobsPostBtn { grid-column: 1 / -1; order: 1; }
+      #jobsNearBtn { order: 2; }
+      #jobsMineBtn { order: 3; }
+      .jobs-count { grid-column: 1 / -1; order: 4; text-align: center; }
     }
-    #jobsMap { height: 480px; border-radius: 14px; overflow: hidden; position: sticky; top: 70px; }
-    @media (max-width: 900px) { #jobsMap { height: 320px; position: static; } }
-    .jobs-count { font-size: .85rem; color: var(--c-text-soft, #3f3d36); font-weight: 700; }
+
+    /* --------------------------------------------------------------------
+       The map container must never be position:static.
+
+       maplibre-gl.css gives .maplibregl-map "position: relative", and every
+       control plus the canvas wrapper inside it is absolutely positioned
+       against that. "#jobsMap" is an ID, so it outranks that class: the mobile
+       rule here used to say "position: static" and the whole map came apart.
+       The canvas painted itself over the hero card at the top of the page and
+       the zoom buttons floated more than a thousand pixels above the map they
+       belong to. Under 900px is every phone, which is nearly every visitor, so
+       the board's map was broken for almost everyone while looking correct on
+       a desktop.
+
+       Sticky is only wanted beside a scrolling list, so the mobile rule drops
+       to "relative", which is what maplibre asked for in the first place.
+       -------------------------------------------------------------------- */
+    #jobsMap { height: 480px; border-radius: var(--radius-md); overflow: hidden; position: sticky; top: 70px; }
+    @media (max-width: 900px) { #jobsMap { height: 320px; position: relative; top: auto; } }
+
+    .jobs-count { font-size: var(--text-sm); color: var(--c-text-soft); font-weight: var(--fw-bold); }
 
     /* Job cards */
-    .job-list { display: flex; flex-direction: column; gap: 12px; }
-    /* --c-surface, not a hardcoded #fff. The page block below repaints
+    .job-list { display: flex; flex-direction: column; gap: var(--space-3); }
+    /* --c-surface, not a hardcoded white. The page block below repaints
        --c-text to the dark theme's near-white, so a card nailed to white
        carried pale ink on white: every job title, company, description and
        requirement line on the board measured 1.13:1. The surface has to move
        with the ink or one of the two is always wrong. */
     .job-card {
-      background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 14px; padding: 14px 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: var(--radius-md); padding: var(--space-4);
+      box-shadow: var(--shadow-1);
     }
-    .job-card.active { border-color: var(--c-brand, #0a6f4d); box-shadow: 0 0 0 2px var(--c-brand-soft, #d9ecdf); }
+    .job-card.active { border-color: var(--c-brand); box-shadow: 0 0 0 2px var(--c-brand-soft); }
     .job-card.is-full { opacity: .82; }
-    .job-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
-    .job-title { font-weight: 800; font-size: 1.02rem; color: var(--c-text, #1a1915); line-height: 1.3; }
-    .job-company { font-size: .8rem; color: var(--c-text-muted, #6b6960); margin-top: 2px; }
+    .job-head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; }
+    .job-title { font-weight: var(--fw-extra); font-size: var(--text-md); color: var(--c-text); line-height: var(--lh-snug); }
+    .job-company { font-size: var(--text-xs); color: var(--c-text-muted); margin-top: var(--space-1); }
     .job-pay { text-align: right; white-space: nowrap; }
-    .job-pay strong { color: var(--c-brand-deep, #064a33); font-size: 1.02rem; }
-    .job-pay small { display: block; color: var(--c-text-muted, #6b6960); font-size: .72rem; }
-    .job-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: .8rem; color: var(--c-text-soft, #3f3d36); margin-top: 8px; }
-    .job-desc { font-size: .86rem; color: var(--c-text-soft, #3f3d36); margin-top: 8px; line-height: 1.5; }
-    .job-req  { font-size: .8rem; color: var(--c-text-muted, #6b6960); margin-top: 4px; }
-    .job-dist { font-size: .8rem; font-weight: 700; color: var(--c-brand-deep, #064a33); }
+    /* Money is mono with tabular figures, everywhere in this design system. */
+    .job-pay strong {
+      color: var(--c-brand-deep); font-size: var(--text-md);
+      font-family: var(--font-mono); font-feature-settings: "tnum", "zero";
+    }
+    /* The pay note is a free-text sentence ("Cash, paid the same evening"),
+       so it wraps even though the amount above it must not. */
+    .job-pay small { display: block; color: var(--c-text-muted); font-size: var(--text-xs); white-space: normal; max-width: 16ch; margin-left: auto; }
+    .job-meta { display: flex; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-xs); color: var(--c-text-soft); margin-top: var(--space-2); }
+    .job-desc { font-size: var(--text-sm); color: var(--c-text-soft); margin-top: var(--space-2); line-height: var(--lh-normal); }
+    .job-req  { font-size: var(--text-xs); color: var(--c-text-muted); margin-top: var(--space-1); }
+    .job-dist { font-size: var(--text-xs); font-weight: var(--fw-bold); color: var(--c-brand-deep); }
 
     /* The fill-up bar: claimed / needed */
-    .job-quota { margin-top: 10px; }
-    .job-quota-row { display: flex; justify-content: space-between; font-size: .76rem; font-weight: 700; margin-bottom: 4px; }
-    .job-quota-row .jq-label { color: var(--c-text-soft, #3f3d36); }
-    .job-quota-row .jq-count { color: var(--c-brand-deep, #064a33); font-family: var(--c-font-mono, ui-monospace, monospace); }
-    .job-quota-bar { height: 10px; background: #eef1f4; border-radius: 999px; overflow: hidden; }
+    .job-quota { margin-top: var(--space-3); }
+    .job-quota-row { display: flex; justify-content: space-between; font-size: var(--text-xs); font-weight: var(--fw-bold); margin-bottom: var(--space-1); }
+    .job-quota-row .jq-label { color: var(--c-text-soft); }
+    .job-quota-row .jq-count { color: var(--c-brand-deep); font-family: var(--font-mono); font-feature-settings: "tnum", "zero"; }
+    /* The empty half of the bar was a fixed pale grey, which on the dark board
+       was a bright white strip across every card. It is a recess, so it takes
+       the theme's recessed surface. */
+    .job-quota-bar { height: 10px; background: var(--c-track); border-radius: var(--radius-pill); overflow: hidden; }
     .job-quota-fill {
       height: 100%; width: 0%;
-      background: linear-gradient(90deg, var(--c-brand, #0a6f4d), #2fbe8a);
-      border-radius: 999px; transition: width .5s ease;
+      background: linear-gradient(90deg, var(--c-brand), var(--c-brand-bright));
+      border-radius: var(--radius-pill); transition: width var(--dur-slow) var(--ease);
     }
-    .job-card.is-full .job-quota-fill { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+    .job-card.is-full .job-quota-fill { background: linear-gradient(90deg, var(--c-danger), var(--c-danger-bright)); }
     .job-full-badge {
-      display: inline-block; background: #fee2e2; color: #b91c1c;
-      font-weight: 800; font-size: .72rem; letter-spacing: .8px;
-      padding: 2px 9px; border-radius: 999px; text-transform: uppercase;
+      display: inline-flex; align-items: center; align-self: center;
+      background: var(--c-danger-soft); color: var(--c-danger);
+      font-weight: var(--fw-extra); font-size: var(--text-xs); letter-spacing: var(--ls-wide);
+      padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill); text-transform: uppercase;
     }
-    .job-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    .job-actions .btn { flex: 1; min-width: 120px; }
+    .job-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
+    .job-actions .btn { flex: 1; min-width: 120px; min-height: var(--hit-min); }
     .job-claim-btn[disabled] { opacity: .55; cursor: not-allowed; }
 
-    /* Job pin on the map */
+    /* Job pin on the map. It was an emoji, then it was nothing at all: an
+       empty green disc with no way to tell a job from a decoration. */
     .job-pin {
-      width: 34px; height: 34px; border-radius: 50%;
-      background: var(--c-brand, #0a6f4d); color: #fff;
-      border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      width: 34px; height: 34px; border-radius: var(--radius-pill);
+      background: var(--c-brand); color: var(--c-brand-on);
+      border: 3px solid var(--white); box-shadow: var(--shadow-2);
       display: flex; align-items: center; justify-content: center;
-      font-size: 15px; cursor: pointer;
+      cursor: pointer;
     }
-    .job-pin.full { background: #b91c1c; }
+    .job-pin .ji { width: 17px; height: 17px; }
+    .job-pin.full { background: var(--c-danger); color: var(--white); }
+    .job-pin:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+    /* The "sorted nearest first" banner */
+    .banner strong { display: inline-flex; align-items: center; gap: var(--space-2); margin-right: var(--space-2); }
 
     /* Post / claim modals (reuse the houses alert-modal look) */
+    /* Not var(--z-modal). The token scale tops out at 100, but this page runs
+       inside the app shell, whose bottom tab bar is z-index 900 (see
+       js/core/app-shell.js). A modal below the tab bar has its Cancel and
+       submit buttons covered on a phone, which is where they always land. */
     .jobs-modal-backdrop {
       position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 5000;
-      display: flex; align-items: center; justify-content: center; padding: 14px;
+      display: flex; align-items: center; justify-content: center; padding: var(--space-4);
     }
-    /* display:flex above would defeat the hidden attribute — restore it. */
+    /* display:flex above would defeat the hidden attribute, so restore it. */
     .jobs-modal-backdrop[hidden] { display: none !important; }
     /* Same white-slab bug as .job-card, and this one is a form: its label,
        sub-line and heading all read against it. */
     .jobs-modal {
-      background: var(--c-surface, #fff); border-radius: 16px; width: 100%; max-width: 560px;
-      max-height: 92vh; overflow-y: auto; padding: 20px 20px 16px;
+      background: var(--c-surface); border-radius: var(--radius-xl); width: 100%; max-width: 560px;
+      max-height: 92vh; overflow-y: auto; padding: var(--space-5) var(--space-5) var(--space-4);
     }
-    .jobs-modal h3 { margin: 0 0 4px; color: var(--c-brand-deep, #064a33); }
-    .jobs-modal .jm-sub { font-size: .84rem; color: var(--c-text-muted, #6b6960); margin: 0 0 14px; }
-    .jm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .jobs-modal h3 { margin: 0 0 var(--space-1); color: var(--c-brand-deep); }
+    .jobs-modal .jm-sub { font-size: var(--text-sm); color: var(--c-text-muted); margin: 0 0 var(--space-4); }
+    .jm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
     .jm-grid .wide { grid-column: 1 / -1; }
-    .jobs-modal label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; font-weight: 600; color: var(--c-text-soft, #3f3d36); }
+    .jobs-modal label { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-xs); font-weight: var(--fw-semibold); color: var(--c-text-soft); }
     .jobs-modal input, .jobs-modal textarea, .jobs-modal select {
-      width: 100%; padding: 9px 10px; border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 10px; font-size: 16px; font-family: inherit; box-sizing: border-box;
+      width: 100%; padding: 9px 10px; border: 1px solid var(--c-border);
+      border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
     }
     /* MapLibre ships 29px-wide zoom buttons and a 14px-tall attribution link.
        This is the only page that adds NavigationControl, so it is the only one
-       that inherits them — a thumb misses both. The buttons are widened; the
+       that inherits them, and a thumb misses both. The buttons are widened; the
        attribution keeps its size (it is a legal credit, and making it a slab
        would be worse) but gets a real hit area from a pseudo-element, the same
        technique used on the homepage links. */
@@ -114,47 +181,49 @@
     .maplibregl-ctrl-attrib a::after {
       content: ""; position: absolute; top: -13px; bottom: -13px; left: -6px; right: -6px;
     }
-    .jm-map { height: 240px; border-radius: 12px; overflow: hidden; margin-top: 4px; }
-    .jm-map-hint { font-size: .74rem; color: var(--c-text-muted, #6b6960); margin-top: 4px; }
-    .jm-actions { display: flex; gap: 8px; margin-top: 16px; }
-    .jm-actions .btn { flex: 1; }
-    .jm-status { margin-top: 10px; padding: 10px 12px; border-radius: 9px; font-size: .86rem; display: none; }
-    .jm-status.err { display: block; background: #ffe6e6; color: #8a1a1a; }
-    .jm-status.ok  { display: block; background: #e8f7ee; color: #1a5a30; }
+    /* Leaflet wants a positioned container for the same reason maplibre does. */
+    .jm-map { height: 240px; border-radius: var(--radius); overflow: hidden; margin-top: var(--space-1); position: relative; }
+    .jm-map-hint { font-size: var(--text-xs); color: var(--c-text-muted); margin-top: var(--space-1); }
+    .jm-actions { display: flex; gap: var(--space-2); margin-top: var(--space-4); }
+    .jm-actions .btn { flex: 1; min-height: var(--hit-min); }
+    .jm-status { margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-sm); font-size: var(--text-sm); display: none; }
+    .jm-status.err { display: block; background: var(--c-danger-soft); color: var(--c-danger); }
+    .jm-status.ok  { display: block; background: var(--c-brand-faint); color: var(--c-brand-deep); }
 
     /* My jobs & workers results */
     .jm-job {
-      border: 1px solid var(--c-border, #e7e4dd); border-radius: 12px;
-      padding: 12px 14px; margin-bottom: 10px; background: var(--c-surface, #fff);
+      border: 1px solid var(--c-border); border-radius: var(--radius);
+      padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); background: var(--c-surface);
     }
-    .jm-job-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .jm-job-title { font-weight: 800; font-size: .94rem; }
-    .jm-job-meta { font-size: .78rem; color: var(--c-text-muted, #6b6960); }
-    .jm-workers { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .jm-job-head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+    .jm-job-title { font-weight: var(--fw-extra); font-size: var(--text-sm); }
+    .jm-job-meta { font-size: var(--text-xs); color: var(--c-text-muted); }
+    .jm-workers { margin: var(--space-2) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
     .jm-worker {
-      display: flex; justify-content: space-between; align-items: center; gap: 10px;
-      background: var(--c-brand-faint, #f0f7f2); border-radius: 9px; padding: 7px 11px;
-      font-size: .86rem;
+      display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
+      background: var(--c-brand-faint); border-radius: var(--radius-xs); padding: 7px 11px;
+      font-size: var(--text-sm);
     }
-    .jm-worker a { font-weight: 700; color: var(--c-brand-deep, #064a33); text-decoration: none; white-space: nowrap; }
-    .jm-no-workers { font-size: .8rem; color: var(--c-text-muted, #6b6960); margin-top: 6px; }
+    .jm-worker a { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: var(--fw-bold); color: var(--c-brand-deep); text-decoration: none; white-space: nowrap; }
+    .jm-no-workers { font-size: var(--text-xs); color: var(--c-text-muted); margin-top: var(--space-2); }
     .jm-code {
-      font-family: var(--c-font-mono, ui-monospace, monospace); font-weight: 800;
-      background: #064a33; color: #fff; border-radius: 6px; padding: 1px 7px; margin-right: 6px;
-      font-size: .8rem; letter-spacing: .5px;
+      font-family: var(--font-mono); font-weight: var(--fw-extra);
+      background: var(--c-brand); color: var(--c-brand-on); border-radius: var(--radius-xs);
+      padding: 1px 7px; margin-right: var(--space-2);
+      font-size: var(--text-xs); letter-spacing: .5px;
     }
     /* The worker's own on-site number, shown on cards they claimed */
     .job-mycode {
-      margin-top: 10px; padding: 8px 12px; border-radius: 9px;
-      background: var(--c-brand-faint, #f0f7f2); border: 1px dashed var(--c-brand, #0a6f4d);
-      font-size: .84rem; color: var(--c-brand-deep, #064a33);
+      margin-top: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-xs);
+      background: var(--c-brand-faint); border: 1px dashed var(--c-brand);
+      font-size: var(--text-sm); color: var(--c-brand-deep);
     }
-    .job-mycode strong { font-family: var(--c-font-mono, ui-monospace, monospace); letter-spacing: 1px; }
+    .job-mycode strong { font-family: var(--font-mono); letter-spacing: 1px; }
 
     .jobs-empty {
-      text-align: center; padding: 36px 20px; background: #fff;
-      border: 1px dashed var(--c-border, #e7e4dd); border-radius: 14px;
-      color: var(--c-text-muted, #6b6960); font-size: .92rem; line-height: 1.6;
+      text-align: center; padding: var(--space-8) var(--space-5); background: var(--c-surface);
+      border: 1px dashed var(--c-border); border-radius: var(--radius-md);
+      color: var(--c-text-muted); font-size: var(--text-sm); line-height: var(--lh-normal);
     }
   </style>
 
@@ -184,21 +253,85 @@
        rule below ever flipped. :not([data-theme="light"]) covers both the
        explicit dark attribute and the no-attribute default. */
     :root:not([data-theme="light"]) body[data-page="jobs"] {
-      --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
+      --c-surface: var(--surface-app); --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
       --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
-      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-brand-on: #06170F; --c-brand-faint: rgba(46,230,166,.10); --c-brand-soft: rgba(46,230,166,.30);
-      --c-accent: #F6C45A; --c-success: #2EE6A6; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
+      --c-brand: var(--green-emerald); --c-brand-deep: var(--green-emerald); --c-brand-on: #06170F;
+      --c-brand-faint: rgba(46,230,166,.10); --c-brand-soft: rgba(46,230,166,.30); --c-brand-bright: var(--green-bright);
+      --c-accent: #F6C45A; --c-success: var(--green-emerald);
+      --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14); --c-danger-bright: #ffb3a6;
+      /* The empty half of the quota bar. A recess on this page, not a slab. */
+      --c-track: rgba(255,255,255,.10);
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      color: #E9F3EE; font-family: var(--font-app); min-height: 100vh;
+    }
+    /* The three names the light palette in css/theme-light.css does not carry,
+       because this board is the only screen that needs them. Without this the
+       quota bar would have no track colour at all in light mode. */
+    :root[data-theme="light"] body[data-page="jobs"] {
+      --c-brand-bright: var(--green-neon);
+      --c-danger-bright: #ef4444;
+      --c-track: #eef1f4;
     }
     body[data-page="jobs"] .container { padding-bottom: 96px; }
-    /* Dark-only for the same reason: a translucent white fill and near-white
-       ink are a dark-page treatment, and they were being applied on cream. */
+    /* ---------------------------------------------------------------------
+       Both forms on this page were half invisible, and each theme hid the
+       other half.
+
+       Two shared stylesheets fight over every input on the site, and neither
+       knows about themes:
+
+         css/premium.css:378  input[type="text"], [type="tel"], [type="number"],
+                              [type="date"] …  background: white !important
+         css/neon-pro.css:342  input, select, textarea
+                              background: near-black !important
+
+       Both carry !important, so specificity decides: a field that names its
+       type gets the white pill, a field that does not gets the near-black one.
+       "Workers needed", "Pay per worker", "Work date" and both phone boxes
+       name a type; "Job title", "What to do", "Requirements", "Payment note",
+       "Company" and "Your name" do not.
+
+       In the dark theme the ink is near-white, so the typed half was white on
+       white (about 1.05:1). In the light theme the ink is near-black, so the
+       untyped half was black on black. Nobody could read what they were
+       typing into half of the post form or half of the claim form, which are
+       the only two ways anything gets onto this board.
+
+       So the page states both themes explicitly, with the weight it takes to
+       be heard, and stops depending on which stylesheet happens to win.
+       --------------------------------------------------------------------- */
     :root:not([data-theme="light"]) body[data-page="jobs"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
     :root:not([data-theme="light"]) body[data-page="jobs"] select,
     :root:not([data-theme="light"]) body[data-page="jobs"] textarea {
-      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05) !important;
+      color: #E9F3EE !important;
+      border-color: rgba(255,255,255,.14) !important;
+    }
+    :root[data-theme="light"] body[data-page="jobs"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    :root[data-theme="light"] body[data-page="jobs"] select,
+    :root[data-theme="light"] body[data-page="jobs"] textarea {
+      background: var(--c-surface) !important;
+      color: var(--c-text) !important;
+      border-color: var(--c-border) !important;
+    }
+    /* premium.css also forces a white fill on :focus. Same fix, same reason. */
+    :root:not([data-theme="light"]) body[data-page="jobs"] input:focus,
+    :root:not([data-theme="light"]) body[data-page="jobs"] select:focus,
+    :root:not([data-theme="light"]) body[data-page="jobs"] textarea:focus {
+      background: rgba(255,255,255,.09) !important;
+      border-color: var(--c-brand) !important;
+    }
+    :root[data-theme="light"] body[data-page="jobs"] input:focus,
+    :root[data-theme="light"] body[data-page="jobs"] select:focus,
+    :root[data-theme="light"] body[data-page="jobs"] textarea:focus {
+      background: var(--c-surface) !important;
+      border-color: var(--c-brand) !important;
+    }
+    /* The native date picker's calendar glyph is drawn black by the browser;
+       on a dark field it disappears into the fill. */
+    :root:not([data-theme="light"]) body[data-page="jobs"] input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1) opacity(.7);
     }
     :root:not([data-theme="light"]) body[data-page="jobs"] input::placeholder,
     :root:not([data-theme="light"]) body[data-page="jobs"] textarea::placeholder { color: rgba(233,243,238,.4); }
@@ -217,8 +350,9 @@
       background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.16); color: rgba(233,243,238,.75);
     }
     /* .btn-outline is a white pill whose label is --c-brand. In light that is
-       #0a6f4d on white (5.6:1); in dark the brand token is the bright mint and
-       the same pill reads 1.62:1 — the two main actions on the board. */
+       the deep brand green on white (5.6:1); in dark the brand token is the
+       bright mint and the same pill reads 1.62:1, on the two main actions of
+       the board. */
     /* !important because neon-pro.css and premium.css both declare this
        button with it; without matching that weight the rule below never
        applies at all. */
@@ -248,18 +382,30 @@
   <main class="container">
 
     <div class="fast-hero-card">
-      <span class="fast-hero-badge"> NEW · VIBARUA</span>
+      <span class="fast-hero-badge" data-i18n="jb_badge_new">NEW · VIBARUA</span>
       <h1 data-i18n="jb_title">Day jobs near you</h1>
-      <p data-i18n-html="jb_lead">Companies post short-term jobs with a pin on the map. Tap <strong>“I'll do it”</strong> to claim a slot
-         the bar fills up as workers join, and closes automatically when the team is complete.</p>
+      <p data-i18n-html="jb_lead">Companies post short-term jobs with a pin on the map. Tap <strong>“I'll do it”</strong> to claim a slot.
+         The bar fills up as workers join, and closes on its own when the team is complete.</p>
     </div>
 
+    <!-- Each button carries a stroke icon and a separate label span. The label
+         is what data-i18n replaces; putting the key on the button itself would
+         overwrite the icon with text on every language switch. -->
     <div class="jobs-toolbar">
-      <button id="jobsNearBtn" class="btn btn-outline" data-i18n="jb_near"> Jobs near me</button>
-      <button id="jobsMineBtn" class="btn btn-outline" data-i18n="jb_mine"> My jobs &amp; workers</button>
+      <button id="jobsNearBtn" class="btn btn-outline">
+        <svg class="ji" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        <span data-i18n="jb_near">Jobs near me</span>
+      </button>
+      <button id="jobsMineBtn" class="btn btn-outline">
+        <svg class="ji" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12h18"/></svg>
+        <span data-i18n="jb_mine">My jobs &amp; workers</span>
+      </button>
       <span class="jobs-count" id="jobsCount"></span>
       <span class="spacer"></span>
-      <button id="jobsPostBtn" class="btn btn-primary" data-i18n="jb_post">＋ Post a job</button>
+      <button id="jobsPostBtn" class="btn btn-primary">
+        <svg class="ji" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span data-i18n="jb_post">Post a job</span>
+      </button>
     </div>
 
     <div id="jobsBanner" class="banner" style="display:none"></div>
@@ -287,40 +433,43 @@
             <textarea id="jpDesc" rows="2" required maxlength="500" placeholder="Describe the work clearly…" data-i18n-placeholder="jb_f_what_ph"></textarea>
           </label>
           <label class="wide"><span data-i18n="jb_f_req">Requirements</span>
-            <input id="jpReq" maxlength="200" placeholder="e.g. Strong, 18+, bring gloves" />
+            <input id="jpReq" maxlength="200" placeholder="e.g. Strong, 18+, bring gloves" data-i18n-placeholder="jb_f_req_ph" />
           </label>
-          <label>Workers needed *
+          <label><span data-i18n="jb_f_workers">Workers needed *</span>
             <input id="jpWorkers" type="number" min="1" max="500" value="1" required />
           </label>
-          <label>Pay per worker (TZS) *
-            <input id="jpPay" type="text" inputmode="numeric" required placeholder="e.g. 15,000 or 15k" />
+          <label><span data-i18n="jb_f_pay_amount">Pay per worker (TZS) *</span>
+            <input id="jpPay" type="text" inputmode="numeric" required placeholder="e.g. 15,000 or 15k" data-i18n-placeholder="jb_f_pay_amount_ph" />
           </label>
-          <label>Work date *
+          <label><span data-i18n="jb_f_date">Work date *</span>
             <input id="jpDate" type="date" required />
           </label>
-          <label>Time
-            <input id="jpTime" maxlength="60" placeholder="e.g. 07:00 – 16:00" />
+          <label><span data-i18n="jb_f_time">Time</span>
+            <input id="jpTime" maxlength="60" placeholder="e.g. 07:00 to 16:00" data-i18n-placeholder="jb_f_time_ph" />
           </label>
           <label class="wide"><span data-i18n="jb_f_pay">Payment note</span>
             <input id="jpPayNote" maxlength="120" placeholder="e.g. Cash, paid the same evening" data-i18n-placeholder="jb_f_pay_ph" />
           </label>
           <label><span data-i18n="jb_f_company">Company / your name *</span>
-            <input id="jpCompany" required maxlength="80" placeholder="e.g. Bonite Traders" />
+            <input id="jpCompany" required maxlength="80" placeholder="e.g. Bonite Traders" data-i18n-placeholder="jb_f_company_ph" />
           </label>
           <label><span data-i18n="jb_f_phone">Phone *</span>
-            <input id="jpPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
+            <input id="jpPhone" type="tel" required placeholder="+255 7XX XXX XXX" data-i18n-placeholder="jb_f_phone_ph" />
           </label>
           <div class="wide">
-            <label><span data-i18n="jb_f_where">Where is the job? *</span> <small data-i18n="jb_f_where_small">(tap the map or use GPS — workers navigate to this pin)</small></label>
+            <label><span data-i18n="jb_f_where">Where is the job? *</span> <small data-i18n="jb_f_where_small">(tap the map or use GPS, workers navigate to this pin)</small></label>
             <div class="jm-map" id="jpMap"></div>
-            <div class="jm-map-hint" id="jpCoords" data-i18n="jb_no_pin">Pin not placed yet — tap the map, or</div>
-            <button type="button" id="jpGpsBtn" class="btn btn-outline btn-sm" style="margin-top:6px" data-i18n="jb_gps"> Use my GPS location</button>
+            <div class="jm-map-hint" id="jpCoords" data-i18n="jb_no_pin">Pin not placed yet. Tap the map, or</div>
+            <button type="button" id="jpGpsBtn" class="btn btn-outline btn-sm" style="margin-top:6px">
+              <svg class="ji" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              <span data-i18n="jb_gps">Use my GPS location</span>
+            </button>
           </div>
         </div>
         <div class="jm-status" id="jpStatus"></div>
         <div class="jm-actions">
-          <button type="button" id="jpCancel" class="btn btn-outline">Cancel</button>
-          <button type="submit" id="jpSubmit" class="btn btn-primary">Post job</button>
+          <button type="button" id="jpCancel" class="btn btn-outline" data-i18n="rp_cancel">Cancel</button>
+          <button type="submit" id="jpSubmit" class="btn btn-primary" data-i18n="jb_post_btn">Post job</button>
         </div>
       </form>
     </div>
@@ -329,12 +478,12 @@
   <!-- My jobs: the company owner sees their posts + every worker who claimed -->
   <div id="jobMineBackdrop" class="jobs-modal-backdrop" hidden>
     <div class="jobs-modal" role="dialog" aria-modal="true">
-      <h3>My jobs &amp; workers</h3>
-      <p class="jm-sub" data-i18n-html="jb_mine_sub">These are the jobs you posted <strong>from this device</strong> — only you can see the workers who claimed slots (names &amp; numbers). Post from the same phone/browser to manage a job; clearing your browser data removes this access.</p>
+      <h3 data-i18n="jb_mine">My jobs &amp; workers</h3>
+      <p class="jm-sub" data-i18n-html="jb_mine_sub">These are the jobs you posted <strong>from this device</strong>. Only you can see the workers who claimed slots, names and numbers. Post from the same phone or browser to manage a job. Clearing your browser data removes this access.</p>
       <form id="jobMineForm">
         <div class="jm-actions">
-          <button type="button" id="jmCancel" class="btn btn-outline">Close</button>
-          <button type="submit" id="jmSubmit" class="btn btn-primary">Refresh</button>
+          <button type="button" id="jmCancel" class="btn btn-outline" data-i18n="jb_close">Close</button>
+          <button type="submit" id="jmSubmit" class="btn btn-primary" data-i18n="jb_refresh">Refresh</button>
         </div>
         <div class="jm-status" id="jmStatus"></div>
       </form>
@@ -351,16 +500,19 @@
       <form id="jobClaimForm">
         <div class="jm-grid">
           <label class="wide"><span data-i18n="jb_c_name">Your name *</span>
-            <input id="jcName" required maxlength="60" placeholder="e.g. Xp  Nzaki" />
+            <input id="jcName" required maxlength="60" placeholder="e.g. Asha Mbwana" data-i18n-placeholder="jb_c_name_ph" />
           </label>
           <label class="wide"><span data-i18n="jb_c_phone">Your phone *</span>
-            <input id="jcPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
+            <input id="jcPhone" type="tel" required placeholder="+255 7XX XXX XXX" data-i18n-placeholder="jb_f_phone_ph" />
           </label>
         </div>
         <div class="jm-status" id="jcStatus"></div>
         <div class="jm-actions">
           <button type="button" id="jcCancel" class="btn btn-outline" data-i18n="rp_cancel">Cancel</button>
-          <button type="submit" id="jcSubmit" class="btn btn-primary" data-i18n="jb_do_it"> I'll do it</button>
+          <button type="submit" id="jcSubmit" class="btn btn-primary">
+            <svg class="ji" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"/></svg>
+            <span data-i18n="jb_do_it">I'll do it</span>
+          </button>
         </div>
       </form>
     </div>
@@ -372,6 +524,10 @@
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/core/config.js"></script>
+  <!-- The Mapbox token, which cannot live in a tracked file. Gitignored,
+       so it 404s harmlessly on a deploy that does not ship it, leaving the
+       MapTiler key from config.js to carry the map. -->
+  <script src="js/config.local.js"></script>
   <script src="js/lib/geo.js"></script>
   <script src="js/lib/geolocate.js"></script>
   <script src="js/core/i18n.js"></script>

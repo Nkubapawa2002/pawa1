@@ -176,14 +176,32 @@ window.APP_CONFIG = {
   ],
 
   // ---------- Maps / Weather ----------
-  // Leaflet uses OpenStreetMap (no key needed).
   // Open-Meteo provides current conditions (no key needed).
-  // Mapbox satellite tiles need a public `pk.` token. Don't commit it to
-  // this file — GitHub's secret scanner will block the push. Instead, put
-  // it in `js/config.local.js` (gitignored) as:
+  //
+  // Tiles go through window.PawaBasemaps (bottom of this file), which tries
+  // MapTiler, then Mapbox, then the free Esri/CARTO stack, and demotes a
+  // provider for the session once its tiles start failing. With both keys
+  // empty every map still draws, on the free stack.
+  //
+  // Both keys are browser-visible by design: a static site has nowhere to hide
+  // a tile key, and both providers expect it. What keeps them yours is the URL
+  // restriction set in each dashboard, NOT secrecy. Restrict them:
+  //   MapTiler: Account -> Keys -> Allowed origins
+  //   Mapbox:   Account -> Tokens -> URL restrictions
+  //
+  // MAPTILER_KEY is set here, in a tracked file, on purpose: this is the only
+  // way the GitHub Pages deploy gets a keyed provider. Without it production
+  // runs on the free stack, which is the thing that kept breaking.
+  //
+  // MAPBOX_TOKEN stays blank here and is set in `js/config.local.js`
+  // (gitignored), because GitHub's push protection rejects a tracked file
+  // carrying a Mapbox `pk.` token. So the deploy runs MapTiler then Esri, and
+  // a machine with the local file runs MapTiler then Mapbox then Esri.
   //   window.APP_CONFIG.MAPBOX_TOKEN = "pk....";
-  // The meet / ride / track pages read it from APP_CONFIG at runtime.
+  // Every page that draws a map loads that file after this one, so anything
+  // set there wins.
   MAPBOX_TOKEN: "",
+  MAPTILER_KEY: "Hwc6CmvGfWcMUZZDsJBU",
 
   // ---------- Approximate location fallback (js/lib/geolocate.js) ----------
   // When precise browser GPS is denied / blocked / unavailable (e.g. desktop
@@ -871,135 +889,413 @@ window.openAgentSubscribeModal = async (opts) => {
 };
 
 // =====================================================
-// Shared map base layer — satellite + street names (hybrid)
+// Basemaps — one provider chain behind every map in the app
 // =====================================================
-// Adds a Google-Maps-Hybrid-style base to a Leaflet map: satellite imagery
-// with road + place-name labels on top, so every map across the app shows
-// streets *and* aerial context. Uses Mapbox satellite-streets when a public
-// token is set (APP_CONFIG.MAPBOX_TOKEN); otherwise free Esri World Imagery
-// + Esri reference overlays (transport + boundaries/places) — no key needed.
-// Pass `control: false` to skip Leaflet's own layer switcher and get the two
-// base layers back as { satellite, street } instead — for the small maps (a
-// phone sheet) where L.control.layers' 70x135 white panel covers the corner of
-// the map you are trying to draw on, and a caller wants a compact toggle of its
-// own. Default is unchanged: the switcher is added and nothing is returned.
-window.addSatelliteHybrid = (map, { maxZoom = 19, control = true } = {}) => {
-  if (!window.L || !map) return;
-  const token = window.APP_CONFIG?.MAPBOX_TOKEN || "";
-  let satellite, street;
+// Every map on the site used to draw its tiles straight from whichever free,
+// unkeyed endpoint the page happened to name: Esri's ArcGIS Online, CARTO's
+// free basemaps, or tile.openstreetmap.org. None of those promise anything.
+// They rate-limit, they 403 under load, and OSM's tile policy openly asks
+// applications not to use them at all. So the map "broke" at random, on a
+// different page each time, and nothing in the code was wrong.
+//
+// A keyed provider fixes that, and two keyed providers fix it twice: the chain
+// below tries MapTiler, then Mapbox, then the free stack, and demotes a
+// provider for the rest of the session the moment its tiles start failing. A
+// map that loses its imagery mid-pan repaints on the next provider instead of
+// going blank.
+//
+// The keys are browser-visible by design — that is how a static site talks to
+// a tile API, and both providers expect it. What keeps them yours is the URL
+// restriction set in each provider's dashboard, not secrecy. Set them in
+// js/config.local.js (gitignored):
+//   window.APP_CONFIG.MAPTILER_KEY = "...";
+//   window.APP_CONFIG.MAPBOX_TOKEN = "pk....";
+// With no keys at all everything still works, on the free stack, exactly as
+// before.
+window.PawaBasemaps = (function () {
+  var DEAD_KEY = "pawa_basemap_dead";
+  var OK_KEY = "pawa_basemap_ok";
+  // One bad tile is a hiccup; four is a provider that is not serving us.
+  var ERRORS_BEFORE_DEMOTING = 4;
 
-  if (token) {
-    satellite = L.tileLayer(
-      `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=${token}`,
-      { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" });
-    street = L.tileLayer(
-      `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}?access_token=${token}`,
-      { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap" });
-  } else {
-    // Satellite hybrid = free Esri imagery + transport + boundaries/places refs
-    // + Carto Voyager street-name labels (Esri's place layer alone misses many
-    // street names). Grouped so the layer switcher toggles them as one base.
-    satellite = L.layerGroup([
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom, attribution: "Tiles © Esri, Maxar, Earthstar Geographics" }),
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom }),
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom }),
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
-        { maxZoom, subdomains: "abcd", opacity: 1, attribution: "© CARTO" }),
-    ]);
-    // Plain street map = Carto Voyager (crisp road + place names, no imagery).
-    street = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      { maxZoom, subdomains: "abcd", attribution: "© CARTO © OpenStreetMap contributors" });
+  var ESRI_IMAGERY   = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  var ESRI_TRANSPORT = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
+  var CARTO_LABELS   = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png";
+  var CARTO_VOYAGER  = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+  // MapLibre has no {s} subdomain token, so the GL style lists the hosts out.
+  var CARTO_GL = function (path) {
+    return ["a", "b", "c", "d"].map(function (s) {
+      return "https://" + s + ".basemaps.cartocdn.com/rastertiles/" + path + "/{z}/{x}/{y}.png";
+    });
+  };
+
+  function apiKey(name) {
+    var c = window.APP_CONFIG || {};
+    return (name === "maptiler" ? c.MAPTILER_KEY : name === "mapbox" ? c.MAPBOX_TOKEN : "") || "";
   }
 
-  satellite.addTo(map);  // default view = satellite hybrid (unchanged)
-  if (!control) return { satellite, street };
-  // Toggle so users can flip to a plain street map when they want crisp names.
-  L.control.layers(
-    { " Satellite": satellite, " Map": street },
-    null,
-    { position: "topright", collapsed: false }
-  ).addTo(map);
+  // Best first. `needs` names the key a provider cannot work without, so an
+  // unconfigured provider is skipped rather than tried and failed. `labels`
+  // says whether the imagery already carries street names ("baked") or wants
+  // the overlay pair drawn on top of it ("overlay") — the keyed satellites are
+  // hybrids in one request, which is three fewer requests per tile than the
+  // free stack it replaces.
+  var CHAINS = {
+    satellite: [
+      // 512, not 256: MapTiler's /maps/ endpoints serve 512px tiles, and their
+      // documented Leaflet config is tileSize 512 with zoomOffset -1. Declared
+      // as 256 the map still drew, but fetched four times the pixels for every
+      // tile and rendered every street name at half the size it was drawn for.
+      { id: "maptiler-hybrid", needs: "maptiler", maxzoom: 20, tileSize: 512, labels: "baked",
+        tiles: function (k) { return ["https://api.maptiler.com/maps/hybrid/{z}/{x}/{y}.jpg?key=" + k]; },
+        credit: "© MapTiler © OpenStreetMap contributors" },
+      { id: "mapbox-satellite-streets", needs: "mapbox", maxzoom: 22, tileSize: 512, labels: "baked",
+        tiles: function (k) { return ["https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}?access_token=" + k]; },
+        credit: "© Mapbox © OpenStreetMap" },
+      { id: "esri-imagery", needs: null, maxzoom: 19, tileSize: 256, labels: "overlay",
+        tiles: function () { return [ESRI_IMAGERY]; },
+        credit: "Tiles © Esri, Maxar, Earthstar Geographics" }
+    ],
+    street: [
+      { id: "maptiler-streets", needs: "maptiler", maxzoom: 20, tileSize: 512, labels: "baked",
+        tiles: function (k) { return ["https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=" + k]; },
+        credit: "© MapTiler © OpenStreetMap contributors" },
+      { id: "mapbox-streets", needs: "mapbox", maxzoom: 22, tileSize: 512, labels: "baked",
+        tiles: function (k) { return ["https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}?access_token=" + k]; },
+        credit: "© Mapbox © OpenStreetMap" },
+      { id: "carto-voyager", needs: null, maxzoom: 19, tileSize: 256, labels: "baked",
+        tiles: function () { return [CARTO_VOYAGER]; },
+        credit: "© CARTO © OpenStreetMap contributors" }
+    ]
+  };
+
+  // A demotion lasts the session, not the page: once MapTiler has started
+  // returning 429s, the fourth map the visitor opens should not spend another
+  // four tiles rediscovering that.
+  function buried() {
+    try { return JSON.parse(sessionStorage.getItem(DEAD_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function bury(id) {
+    try {
+      var d = buried();
+      if (d.indexOf(id) < 0) { d.push(id); sessionStorage.setItem(DEAD_KEY, JSON.stringify(d)); }
+    } catch (e) {}
+  }
+
+  function pick(kind) {
+    var dead = buried(), chain = CHAINS[kind];
+    for (var i = 0; i < chain.length; i++) {
+      var p = chain[i];
+      if (dead.indexOf(p.id) < 0 && (!p.needs || apiKey(p.needs))) return p;
+    }
+    // Everything is buried. The last entry needs no key, so it is the one
+    // thing we can still draw; a blank map helps nobody.
+    return chain[chain.length - 1];
+  }
+
+  function urls(p) { return p.tiles(p.needs ? apiKey(p.needs) : ""); }
+
+  /**
+   * Ask a provider for one tile and see whether it answers.
+   *
+   * MapLibre does NOT report a failed raster tile as a map `error` event: a
+   * 404 is a legitimate answer for a sparse tileset, so it drops the tile and
+   * says nothing. That leaves a GL map with no way to notice that its whole
+   * basemap is refusing to serve, which is exactly the case this chain exists
+   * for. So we ask directly, once per provider per session, with the same
+   * request the map itself would make. An <img> rather than fetch(), because
+   * onload/onerror need no CORS headers and a tile server need not send any.
+   */
+  function probe(provider, done) {
+    var url = urls(provider)[0]
+      .replace("{z}", "3").replace("{x}", "4").replace("{y}", "4").replace("{s}", "a");
+    var img = new Image();
+    var settled = false;
+    var finish = function (aliveNow) {
+      if (settled) return;
+      settled = true;
+      img.onload = img.onerror = null;
+      done(aliveNow);
+    };
+    img.onload = function () { finish(true); };
+    img.onerror = function () { finish(false); };
+    // A provider that never answers is as useless as one that says no.
+    setTimeout(function () { finish(false); }, 8000);
+    img.src = url;
+  }
+
+  var probing = {};   // in flight this page, so two maps ask once between them
+
+  /**
+   * Confirm the provider a map just started drawing with, and hand the caller
+   * a replacement if it turns out to be dead. Free providers are not probed:
+   * they are the end of the chain, so a bad answer changes nothing.
+   */
+  function verify(kind, swap) {
+    var p = pick(kind);
+    if (!p.needs || checked().indexOf(p.id) >= 0) return;
+    if (probing[p.id]) return;
+    probing[p.id] = true;
+    probe(p, function (alive) {
+      if (alive) { pass(p.id); return; }
+      bury(p.id);
+      var next = pick(kind);
+      if (next.id === p.id) return;
+      say(p.id, next.id);
+      try { swap(next); } catch (e) {}
+    });
+  }
+
+  function checked() {
+    try { return JSON.parse(sessionStorage.getItem(OK_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function pass(id) {
+    try {
+      var k = checked();
+      if (k.indexOf(id) < 0) { k.push(id); sessionStorage.setItem(OK_KEY, JSON.stringify(k)); }
+    } catch (e) {}
+  }
+
+  /**
+   * Where MapLibre fetches label glyphs, and the font stack that server has.
+   *
+   * Only needed by a style with symbol layers (meet.html draws city names and
+   * peer distances). The two providers ship disjoint font catalogues — MapTiler
+   * serves Noto Sans and Open Sans but not Mapbox's house face, Mapbox serves
+   * DIN Offc Pro but 404s on Noto Sans — and MapLibre asks the glyph server for
+   * the whole comma-joined stack at once, so a stack naming both fonts fails on
+   * both servers. The caller takes `font` from here rather than spelling one
+   * out, and gets the stack that matches whichever server `url` points at.
+   *
+   * Returns null when neither key is set: there is no free glyph server we can
+   * lean on, so symbol layers simply do not draw, which is what already
+   * happened on every unkeyed deploy.
+   */
+  function glyphs() {
+    var mt = apiKey("maptiler"), mb = apiKey("mapbox");
+    if (mt) return {
+      url: "https://api.maptiler.com/fonts/{fontstack}/{range}.pbf?key=" + mt,
+      font: ["Noto Sans Regular"]
+    };
+    if (mb) return {
+      url: "https://api.mapbox.com/fonts/v1/mapbox/{fontstack}/{range}.pbf?access_token=" + mb,
+      font: ["DIN Offc Pro Medium"]
+    };
+    return null;
+  }
+
+  // ---- Leaflet -------------------------------------------------------------
+  // Every base is a layerGroup, even when it holds a single tile layer, so a
+  // provider change swaps the group's CONTENTS. The object handed back to a
+  // caller (and the entry inside L.control.layers) stays the same object, which
+  // is what lets pages like the houses alert map keep their own toggle working
+  // across a failover they never hear about.
+  function leafletBase(kind, maxZoom) {
+    var group = window.L.layerGroup();
+    fillLeaflet(group, kind, pick(kind), maxZoom);
+    // Two ways to find out a provider is gone. The probe catches the one that
+    // was already dead when the page opened; the tileerror watcher inside
+    // fillLeaflet catches the one that dies halfway through a session, which a
+    // one-shot probe never would.
+    verify(kind, function (next) { fillLeaflet(group, kind, next, maxZoom); });
+    return group;
+  }
+
+  function fillLeaflet(group, kind, provider, maxZoom) {
+    group.clearLayers();
+    group.__provider = provider;
+    var mz = Math.max(provider.maxzoom, maxZoom || 19);
+    var opts = { maxZoom: mz, maxNativeZoom: provider.maxzoom, attribution: provider.credit };
+    if (provider.tileSize === 512) { opts.tileSize = 512; opts.zoomOffset = -1; }
+    var base = window.L.tileLayer(urls(provider)[0], opts);
+    watchLeaflet(base, group, kind, maxZoom);
+    group.addLayer(base);
+    if (kind === "satellite" && provider.labels === "overlay") {
+      group.addLayer(window.L.tileLayer(ESRI_TRANSPORT, { maxZoom: mz, maxNativeZoom: provider.maxzoom }));
+      group.addLayer(window.L.tileLayer(CARTO_LABELS, {
+        maxZoom: mz, maxNativeZoom: provider.maxzoom, subdomains: "abcd", attribution: "© CARTO"
+      }));
+    }
+  }
+
+  function watchLeaflet(layer, group, kind, maxZoom) {
+    var errors = 0;
+    layer.on("tileerror", function () {
+      if (++errors < ERRORS_BEFORE_DEMOTING || group.__switching) return;
+      var failed = group.__provider;
+      bury(failed.id);
+      var next = pick(kind);
+      if (next.id === failed.id) return;   // nothing better to fall back to
+      group.__switching = true;
+      say(failed.id, next.id);
+      // Out of the event handler before clearing the layer that raised it.
+      setTimeout(function () {
+        fillLeaflet(group, kind, next, maxZoom);
+        group.__switching = false;
+      }, 0);
+    });
+  }
+
+  function say(from, to) {
+    try { console.warn("[basemap] " + from + " is failing, switching to " + to); } catch (e) {}
+  }
+
+  // ---- MapLibre GL ---------------------------------------------------------
+  function glSource(provider, maxzoom) {
+    return {
+      type: "raster",
+      tiles: urls(provider),
+      tileSize: provider.tileSize,
+      maxzoom: Math.min(provider.maxzoom, maxzoom || 19),
+      attribution: provider.credit
+    };
+  }
+
+  /**
+   * Point a GL map's basemap sources at a healthy provider.
+   *
+   * Installed by pawaGlBasemapToggle, so any page offering the Map/Satellite
+   * toggle gets this for free; call it directly for a map with no toggle.
+   * There is no error listener here on purpose: see probe() above for why
+   * MapLibre cannot tell us that its tiles are failing.
+   */
+  function watchGl(map) {
+    if (!map || map.__pawaBasemapWatch) return;
+    map.__pawaBasemapWatch = true;
+    var repoint = function (id, next) {
+      var src = map.getSource(id);
+      if (!src || !src.setTiles) return;
+      try { src.setTiles(urls(next)); } catch (e) {}
+    };
+    var run = function () {
+      verify("satellite", function (next) { repoint("pawa_satellite", next); });
+      verify("street", function (next) { repoint("pawa_street", next); });
+    };
+    map.isStyleLoaded() ? run() : map.once("styledata", run);
+  }
+
+  return {
+    pick: pick,
+    urls: urls,
+    glyphs: glyphs,
+    leafletBase: leafletBase,
+    glSource: glSource,
+    watchGl: watchGl,
+    verify: verify,
+    cartoGl: CARTO_GL,
+    esriTransport: ESRI_TRANSPORT
+  };
+})();
+
+// =====================================================
+// Shared map base layer — satellite + street names (hybrid)
+// =====================================================
+// Adds a Google-Maps-Hybrid-style base to a Leaflet map: satellite imagery with
+// road and place-name labels on top, so every map across the app shows streets
+// *and* aerial context. Which provider draws it is PawaBasemaps' business.
+// Pass `control: false` to skip Leaflet's own layer switcher and get the two
+// base layers back as { satellite, street } instead — for the small maps (a
+// phone sheet) where L.control.layers' white panel covers the corner of the map
+// you are trying to draw on, and the caller wants a compact toggle of its own.
+window.addSatelliteHybrid = function (map, opts) {
+  opts = opts || {};
+  if (!window.L || !map) return;
+  var maxZoom = opts.maxZoom || 19;
+  var satellite = window.PawaBasemaps.leafletBase("satellite", maxZoom);
+  var street    = window.PawaBasemaps.leafletBase("street", maxZoom);
+
+  satellite.addTo(map);  // default view = satellite hybrid
+  if (opts.control === false) return { satellite: satellite, street: street };
+
+  // Both words are read by a person, so both come from i18n rather than being
+  // spelled out here in English.
+  var t = function (k, fallback) { return window.t ? window.t(k) : fallback; };
+  var bases = {};
+  bases[t("jb_map_satellite", "Satellite")] = satellite;
+  bases[t("jb_map_street", "Map")] = street;
+  window.L.control.layers(bases, null, { position: "topright", collapsed: false }).addTo(map);
 };
 
 // =====================================================
 // Shared MapLibre (GL) hybrid base — same idea as addSatelliteHybrid above,
 // for the pages that use maplibregl instead of Leaflet (houses directory,
-// house detail, agent pin-picker). Satellite imagery + Esri road overlay +
-// Carto street-name labels, plus a hidden crisp street basemap behind a
-// one-tap " Map ⇄  Satellite" toggle so roads and street names are
-// always readable.
+// house detail, agent pin-picker, day jobs board). Satellite imagery with
+// labels, plus a hidden street basemap behind a one-tap Map / Satellite toggle
+// so roads and street names are always readable.
 //   style:  new maplibregl.Map({ style: pawaGlHybridStyle(), … })
 //   toggle: map.addControl(pawaGlBasemapToggle(), "top-right")
-window.pawaGlHybridStyle = ({ maxzoom = 19, labelMinzoom = 9 } = {}) => ({
-  version: 8,
-  sources: {
-    esri: { type: "raster",
-      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-      tileSize: 256, maxzoom,
-      attribution: "Tiles © Esri, Maxar, Earthstar Geographics" },
-    // Road lines + highway shields drawn over the imagery.
-    esri_transport: { type: "raster",
-      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"],
-      tileSize: 256, maxzoom },
-    // Street + place-name labels (Esri's transport layer alone misses many).
-    carto_labels: { type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png",
-        "https://d.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png"
-      ],
-      tileSize: 256, maxzoom,
-      attribution: "© CARTO © OpenStreetMap contributors" },
-    // Crisp street basemap for the toggle (roads + names, no imagery).
-    carto_base: { type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-      ],
-      tileSize: 256, maxzoom,
-      attribution: "© CARTO © OpenStreetMap contributors" }
-  },
-  layers: [
-    { id: "carto_base",     type: "raster", source: "carto_base", layout: { visibility: "none" } },
-    { id: "esri",           type: "raster", source: "esri" },
-    { id: "esri_transport", type: "raster", source: "esri_transport" },
-    { id: "carto_labels",   type: "raster", source: "carto_labels", minzoom: labelMinzoom }
-  ]
-});
+// The toggle also installs the provider failover, so add it.
+// =====================================================
+window.pawaGlHybridStyle = function (o) {
+  o = o || {};
+  var maxzoom = o.maxzoom || 19, labelMinzoom = o.labelMinzoom || 9;
+  var B = window.PawaBasemaps;
+  var sat = B.pick("satellite"), street = B.pick("street");
 
-window.pawaGlBasemapToggle = () => ({
-  onAdd(map) {
-    const wrap = document.createElement("div");
-    wrap.className = "maplibregl-ctrl maplibregl-ctrl-group";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    // Colour stated, not inherited. The control sits in maplibre's white
-    // .maplibregl-ctrl-group, but a <button> takes its colour from the page on
-    // pages that style buttons — so on a dark page this read white-on-white and
-    // the only way to find the satellite toggle was to guess where it was.
-    btn.style.cssText = "width:auto;padding:0 10px;font:600 12px/30px system-ui,sans-serif;" +
-      "color:#1a1915;background:#fff;";
-    let sat = true;
-    btn.textContent = " Map";
-    btn.title = "Switch between satellite and street map";
-    btn.addEventListener("click", () => {
-      sat = !sat;
-      const set = (id, vis) => { if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis); };
-      set("esri",           sat ? "visible" : "none");
-      set("esri_transport", sat ? "visible" : "none");
-      set("carto_labels",   sat ? "visible" : "none");
-      set("carto_base",     sat ? "none" : "visible");
-      btn.textContent = sat ? " Map" : " Satellite";
-    });
-    wrap.appendChild(btn);
-    this._wrap = wrap;
-    return wrap;
-  },
-  onRemove() { this._wrap?.remove(); }
-});
+  var sources = { pawa_street: B.glSource(street, maxzoom), pawa_satellite: B.glSource(sat, maxzoom) };
+  // Street basemap first and hidden: it sits under the imagery in the stack so
+  // the toggle only has to flip visibility, never reorder.
+  var layers = [
+    { id: "pawa_street", type: "raster", source: "pawa_street", layout: { visibility: "none" } },
+    { id: "pawa_satellite", type: "raster", source: "pawa_satellite" }
+  ];
+  // Only the free imagery needs names painted over it; the keyed hybrids
+  // already carry their own.
+  if (sat.labels === "overlay") {
+    sources.pawa_roads = { type: "raster", tiles: [B.esriTransport], tileSize: 256, maxzoom: maxzoom };
+    sources.pawa_labels = {
+      type: "raster", tiles: B.cartoGl("voyager_only_labels"), tileSize: 256, maxzoom: maxzoom,
+      attribution: "© CARTO © OpenStreetMap contributors"
+    };
+    layers.push({ id: "pawa_roads", type: "raster", source: "pawa_roads" });
+    layers.push({ id: "pawa_labels", type: "raster", source: "pawa_labels", minzoom: labelMinzoom });
+  }
+  var style = { version: 8, sources: sources, layers: layers };
+  // Carried on the style so a caller that adds symbol layers of its own has a
+  // glyph server to draw them with. Omitted when there is no key, because a
+  // style pointing at a glyph server that 404s is worse than one with none.
+  var g = B.glyphs();
+  if (g) style.glyphs = g.url;
+  return style;
+};
+
+window.pawaGlBasemapToggle = function () {
+  return {
+    onAdd: function (map) {
+      window.PawaBasemaps.watchGl(map);
+      var wrap = document.createElement("div");
+      wrap.className = "maplibregl-ctrl maplibregl-ctrl-group";
+      var btn = document.createElement("button");
+      btn.type = "button";
+      // Colour stated, not inherited. The control sits in maplibre's white
+      // .maplibregl-ctrl-group, but a <button> takes its colour from the page on
+      // pages that style buttons — so on a dark page this read white-on-white and
+      // the only way to find the satellite toggle was to guess where it was.
+      btn.style.cssText = "width:auto;padding:0 10px;font:600 12px/30px system-ui,sans-serif;" +
+        "color:#1a1915;background:#fff;";
+      // The labels were emoji + word; the emoji was stripped and left the button
+      // reading as a leading space. They are also the only two words on the map,
+      // so they belong in i18n like every other string a person reads.
+      var say = function (k, fallback) { return window.t ? window.t(k) : fallback; };
+      var sat = true;
+      btn.textContent = say("jb_map_street", "Map");
+      btn.title = say("jb_map_toggle_title", "Switch between satellite and street map");
+      btn.setAttribute("aria-label", btn.title);
+      btn.addEventListener("click", function () {
+        sat = !sat;
+        var set = function (id, vis) {
+          if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+        };
+        set("pawa_satellite", sat ? "visible" : "none");
+        set("pawa_roads",     sat ? "visible" : "none");
+        set("pawa_labels",    sat ? "visible" : "none");
+        set("pawa_street",    sat ? "none" : "visible");
+        btn.textContent = sat ? say("jb_map_street", "Map") : say("jb_map_satellite", "Satellite");
+      });
+      wrap.appendChild(btn);
+      this._wrap = wrap;
+      return wrap;
+    },
+    onRemove: function () { if (this._wrap) this._wrap.remove(); }
+  };
+};
