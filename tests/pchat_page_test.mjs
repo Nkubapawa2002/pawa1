@@ -22,7 +22,10 @@ const EXPECTED = [
   { kind: "link", href: "houses.html?alert=1&from=pchat", label: "Alert me about an area" },
   { kind: "link", href: "near-me.html?from=pchat", label: "Scan areas and services near you" },
   { kind: "link", href: "frame.html?from=pchat", label: "Read any area as a room for business" },
-  { kind: "link", href: "meet.html?live=1&from=pchat", label: "Share my live location" },
+  // One row, not two. "Share my live location" (?live=1) and "Meet & Locate"
+  // were the same feature behind two cards: both opened meet.html, and ?live=1
+  // only put a focus ring on a button inside that same lobby. The lobby leads
+  // with sharing now, so the row that survives is the page itself.
   { kind: "link", href: "meet.html?from=pchat", label: "Meet & Locate" },
   { kind: "link", href: "share-location.html?from=pchat", label: "Share a location" },
   { kind: "link", href: "jobs.html?from=pchat", label: "Jobs and staff" },

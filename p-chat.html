@@ -294,19 +294,17 @@
              one-tap WhatsApp share raised as the primary action. It is NOT
              fired automatically — that would spring a geolocation prompt and a
              popup on someone who only opened a tab. -->
-        <a class="ha-find-card" href="meet.html?live=1&amp;from=pchat">
+        <!-- ONE row, not two. This tab used to carry "Share my live location"
+             and "Meet & Locate" as separate cards. They were the same feature:
+             both opened meet.html, and the only difference was ?live=1, which
+             puts a focus ring on one button inside the very same lobby. Two
+             doors onto one room, described twice, is exactly the duplication
+             this tab exists to remove. -->
+        <a class="ha-find-card" href="meet.html?from=pchat">
           <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 18.4a9 9 0 0 0 0-12.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 15.5a5 5 0 0 0 0-7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
           <span class="ha-find-tx">
-            <span class="ha-find-t" data-i18n="pc_live">Share my live location</span>
-            <span class="ha-find-d" data-i18n="pc_live_d">One tap — they watch you move on the map in real time, in WhatsApp. No app to install.</span>
-          </span>
-        </a>
-
-        <a class="ha-find-card" href="meet.html?from=pchat">
-          <span class="ha-find-ic ic-sky" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="10.3" r="2.5" stroke="currentColor" stroke-width="1.7"/></svg></span>
-          <span class="ha-find-tx">
             <span class="ha-find-t" data-i18n="meet_title">Meet &amp; Locate</span>
-            <span class="ha-find-d" data-i18n="pc_meet_d">See each other on a live map for a viewing or a service visit — one 6-character code.</span>
+            <span class="ha-find-d" data-i18n="pc_meet_d">Let someone watch you move on a live map, or join theirs with a 6-character code. No app to install.</span>
           </span>
         </a>
 

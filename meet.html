@@ -216,6 +216,13 @@
     /* ---- Invite mode (arrived via a shared room link) ----
        The lobby compacts to a single focused "Join" card with a banner,
        so a client invited to a live viewing joins in one tap. */
+    /* `display: flex` on the element itself beat the UA rule behind the
+       `hidden` ATTRIBUTE, so this banner was shown to everybody: a cold
+       visitor with no ?code= was told they had been invited to a meet-up that
+       does not exist, and instructed to tap a Join button that could not
+       work. Any element that ships hidden needs this line beside its display
+       rule, or the attribute is decorative. */
+    .meet-invite-banner[hidden] { display: none !important; }
     .meet-invite-banner {
       display: flex; gap: 12px; align-items: center;
       background: linear-gradient(135deg, var(--c-brand, #0a6f4d), var(--c-brand-deep, #064a33));
@@ -617,11 +624,47 @@
       color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
     }
     body[data-page="meet"] .container { padding-bottom: 96px; }
+    /* ── The fields, and why every declaration here carries !important ────
+       This rule already existed and did nothing, because two SHARED
+       stylesheets claim the same properties with !important and no amount of
+       specificity beats that:
+
+         premium.css   input[type="text"], ..., select { background: rgba(255,255,255,.78) !important }
+         neon-pro.css  input, select, textarea         { background: rgba(7,18,13,.7)     !important }
+
+       They also disagree with each other, and which one wins depends on the
+       SELECTOR SHAPE rather than on either file's intent: `input[type="text"]`
+       is (0,1,1) so premium wins the typed inputs, while both write a bare
+       `select` at (0,0,1) so the later file wins the dropdowns. The result was
+       measured, and it is not a subtle blemish:
+
+         dark   field rgba(255,255,255,.78) under text rgb(240,245,242)  -> white on white
+         light  select rgba(7,18,13,.70)    under text rgb(26,25,21)     -> black on black
+
+       In other words you could not read what you had typed, in either theme.
+       The background never followed the theme while the ink always did.
+
+       Fixing the shared files would ripple across twenty-odd pages, so this is
+       settled HERE, on the page being rebuilt, with the ink and the ground
+       stated together in both themes so they can never drift apart again. */
     body[data-page="meet"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
     body[data-page="meet"] select, body[data-page="meet"] textarea {
-      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05) !important;
+      color: #E9F3EE !important;
+      border: 1px solid rgba(255,255,255,.14) !important;
+      border-radius: var(--radius) !important;
+      min-height: var(--hit-min);
     }
-    body[data-page="meet"] input::placeholder, body[data-page="meet"] textarea::placeholder { color: rgba(233,243,238,.4); }
+    :root[data-theme="light"] body[data-page="meet"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+    :root[data-theme="light"] body[data-page="meet"] select,
+    :root[data-theme="light"] body[data-page="meet"] textarea {
+      background: #ffffff !important;
+      color: #1a1915 !important;
+      border-color: rgba(20,20,15,.18) !important;
+    }
+    body[data-page="meet"] input::placeholder, body[data-page="meet"] textarea::placeholder { color: rgba(233,243,238,.4) !important; }
+    :root[data-theme="light"] body[data-page="meet"] input::placeholder,
+    :root[data-theme="light"] body[data-page="meet"] textarea::placeholder { color: #6b6960 !important; }
     /* All four of these fills are linear-gradient(--c-brand, --c-brand-deep).
        In the dark theme that resolves to the bright mint #2EE6A6, so their text
        is near-black. In LIGHT the same two tokens resolve to #0a6f4d / #064a33
@@ -634,6 +677,30 @@
     :root[data-theme="light"] body[data-page="meet"] .share-card,
     :root[data-theme="light"] body[data-page="meet"] .side-pull,
     :root[data-theme="light"] body[data-page="meet"] .meet-fab-maximize { color: #fff; }
+    /* css/styles.css paints .meet-feat with --green-light on --green-dark,
+       which are the LIGHT surface and ink used unconditionally. On this page's
+       near-black ground that produced six pale mint pills that looked like a
+       different product had been pasted in. Restated per theme here rather
+       than in the shared file, which other pages read. */
+    body[data-page="meet"] .meet-feat {
+      background: rgba(255,255,255,.05); color: var(--c-text-soft);
+      border: 1px solid var(--c-border);
+    }
+    body[data-page="meet"] .meet-feat .mf-dot { background: var(--c-brand); }
+    :root[data-theme="light"] body[data-page="meet"] .meet-feat {
+      background: #f2f6f4; color: #35443d; border-color: rgba(20,20,15,.10);
+    }
+    :root[data-theme="light"] body[data-page="meet"] .meet-feat .mf-dot { background: var(--green); }
+
+    /* The quiet alternative under the headline action. An outline, not a
+       third filled bar: three full-width fills of three different colours was
+       the lobby telling the reader that everything is equally important. */
+    body[data-page="meet"] .btn-quiet {
+      background: transparent; color: var(--c-text);
+      border: 1px solid var(--c-border); font-weight: 700;
+    }
+    body[data-page="meet"] .btn-quiet:hover { border-color: var(--c-brand); color: var(--c-brand); }
+
     body[data-page="meet"] #nav-slot, body[data-page="meet"] #footer-slot { display: none !important; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
@@ -663,11 +730,14 @@
 
   <main class="container meet-container">
 
-    <!-- Hero -->
+    <!-- Hero. The "NEW · LIVE GPS" badge is gone: it was a marketing kicker
+         on a utility page, it dated itself the moment it shipped, and it sat
+         above the fold of the one screen where the reader is trying to do
+         something quickly. The sentence under the title says what the page
+         does instead of how new it is. -->
     <div class="fast-hero-card">
-      <span class="fast-hero-badge"> NEW · LIVE GPS</span>
       <h1 data-i18n="meet_title">Meet &amp; Locate</h1>
-      <p data-i18n="meet_sub">Share your live location with a house agent, service provider, or whoever you're meeting. See each other on a real-time map of Tanzania — perfect for home viewings and service visits.</p>
+      <p data-i18n="meet_sub">See each other on a live map while you are on your way. One 6-character code, no app to install.</p>
     </div>
 
     <!-- Lobby (create or join a room) -->
@@ -679,7 +749,7 @@
         <div class="mib-icon" id="mibIcon"></div>
         <div class="mib-body">
           <strong id="mibTitle" data-i18n="mt_invite_title">You've been invited to a live meet-up</strong>
-          <span id="mibSub" data-i18n="mt_invite_sub">Enter your name below and tap Join — your live location is shared only with people in this room.</span>
+          <span id="mibSub" data-i18n="mt_invite_sub">Enter your name below and tap Join. Your live location is shared only with people in this room.</span>
         </div>
       </div>
 
@@ -691,7 +761,7 @@
           <p class="muted" data-i18n="meet_create_sub">Create a room and share the 6-character code with the other person.</p>
           <label class="meet-label">
             <span data-i18n="meet_your_name">Your name</span>
-            <input id="createName" type="text" placeholder="e.g. Asha" />
+            <input id="createName" type="text" placeholder="e.g. Asha" data-i18n-placeholder="meet_name_ph" />
           </label>
           <label class="meet-label">
             <span data-i18n="meet_your_role">Your role</span>
@@ -718,15 +788,24 @@
             <span data-i18n="meet_optional_tracking">Listing or booking reference (optional)</span>
             <input id="createTracking" type="text" placeholder="e.g. house ID or service name" data-i18n-placeholder="mt_tracking_ph" />
           </label>
-          <button id="createRoomBtn" class="btn btn-primary btn-block" data-i18n="meet_create_btn">Create room</button>
-          <div class="wa-live-or"><span>or</span></div>
+          <!-- Sharing leads, and creating a room is the quiet alternative
+               under it. Both buttons make a room; the ONLY difference is how
+               the link travels, so presenting them as two equal full-width
+               primaries asked the reader to choose between two things they
+               could not yet tell apart. The one that hands the link over is
+               what people arrive wanting, and it is what P-Chat's row now
+               promises, so it is the one that looks like the action. Both ids
+               are unchanged, because js/pages/meet.js binds by id. -->
           <button id="waLiveLobbyBtn" class="btn btn-block btn-wa-live" type="button"
                   title="Creates a live room and opens WhatsApp with a link your contact taps once to watch you live"
                   data-i18n-title="mt_wa_lobby_title">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:middle;margin-right:8px"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.13c-.25.69-1.45 1.32-1.99 1.36-.53.05-.53.42-3.34-.7-2.8-1.12-4.56-3.99-4.7-4.18-.14-.18-1.13-1.5-1.13-2.86 0-1.36.71-2.03.97-2.31.25-.28.55-.35.73-.35.18 0 .37 0 .53.01.17.01.4-.06.62.48.25.6.84 2.06.91 2.21.07.14.12.31.02.49-.09.18-.14.3-.28.46-.14.16-.29.36-.42.48-.14.14-.28.29-.12.56.16.28.71 1.18 1.53 1.91 1.06.95 1.95 1.24 2.23 1.38.28.14.44.12.6-.07.18-.21.69-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.61.76 1.89.9.28.14.46.21.53.32.07.12.07.66-.18 1.35z"/></svg>
             <span data-i18n="mt_wa_lobby">Share my live location on WhatsApp</span>
           </button>
-          <p class="wa-live-hint" data-i18n="mt_wa_hint">One tap — your contact watches you move on the map in real time. No app needed.</p>
+          <p class="wa-live-hint" data-i18n="mt_wa_hint">One tap, and your contact watches you move on the map in real time. No app needed.</p>
+          <div class="wa-live-or"><span data-i18n="meet_or">or</span></div>
+          <button id="createRoomBtn" class="btn btn-block btn-quiet" data-i18n="meet_create_btn">Create room</button>
+          <p class="wa-live-hint" data-i18n="meet_create_hint">Makes the room without opening WhatsApp, so you can pass the 6-character code on however you like.</p>
         </div>
 
         <div class="meet-lobby-card">
@@ -735,7 +814,7 @@
           <p class="muted" data-i18n="meet_join_sub">Got a 6-character code from someone? Type it here.</p>
           <label class="meet-label">
             <span data-i18n="meet_your_name">Your name</span>
-            <input id="joinName" type="text" placeholder="e.g. Juma" />
+            <input id="joinName" type="text" placeholder="e.g. Juma" data-i18n-placeholder="meet_name_ph2" />
           </label>
           <label class="meet-label">
             <span data-i18n="meet_room_code">Room code</span>
@@ -759,10 +838,10 @@
       </div>
 
       <div class="meet-features">
-        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_realtime">Realtime GPS — refreshes every 5 s</span></div>
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_realtime">Realtime GPS, refreshed every 5 seconds</span></div>
         <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_weather">Weather where you and your contact stand</span></div>
         <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_eta">Distance &amp; ETA between everyone in the room</span></div>
-        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_secure">Code-protected — only people you share the code with can see you</span></div>
+        <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_secure">Code-protected. Only people you give the code to can see you</span></div>
         <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_battery">Auto-stops if your battery is low</span></div>
         <div class="meet-feat"><span class="mf-dot"></span><span data-i18n="meet_feat_navigate">One-tap navigation in Google Maps</span></div>
       </div>
