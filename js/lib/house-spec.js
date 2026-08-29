@@ -610,6 +610,52 @@
     return d;
   }
 
+
+  // ---------------------------------------------- a room FOR BUSINESS
+  // The Frame reads an area as "a room for business", so it has to be able to
+  // tell which of a building's rooms IS one. That question is answered here,
+  // next to the taxonomy, rather than in the page that happens to ask it
+  // first: the houses directory and the agent portal want the same answer.
+  //
+  // Two things make this harder than a list lookup.
+  //
+  // A room kind is FREE TEXT. The picker offers the keys below, but the column
+  // takes whatever an agent types, and production already holds a room whose
+  // kind is "mwembe radu" — a place name. So a key match is the first test,
+  // not the only one, and the words an agent reaches for in either language
+  // are the second.
+  //
+  // And the business room is often NOT the cheapest one. A building with four
+  // single rooms and one shop frame has room_kind = "single", because that
+  // column carries the cheapest room for the "from TZS …" headline. Anything
+  // deciding "is there business space here?" from room_kind alone answers no
+  // for exactly the buildings that mix the two, which in a Tanzanian street is
+  // most of them. Read details.rooms, never room_kind.
+  var BUSINESS_KINDS = ["shop_frame", "kiosk", "office_suite", "godown", "hall", "parking_bay"];
+  var BUSINESS_WORDS = new RegExp(
+    "\\b(frame|frem|biashara|business|commercial|duka|maduka|shop|store|stall|" +
+    "kiosk|kibanda|genge|ofisi|office|go-?down|godown|ghala|warehouse|lock-?up|" +
+    "lockup|ukumbi|hall|workshop|karakana|garage|salon|saloon|godauni)\\b");
+
+  /** Is this room kind a business space? Handles the keys and the free text. */
+  function isBusinessKind(kind) {
+    var k = String(kind == null ? "" : kind).trim().toLowerCase();
+    if (!k) return false;
+    for (var i = 0; i < BUSINESS_KINDS.length; i++) if (BUSINESS_KINDS[i] === k) return true;
+    return BUSINESS_WORDS.test(k.replace(/[_-]+/g, " "));
+  }
+
+  /**
+   * Every business room inside a listing, as normalized room objects.
+   *
+   * Empty for a purely residential building, which is the answer the Frame
+   * needs: it means there is nothing here to show a person looking for space
+   * to trade from.
+   */
+  function businessRooms(row) {
+    return fromRow(row).rooms.filter(function (r) { return isBusinessKind(r.kind); });
+  }
+
   /**
    * The cheapest room, for a "from TZS 60,000" headline.
    *
@@ -779,6 +825,9 @@
     periodLabel: periodLabel,
     isRoomByRoom: isRoomByRoom,
     roomKinds: roomKinds,
+    isBusinessKind: isBusinessKind,
+    businessRooms: businessRooms,
+    BUSINESS_KINDS: BUSINESS_KINDS,
     roomWords: roomWords,
     offers: offers,
   };

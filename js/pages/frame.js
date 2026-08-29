@@ -22,6 +22,25 @@
 (function () {
   "use strict";
 
+  /**
+   * One user-visible string, in the reader's language.
+   *
+   * Most of this page still writes English inline, which predates this and is
+   * a much larger job than the panel below. Everything NEW here goes through
+   * i18n, so the business-rooms panel reads correctly in Swahili even while
+   * its neighbours do not. `{name}` placeholders are filled from `vars`,
+   * because window.t() takes a key and nothing else.
+   */
+  function tx(key, fallback, vars) {
+    var out = fallback;
+    if (window.t) {
+      var got = window.t(key);
+      if (got && got !== key) out = got;
+    }
+    if (vars) for (var k in vars) out = out.split("{" + k + "}").join(vars[k]);
+    return out;
+  }
+
   // ---- magnet taxonomy (mirrors docs/frame.MD §2) --------------------------
   // weight = how strongly this class pulls a crowd (transport & market lead).
   const MAGNETS = {
@@ -359,24 +378,46 @@
     return { unis, nearest, score, ok: true };
   }
 
-  // A Frame is a "room for business" — so the Frame map only shows listings that
-  // ARE business spaces (frames), never normal residential rooms like a master
-  // room. A listing qualifies when it's a business-space TYPE (shop / office /
-  // warehouse / store / stall / kiosk / godown / lockup), or it's explicitly
-  // NAMED a frame / business space (the listing form even suggests "frame" as a
-  // custom type). Room-by-room residential rentals (room_kind single/master) and
-  // plain dwellings (house / apartment / room / studio) are excluded.
+  // A Frame is a "room for business", so the Frame shows the listings that ARE
+  // business space and leaves the residential ones out.
+  //
+  // This used to decide from `type`, `title` and `room_kind` alone, and got the
+  // most common Tanzanian building wrong. `room_kind` carries the CHEAPEST room
+  // (house-spec.cheapest(), for the "from TZS …" headline), not the nature of
+  // the building. So a plot with four single rooms and a shop frame on the
+  // street side has room_kind = "single", and the old first test —
+  //
+  //     if (roomKind === "single" || roomKind === "master") return false;
+  //
+  // — threw the whole listing away before anything else ran. The shop frame was
+  // invisible in the Frame, which is the one screen built to find it. Buildings
+  // that mix rooms with a duka are not an edge case here; they are the street.
+  //
+  // details.rooms is now the first thing asked, through HouseSpec, so a
+  // business room anywhere in a building brings that building into the Frame
+  // whatever its cheapest room happens to be.
   function isFrameListing(h) {
     if (!h) return false;
-    if (h.is_frame === true) return true;     // agent ticked "this is a Frame"
-    const roomKind = String(h.room_kind || "").toLowerCase();
-    if (roomKind === "single" || roomKind === "master") return false;   // residential rooms
+    if (h.is_frame === true) return true;                 // agent ticked "this is a Frame"
+    if (businessRoomsOf(h).length) return true;           // a business room, anywhere inside
     const type = String(h.type || "").toLowerCase().trim();
-    if (/^(house|apartment|villa|studio|room|bedsitter|self.?contained)$/.test(type)) return false;
     if (/^(shop|office|warehouse|store|stall|kiosk|godown|go-?down|commercial|business)$/.test(type)) return true;
-    // Custom "other" type or title that names it a frame / business space.
+    // Only NOW is a residential type disqualifying: a house with a lockup in
+    // front is still a frame, and the room test above has already said so.
+    if (/^(house|apartment|villa|studio|room|bedsitter|self.?contained)$/.test(type)) return false;
+    // Custom "other" type or a title that names it a frame / business space.
     const text = `${type} ${h.title || ""}`.toLowerCase();
     return /\b(frame|biashara|business|commercial|duka|shop|store|ofisi|office|go-?down|godown|warehouse|kibanda|stall|kiosk|lock-?up|lockup|market\s*stall|maduka)\b/.test(text);
+  }
+
+  // HouseSpec owns the room taxonomy and the free-text matching, because the
+  // houses directory and the agent portal ask the same question. It is a
+  // separate script, so the Frame degrades to the type test if it is missing
+  // rather than throwing on every listing.
+  function businessRoomsOf(h) {
+    try {
+      return (window.HouseSpec && window.HouseSpec.businessRooms(h)) || [];
+    } catch (_) { return []; }
   }
 
   // ---- Pawa's own revealed signals inside the frame ------------------------
@@ -635,21 +676,94 @@
   function distM(m) { return m == null ? "" : m <= 15 ? "on it" : m < 1000 ? m + " m" : (m / 1000).toFixed(1) + " km"; }
   function compactK(p) { p = Number(p) || 0; if (p >= 1e9) return (p / 1e9).toFixed(p % 1e9 ? 1 : 0) + "B"; if (p >= 1e6) return (p / 1e6).toFixed(p % 1e6 ? 1 : 0) + "M"; if (p >= 1e3) return Math.round(p / 1e3) + "k"; return String(p); }
 
-  // The list of frames (business spaces) in the gap panel — each with its
-  // distance to the nearest road, closest first, so an agent can eyeball them.
-  function framesListHtml(frames) {
-    if (!frames || !frames.length)
-      return `<div class="fr-frames-none">No frames (business spaces) listed here yet — an open gap to fill.</div>`;
-    const rows = frames.slice(0, 8).map((f) => {
-      const road = f.roadName ? `${distM(f.roadM)} to ${esc(f.roadName)}` : "no road mapped";
-      const price = f.priceTzs ? ` · TZS ${compactK(f.priceTzs)}${f.listing === "sale" ? "" : "/" + (f.period === "month" ? "mo" : esc(f.period || "mo"))}` : "";
-      const inner = `<span class="fr-frame-name">${esc(f.title)}</span><span class="fr-frame-meta"> ${road}${price}</span>`;
-      // Tapping a row highlights the frame on the map (falls back to opening its
-      // detail page when it has no map pin).
-      return `<button type="button" class="fr-frame-row" data-fid="${esc(f.id || "")}" data-href="${f.href ? esc(f.href) : ""}">${inner}</button>`;
+  // ------------------------------------------------------- business rooms
+  // Lucide-style stroke icons, one per kind of space. They inherit the ink
+  // beside them, so they follow the theme without being told to, and a kind
+  // nobody recognises falls back to the storefront rather than to a blank.
+  const ROOM_ICONS = {
+    shop_frame:  '<path d="M4 9h16l-1-4H5zM5 9v11h14V9M9 20v-6h6v6"/>',
+    kiosk:       '<path d="M4 10l2-5h12l2 5zM5 10v10h14V10M4 14h16"/>',
+    office_suite:'<path d="M5 21V4a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v17M16 21V9h3a1 1 0 0 1 1 1v11M3 21h18M8 7h3M8 11h3M8 15h3"/>',
+    godown:      '<path d="M3 21V9l9-5 9 5v12M3 21h18M8 21v-7h8v7M8 17h8"/>',
+    hall:        '<circle cx="9" cy="8" r="3"/><path d="M2.5 20c0-3.2 2.9-5 6.5-5s6.5 1.8 6.5 5M17 5.2a3 3 0 0 1 0 6M18.5 20c0-2.6-1-4.2-2.7-5"/>',
+    parking_bay: '<rect x="3" y="11" width="18" height="7" rx="2"/><path d="M5.5 11l2-5h9l2 5M7 18v2M17 18v2"/>',
+    _road:       '<path d="M12 3v3M12 10.5v3M12 18v3M5 21l3-18M19 21l-3-18"/>',
+    _tag:        '<path d="M20.6 13.4 12 22l-9-9V3h10zM7.5 7.5h.01"/>',
+  };
+  function roomIcon(name) {
+    return `<svg class="fr-ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+      `stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+      `${ROOM_ICONS[name] || ROOM_ICONS.shop_frame}</svg>`;
+  }
+
+  /**
+   * Every business room in the frame, one row each.
+   *
+   * This panel used to be a footnote inside the gap card that counted
+   * BUILDINGS: a plot renting two lockups and an office read as "1 frame",
+   * which tells somebody hunting for space to trade from almost nothing. A
+   * room is what gets rented, so a room is what gets a row: its kind, what it
+   * costs, whether any is free, and how far it sits from the road that carries
+   * the customers past it. Closest to a road first, because that ordering IS
+   * the advice.
+   */
+  function framesListHtml(frames, places) {
+    if (!frames || !frames.length) {
+      return `<div class="fr-rooms-none">${esc(tx("fr_rooms_none",
+        "No business rooms listed here yet. That is an open gap, not a dead area."))}</div>`;
+    }
+    const shown = frames.slice(0, 8);
+    const rows = shown.map((f) => {
+      const road = f.roadName
+        ? `${roomIcon("_road")}${distM(f.roadM)} ${esc(tx("fr_rooms_to", "to"))} ${esc(f.roadName)}`
+        : `${roomIcon("_road")}${esc(tx("fr_rooms_no_road", "no road mapped"))}`;
+      // Money is mono with tabular figures everywhere in this design system.
+      const price = f.priceTzs
+        ? `<span class="fr-room-price">TZS ${compactK(f.priceTzs)}<small>${
+            f.listing === "sale" ? "" : "/" + esc(periodShort(f.period))}</small></span>`
+        : `<span class="fr-room-price fr-room-ask">${esc(tx("fr_rooms_ask", "Ask"))}</span>`;
+      // Vacancy is only ever shown when the agent actually said. "0 free" is a
+      // fact worth reading; a blank is not the same as "none left".
+      // "1 of 1 free" is a fraction nobody needs; when there is only one of a
+      // space, whether it is free is the whole of the fact.
+      const one = f.count <= 1;
+      const vac = f.vacant == null ? ""
+        : `<span class="fr-room-vac${f.vacant > 0 ? " is-free" : " is-full"}">${
+            f.vacant > 0
+              ? esc(one ? tx("fr_rooms_free_1", "free")
+                        : tx("fr_rooms_free", "{n} of {c} free", { n: f.vacant, c: f.count }))
+              : esc(one ? tx("fr_rooms_taken_1", "taken")
+                        : tx("fr_rooms_taken", "all {c} taken", { c: f.count }))}</span>`;
+      const many = !f.vacant && f.count > 1
+        ? `<span class="fr-room-count">${esc(tx("fr_rooms_count", "{c} of these", { c: f.count }))}</span>` : "";
+      return `<button type="button" class="fr-room-row" data-fid="${esc(f.id || "")}"
+          data-href="${f.href ? esc(f.href) : ""}">
+        <span class="fr-room-ic">${roomIcon(f.kindKey)}</span>
+        <span class="fr-room-tx">
+          <span class="fr-room-kind">${esc(f.kind || tx("fr_rooms_space", "Business space"))}${
+            f.whole ? ` <em class="fr-room-whole">${esc(tx("fr_rooms_whole", "whole place"))}</em>` : ""}</span>
+          <span class="fr-room-place">${esc(f.place)}</span>
+          <span class="fr-room-road">${road}</span>
+        </span>
+        <span class="fr-room-right">${price}${vac}${many}</span>
+      </button>`;
     }).join("");
-    const more = frames.length > 8 ? `<div class="fr-frames-more">+ ${frames.length - 8} more</div>` : "";
-    return `<div class="fr-frames-sub">The ${frames.length} frame${frames.length === 1 ? "" : "s"} here — tap one to find it on the map (closest to a road first)</div>${rows}${more}`;
+    const more = frames.length > 8
+      ? `<div class="fr-rooms-more">${esc(tx("fr_rooms_more", "+ {n} more", { n: frames.length - 8 }))}</div>` : "";
+    const head = tx("fr_rooms_head", "{n} business rooms in {p} places", { n: frames.length, p: places || 1 });
+    return `<div class="fr-rooms-head">${roomIcon("_tag")}<b>${esc(head)}</b>
+        <span>${esc(tx("fr_rooms_sub", "Closest to a road first. Tap one to find it on the map."))}</span>
+      </div>${rows}${more}`;
+  }
+
+  /** "mo", "day" — the period as it fits beside a price. */
+  function periodShort(period) {
+    const map = {
+      month: tx("fr_per_month", "mo"), day: tx("fr_per_day", "day"),
+      week: tx("fr_per_week", "wk"), year: tx("fr_per_year", "yr"),
+      total: tx("fr_per_total", "total"),
+    };
+    return map[period] || map.month;
   }
 
   // The Roads & nodes card — every main road in the frame, measured, plus the
@@ -996,10 +1110,10 @@
               <div class="fr-layer-d">${gapVerdict.note}</div>`
            : `<div class="fr-layer-d">No verdict — weighing demand against supply needs the footfall read that did not arrive. Pawa's own numbers below are real and are worth reading on their own.</div>`}
          <div class="fr-gap-grid">
-           <div class="fr-stat"><b>${rooms + servicesN + trucksN}</b><span>Pawa listings here<br>${rooms} frame${rooms === 1 ? "" : "s"} · ${servicesN} services · ${trucksN} trucks</span></div>
+           <div class="fr-stat"><b>${rooms + servicesN + trucksN}</b><span>Pawa listings here<br>${model.frames.length} business room${model.frames.length === 1 ? "" : "s"} · ${servicesN} services · ${trucksN} trucks</span></div>
            <div class="fr-stat"><b>${demandCount + jobsIn}</b><span>Revealed demand<br>${demandCount} waiting renters · ${jobsIn} day-job posts</span></div>
          </div>
-         ${framesListHtml(model.frames)}
+         ${framesListHtml(model.frames, model.framePlaces)}
        </div>` +
 
       // actions
@@ -1025,7 +1139,7 @@
     });
 
     // Tap a frame row → highlight that frame on the map (or open it if no pin).
-    panel.querySelectorAll(".fr-frame-row[data-fid]").forEach((el) => {
+    panel.querySelectorAll(".fr-room-row[data-fid]").forEach((el) => {
       el.addEventListener("click", () => {
         const fid = el.dataset.fid;
         if (fid && frameMarkers[fid]) highlightFrame(fid);
@@ -1058,7 +1172,7 @@
   // Reverse link: tap a frame pin → scroll to and flash its row in the list.
   function flashFrameRow(id) {
     let row = null;
-    document.querySelectorAll('#frPanel .fr-frame-row[data-fid]').forEach((r) => {
+    document.querySelectorAll('#frPanel .fr-room-row[data-fid]').forEach((r) => {
       if (r.dataset.fid === String(id)) row = r;
     });
     if (!row) return;
@@ -1083,7 +1197,7 @@
     if (dot) dot.classList.toggle("fr-pin-sync", on);
   }
   function setRowSync(id, on) {
-    document.querySelectorAll('#frPanel .fr-frame-row[data-fid]').forEach((r) => {
+    document.querySelectorAll('#frPanel .fr-room-row[data-fid]').forEach((r) => {
       if (r.dataset.fid === String(id)) r.classList.toggle("sync", on);
     });
   }
@@ -1337,22 +1451,56 @@
     // The single best point to plant a new listing (near a top destination + on a road).
     const best = bestSpot(destinations, roadsData);
 
-    // The frames (business spaces) here, each measured to its nearest road — so
-    // the gap panel can list every business space, closest-to-a-road first.
+    // The business ROOMS here, each measured to its nearest road, closest first.
+    //
+    // One row per room, not per building. A plot renting two lockups and an
+    // office is three different spaces at three different prices, and listing
+    // it once as "1 frame" told a person looking for space almost nothing. A
+    // listing that qualified on its type but carries no room breakdown still
+    // gets a single row, standing for the whole place, so nothing drops out
+    // just because its agent never filled the rooms table in.
     const allRoads = (roadsData.roads || []).concat(roadsData.others || []);
     const nis = (window.pawaRoads && window.pawaRoads.nearestInSet) || null;
-    const frames = roomsIn.map((h) => {
+    const HS = window.HouseSpec;
+    const frames = [];
+    roomsIn.forEach((h) => {
       const acc = nis ? nis({ lat: +h.lat, lng: +h.lng }, allRoads) : null;
-      return {
-        id: h.id, title: h.title || "Frame", type: h.type || "",
-        priceTzs: Number(h.price_tzs) || 0, listing: h.listing || "rent", period: h.period || "month",
-        roadName: acc && acc.road ? acc.road.name : null, roadM: acc ? acc.meters : null,
+      const base = {
+        id: h.id,
+        place: h.title || tx("fr_room_place", "A place"),
+        listing: h.listing || "rent",
+        roadName: acc && acc.road ? acc.road.name : null,
+        roadM: acc ? acc.meters : null,
         href: h.id ? `house.html?id=${encodeURIComponent(h.id)}` : null,
       };
-    }).sort((a, b) => (a.roadM == null ? 1e9 : a.roadM) - (b.roadM == null ? 1e9 : b.roadM));
+      const rooms = businessRoomsOf(h);
+      if (rooms.length) {
+        rooms.forEach((r) => frames.push(Object.assign({}, base, {
+          kindKey: String(r.kind || ""),
+          kind: HS ? HS.roomLabel(r.kind) : String(r.kind || ""),
+          priceTzs: Number(r.price) || 0,
+          period: r.period || "month",
+          count: Number(r.count) || 1,
+          vacant: r.vacant == null ? null : Number(r.vacant),
+          whole: false,
+        })));
+      } else {
+        frames.push(Object.assign({}, base, {
+          kindKey: String(h.type || ""),
+          kind: (window.ListingKinds && window.ListingKinds.label("houses", h.type)) || "",
+          priceTzs: Number(h.price_tzs) || 0,
+          period: h.period || "month",
+          count: 1, vacant: null, whole: true,
+        }));
+      }
+    });
+    frames.sort((a, b) => (a.roadM == null ? 1e9 : a.roadM) - (b.roadM == null ? 1e9 : b.roadM));
+    // How many buildings those rooms sit in — the panel says both, because
+    // "6 rooms in 2 places" and "6 rooms in 6 places" are different streets.
+    const framePlaces = new Set(roomsIn.map((h) => h.id)).size;
 
     const model = {
-      areaName, counts: mag.counts, serviceCount: mag.serviceCount, road, roadsData, catchment, sc, dom, destinations, best, frames,
+      areaName, counts: mag.counts, serviceCount: mag.serviceCount, road, roadsData, catchment, sc, dom, destinations, best, frames, framePlaces,
       magnetPull: sc.magnetPull, supply, demandCount: demandIn.length, jobsIn: jobsIn.length,
       rooms: roomsIn.length, servicesN: servicesIn.length, trucksN: trucksIn.length,
       pins: mag.pins, ownPins, boundaryGeo: boundary && boundary.geojson,
