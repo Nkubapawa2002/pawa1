@@ -49,6 +49,14 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
   "meet.html",
   "share-location.html",
   "jobs.html",
+  // The three catalogues. They were missing from this list, which is exactly
+  // why services.html's whole filter toolbar was still hardcoded English: no
+  // scan ever looked at it. houses.html appears twice on purpose — once with
+  // ?alert=1 for the area-alert sheet, and once plain for the directory
+  // itself, because they are different screens behind one file.
+  "houses.html",
+  "trucks.html",
+  "services.html",
 ];
 
 // Words that are the same in Swahili, or are not words at all. Kept small and

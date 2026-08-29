@@ -42,6 +42,11 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  // These two pages had no translation helper at all, which is the mechanical
+  // reason every string they render was English: there was nothing to call.
+  const T = (k) => (window.t ? window.t(k) : k);
+
+
   function haversineKm(aLat, aLng, bLat, bLng) {
     const R = 6371, toRad = (d) => (d * Math.PI) / 180;
     const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
@@ -269,7 +274,7 @@
   function renderList(rows) {
     listEl.removeAttribute("aria-busy");
     if (!rows.length) {
-      listEl.innerHTML = `<div class="trucks-empty">No trucks match your filters yet. Try widening the area or coverage — or <a href="agent-trucks.html">list your own truck</a>.</div>`;
+      listEl.innerHTML = `<div class="trucks-empty">${esc(T("tk_empty"))} <a href="agent-trucks.html">${esc(T("tk_empty_cta"))}</a>.</div>`;
       return;
     }
     listEl.innerHTML = rows.map(cardHtml).join("");

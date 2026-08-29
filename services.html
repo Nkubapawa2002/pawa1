@@ -242,60 +242,51 @@
     <div class="svc-chips" id="svcChips" role="tablist" aria-label="Service categories"></div>
 
     <div class="svc-toolbar">
-      <select id="filterCategory">
-        <option value="">Category: any</option>
-        <option value="cleaning"> Cleaning</option>
-        <option value="plumbing"> Plumbing</option>
-        <option value="electrical"> Electrical</option>
-        <option value="carpentry"> Carpentry</option>
-        <option value="painting"> Painting</option>
-        <option value="gardening"> Gardening</option>
-        <option value="moving_help"> Moving help</option>
-        <option value="laundry"> Laundry</option>
-        <option value="cooking"> Cooking / Chef</option>
-        <option value="tutoring"> Tutoring</option>
-        <option value="beauty"> Beauty & Salon</option>
-        <option value="security"> Security</option>
-        <option value="childcare"> Childcare</option>
-        <option value="appliance_repair"> Appliance repair</option>
-        <option value="other"> Other</option>
-      </select>
+      <!-- The category <select> that stood here held sixteen hardcoded English
+           options and was, in its own comment, "synced with" the chip rail
+           twenty pixels above it. One decision, two controls, and the two did
+           not even agree on language: the chips read their labels from
+           ListingKinds, so a Swahili reader saw translated chips over an
+           English dropdown. The rail is the only category control now, and
+           services.js keeps the value in a variable instead of in a form
+           element nobody was meant to use. -->
       <input type="text" id="filterArea" list="filterAreaList" autocomplete="off"
-             placeholder="Area — type e.g. Mikocheni, Sakina…" title="Type any area, ward or neighbourhood" />
+             data-i18n-placeholder="cat_area_ph" placeholder="Area, e.g. Mikocheni, Sakina…"
+             data-i18n-title="cat_area_title" title="Type any area, ward or neighbourhood" />
       <datalist id="filterAreaList"></datalist>
       <select id="filterService">
-        <option value="">Coverage: any</option>
-        <option value="within_city">Within city</option>
-        <option value="region_wide">Region-wide</option>
-        <option value="cross_region">Cross-region</option>
+        <option value="" data-i18n="cat_cov_any">Coverage: any</option>
+        <option value="within_city" data-i18n="cat_cov_city">Within city</option>
+        <option value="region_wide" data-i18n="cat_cov_region">Region-wide</option>
+        <option value="cross_region" data-i18n="cat_cov_cross">Cross-region</option>
       </select>
       <select id="filterRate">
-        <option value="">Rate: any</option>
-        <option value="hourly">Hourly</option>
-        <option value="daily">Daily</option>
-        <option value="per_job">Per job</option>
-        <option value="monthly">Monthly</option>
+        <option value="" data-i18n="sv_rate_any">Rate: any</option>
+        <option value="hourly" data-i18n="sv_rate_hourly">Hourly</option>
+        <option value="daily" data-i18n="sv_rate_daily">Daily</option>
+        <option value="per_job" data-i18n="sv_rate_job">Per job</option>
+        <option value="monthly" data-i18n="sv_rate_monthly">Monthly</option>
       </select>
-      <input type="text" id="filterSearch" placeholder="Search service, area or provider…" />
+      <input type="text" id="filterSearch" data-i18n-placeholder="sv_search_ph" placeholder="Search service, area or provider…" />
       <select id="svcSort" title="Sort providers">
-        <option value="nearest">Sort: nearest</option>
-        <option value="cheapest">Sort: cheapest</option>
-        <option value="newest">Sort: newest</option>
+        <option value="nearest" data-i18n="cat_sort_near">Sort: nearest</option>
+        <option value="cheapest" data-i18n="cat_sort_cheap">Sort: cheapest</option>
+        <option value="newest" data-i18n="cat_sort_new">Sort: newest</option>
       </select>
       <div class="svc-actions">
-        <button id="svcNearMeBtn" class="svc-near-me" title="Use my GPS location">
+        <button id="svcNearMeBtn" class="svc-near-me" data-i18n-title="cat_gps_title" title="Use my GPS location">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-          <span>Near me</span>
+          <span data-i18n="fm_near">Near me</span>
         </button>
-        <a href="agent-services.html" class="svc-list-cta">+ Offer your service</a>
+        <a href="agent-services.html" class="svc-list-cta"><span data-i18n="sv_cta">Offer your service</span></a>
       </div>
     </div>
 
     <div id="servicesCount" class="svc-result-count" role="status" aria-live="polite"></div>
 
     <div class="svc-mobile-tabs">
-      <button id="tabList" class="active" type="button">List</button>
-      <button id="tabMap"  type="button">Map</button>
+      <button id="tabList" class="active" type="button" data-i18n="xp_v_list">List</button>
+      <button id="tabMap"  type="button" data-i18n="xp_v_map">Map</button>
     </div>
 
     <div class="svc-stage" id="servicesStage" data-view="list">

@@ -30,7 +30,9 @@
   let sortMode = "nearest";       // nearest | cheapest | newest
 
   let listEl, mapEl, countEl, stageEl;
-  let fCat, fArea, fService, fRate, fSearch, areaList, nearBtn, sortSel, chipsEl;
+  let fArea, fService, fRate, fSearch, areaList, nearBtn, sortSel, chipsEl;
+  // "" means every category. The chip rail is the only control that sets it.
+  let catVal = "";
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
@@ -38,6 +40,11 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+
+  // These two pages had no translation helper at all, which is the mechanical
+  // reason every string they render was English: there was nothing to call.
+  const T = (k) => (window.t ? window.t(k) : k);
+
   function haversineKm(aLat, aLng, bLat, bLng) {
     const R = 6371, toRad = (d) => (d * Math.PI) / 180;
     const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
@@ -160,7 +167,7 @@
   }
 
   function applyFilters() {
-    const cat = fCat.value;
+    const cat = catVal;
     const area = fArea.value.trim().toLowerCase();
     const service = fService.value;
     const rate = fRate.value;
@@ -258,7 +265,7 @@
   function renderList(rows) {
     listEl.removeAttribute("aria-busy");
     if (!rows.length) {
-      listEl.innerHTML = `<div class="svc-empty">No providers match your filters yet. Try a different category or area — or <a href="agent-services.html">offer your own service</a>.</div>`;
+      listEl.innerHTML = `<div class="svc-empty">${esc(T("sv_empty"))} <a href="agent-services.html">${esc(T("sv_empty_cta"))}</a>.</div>`;
       return;
     }
     listEl.innerHTML = rows.map(cardHtml).join("");
@@ -329,16 +336,16 @@
   let debTimer = null;
   function debounced(fn) { clearTimeout(debTimer); debTimer = setTimeout(fn, 180); }
 
-  // Horizontal category chip rail — one-tap filtering, synced with the select.
+  // The category rail. It is now the ONLY category control on the page.
   function buildChips() {
     if (!chipsEl) return;
-    const mk = (val, emoji, label) =>
-      `<button type="button" class="svc-chip${fCat.value === val ? " active" : ""}" data-cat="${val}">${emoji} ${esc(label)}</button>`;
-    chipsEl.innerHTML = mk("", "", "All") +
-      CATEGORY_KEYS.map((k) => mk(k, "", catLabel(k))).join("");
+    const mk = (val, label) =>
+      `<button type="button" class="svc-chip${catVal === val ? " active" : ""}" data-cat="${val}">${esc(label)}</button>`;
+    chipsEl.innerHTML = mk("", T("sv_cat_all")) +
+      CATEGORY_KEYS.map((k) => mk(k, catLabel(k))).join("");
     chipsEl.querySelectorAll(".svc-chip").forEach((b) =>
       b.addEventListener("click", () => {
-        fCat.value = b.dataset.cat;
+        catVal = b.dataset.cat;
         buildChips();
         render();
       }));
@@ -346,7 +353,7 @@
 
   async function init() {
     listEl = $("servicesList"); mapEl = $("servicesMap"); countEl = $("servicesCount"); stageEl = $("servicesStage");
-    fCat = $("filterCategory"); fArea = $("filterArea"); fService = $("filterService");
+    fArea = $("filterArea"); fService = $("filterService");
     fRate = $("filterRate"); fSearch = $("filterSearch"); areaList = $("filterAreaList");
     nearBtn = $("svcNearMeBtn"); sortSel = $("svcSort"); chipsEl = $("svcChips");
 
@@ -354,10 +361,10 @@
 
     // Deep link from the homepage category chips: services.html?cat=cleaning
     const wantCat = new URLSearchParams(location.search).get("cat");
-    if (wantCat && CATEGORY_KEYS.includes(wantCat)) fCat.value = wantCat;
+    if (wantCat && CATEGORY_KEYS.includes(wantCat)) catVal = wantCat;
     buildChips();
 
-    [fCat, fService, fRate].forEach((el) => el.addEventListener("change", () => { buildChips(); render(); }));
+    [fService, fRate].forEach((el) => el.addEventListener("change", () => { buildChips(); render(); }));
     [fArea, fSearch].forEach((el) => el.addEventListener("input", () => debounced(render)));
     nearBtn.addEventListener("click", locateMe);
     sortSel?.addEventListener("change", () => { sortMode = sortSel.value; render(); });
