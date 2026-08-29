@@ -4,7 +4,7 @@
   <script src="js/core/theme.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Sign in — Maisha na Lifeza</title>
+  <title>Sign in to PN-Zaki</title>
   <meta name="description" content="One account for houses, daily services and moving trucks across Tanzania." />
   <meta name="robots" content="noindex" />
 
@@ -25,40 +25,63 @@
 <body data-page="login" data-app-shell="login.html">
   <div id="nav-slot"></div>
 
+  <!-- Decoration only, and it says so: three slow gradient fields behind the
+       shell. aria-hidden because there is nothing here to read. -->
+  <div class="lg-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
   <div class="lg-shell">
 
-    <!-- ============================ the pitch ============================ -->
+    <!-- ===================== the mark and the four doors ================= -->
     <section class="lg-story">
-      <span class="lg-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
+      <span class="lg-brandline">
+        <!-- PN-Zaki's own mark, the spark from the assistant, drawn rather
+             than faded in. -->
+        <svg class="lg-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>
+          <path d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>
+        </svg>
+        <h1 class="lg-brand-name">PN<em>-Zaki</em></h1>
       </span>
-      <h1 class="lg-wordmark">Maisha na <em>Lifeza</em></h1>
-      <p class="lg-lead" data-i18n="lg_lead">One account for homes, daily services and moving trucks across Tanzania.</p>
+      <p class="lg-lead" data-i18n="lg_lead">Homes, daily services, moving trucks and day jobs, across Tanzania.</p>
+    </section>
 
-      <ul class="lg-points">
-        <li>
-          <span class="lg-pt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
-          <span><span data-i18n="lg_pt_houses">Houses and rooms to rent or buy</span>
-            <small data-i18n="lg_pt_houses_d">Photos, prices and the owner's own number.</small></span>
-        </li>
-        <li>
-          <span class="lg-pt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
-          <span><span data-i18n="lg_pt_services">Fundis, cleaners and daily help</span>
-            <small data-i18n="lg_pt_services_d">Trusted people working near you.</small></span>
-        </li>
-        <li>
-          <span class="lg-pt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
-          <span><span data-i18n="lg_pt_trucks">Moving trucks when you relocate</span>
-            <small data-i18n="lg_pt_trucks_d">By size, area and distance.</small></span>
-        </li>
-      </ul>
+    <!-- STEP 1. Who is coming in.
+
+         Four kinds of account want different things from the same building, so
+         the door asks once instead of making a landlord hunt for the agent
+         portal. Buttons, not links: choosing one changes this page, it does not
+         navigate. aria-pressed carries the choice to a screen reader.
+
+         The chip row under each name is the load-bearing line. It is what that
+         door can actually DO, in the app's own nouns, and it is the only thing
+         that tells the four apart at a glance. -->
+    <section class="lg-step" id="stepDoor" aria-labelledby="doorTitle">
+      <h2 class="lg-card-h" id="doorTitle" data-i18n="lg_door_h">How will you use PN-Zaki?</h2>
+      <p class="lg-card-sub" data-i18n="lg_door_sub">Pick the one that fits. You can change it later, and it only decides where you land.</p>
+
+      <div class="lg-doors" id="doorGrid" role="group" aria-labelledby="doorTitle"></div>
+
+      <p class="lg-card-sub" style="margin-top:16px" data-i18n="lg_door_note">Choosing a door sets where the app takes you. What you are allowed to post is decided by your account, not by this screen.</p>
     </section>
 
     <!-- ======================== the account card ========================= -->
     <main>
 
       <!-- ---- sign in / code / create account ---- -->
-      <section class="lg-card" id="cardAuth" aria-labelledby="authTitle">
+      <section class="lg-card lg-step" id="cardAuth" aria-labelledby="authTitle" hidden>
+        <!-- The door that was chosen, restated and reversible. Without it a
+             person can fill in a whole registration before discovering it was
+             pointed at the wrong role, and the only way back is the browser's
+             back button, which on this page reloads and loses the form. -->
+        <button type="button" class="lg-chosen" id="chosenDoor" hidden>
+          <span class="lg-chosen-ic" id="chosenIc" aria-hidden="true"></span>
+          <span class="lg-chosen-tx">
+            <span class="lg-chosen-t" id="chosenName"></span>
+            <span class="lg-chosen-d" id="chosenWhat"></span>
+          </span>
+          <span class="lg-chosen-go" data-i18n="lg_door_change">Change</span>
+        </button>
         <h2 class="lg-card-h" id="authTitle" data-i18n="lg_title_signin">Sign in</h2>
         <p class="lg-card-sub" id="authSub" data-i18n="lg_sub_signin">Welcome back. We'll take you straight to whatever is yours.</p>
 
@@ -316,6 +339,9 @@
   <script src="js/core/auth.js"></script>
   <script src="js/lib/auth-errors.js"></script>
   <script src="js/lib/auth-policy.js"></script>
+  <!-- The four doors: who is coming in, and where they land. Must precede
+       login.js, which wires them into the step flow. -->
+  <script src="js/lib/login-doors.js"></script>
   <script src="js/pages/login.js"></script>
   <script>
     window.applyTranslations && window.applyTranslations();

@@ -99,10 +99,55 @@ window.initLoginPage = () => {
   }
 
   // ---- cards ---------------------------------------------------------------
-  const CARDS = ["cardAuth", "cardSent", "cardRecovery", "cardPortal"];
+  const CARDS = ["stepDoor", "cardAuth", "cardSent", "cardRecovery", "cardPortal"];
   function show(id) {
     CARDS.forEach((c) => { const el = $(c); if (el) el.hidden = c !== id; });
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {}
+  }
+
+  // ---- the four doors ------------------------------------------------------
+  // A door decides where somebody lands and how the page talks to them. It
+  // grants nothing: see the header of js/lib/login-doors.js for why that
+  // distinction is load-bearing and must not be softened.
+  const D = window.LoginDoors;
+
+  /** Move between the door step and the card, as a move rather than a swap. */
+  function goStep(id) {
+    const from = CARDS.map($).find((el) => el && !el.hidden);
+    const to = $(id);
+    if (!to) return;
+    const reduced = window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!from || from === to || reduced) { show(id); return; }
+    from.classList.add("is-leaving");
+    // Let the leaving card finish before the arriving one starts, or the two
+    // overlap and the eye reads a flicker instead of a transition.
+    setTimeout(() => {
+      from.classList.remove("is-leaving");
+      show(id);
+      to.classList.add("is-entering");
+      setTimeout(() => to.classList.remove("is-entering"), 460);
+    }, 190);
+  }
+
+  /** Restate the chosen door above the form, and make it reversible. */
+  function paintChosen(key) {
+    const chip = $("chosenDoor");
+    const m = D && D.meta(key);
+    if (!chip || !m) { if (chip) chip.hidden = true; return; }
+    chip.hidden = false;
+    chip.style.setProperty("--d", m.accent);
+    $("chosenIc").innerHTML = m.icon;
+    $("chosenName").textContent = T(m.name[0], m.name[1]);
+    $("chosenWhat").textContent = T(m.what[0], m.what[1]);
+  }
+
+  if (D) {
+    D.init({
+      grid: $("doorGrid"),
+      onPick: (key) => { paintChosen(key); goStep("cardAuth"); },
+    });
+    $("chosenDoor")?.addEventListener("click", () => goStep("stepDoor"));
   }
 
   // ---- method tabs ---------------------------------------------------------
@@ -315,6 +360,21 @@ window.initLoginPage = () => {
       const next = nextTarget();
       if (next) { location.href = next; return; }
     }
+    // The account's own answer outranks the door somebody just tapped: a
+    // landlord who mis-taps "Agent" has mis-tapped, not been promoted.
+    const said = D ? await D.fromAccount() : null;
+    if (said && D) D.set(said);
+    const type = said || (D && D.get());
+
+    // A company and a plain user each have exactly one place to be, so send
+    // them there. An agent or an owner may hold several portals, and the
+    // chooser below already works that out by asking what they actually own —
+    // which is a better answer than anything this picker could assert.
+    if (autoRedirect && (type === "company" || type === "user")) {
+      const m = D.meta(type);
+      if (m) { location.href = m.href; return; }
+    }
+
     show("cardPortal");
     $("portalEmail").textContent = session.user.email ||
       (session.user.is_anonymous ? T("lg_guest_name", "a guest session") : T("lg_your_account", "your account"));
@@ -577,7 +637,11 @@ window.initLoginPage = () => {
 
     busy(btn, true, T("lg_creating", "Creating your account…"));
     try {
-      const out = await A.signUp(email, pass);
+      // The door travels with the account. Auth.signUp already forwards a
+      // metadata object, so this needs no schema and no second write. It is a
+      // signpost, never a permission — js/lib/login-doors.js says why.
+      const chosen = D && D.get();
+      const out = await A.signUp(email, pass, chosen ? { account_type: chosen } : undefined);
       if (store) store.setItem(REMEMBER_KEY, email);
       busy(btn, false);
       pendingEmail = email;
@@ -762,6 +826,14 @@ window.initLoginPage = () => {
         if (event === "PASSWORD_RECOVERY") { inRecovery = true; show("cardRecovery"); $("recPassword").focus(); }
       });
     } catch (_) {}
+  }
+
+  // A door already chosen is a question already answered. Somebody coming back
+  // to sign in should not have to say who they are a second time — the chip at
+  // the top of the card still says which door they are in, and still changes it.
+  if (D) {
+    const remembered = D.get();
+    if (remembered) { paintChosen(remembered); show("cardAuth"); }
   }
 
   (async () => {
