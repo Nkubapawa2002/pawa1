@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v310-2026-08-28-basemap-chain";
+const VERSION = "v311-2026-08-29-notify-and-search";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -52,6 +52,18 @@ const APP_SHELL = [
   "./js/lib/explore-map.js",
   "./js/lib/explore-roads.js",
   "./js/pages/explore.js",
+  // The home search reuses Explore's three engine libs above; these are the
+  // wiring and the UI on top of them, plus the notification pair. Precached
+  // with the homepage because index.html loads all four and is the page most
+  // likely to be opened with no signal.
+  "./js/lib/home-search.js",
+  "./js/core/notify.js",
+  "./js/lib/notify-ui.js",
+  // The Frame reads details.rooms through HouseSpec to find business rooms and
+  // names their kinds through ListingKinds. Without them it falls back to
+  // judging a listing by its type alone, which is the bug they fixed.
+  "./js/lib/house-spec.js",
+  "./js/lib/listing-kinds.js",
   // The national video stage on explore.html, and the stylesheet both stages
   // share with index.html.
   "./js/lib/video-national.js",
