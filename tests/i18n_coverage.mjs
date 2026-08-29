@@ -23,6 +23,7 @@
 //           node tests/i18n_coverage.mjs near-me.html    (just one)
 // ============================================================================
 import puppeteer from "puppeteer";
+import { readFileSync } from "node:fs";
 
 const BASE = "http://localhost:8080";
 
@@ -86,11 +87,64 @@ const SUPABASE_STUB = `window.supabase = { createClient: function () {
     removeChannel: function () {} };
 } };`;
 
+
+// ---------------------------------------------------------------------------
+//  A static pass first: <option> labels written into the HTML.
+//
+//  The DOM scan below cannot catch these, and the reason is worth keeping. It
+//  only reports a string carrying an English function word, which is what stops
+//  it flagging Swahili that JS has already put on screen. But "Region-wide",
+//  "Hourly", "Per job" and "Sort: nearest" carry no function word either, so
+//  the whole trucks and services rate, coverage and sort set sat there in
+//  English while this file reported both pages clean.
+//
+//  In the SOURCE the question has an exact answer: an <option> with literal
+//  text and no data-i18n hook is a hardcoded string. A JS-populated option has
+//  no text in the file at all, so there is nothing here to get wrong.
+// ---------------------------------------------------------------------------
+//  Paths resolve against the repo root rather than the shell's cwd, and a file
+//  that cannot be read is a failure rather than a skip. Both for the same
+//  reason the page list above exists: a silent `continue` here would report a
+//  renamed page as clean, which is the failure this whole file is about.
+const OPTION_RE = /<option\b([^>]*)>([^<]+)<\/option>/g;
+const ROOT = new URL("..", import.meta.url);
+const staticHits = [];
+const unreadable = [];
+for (const file of [...new Set(PAGES.map((x) => x.split("?")[0]))]) {
+  let src = "";
+  try {
+    src = readFileSync(new URL(file, ROOT), "utf8");
+  } catch (err) {
+    unreadable.push({ file, why: err.code || err.message });
+    continue;
+  }
+  for (const m of src.matchAll(OPTION_RE)) {
+    if (/data-i18n/.test(m[1])) continue;
+    const label = m[2].trim();
+    // Numbers read the same in both languages: "1+", "3+", "10".
+    if (!/[A-Za-z]/.test(label)) continue;
+    staticHits.push({ file, label });
+  }
+}
+if (staticHits.length) {
+  process.stdout.write("\nHardcoded <option> labels (no data-i18n hook):\n");
+  for (const h of staticHits) {
+    process.stdout.write("  " + h.file + '  "' + h.label + '"\n');
+  }
+}
+if (unreadable.length) {
+  process.stdout.write("\nListed but unreadable — the scan cannot vouch for these:\n");
+  for (const u of unreadable) {
+    process.stdout.write("  " + u.file + "  (" + u.why + ")\n");
+  }
+}
+
 const browser = await puppeteer.launch({
   headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"], protocolTimeout: 120000,
 });
 
-let total = 0;
+// A hardcoded option is a miss, and so is a page this scan could not open.
+let total = staticHits.length + unreadable.length;
 const report = [];
 
 for (const path of PAGES) {
