@@ -192,17 +192,46 @@
   }
 
   // ---- search ------------------------------------------------------------
-  // The category nav is now a row of links (houses / trucks / near / services
-  // / jobs) that jump straight to each page, so the home search always lands
-  // on the houses directory carrying the typed query.
+  /**
+   * The home search.
+   *
+   * It used to send every query to houses.html, whatever the placeholder said,
+   * so "fundi umeme" and "canter Mbezi" both landed in the rooms directory and
+   * found nothing. js/lib/home-search.js searches the whole catalogue in place
+   * and commits to explore.html, which is the page that can answer for all four
+   * verticals. If that module is missing the field still works, it just goes
+   * straight to Explore without showing what is waiting there.
+   */
   function wireSearch() {
     const input = document.getElementById("haSearch");
-    const go = () => {
+    const clear = document.getElementById("haSearchClear");
+    if (!input) return;
+
+    if (clear) {
+      const sync = () => { clear.hidden = !(input.value || "").length; };
+      input.addEventListener("input", sync);
+      clear.addEventListener("click", () => {
+        input.value = "";
+        sync();
+        input.focus();
+        input.dispatchEvent(new Event("input"));
+      });
+      sync();
+    }
+
+    if (window.HomeSearch) {
+      window.HomeSearch.init({
+        input,
+        box: document.getElementById("haSearchBox"),
+        panel: document.getElementById("haSearchPanel"),
+      });
+      return;
+    }
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
       const q = (input.value || "").trim();
-      location.href = "houses.html" + (q ? "?q=" + encodeURIComponent(q) : "");
-    };
-    input?.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
-    document.getElementById("haSearchBtn")?.addEventListener("click", go);
+      location.href = "explore.html" + (q ? "?q=" + encodeURIComponent(q) : "");
+    });
   }
 
   // ---- greeting + avatar reflect the signed-in user ----------------------

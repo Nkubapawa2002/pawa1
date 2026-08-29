@@ -70,7 +70,13 @@ window.I18N = {
     nearme_locate: "Use my location",
     // App-style home feed (index.html)
     home_greeting: "Karibu",
-    home_search_ph: "Search homes, services…",
+    home_search_ph: "Search rooms, services, trucks, jobs…",
+    home_search_clear: "Clear search",
+    // js/lib/home-search.js — the live suggestions under the home box.
+    hs_recent: "Recent searches",
+    hs_found: "In the app",
+    hs_none: "Nothing in the app matches that yet.",
+    hs_all: "Search everything for “{q}”",
     cat_houses: "Houses",
     cat_services: "Services",
     cat_trucks: "Trucks",
@@ -2521,7 +2527,12 @@ window.I18N = {
     nearme_locate: "Tumia eneo langu",
     // App-style home feed (index.html)
     home_greeting: "Karibu",
-    home_search_ph: "Tafuta nyumba, huduma…",
+    home_search_ph: "Tafuta vyumba, huduma, malori, kazi…",
+    home_search_clear: "Futa utafutaji",
+    hs_recent: "Tafuta za hivi karibuni",
+    hs_found: "Ndani ya programu",
+    hs_none: "Hakuna kilicho ndani ya programu kinacholingana na hilo bado.",
+    hs_all: "Tafuta kila kitu kwa “{q}”",
     cat_houses: "Nyumba",
     cat_services: "Huduma",
     cat_trucks: "Magari",
