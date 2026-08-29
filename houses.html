@@ -487,9 +487,16 @@
       -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
       color: #E9F3EE;
       font-family: inherit; font-weight: 600; font-size: .74rem;
-      /* 34px keeps these usable without becoming the Leaflet panel again. They
-         sit on top of a map whose whole job is to be looked at. */
-      min-height: 34px; padding: 0 11px; white-space: nowrap;
+      /* These sit on top of a map whose whole job is to be looked at, so they
+         were held to 34px to stop the chrome becoming the Leaflet panel again.
+         34px is not a thumb, though, and this is the one control here that is
+         always visible, so it is the repo's 40px floor now. The six pixels are
+         paid for by the map, not by the reader.
+
+         A pseudo-element hit area was the other option and is wrong HERE: the
+         stack above has a 6px gap, so an overlay big enough to matter would
+         reach into the Satellite/Map segments and swallow their taps. */
+      min-height: 40px; padding: 0 12px; white-space: nowrap;
     }
     .am-base-seg button + button { border-left: 1px solid rgba(255,255,255,.14); }
     .am-base-seg button.active { background: var(--c-brand, var(--green)); color: #06170F; }
@@ -643,8 +650,29 @@
     .am-btn:hover { border-color: var(--c-brand, var(--green)); }
     .am-btn-brand { background: var(--c-brand, var(--green)); color: #fff; border-color: var(--c-brand, var(--green)); }
     .am-btn-brand:hover { background: var(--c-brand-deep, #064a33); }
-    /* .5 put white "Save alert" on rgb(152,177,168) at 2.29:1. */
-    .am-btn-brand:disabled { opacity: .65; cursor: not-allowed; background: var(--c-brand, var(--green)); }
+    /* Disabled used to be `opacity: .65` over the brand fill, and opacity on a
+       whole button fades the LABEL along with the ground, which is why it kept
+       measuring badly whatever the number was set to (.5 gave 2.29:1, .65 gave
+       3.11:1). Chasing it with a third opacity value would have been the same
+       mistake a third time.
+
+       So the ground is muted directly and the ink is left alone. The button
+       still reads as not-yet-pressable, because it loses the brand colour
+       entirely, and you can still read what it is going to do once it lights
+       up. WCAG exempts inactive controls from contrast, but "exempt" is not a
+       reason to make a label unreadable. */
+    /* Scoped to the page, because the resting `color` rule further down is
+       `body[data-page="houses"] .am-btn-brand` at (0,2,1) and would otherwise
+       outrank a bare `.am-btn-brand:disabled` at (0,2,0), leaving the on-brand
+       near-black ink sitting on this muted dark ground at 1.02:1. */
+    body[data-page="houses"] .am-btn-brand:disabled {
+      cursor: not-allowed; opacity: 1;
+      background: rgba(255,255,255,.07); color: rgba(233,243,238,.62);
+      border-color: rgba(255,255,255,.14);
+    }
+    :root[data-theme="light"] body[data-page="houses"] .am-btn-brand:disabled {
+      background: #eceee9; color: #4b493f; border-color: rgba(20,20,15,.14);
+    }
     .houses-result-count { font-size: .88rem; color: var(--c-text-muted, #6b6960); padding: 0 4px 8px; }
 
     /* Split view */
@@ -990,6 +1018,31 @@
     body[data-page="houses"] .houses-toolbar input::placeholder,
     body[data-page="houses"] .ss-row input::placeholder,
     body[data-page="houses"] .am-search-row input::placeholder { color: rgba(233,243,238,.4); }
+
+    /* ── "Save alert": the ink has to flip with the fill ──────────────────
+       .am-btn-brand is `background: var(--c-brand)` with a flat white ink, and
+       --c-brand is NOT the same colour in both themes. In light it is the deep
+       flag green and white reads 6.19:1, which is why nobody noticed. In dark
+       it is the mint #2EE6A6, and white on mint measures 1.62:1 — the primary
+       action of this sheet, effectively unreadable the moment it lights up.
+
+       mobile_audit could not see it. The button is DISABLED until an area has
+       been drawn, and the disabled rule's opacity .65 washes the mint toward
+       the sheet behind it, which coincidentally RAISED the measured figure to
+       3.73:1. So the audit reported a smaller problem on an inactive control
+       (which WCAG exempts anyway) while the real one hid behind it.
+
+       Hover is stated too: it swaps the fill to the DEEP green, so it needs
+       the opposite ink from the resting state in this theme. */
+    body[data-page="houses"] .am-btn-brand { color: var(--text-on-brand); }
+    /* And back to white on cream, where --c-brand IS the deep green and the
+       dark ink would read 2.92:1. Both directions stated, because a rule that
+       only names one theme is how this got here in the first place. */
+    :root[data-theme="light"] body[data-page="houses"] .am-btn-brand { color: #fff; }
+    /* Hover swaps the fill to the deep green in both themes, so white is right
+       for both. */
+    body[data-page="houses"] .am-btn-brand:hover,
+    :root[data-theme="light"] body[data-page="houses"] .am-btn-brand:hover { color: #fff; }
 
     /* ── Every control inside a sheet, in one rule ─────────────────────────
        Half the area-alert form rendered as white boxes on the dark sheet:
