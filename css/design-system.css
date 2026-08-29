@@ -21,11 +21,19 @@
 .ha-price,
 .lc-price,
 .hd-price,
+/* The main catalogue's card price. It was missing from this list, so every
+   price on houses.html rendered in the serif display face (measured: Source
+   Serif 4) — the one screen where prices are compared side by side was the one
+   screen not obeying the rule. */
+.house-card-price,
 .svc-card-price,
 .truck-card-price,
 .nm-card-price,
 .fav-card-price,
 .sd-price,
+/* The agent profile's listing prices. Same omission as .house-card-price:
+   the class existed, the rule did not know about it. */
+.ag-price,
 .td-price {
   /* Canonical brand rule — prices are ALWAYS the tabular mono face. !important
      so it wins over page-level price rules that set a serif/sans display font

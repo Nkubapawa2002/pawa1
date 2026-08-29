@@ -287,3 +287,18 @@
    each tile after the first, so a stat the homepage declines to claim takes
    its divider with it (js/pages/home-bands.js). */
 :root[data-theme="light"] .ha-trust > .ha-stat + .ha-stat { border-left-color: var(--c-border); }
+/* ── <select> in light mode ────────────────────────────────────────────────
+   neon-pro.css paints every select rgba(7,18,13,.7) with !important. In light
+   mode the ink flips to #1a1915 and lands on that near-black fill, measured at
+   2.44:1 on services, trucks, near-me and meet — 14 dropdowns in all. The text
+   inputs beside them stay white, so a filter row reads as half of it disabled.
+
+   Only !important can answer !important. Fixed here rather than in each page
+   because there is one cause: houses.html and frame.html already carry their
+   own page-scoped version of this, and they keep winning on specificity with
+   the same values. */
+:root[data-theme="light"] select {
+  background: #ffffff !important;
+  color: var(--n-text, #1a1915) !important;
+  border-color: rgba(20, 30, 25, 0.16) !important;
+}

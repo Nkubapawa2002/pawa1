@@ -173,6 +173,31 @@
     :root[data-theme="light"] body[data-page="near-me"] .nm-empty { color: #5a5850; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <style>
+    /* ── Text inputs in the dark theme ──────────────────────────────────────
+       premium.css paints input[type="text"] (and email/tel/search/number/date/
+       password) rgba(255, 255, 255, .78) with !important. That is a light
+       "glass" style, and its attribute selector outranks neon-pro's plain
+       `input`, so on this dark page the search and area boxes rendered as
+       near-white slabs: measured alpha .78 over a dark card, which reads as a
+       disabled control rather than an empty one.
+
+       Only !important can answer !important, and this is scoped to the page
+       and to non-light so the pages that are cream by design keep premium's
+       fill. Light mode is left alone: there, white is correct. */
+    :root:not([data-theme="light"]) body[data-page="near-me"] input[type="text"],
+    :root:not([data-theme="light"]) body[data-page="near-me"] input[type="search"],
+    :root:not([data-theme="light"]) body[data-page="near-me"] input[type="tel"],
+    :root:not([data-theme="light"]) body[data-page="near-me"] input[type="number"],
+    :root:not([data-theme="light"]) body[data-page="near-me"] input:not([type]) {
+      background: rgba(255, 255, 255, .05) !important;
+      color: var(--text) !important;
+      border: 1px solid rgba(255, 255, 255, .14) !important;
+    }
+    :root:not([data-theme="light"]) body[data-page="near-me"] input::placeholder {
+      color: rgba(233, 243, 238, .45) !important;
+    }
+  </style>
 </head>
 <body data-houses-pro data-page="near-me" data-app-shell="near-me.html">
   <div id="nav-slot"></div>

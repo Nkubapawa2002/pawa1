@@ -143,10 +143,10 @@
        palette. `:not([data-theme="light"])` covers the explicit dark attribute
        and the no-attribute default alike. */
     :root:not([data-theme="light"]) body[data-page="services"] {
-      --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-bg-elev: rgba(255,255,255,.04);
+      --c-surface: var(--surface-app); --c-surface-2: rgba(255,255,255,.05); --c-bg-elev: rgba(255,255,255,.04);
       --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
-      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-accent: #F6C45A; --c-success: #2EE6A6;
+      --c-brand: var(--green-emerald); --c-brand-deep: var(--green-emerald); --c-accent: #F6C45A; --c-success: var(--green-emerald);
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
       color: #E9F3EE;
     }
@@ -171,6 +171,31 @@
     :root:not([data-theme="light"]) body[data-page="services"] .sc-badge.dist.road { color: #06170F; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <style>
+    /* ── Text inputs in the dark theme ──────────────────────────────────────
+       premium.css paints input[type="text"] (and email/tel/search/number/date/
+       password) rgba(255, 255, 255, .78) with !important. That is a light
+       "glass" style, and its attribute selector outranks neon-pro's plain
+       `input`, so on this dark page the search and area boxes rendered as
+       near-white slabs: measured alpha .78 over a dark card, which reads as a
+       disabled control rather than an empty one.
+
+       Only !important can answer !important, and this is scoped to the page
+       and to non-light so the pages that are cream by design keep premium's
+       fill. Light mode is left alone: there, white is correct. */
+    :root:not([data-theme="light"]) body[data-page="services"] input[type="text"],
+    :root:not([data-theme="light"]) body[data-page="services"] input[type="search"],
+    :root:not([data-theme="light"]) body[data-page="services"] input[type="tel"],
+    :root:not([data-theme="light"]) body[data-page="services"] input[type="number"],
+    :root:not([data-theme="light"]) body[data-page="services"] input:not([type]) {
+      background: rgba(255, 255, 255, .05) !important;
+      color: var(--text) !important;
+      border: 1px solid rgba(255, 255, 255, .14) !important;
+    }
+    :root:not([data-theme="light"]) body[data-page="services"] input::placeholder {
+      color: rgba(233, 243, 238, .45) !important;
+    }
+  </style>
 </head>
 <body data-houses-pro data-page="services" data-app-shell="services.html">
   <div id="nav-slot"></div>

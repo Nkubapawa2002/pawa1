@@ -1469,3 +1469,171 @@ body[data-page="house"] .hp-skip-link { background: var(--hx-accent); color: var
   }
   .hx-spec:hover, .hd-spec:hover, .hx-roomtab:hover { transform: none; }
 }
+
+/* ===========================================================================
+   COST COMPOSITION CHART  (js/lib/house-cost-chart.js)
+
+   The four series were validated with the dataviz palette checker against BOTH
+   surfaces — the dark app card and white — for the OKLCH lightness band,
+   chroma floor, colour-vision separation, normal-vision separation and
+   contrast. All five checks pass in both modes.
+
+   The brand emerald is deliberately absent as a FILL: at OKLCH L 0.82 it sits
+   far outside the dark band (0.48–0.67) and blows out against the page. It
+   stays on interactive chrome, where it belongs.
+   =========================================================================== */
+body[data-page="house"] {
+  --hcc-1: #0d9488;   /* rent up front     */
+  --hcc-2: #b8860b;   /* deposit           */
+  --hcc-3: #2563eb;   /* agent commission  */
+  --hcc-4: #c2410c;   /* one-off charges   */
+}
+
+.hcc-wrap { display: flex; flex-direction: column; gap: var(--space-6); margin-top: var(--space-5); }
+.hcc { margin: 0; }
+.hcc-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); margin-bottom: var(--space-3);
+}
+.hcc-title {
+  margin: 0;
+  font: var(--fw-bold) var(--text-xs)/1 var(--font-app);
+  letter-spacing: var(--ls-caps); text-transform: uppercase;
+  color: var(--hx-ink-faint);
+}
+/* Money is always the tabular mono face — the brand rule, same as every price. */
+.hcc-total {
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-feature-settings: "tnum", "zero";
+  font-weight: var(--fw-bold); font-size: var(--text-base);
+  color: var(--hx-ink);
+}
+
+/* The bar. A 2px surface gap between fills, and only the outer ends rounded,
+   so the segments read as one quantity split up rather than four bars. */
+.hcc-bar {
+  display: flex; width: 100%; height: 30px;
+  border-radius: var(--radius-xs); overflow: hidden;
+  background: var(--fr-track, rgba(255,255,255,.08));
+  gap: 2px;
+}
+.hcc-seg {
+  min-width: 3px; position: relative; cursor: default;
+  display: flex; align-items: center; justify-content: center;
+  transition: filter var(--dur-fast) var(--ease);
+}
+.hcc-seg:first-child { border-radius: var(--radius-xs) 0 0 var(--radius-xs); }
+.hcc-seg:last-child  { border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
+.hcc-seg:hover, .hcc-seg:focus-visible { filter: brightness(1.15); outline: none; }
+.hcc-seg:focus-visible { box-shadow: var(--focus-ring); }
+/* A percentage only where the segment is wide enough to hold one. Every exact
+   figure is in the legend; a number on every segment is noise. */
+.hcc-seg__lbl {
+  font: var(--fw-bold) 0.68rem/1 var(--font-app);
+  color: #fff; opacity: .92; pointer-events: none;
+}
+.hcc-s1 { background: var(--hcc-1); }
+.hcc-s2 { background: var(--hcc-2); }
+.hcc-s3 { background: var(--hcc-3); }
+.hcc-s4 { background: var(--hcc-4); }
+
+/* Hatched = this app's assumption, not a figure the agent quoted. Doubles as
+   the secondary encoding that keeps the chart readable without colour. */
+.hcc-seg.is-assumed {
+  background-image: repeating-linear-gradient(135deg,
+    rgba(255,255,255,.34) 0 3px, transparent 3px 7px);
+}
+
+.hcc-key { list-style: none; margin: var(--space-3) 0 0; padding: 0; }
+.hcc-key__i {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hx-line);
+}
+.hcc-key__i:last-child { border-bottom: 0; }
+.hcc-dot {
+  width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+}
+.hcc-dot.is-assumed {
+  background-image: repeating-linear-gradient(135deg,
+    rgba(255,255,255,.4) 0 2px, transparent 2px 4px);
+}
+/* Labels wear text tokens, never the series colour — the swatch carries identity. */
+.hcc-key__l {
+  flex: 1; min-width: 0;
+  font: var(--fw-medium) var(--text-sm)/1.3 var(--font-app);
+  color: var(--hx-ink-soft);
+}
+.hcc-assumed {
+  display: inline-block; margin-left: var(--space-2);
+  font-style: normal; font-size: 0.66rem; font-weight: var(--fw-bold);
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--hx-ink-faint);
+}
+.hcc-key__v {
+  flex-shrink: 0;
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-feature-settings: "tnum", "zero";
+  font-weight: var(--fw-semibold); font-size: var(--text-sm);
+  color: var(--hx-ink);
+}
+
+/* The two rows the bar cannot hold: a free thing has no width, and an unknown
+   has no value. Both are stated rather than dropped by the geometry. */
+.hcc-aside {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  margin-top: var(--space-3);
+  font: var(--fw-regular) var(--text-sm)/1.4 var(--font-app);
+  color: var(--hx-ink-soft);
+}
+.hcc-pill {
+  flex-shrink: 0;
+  padding: 2px var(--space-3); border-radius: var(--radius-pill);
+  font-weight: var(--fw-bold); font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: .05em;
+  background: var(--fr-ok-bg, var(--surface-ok)); color: var(--fr-ok-ink, var(--text-ok));
+  border: 1px solid var(--hx-line);
+}
+.hcc-pill--open {
+  background: transparent; color: var(--hx-ink-faint);
+  border: 1px dashed var(--hx-line-strong);
+}
+.hcc-aside__l { padding-top: 1px; }
+
+.hcc-table { margin-top: var(--space-3); }
+.hcc-table summary {
+  cursor: pointer; font: var(--fw-semibold) var(--text-sm)/1 var(--font-app);
+  color: var(--hx-ink-faint); padding: var(--space-2) 0;
+}
+.hcc-table table { width: 100%; border-collapse: collapse; margin-top: var(--space-2); }
+.hcc-table caption { text-align: left; padding-bottom: var(--space-2); color: var(--hx-ink-faint); font-size: var(--text-sm); }
+.hcc-table th, .hcc-table td {
+  text-align: left; padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hx-line);
+  font: var(--fw-regular) var(--text-sm)/1.3 var(--font-app);
+  color: var(--hx-ink-soft);
+}
+.hcc-table td:last-child, .hcc-table th:last-child {
+  text-align: right;
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-feature-settings: "tnum", "zero";
+}
+.hcc-table tfoot th, .hcc-table tfoot td { color: var(--hx-ink); font-weight: var(--fw-bold); }
+
+.hcc-tip {
+  position: absolute; z-index: var(--z-toast, 9999);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--hx-panel-2); border: 1px solid var(--hx-line-strong);
+  color: var(--hx-ink);
+  font: var(--fw-semibold) var(--text-sm)/1.2 var(--font-app);
+  box-shadow: var(--shadow-2);
+  opacity: 0; pointer-events: none; transform: translateY(3px);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.hcc-tip.is-on { opacity: 1; transform: none; }
+
+/* Forced colours / print: the hatch and the labels carry it, not the hue. */
+@media (forced-colors: active) {
+  .hcc-seg { border: 1px solid CanvasText; }
+}

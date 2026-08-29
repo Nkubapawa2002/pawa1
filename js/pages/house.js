@@ -289,6 +289,10 @@ function wireMoveIn() {
     btn.setAttribute("aria-expanded", String(!open));
     body.classList.toggle("is-open", !open);
   });
+  // The cost bars live inside this body. Wiring them here rather than on the
+  // toggle means a keyboard user can tab straight into a segment whether or
+  // not the panel was opened by a click.
+  if (window.HouseCostChart) window.HouseCostChart.wire(body);
 }
 
 /** Save + share, which now live in the persistent top bar. */

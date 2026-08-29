@@ -743,6 +743,32 @@
     .house-card-title { font-size: .92rem; font-weight: 600; color: var(--c-text, #1a1915); line-height: 1.3; }
     .house-card-meta { font-size: .78rem; color: var(--c-text-muted, #6b6960); display: flex; gap: 10px; flex-wrap: wrap; }
     .house-card-meta span { display: inline-flex; align-items: center; gap: 3px; }
+
+    /* The two or three characteristics most likely to decide a viewing before
+       anybody travels — bathroom inside, tiled, sink board. Quieter than the
+       room-kind chip above them: those are facts about the space, not its
+       category, and the card should not read as two rows of badges. */
+    .house-card-feats {
+      display: flex; flex-wrap: wrap; gap: 4px;
+      list-style: none; margin: 4px 0 0; padding: 0;
+    }
+    .house-card-feats li {
+      display: inline-flex; align-items: center;
+      font-size: .71rem; font-weight: 600; line-height: 1.3;
+      /* Design-system tokens, not --c-*: this page's dark re-skin defines
+         --c-surface but NOT --c-surface-2, so a var() on that name fell
+         through to its cream fallback and put the page's near-white ink on it
+         (measured 1.1:1). --surface-2 and --text-muted are redefined by
+         css/theme-light.css, so both themes are covered by the token. */
+      color: var(--text-muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px; padding: 2px 8px;
+    }
+    .house-card-feats li::before {
+      content: ""; width: 4px; height: 4px; border-radius: 50%;
+      background: var(--green-emerald); margin-right: 5px; flex-shrink: 0;
+    }
     .house-card-meta .house-card-roomkind {
       background: var(--c-brand-faint, #f0f7f2); color: var(--c-brand-deep, #064a33);
       border: 1px solid var(--c-brand-soft, #d9ecdf);
@@ -1178,6 +1204,31 @@
   <!-- Professional mobile declutter — must load LAST so it wins over the
        page's inline layout blocks above (equal specificity, later source). -->
   <link rel="stylesheet" href="css/houses-mobile-pro.css" />
+  <style>
+    /* ── Text inputs in the dark theme ──────────────────────────────────────
+       premium.css paints input[type="text"] (and email/tel/search/number/date/
+       password) rgba(255, 255, 255, .78) with !important. That is a light
+       "glass" style, and its attribute selector outranks neon-pro's plain
+       `input`, so on this dark page the search and area boxes rendered as
+       near-white slabs: measured alpha .78 over a dark card, which reads as a
+       disabled control rather than an empty one.
+
+       Only !important can answer !important, and this is scoped to the page
+       and to non-light so the pages that are cream by design keep premium's
+       fill. Light mode is left alone: there, white is correct. */
+    :root:not([data-theme="light"]) body[data-page="houses"] input[type="text"],
+    :root:not([data-theme="light"]) body[data-page="houses"] input[type="search"],
+    :root:not([data-theme="light"]) body[data-page="houses"] input[type="tel"],
+    :root:not([data-theme="light"]) body[data-page="houses"] input[type="number"],
+    :root:not([data-theme="light"]) body[data-page="houses"] input:not([type]) {
+      background: rgba(255, 255, 255, .05) !important;
+      color: var(--text) !important;
+      border: 1px solid rgba(255, 255, 255, .14) !important;
+    }
+    :root:not([data-theme="light"]) body[data-page="houses"] input::placeholder {
+      color: rgba(233, 243, 238, .45) !important;
+    }
+  </style>
 </head>
 <body data-houses-pro data-page="houses" data-app-shell="houses.html">
   <a href="#housesMain" class="hp-skip-link" data-i18n="hp_skip">Skip to listings</a>

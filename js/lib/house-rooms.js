@@ -69,6 +69,20 @@
     var S = window.HouseSpec;
     return S && S.freeLabel ? S.freeLabel() : "Free";
   }
+  // The money lines read in whichever language the reader is in. The fallbacks
+  // keep this module usable on a page that did not bundle house-spec.js.
+  var EN = {
+    m_rent: "Rent", m_price: "Price", m_first: "First month's rent",
+    m_upfront: "months' rent, upfront", m_deposit: "Deposit", m_none: "None",
+    m_fee: "Agent commission",
+    m_fee_sub: "usually one month's rent, not quoted by this agent",
+    m_ask: "Ask the agent", m_oneoff: "one-off",
+  };
+  function t(key) {
+    var S = window.HouseSpec;
+    var v = S && S.t ? S.t(key) : "";
+    return v || EN[key] || "";
+  }
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -208,7 +222,7 @@
     // arithmetic that this app can honestly do. Say the price and stop.
     if (!isRent || !perMonth) {
       if (rent != null) {
-        lines.push({ k: isRent ? "Rent" : "Price", v: money(rent), sub: room.periodLabel, src: "stated" });
+        lines.push({ k: isRent ? t("m_rent") : t("m_price"), v: money(rent), sub: room.periodLabel, src: "stated" });
         total = rent;
       } else {
         open.push("The price of this space");
@@ -221,7 +235,7 @@
     if (rent != null) {
       var upfront = rent * months;
       lines.push({
-        k: months > 1 ? months + " months' rent, upfront" : "First month's rent",
+        k: months > 1 ? months + " " + t("m_upfront") : t("m_first"),
         v: money(upfront),
         sub: months > 1 ? money(rent) + " x " + months : null,
         src: "stated",
@@ -234,32 +248,32 @@
     // 2. The deposit the agent named in their own rules.
     var dep = deposit(row);
     if (dep && dep.none) {
-      lines.push({ k: "Deposit", v: "None", src: "stated", muted: true });
+      lines.push({ k: t("m_deposit"), v: t("m_none"), src: "stated", muted: true });
     } else if (dep && dep.months != null && rent != null) {
       var depAmt = rent * dep.months;
       lines.push({
-        k: "Deposit",
+        k: t("m_deposit"),
         v: money(depAmt),
         sub: dep.text,
         src: "stated",
       });
       total += depAmt;
     } else if (dep) {
-      lines.push({ k: "Deposit", v: dep.text, src: "open", muted: true });
+      lines.push({ k: t("m_deposit"), v: dep.text, src: "open", muted: true });
       open.push("The deposit (" + dep.text + ")");
     }
 
     // 3. The agent's commission. Stated, or the market's one month.
     var feeStated = Number(row.agent_fee_tzs);
     if (Number.isFinite(feeStated) && feeStated > 0) {
-      lines.push({ k: "Agent commission", v: money(feeStated), src: "stated" });
+      lines.push({ k: t("m_fee"), v: money(feeStated), src: "stated" });
       total += feeStated;
     } else if (rent != null) {
       var feeAssumed = rent * DEFAULT_AGENT_FEE_MONTHS;
       lines.push({
-        k: "Agent commission",
+        k: t("m_fee"),
         v: money(feeAssumed),
-        sub: "usually one month's rent — not quoted by this agent",
+        sub: t("m_fee_sub"),
         src: "assumed",
       });
       total += feeAssumed;
@@ -274,12 +288,12 @@
       if (!c || !c.label || c.billing !== "oneoff") return;
       var p = cost(c.amount);
       if (p.free) {
-        lines.push({ k: c.label, v: freeWord(), sub: "one-off", src: "stated", free: true });
+        lines.push({ k: c.label, v: freeWord(), sub: t("m_oneoff"), src: "stated", free: true });
       } else if (p.known) {
-        lines.push({ k: c.label, v: money(p.amount), sub: "one-off", src: "stated" });
+        lines.push({ k: c.label, v: money(p.amount), sub: t("m_oneoff"), src: "stated" });
         total += p.amount;
       } else {
-        lines.push({ k: c.label, v: "Ask the agent", src: "open", muted: true });
+        lines.push({ k: c.label, v: t("m_ask"), src: "open", muted: true });
         open.push(c.label);
       }
     });
@@ -415,7 +429,7 @@
 
   /** One tab in the picker. */
   function tab(room, selected) {
-    var price = room.price != null && room.price > 0 ? money(room.price) : "Ask the agent";
+    var price = room.price != null && room.price > 0 ? money(room.price) : t("m_ask");
     return '<button type="button" role="tab" class="hx-roomtab' + (room.taken ? " is-taken" : "") + '"' +
       ' aria-selected="' + (selected ? "true" : "false") + '"' +
       ' id="hxRoomTab' + room.i + '" aria-controls="hxRoomPanel" data-room="' + room.i + '">' +

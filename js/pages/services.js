@@ -224,7 +224,11 @@
     if (s.availability) tags.push(s.availability);
     tags.push(SERVICE_LABEL[s.service_area] || "");
     const loc = [s.area, s.region].filter(Boolean).join(", ");
-    const photoStyle = img ? `background-image:url('${esc(img)}')` : "background:#dfe7e2;";
+    // No inline fallback when there is no photo. An inline style outranks any
+    // stylesheet, so a hardcoded pale grey here beat the page's own dark-mode
+    // rule for .svc-card-photo and put a big cream block on every photoless
+    // card. The class already carries a placeholder for each theme; let it.
+    const photoStyle = img ? `background-image:url('${esc(img)}')` : "";
     // Quick actions: contact is the public owner jsonb shown on the page.
     const phone = (s.owner && (s.owner.phone || s.owner.whatsapp)) || s.phone || "";
     const wa = String((s.owner && (s.owner.whatsapp || s.owner.phone)) || "").replace(/[^\d]/g, "");

@@ -48,16 +48,29 @@ body[data-page="houses"] .hp-filterbar { display: none; }
 
   body[data-page="houses"] .hp-bento {
     grid-template-columns: repeat(2, 1fr);
-    grid-auto-rows: 72px;
+    /* minmax, not a fixed 72px: the Saved cell carries a number AND a label
+       ("Open your favorites"), which is taller than the track, so the label was
+       being painted outside its own tile. */
+    grid-auto-rows: minmax(72px, auto);
     gap: 8px;
     margin-bottom: 14px;
   }
-  /* Live-total → full-width hero stat (2 rows tall); agent CTA → full footer. */
+  /* Live-total → full width, but ONE row, not two.
+     It was a 2-row bright-green slab carrying a number the segment tabs 20px
+     above it already show ("All 6"). Two rows of the loudest colour on the
+     page, for the second telling of the same count, pushed the first listing
+     card most of a screen further down on a phone. Full width keeps it as the
+     section's opening line; one row stops it shouting. */
   body[data-page="houses"] .hp-bento__cell--brand {
-    grid-column: span 2; grid-row: span 2;
-    justify-content: center; gap: 4px;
+    grid-column: span 2; grid-row: span 1;
+    flex-direction: row; align-items: baseline; justify-content: flex-start;
+    gap: 10px; flex-wrap: wrap;
   }
-  body[data-page="houses"] .hp-bento__cell--brand .hp-bento__num { font-size: 2.2rem; }
+  body[data-page="houses"] .hp-bento__cell--brand > div {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  body[data-page="houses"] .hp-bento__cell--brand .hp-bento__num { font-size: 1.5rem; }
+  body[data-page="houses"] .hp-bento__cell--brand .hp-bento__lbl { font-size: .74rem; }
   body[data-page="houses"] .hp-bento__cell[href="agent-houses.html"] { grid-column: span 2; }
   body[data-page="houses"] .hp-bento__cell { padding: 11px 13px; }
 

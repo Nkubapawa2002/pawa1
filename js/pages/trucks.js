@@ -233,9 +233,12 @@
     if (t.loaders_included) tags.push("Loaders");
     tags.push(SERVICE_LABEL[t.service_area] || "");
     const loc = [t.area, t.region].filter(Boolean).join(", ");
+    // See services.js: an inline fallback outranks the stylesheet, so the
+    // page's dark-mode placeholder never got a chance and a photoless card
+    // showed a cream block on a dark page.
     const photoStyle = img
       ? `background-image:url('${esc(img)}')`
-      : "background:#dfe7e2;";
+      : "";
     // Quick actions: contact is the public owner jsonb shown on the page.
     const phone = (t.owner && (t.owner.phone || t.owner.whatsapp)) || t.phone || "";
     const wa = String((t.owner && (t.owner.whatsapp || t.owner.phone)) || "").replace(/[^\d]/g, "");

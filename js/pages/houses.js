@@ -2750,6 +2750,17 @@ window.initHousesPage = async () => {
       const price  = formatPrice(h);
       const listing = h.listing === "sale" ? "For sale" : "For rent";
       const verified = h.verified ? `<span class="verified"> Verified</span>` : "";
+      // Straight from the shape's owner. houses.html bundles house-spec.js but
+      // not house-rooms.js, and pulling a whole display module into the
+      // catalogue to read two fields would be the wrong trade.
+      const cheapRoom = (window.HouseSpec && window.HouseSpec.fromRow)
+        ? (window.HouseSpec.fromRow(h).rooms || []).slice().sort((a, b) =>
+            (a.price == null ? Infinity : a.price) - (b.price == null ? Infinity : b.price))[0]
+        : null;
+      const cheapBand = cheapRoom && cheapRoom.sizeBand && window.HouseSpec
+        ? window.HouseSpec.sizeLabel(cheapRoom.sizeBand) : "";
+      const cheapFeats = cheapRoom && window.HouseSpec && window.HouseSpec.featureLabels
+        ? window.HouseSpec.featureLabels(cheapRoom.features).slice(0, 3) : [];
       const roomKind = roomKindLabel(h.room_kind);
       const roomTypes = roomTypeCount(h);
       const meta = [
@@ -2759,9 +2770,20 @@ window.initHousesPage = async () => {
         roomTypes ? `<span class="house-card-roomtypes">${roomTypes} kinds of space</span>` : "",
         h.bedrooms ? `<span> ${h.bedrooms} bed${h.bedrooms !== 1 ? "s" : ""}</span>` : "",
         h.bathrooms ? `<span> ${h.bathrooms} bath${h.bathrooms !== 1 ? "s" : ""}</span>` : "",
-        h.size_sqm ? `<span> ${h.size_sqm} m²</span>` : "",
+        // The cheapest room's size bracket, where the agent chose one. It
+        // leads the square-metre figure because it is the one they meant; the
+        // m² is only ever shown when there is no bracket, so the card never
+        // states the same thing twice.
+        cheapBand ? `<span> ${esc(cheapBand)}</span>` : (h.size_sqm ? `<span> ${h.size_sqm} m²</span>` : ""),
         (h.listing === "rent" && Number(h.min_months) > 1) ? `<span> ${h.min_months} mo min</span>` : ""
       ].filter(Boolean).join("");
+      // The two or three characteristics most likely to decide a viewing
+      // before anybody travels. Capped hard: a card is a summary, and the
+      // detail page carries the whole list.
+      const featHtml = cheapFeats.length
+        ? `<ul class="house-card-feats">${cheapFeats.map(f =>
+            `<li>${esc(f)}</li>`).join("")}</ul>`
+        : "";
       const loc = `${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}`;
       const hasCoords = Number.isFinite(h.lat) && Number.isFinite(h.lng);
       // REAL road distance only — never crow-flies. Raw cache tells us which:
@@ -2832,6 +2854,7 @@ window.initHousesPage = async () => {
             <div class="house-card-price">${priceLead(h)}${price.value} <small>${price.unit}</small></div>
             <div class="house-card-title">${esc(h.title)}</div>
             <div class="house-card-meta">${meta}</div>
+            ${featHtml}
             <div class="house-card-loc"> ${loc}${dist}</div>
             ${roadHtml}
             ${billsHint}
