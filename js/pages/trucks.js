@@ -252,7 +252,7 @@
       <div class="truck-card">
         <a class="truck-card-link" href="truck.html?id=${encodeURIComponent(t.id)}">
           <div class="truck-card-photo" style="${photoStyle}">
-            ${img ? "" : `<div style="display:flex;height:100%;align-items:center;justify-content:center;font-size:2.4rem;"></div>`}
+            ${img ? "" : `<svg class="tc-ph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V7a1 1 0 0 1 1-1h9v10M13 9h4l4 4v3h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></svg>`}
             <div class="truck-card-badges">${badges.join("")}</div>
           </div>
           <div class="truck-card-body">

@@ -76,7 +76,17 @@
       color: var(--c-text, #1a1915);
       display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
     }
-    .svc-card-link { display: flex; flex-direction: column; text-decoration: none; color: inherit; cursor: pointer; flex: 1; }
+    /* ── The card is a row, not a tower ───────────────────────────────────
+       The photo was a full-width 4:3 box: 268px of image area on a 358px phone
+       card, and most listings carry no photo, so that was 268px of empty
+       coloured block each. It is a thumbnail beside the words now, the same
+       shape houses.html and explore.html use, so the catalogues look like one
+       product and a photoless card is the height of its own text. */
+    .svc-card-link {
+      display: grid; grid-template-columns: 120px 1fr; gap: 0;
+      text-decoration: none; color: inherit; cursor: pointer; flex: 1;
+    }
+    @media (max-width: 430px) { .svc-card-link { grid-template-columns: 104px 1fr; } }
     .svc-card-title { color: var(--c-text, #1a1915); }
     .svc-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
 
@@ -94,7 +104,11 @@
     .sca-btn.call  { background: var(--c-brand, #0a6f4d); color: #fff; }
     .sca-btn.wa    { background: #1fa855; color: #fff; }
     .sca-btn.route { background: var(--c-surface-2, #f3f1ea); color: var(--c-text, #1a1915); border: 1px solid var(--c-border, #e7e4dd); }
-    .svc-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eceae4 center/cover no-repeat; }
+    .svc-card-photo {
+      position: relative; background: #eceae4 center/cover no-repeat;
+      min-height: 100%; display: grid; place-items: center;
+    }
+    .svc-card-photo .sc-ph { width: 30px; height: 30px; opacity: .5; }
     .svc-card-badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
     .sc-badge { font-size: .68rem; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(3px); }
     .sc-badge.verified { background: var(--c-success, #0d8050); }
@@ -202,10 +216,13 @@
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/zach-rowlandson-qhK0hRwKU60-unsplash.jpg')">
     <div class="page-hero-inner">
-      <img class="page-hero-icon" src="https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/service-icon.png" alt="" width="60" height="60"
-           style="display:block;margin:0 auto 8px;width:60px;height:60px;object-fit:contain;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));" />
-      <h1 class="page-title">Daily services near you</h1>
-      <p class="page-subtitle">Find trusted local help — cleaning, plumbing, electrical, cooking, tutoring, beauty and more. Filter by category and area, or sort by distance.</p>
+      <!-- A decorative 60px PNG used to sit here, fetched from the storage
+           bucket. It cost a request, it took 68px off the top of the one
+           screen where the reader is trying to reach listings, and when the
+           bucket hiccuped every visitor met a broken-image glyph as the
+           first thing on the page. The title says what this is. -->
+      <h1 class="page-title" data-i18n="services_title">Daily services near you</h1>
+      <p class="page-subtitle" data-i18n="services_sub">Find trusted local help: cleaning, plumbing, electrical, cooking, tutoring, beauty and more. Filter by category and area, or sort by distance.</p>
     </div>
   </section>
 
@@ -214,10 +231,10 @@
     <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
     <div class="find-mode" id="fmServices" data-near="svcNearMeBtn" data-area="filterArea" style="display:none">
       <button class="fm-x" type="button" aria-label="Dismiss">&times;</button>
-      <div class="fm-q">How do you want to find a service?</div>
+      <div class="fm-q" data-i18n="fm_q_services">How do you want to find a service?</div>
       <div class="fm-actions">
-        <button type="button" class="fm-btn fm-near"> Near me<small>Show the providers closest to me right now</small></button>
-        <button type="button" class="fm-btn fm-area"> A specific area<small>Type a town, district or ward — browse anywhere in Tanzania</small></button>
+        <button type="button" class="fm-btn fm-near"><span data-i18n="fm_near">Near me</span><small data-i18n="fm_near_sub_svc">Show the providers closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"><span data-i18n="fm_area">A specific area</span><small data-i18n="fm_area_sub">Type a town, district or ward, anywhere in Tanzania</small></button>
       </div>
     </div>
 

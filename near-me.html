@@ -67,11 +67,23 @@
       background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
       border-radius: 14px; overflow: hidden; cursor: pointer; text-decoration: none;
       color: var(--c-text, #1a1915);
-      display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
+      display: grid; grid-template-columns: 120px 1fr; gap: 0;
+      transition: transform .12s ease, box-shadow .12s ease;
     }
+    @media (max-width: 430px) { .nm-card { grid-template-columns: 104px 1fr; } }
     .nm-card-title { color: var(--c-text, #1a1915); }
     .nm-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
-    .nm-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eceae4 center/cover no-repeat; }
+    /* ── The card is a row, not a tower ───────────────────────────────────
+       The photo was a full-width 4:3 box: 268px of image area on a 358px phone
+       card, and most listings carry no photo, so that was 268px of empty
+       coloured block each. It is a thumbnail beside the words now, the same
+       shape houses.html and explore.html use, so the catalogues look like one
+       product and a photoless card is the height of its own text. */
+    .nm-card-photo {
+      position: relative; background: #eceae4 center/cover no-repeat;
+      min-height: 100%; display: grid; place-items: center;
+    }
+    .nm-card-photo .nm-ph { width: 30px; height: 30px; opacity: .5; }
     .nm-card-emoji { display: flex; height: 100%; align-items: center; justify-content: center; font-size: 2.4rem; }
     .nm-card-badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
     .nm-badge {
@@ -205,7 +217,7 @@
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/emma-kapicha-cxiQkRowXw4-unsplash.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title" data-i18n="nearme_title">What's near me</h1>
-      <p class="page-subtitle" data-i18n="nearme_sub">From your location, see available rooms and moving trucks around you — sorted by distance.</p>
+      <p class="page-subtitle" data-i18n="nearme_sub">From your location, see available rooms and moving trucks around you, sorted by distance.</p>
     </div>
   </section>
 
@@ -217,8 +229,8 @@
       <button class="fm-x" type="button" aria-label="Dismiss" data-i18n-aria-label="fm_dismiss">&times;</button>
       <div class="fm-q" data-i18n="fm_q_nearme">How do you want to find rooms & trucks?</div>
       <div class="fm-actions">
-        <button type="button" class="fm-btn fm-near"> <span data-i18n="fm_near">Near me</span><small data-i18n="fm_near_sub_nm">Show what's closest to me right now</small></button>
-        <button type="button" class="fm-btn fm-area"> <span data-i18n="fm_area">A specific area</span><small data-i18n="fm_area_sub">Type a town, district or ward — browse anywhere in Tanzania</small></button>
+        <button type="button" class="fm-btn fm-near"><span data-i18n="fm_near">Near me</span><small data-i18n="fm_near_sub_nm">Show what's closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"><span data-i18n="fm_area">A specific area</span><small data-i18n="fm_area_sub">Type a town, district or ward, anywhere in Tanzania</small></button>
       </div>
     </div>
 

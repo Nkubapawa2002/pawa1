@@ -180,18 +180,18 @@
     } else if (Number.isFinite(it._km)) {
       badges.push(`<span class="nm-badge dist measuring">measuring road…</span>`);
     }
-    if (it.verified) badges.push(`<span class="nm-badge verified"></span>`);
+    if (it.verified) badges.push(`<span class="nm-badge verified">${esc(T("home_verified"))}</span>`);
     const photoStyle = it.photo ? `background-image:url('${esc(it.photo)}')` : "background:#dfe7e2;";
     return `
       <a class="nm-card" href="${it.href}">
         <div class="nm-card-photo" style="${photoStyle}">
-          ${it.photo ? "" : `<div class="nm-card-emoji">${it.emoji}</div>`}
+          ${it.photo ? "" : `<svg class="nm-ph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z"/><circle cx="12" cy="10.3" r="2.5"/></svg>`}
           <div class="nm-card-badges">${badges.join("")}</div>
         </div>
         <div class="nm-card-body">
           <div class="nm-card-price">${esc(it.priceValue)}<small>${esc(it.priceUnit)}</small>${fxSmall(it.priceTzs)}</div>
           <div class="nm-card-title">${esc(it.title)}</div>
-          <div class="nm-card-meta">${it.loc ? ` ${esc(it.loc)}` : `<span class="nm-card-emoji-inline">${it.emoji}</span> ${esc(it.typeLabel)}`}</div>
+          <div class="nm-card-meta">${esc(it.loc || it.typeLabel)}</div>
           <div class="nm-card-tags">${it.tags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>
         </div>
       </a>`;

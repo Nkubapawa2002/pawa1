@@ -2748,8 +2748,14 @@ window.initHousesPage = async () => {
     listEl.innerHTML = visible.map((h, i) => {
       const photo  = window.DataStore.housePhotoUrl(h.photo);
       const price  = formatPrice(h);
-      const listing = h.listing === "sale" ? "For sale" : "For rent";
-      const verified = h.verified ? `<span class="verified"> Verified</span>` : "";
+      // Both of these were hardcoded English on a card that a Swahili reader
+      // meets eight times down a screen, and both keys already existed. The
+      // leading space in " Verified" is what an emoji left behind when it was
+      // stripped.
+      const listing = h.listing === "sale"
+        ? tr("ah_for_sale", "For sale") : tr("ah_for_rent", "For rent");
+      const verified = h.verified
+        ? `<span class="verified">${esc(tr("home_verified", "Verified"))}</span>` : "";
       // Straight from the shape's owner. houses.html bundles house-spec.js but
       // not house-rooms.js, and pulling a whole display module into the
       // catalogue to read two fields would be the wrong trade.
@@ -2846,8 +2852,10 @@ window.initHousesPage = async () => {
         <div class="house-card ${activeId === h.id ? "active" : ""}" data-id="${h.id}"
              role="button" tabindex="0" aria-label="${ariaLabel}">
           <div class="house-card-photo" data-loading="true" style="background-image:url('${photo}')">
-            <span class="badge">${listing}</span>
-            ${verified}
+            <div class="house-card-tags">
+              <span class="badge">${listing}</span>
+              ${verified}
+            </div>
             ${matchBadge}
           </div>
           <div class="house-card-body">
@@ -2945,12 +2953,22 @@ window.initHousesPage = async () => {
     let favs = 0;
     try { favs = JSON.parse(localStorage.getItem("pawa.houseFavs") || "[]").length; } catch {}
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set("hpBentoTotal", total);
-    set("hpBentoRent", rent);
-    set("hpBentoSale", sale);
-    set("hpBentoBusiness", business);
+    // The four that used to be written here as well — total, rent, sale and
+    // business — were the segment counts printed a second time in the bento
+    // grid seventy pixels below the chips. The grid is gone; these two are the
+    // ones that were never duplicated.
+    //
+    // Each hides itself at zero rather than rendering a "0". "Saved 0" was a
+    // tile inviting somebody to open an empty list, and "Verified 0" would be
+    // a filter that returns nothing, offered as though it were worth tapping.
     set("hpBentoVerified", verified);
     set("hpBentoFavs", favs);
+    const quiet = (id, n) => {
+      const el = document.getElementById(id);
+      if (el) el.hidden = !n;
+    };
+    quiet("hpQuickVerified", verified);
+    quiet("hpQuickSaved", favs);
     // Segment-switcher pill counts
     set("hpSegCountAll", total);
     set("hpSegCountRent", rent);
@@ -2958,7 +2976,7 @@ window.initHousesPage = async () => {
     set("hpSegCountBiz", business);
   }
 
-  document.querySelectorAll(".hp-bento__cell[data-quickfilter]").forEach(cell => {
+  document.querySelectorAll("[data-quickfilter]").forEach(cell => {
     cell.addEventListener("click", (e) => {
       e.preventDefault();
       const qf = cell.dataset.quickfilter;

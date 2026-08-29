@@ -78,7 +78,22 @@
       color: var(--c-text, #1a1915);
       display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
     }
-    .truck-card-link { display: flex; flex-direction: column; text-decoration: none; color: inherit; cursor: pointer; flex: 1; }
+    /* ── The card is a row, not a tower ───────────────────────────────────
+       The photo was a full-width 4:3 box, which on a 358px phone card is 268
+       PIXELS of image area. Most listings carry no photo yet, so that was 268
+       pixels of empty coloured block per card, and the "placeholder" inside it
+       was an empty <div style="font-size:2.4rem"> — the space an emoji left
+       behind when it was stripped. Six trucks came to 3,620px of page, and a
+       reader scrolled past four screens to see six things.
+
+       It is a thumbnail beside the words now: the same shape houses.html and
+       explore.html already use, so the three catalogues finally look like one
+       product. A photoless card is the height of its own text. */
+    .truck-card-link {
+      display: grid; grid-template-columns: 120px 1fr; gap: 0;
+      text-decoration: none; color: inherit; cursor: pointer; flex: 1;
+    }
+    @media (max-width: 430px) { .truck-card-link { grid-template-columns: 104px 1fr; } }
     .truck-card-title { color: var(--c-text, #1a1915); }
     .truck-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
 
@@ -94,8 +109,14 @@
     .tca-btn.call  { background: var(--c-brand, #0a6f4d); color: #fff; }
     .tca-btn.wa    { background: #1fa855; color: #fff; }
     .tca-btn.route { background: var(--c-surface-2, #f3f1ea); color: var(--c-text, #1a1915); border: 1px solid var(--c-border, #e7e4dd); }
-    .truck-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eceae4 center/cover no-repeat; }
-    .truck-card-badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+    .truck-card-photo {
+      position: relative; background: #eceae4 center/cover no-repeat;
+      min-height: 100%; display: grid; place-items: center;
+    }
+    /* The glyph a photoless truck gets. A stroke SVG, so it takes the theme
+       and scales with the card instead of being a font-size on an empty box. */
+    .truck-card-photo .tc-ph { width: 30px; height: 30px; opacity: .5; }
+    .truck-card-badges { position: absolute; top: 6px; left: 6px; right: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
     .tc-badge {
       font-size: .68rem; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px;
       color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
@@ -219,10 +240,10 @@
     <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
     <div class="find-mode" id="fmTrucks" data-near="truckNearMeBtn" data-area="filterArea" style="display:none">
       <button class="fm-x" type="button" aria-label="Dismiss">&times;</button>
-      <div class="fm-q">How do you want to find a truck?</div>
+      <div class="fm-q" data-i18n="fm_q_trucks">How do you want to find a truck?</div>
       <div class="fm-actions">
-        <button type="button" class="fm-btn fm-near"> Near me<small>Show the trucks closest to me right now</small></button>
-        <button type="button" class="fm-btn fm-area"> A specific area<small>Type a town, district or ward — browse anywhere in Tanzania</small></button>
+        <button type="button" class="fm-btn fm-near"><span data-i18n="fm_near">Near me</span><small data-i18n="fm_near_sub_trucks">Show the trucks closest to me right now</small></button>
+        <button type="button" class="fm-btn fm-area"><span data-i18n="fm_area">A specific area</span><small data-i18n="fm_area_sub">Type a town, district or ward, anywhere in Tanzania</small></button>
       </div>
     </div>
 

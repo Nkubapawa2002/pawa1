@@ -105,13 +105,33 @@
        Drop it here for a clean, single-intent header (kept on other pages). */
     body[data-page="houses"] .find-mode { display: none !important; }
 
-    /* The Saved/favorites tile used the global AMBER accent, which clashed with
-       this page's green palette. Retone it to a cohesive teal so the header
-       reads as one considered colour family (distinct from the brand-green
-       hero tile, but in the same family). */
-    body[data-page="houses"] .hp-bento__cell--accent {
-      background: linear-gradient(135deg, #0d9488, #0f766e);
+    /* ── The quick row ────────────────────────────────────────────────────
+       What is left of a seven-tile grid: the three things that were not the
+       segment counts wearing a second costume. A row of quiet chips rather
+       than coloured slabs, because none of these is the reason somebody opened
+       this page. Two of them carry a count and remove themselves at zero. */
+    .hp-quick {
+      display: flex; flex-wrap: wrap; gap: var(--space-2);
+      margin: 0 0 var(--space-4);
     }
+    .hp-quick-item {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      min-height: var(--hit-min); padding: 0 var(--space-4);
+      border-radius: var(--radius-pill); text-decoration: none; cursor: pointer;
+      background: var(--c-surface-2, rgba(255,255,255,.05));
+      border: 1px solid var(--c-border, rgba(255,255,255,.10));
+      color: var(--c-text, #E9F3EE); font: inherit;
+      font-size: var(--text-sm); font-weight: var(--fw-bold);
+    }
+    .hp-quick-item[hidden] { display: none; }
+    .hp-quick-item:hover { border-color: var(--c-brand, var(--green)); color: var(--c-brand, var(--green)); }
+    /* The count is mono and tabular so a 3 and a 12 sit at the same width. */
+    .hp-quick-item b {
+      font-family: var(--font-mono); font-feature-settings: "tnum","zero";
+      font-size: var(--text-xs); color: var(--c-text-muted, rgba(233,243,238,.55));
+    }
+    .hp-quick-item--end { margin-left: auto; }
+    @media (max-width: 430px) { .hp-quick-item--end { margin-left: 0; } }
 
     /* Match-score badge — overlays the photo bottom-left (never disrupts card body layout) */
     .house-card-match {
@@ -673,7 +693,11 @@
     :root[data-theme="light"] body[data-page="houses"] .am-btn-brand:disabled {
       background: #eceee9; color: #4b493f; border-color: rgba(20,20,15,.14);
     }
-    .houses-result-count { font-size: .88rem; color: var(--c-text-muted, #6b6960); padding: 0 4px 8px; }
+    .houses-result-count {
+      flex: 1 1 auto; min-width: 0;
+      font-size: .88rem; font-weight: 700;
+      color: var(--c-text-muted, #6b6960); padding: 0 4px;
+    }
 
     /* Split view */
     .houses-stage {
@@ -718,18 +742,26 @@
       min-height: 100px;
       position: relative;
     }
+    /* The two tags used to be pinned to opposite corners, top-left and
+       top-right, of a photo column that is 112px wide on a phone. Two pills
+       that each want about 70px cannot both fit, so "FOR RENT" was painted
+       underneath "Verified" on every verified listing. One wrapping row
+       cannot overlap itself, whatever the column width. */
+    .house-card-tags {
+      position: absolute; top: 6px; left: 6px; right: 6px;
+      display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start;
+      pointer-events: none;
+    }
     .house-card-photo .badge {
-      position: absolute; top: 8px; left: 8px;
       background: rgba(255,255,255,.92); color: var(--c-brand-deep, #064a33);
-      padding: 3px 9px; border-radius: 999px;
+      padding: 3px 9px; border-radius: var(--radius-pill);
       font-size: .68rem; font-weight: 700;
       text-transform: uppercase; letter-spacing: .5px;
       backdrop-filter: blur(6px);
     }
     .house-card-photo .verified {
-      position: absolute; top: 8px; right: 8px;
       background: var(--c-success, #0d8050); color: #fff;
-      padding: 2px 7px; border-radius: 999px;
+      padding: 3px 8px; border-radius: var(--radius-pill);
       font-size: .65rem; font-weight: 700;
     }
     .house-card-body { padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; }
@@ -1060,11 +1092,29 @@
 
        Hover is stated too: it swaps the fill to the DEEP green, so it needs
        the opposite ink from the resting state in this theme. */
-    body[data-page="houses"] .am-btn-brand { color: var(--text-on-brand); }
+    /* Every fill on this page that uses --c-brand, not just the one the audit
+       happened to name. There are five: the two hero CTAs, "Save alert",
+       "Clear all filters" and the card's hover state, and all five were
+       written `background: var(--c-brand); color: #fff`. --c-brand is the deep
+       flag green in light, where white is right, and the mint in dark, where
+       white measures about 1.6:1. Fixing them one at a time as an audit finds
+       them is how four of them survived the first pass. */
+    body[data-page="houses"] .am-btn-brand,
+    body[data-page="houses"] .hp-empty__cta:not(.hp-empty__cta--ghost),
+    body[data-page="houses"] .house-card-view:hover,
+    body[data-page="houses"] .house-popup .pop-actions a.btn-call { color: var(--text-on-brand); }
+    /* The ghost CTA is an OUTLINE, not a fill, so it takes the page's own
+       ink. Naming .hp-empty__cta without excluding it put the on-brand
+       near-black on a transparent ground at 1.03:1. */
+    body[data-page="houses"] .hp-empty__cta--ghost { color: var(--c-text, #E9F3EE); }
+    :root[data-theme="light"] body[data-page="houses"] .hp-empty__cta--ghost { color: #1a1915; }
     /* And back to white on cream, where --c-brand IS the deep green and the
        dark ink would read 2.92:1. Both directions stated, because a rule that
        only names one theme is how this got here in the first place. */
-    :root[data-theme="light"] body[data-page="houses"] .am-btn-brand { color: #fff; }
+    :root[data-theme="light"] body[data-page="houses"] .am-btn-brand,
+    :root[data-theme="light"] body[data-page="houses"] .hp-empty__cta:not(.hp-empty__cta--ghost),
+    :root[data-theme="light"] body[data-page="houses"] .house-card-view:hover,
+    :root[data-theme="light"] body[data-page="houses"] .house-popup .pop-actions a.btn-call { color: #fff; }
     /* Hover swaps the fill to the deep green in both themes, so white is right
        for both. */
     body[data-page="houses"] .am-btn-brand:hover,
@@ -1236,8 +1286,11 @@
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/victor-0NJ9urGXrIg-unsplash.jpg')">
     <div class="page-hero-inner">
-      <img class="page-hero-icon" src="https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/house-icon.png" alt="" width="60" height="60"
-           style="display:block;margin:0 auto 8px;width:60px;height:60px;object-fit:contain;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));" />
+      <!-- A decorative 60px PNG used to sit here, fetched from the storage
+           bucket. It cost a request, it took 68px off the top of the one
+           screen where the reader is trying to reach listings, and when the
+           bucket hiccuped every visitor met a broken-image glyph as the
+           first thing on the page. The title says what this is. -->
       <h1 class="page-title" data-i18n="houses_title">Houses for rent &amp; sale</h1>
       <p class="page-subtitle" data-i18n="houses_sub">Property listings across Tanzania. Search on the map, filter by area, price and type.</p>
     </div>
@@ -1298,40 +1351,33 @@
     </div>
 
     <!-- Bento overview tiles (quick filters / counts) -->
-    <nav class="hp-bento" aria-label="Quick property filters">
-      <a class="hp-bento__cell hp-bento__cell--brand" href="#" data-quickfilter="all">
-        <span class="hp-bento__eyebrow" data-i18n="hp_bento_live">Live now</span>
-        <div>
-          <div id="hpBentoTotal" class="hp-bento__num" aria-live="polite">—</div>
-          <div class="hp-bento__lbl" data-i18n="hp_bento_total_lbl">Properties listed across Tanzania</div>
-        </div>
+    <!-- This was a seven-cell "bento" grid, 253px tall, and four of its cells
+         were the segment counts printed a second time seventy pixels below the
+         segment chips: houses.js literally called set("hpBentoTotal", total)
+         and set("hpSegCountAll", total) with the same number, and the bento's
+         rent/sale/business cells called setSegment(), which is what the chips
+         above already do. Four numbers stated twice and one control built
+         twice, between the reader and the listings.
+
+         What was NOT duplicated were the other three: Verified is a filter
+         reachable nowhere else, Saved is the way to favourites, and listing a
+         property is the agent's door. They are one quiet row now, and the two
+         that carry a count disappear at zero rather than standing there as a
+         "0", which is the rule the homepage trust strip already follows. -->
+    <nav class="hp-quick" aria-label="Quick filters">
+      <button type="button" class="hp-quick-item" id="hpQuickVerified" data-quickfilter="verified" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+        <span data-i18n="home_verified">Verified</span>
+        <b id="hpBentoVerified"></b>
+      </button>
+      <a class="hp-quick-item" href="favorites.html" id="hpQuickSaved" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span data-i18n="hp_bento_saved">Saved</span>
+        <b id="hpBentoFavs"></b>
       </a>
-      <a class="hp-bento__cell" href="#" data-quickfilter="rent">
-        <span class="hp-bento__eyebrow" data-i18n="ah_for_rent">For rent</span>
-        <div class="hp-bento__num" id="hpBentoRent">—</div>
-      </a>
-      <a class="hp-bento__cell" href="#" data-quickfilter="sale">
-        <span class="hp-bento__eyebrow" data-i18n="ah_for_sale">For sale</span>
-        <div class="hp-bento__num" id="hpBentoSale">—</div>
-      </a>
-      <a class="hp-bento__cell" href="#" data-quickfilter="business">
-        <span class="hp-bento__eyebrow" data-i18n="hp_seg_business">Business</span>
-        <div class="hp-bento__num" id="hpBentoBusiness">—</div>
-      </a>
-      <a class="hp-bento__cell hp-bento__cell--accent" href="favorites.html">
-        <span class="hp-bento__eyebrow" data-i18n="hp_bento_saved">Saved</span>
-        <div>
-          <div class="hp-bento__num" id="hpBentoFavs">—</div>
-          <div class="hp-bento__lbl" data-i18n="hp_bento_saved_lbl">Open your favorites</div>
-        </div>
-      </a>
-      <a class="hp-bento__cell" href="#" data-quickfilter="verified">
-        <span class="hp-bento__eyebrow" data-i18n="home_verified">Verified</span>
-        <div class="hp-bento__num" id="hpBentoVerified">—</div>
-      </a>
-      <a class="hp-bento__cell" href="agent-houses.html">
-        <span class="hp-bento__eyebrow" data-i18n="hp_bento_agents">For agents</span>
-        <div class="hp-bento__num" style="font-size:1.1rem" data-i18n="hp_bento_list">List a property</div>
+      <a class="hp-quick-item hp-quick-item--end" href="agent-houses.html">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span data-i18n="hp_bento_list">List a property</span>
       </a>
     </nav>
 
@@ -1616,7 +1662,6 @@
       </div>
     </div>
 
-    <div id="housesCount" class="houses-result-count" role="status" aria-live="polite"></div>
     <span class="hp-sr-only" id="housesAnnounce" aria-live="polite" aria-atomic="true"></span>
 
     <!-- ===========================================================
@@ -1625,6 +1670,11 @@
          each visitor likes to browse.
          =========================================================== -->
     <div class="hp-resultsbar">
+      <!-- The count used to own a band above this one, and the List/Map
+           switcher another below it: three stacked rows to say how many, in
+           what order, and in which view. They are one row, which is what
+           explore.html settled on for the same three controls. -->
+      <div id="housesCount" class="houses-result-count" role="status" aria-live="polite"></div>
       <div class="hp-rb-controls">
         <label class="hp-sort"><span data-i18n="hp_sort">Sort</span>
           <select id="hpSort" aria-label="Sort listings" data-i18n-aria-label="hp_sort_aria">
@@ -1658,8 +1708,8 @@
 
     <!-- Mobile tab switcher -->
     <div class="houses-mobile-tabs">
-      <button id="tabList" class="active" type="button">List</button>
-      <button id="tabMap"  type="button">Map</button>
+      <button id="tabList" class="active" type="button" data-i18n="xp_v_list">List</button>
+      <button id="tabMap"  type="button" data-i18n="xp_v_map">Map</button>
     </div>
 
     <!-- Split list + map -->

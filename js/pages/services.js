@@ -49,7 +49,6 @@
     return p && window.DataStore ? window.DataStore.servicePhotoUrl(p) : "";
   }
   function catLabel(c) { return window.ListingKinds.label("services", c) || window.ListingKinds.label("services", "other"); }
-  function catEmoji() { return ""; }
 
   function formatPrice(s) {
     const p = s.price_tzs || 0;
@@ -215,7 +214,7 @@
   function cardHtml(s) {
     const img = photoUrl(s);
     const price = formatPrice(s);
-    const badges = [`<span class="sc-badge cat">${catEmoji(s.category)} ${esc(catLabel(s.category))}</span>`];
+    const badges = [`<span class="sc-badge cat">${esc(catLabel(s.category))}</span>`];
     const dist = distanceLabel(s);
     if (dist) badges.push(`<span class="sc-badge dist${Number.isFinite(s._roadKm) ? " road" : ""}">${esc(dist)}</span>`);
     if (s.verified) badges.push(`<span class="sc-badge verified"> Verified</span>`);
@@ -242,7 +241,7 @@
       <div class="svc-card">
         <a class="svc-card-link" href="service.html?id=${encodeURIComponent(s.id)}">
           <div class="svc-card-photo" style="${photoStyle}">
-            ${img ? "" : `<div style="display:flex;height:100%;align-items:center;justify-content:center;font-size:2.4rem;">${catEmoji(s.category)}</div>`}
+            ${img ? "" : `<svg class="sc-ph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2.1 2.1 0 0 1-3-3z"/><path d="M14.7 6.3 17 4"/></svg>`}
             <div class="svc-card-badges">${badges.join("")}</div>
           </div>
           <div class="svc-card-body">
