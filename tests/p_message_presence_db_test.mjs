@@ -12,9 +12,12 @@
 //     would look different. That is what section 1 is for.
 //
 //   • pm_agent_card / pm_agent_listings are the storefront. They are
-//     signed-in only, they refuse guests, and they never return a phone
-//     number — the last one is the invariant every function touching this
-//     directory holds, and the easiest one to break by adding a column.
+//     signed-in only and they refuse guests. On phone numbers the rule is now
+//     narrower than "never" and stricter where it counts: the card returns the
+//     number somebody PUBLISHED on their own listing, which anon already reads
+//     on house.html, and never agent_profiles.phone, which was given under a
+//     policy saying only its owner and an admin may see it. Section 3 gives
+//     Amina one of each so the two cannot be confused.
 //
 //   • reply_to must point at a message in the SAME thread. Without that check
 //     a reply could name a message in a conversation the sender was never in,
@@ -84,6 +87,10 @@ function asAnon(sql) {
 
 const AMINA = "pmpres_amina", JOHN = "pmpres_john", MOLE = "pmpres_mole";
 const GUEST = "pmpres_guest";
+
+// Two numbers for one woman. The directory may hand out exactly one of them.
+const PROFILE_PHONE = "0700 000 001";   // private: agent_profiles.phone
+const LISTED_PHONE = "0755 111 222";    // published: houses.agent->>'phone'
 const IDS = [AMINA, JOHN, MOLE, GUEST];
 
 async function cleanup() {
@@ -115,13 +122,22 @@ try {
   // Amina is a real agent with a bio and one house listed. That is what the
   // storefront is FOR, so the fixture has to be a storefront-shaped person
   // rather than a bare key row.
+  //
+  // She carries TWO different phone numbers, and the difference is the whole
+  // point of section 3. PROFILE_PHONE is the one she typed into a registration
+  // form, under a policy saying only she and an admin may read it. LISTED_PHONE
+  // is the one she printed on her own house listing, on a world-readable row,
+  // where anon already reads it beside a Call button. Only the second may ever
+  // come back out of this directory, and a test that used one number could not
+  // tell the two apart.
   await runSql(`
-    insert into public.agent_profiles (user_id, name, region, area_of_operations, district, ward, bio)
-    values (${literal(AMINA)}, 'pmpres Amina', 'Mwanza', 'Nyamagana', 'Nyamagana', 'Mirongo',
+    insert into public.agent_profiles (user_id, name, phone, region, area_of_operations, district, ward, bio)
+    values (${literal(AMINA)}, 'pmpres Amina', ${literal(PROFILE_PHONE)}, 'Mwanza', 'Nyamagana', 'Nyamagana', 'Mirongo',
             'pmpres bio — twenty years of plumbing')
-    on conflict (user_id) do update set bio = excluded.bio;
-    insert into public.houses (id, title, type, listing, price_tzs, region, area, owner_user_id)
-    values ('pmpres-h1', 'pmpres two rooms', 'apartment', 'rent', 250000, 'Mwanza', 'Nyamagana', ${literal(AMINA)})
+    on conflict (user_id) do update set bio = excluded.bio, phone = excluded.phone;
+    insert into public.houses (id, title, type, listing, price_tzs, region, area, owner_user_id, agent)
+    values ('pmpres-h1', 'pmpres two rooms', 'apartment', 'rent', 250000, 'Mwanza', 'Nyamagana', ${literal(AMINA)},
+            ${literal(JSON.stringify({ name: "pmpres Amina", phone: LISTED_PHONE }))}::jsonb)
     on conflict (id) do nothing;`);
 
   for (const id of [AMINA, JOHN, MOLE]) {
@@ -220,10 +236,27 @@ try {
      "carrying the bio they wrote themselves", card[0] && card[0].bio);
   ok(card[0].n_houses === 1, "and a count of what they list", JSON.stringify(card[0] && card[0].n_houses));
 
-  // The invariant every function on this directory holds.
-  ok(!Object.keys(card[0]).some((k) => /phone/i.test(k)),
-     "and NO phone number — the one column this whole directory exists to withhold",
-     JSON.stringify(Object.keys(card[0])));
+  // THE INVARIANT MOVED, AND THIS IS WHAT IT MOVED TO.
+  //
+  // It used to be "no phone number, ever". That was one rule doing the work of
+  // two, and it could not tell apart the number somebody gave us in confidence
+  // from the number they printed on a public listing themselves. The first is
+  // still withheld absolutely. The second was already readable by anon on
+  // house.html beside a Call button, so withholding it here bought nobody any
+  // privacy and cost a person looking for a lorry four taps and a guess about
+  // which catalogue to look in.
+  //
+  // So the rule is now: the card returns the PUBLISHED number and never the
+  // private one. Amina has both, and they are different, which is the only way
+  // this assertion can fail honestly.
+  ok(card[0].phone === LISTED_PHONE,
+     "the card carries the number she printed on her own listing",
+     JSON.stringify(card[0].phone));
+  ok(card[0].phone !== PROFILE_PHONE &&
+     !JSON.stringify(card[0]).includes(PROFILE_PHONE.replace(/\s/g, "")) &&
+     !JSON.stringify(card[0]).includes(PROFILE_PHONE),
+     "and NOT agent_profiles.phone, which she gave under a policy saying only she and an admin may read it",
+     JSON.stringify(card[0]));
 
   const listings = await asUser({ sub: MOLE }, `select * from public.pm_agent_listings(${literal(AMINA)}, 60);`);
   ok(listings.length === 1 && listings[0].listing_id === "pmpres-h1",
