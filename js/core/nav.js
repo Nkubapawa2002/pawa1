@@ -171,8 +171,10 @@ window.renderNav = (active) => {
       // Show the unread admin-message count on the Account menu (+ hamburger dot).
       window.refreshAgentMsgBadge?.();
 
-      // Admin allowlist (APP_CONFIG.ADMIN_EMAILS + admins table).
-      if (window.Auth.isAllowedEmail(email)) {
+      // Admin allowlist AND the admins table, not just the allowlist. The
+      // list in config.js ships to every browser and can be edited in one;
+      // isDbAdmin() asks the database, which is the copy that matters.
+      if (await window.Auth.isDbAdmin()) {
         document.querySelectorAll(".nav-admin-link").forEach(el => el.style.display = "");
       }
     } catch {

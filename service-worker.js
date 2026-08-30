@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v311-2026-08-29-notify-and-search";
+const VERSION = "v312-2026-08-30-guest-fence-and-doors";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -74,6 +74,9 @@ const APP_SHELL = [
   "./js/core/i18n.js",
   "./js/core/data.js",
   "./js/core/auth.js",
+  // The guest fence. It decides what five gated screens draw, so it must
+  // never be the one file a cached install is missing.
+  "./js/lib/auth-guard.js",
   "./js/lib/auth-ui.js",
   "./js/lib/agent-profile.js",
   "./js/pages/houses-mobile.js",

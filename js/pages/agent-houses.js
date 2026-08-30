@@ -423,9 +423,17 @@ create policy "house-photos upload" on storage.objects for insert
     } catch (_) { /* RPC not deployed yet — ignore */ }
   }
 
+  // A guest session is a real session. `s?.user` answered yes to one, which
+  // opened this whole dashboard for somebody who has no account to own a
+  // listing with. AuthGuard is the one place that knows the difference, and
+  // "guest" is routed exactly like "signed out" plus an explanation.
   async function routeOnAuth(session) {
     const s = session ?? (await sb.auth.getSession()).data.session;
-    if (s?.user) {
+    // Fail closed if the guard did not load: an anonymous session is still
+    // not an account, and the fallback must not be the bug this replaced.
+    const who = window.AuthGuard ? await window.AuthGuard.gate({ session: s, mount: authCard })
+      : (s?.user && s.user.is_anonymous !== true ? "account" : "out");
+    if (who === "account") {
       authCard.hidden = true;
       dashboard.hidden = false;
       formSection.hidden = true;

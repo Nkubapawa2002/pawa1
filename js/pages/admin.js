@@ -21,12 +21,22 @@ window.initAdminPage = async () => {
   // ---------- gate ----------
   async function showCorrectView() {
     const session = await window.Auth.getSession();
-    if (!session) {
+    // A guest is an anonymous session: a real session with no account behind
+    // it. It can never be an admin, and telling it "you are not allowed" names
+    // an email it does not have. It belongs on the sign-in gate, with the
+    // reason, exactly like being signed out.
+    const guest = window.AuthGuard
+      ? window.AuthGuard.isGuest(session)
+      : !!(session && session.user && session.user.is_anonymous === true);
+    if (!session || guest) {
       loginGate.hidden = false;
       forbidden.hidden = true;
       adminPanel.hidden = true;
+      if (guest) window.AuthGuard?.paintNote(loginGate);
+      else window.AuthGuard?.clearNote(loginGate);
       return;
     }
+    window.AuthGuard?.clearNote(loginGate);
     const email = session.user.email;
     const allowed = window.Auth.isAllowedEmail(email);
     let isAdmin = false;

@@ -4,7 +4,7 @@
   <script src="js/core/theme.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Profile — your account, your key, your listings — Maisha na Lifeza</title>
+  <title>Profile: your account, your key, your listings | Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
 
   <link rel="manifest" href="manifest.json" />
@@ -132,6 +132,9 @@
   <script src="js/core/i18n.js"></script>
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>
+  <!-- The guest fence: an anonymous session is a real session, and every
+       gate on this page has to know that "signed in" is not "has an account". -->
+  <script src="js/lib/auth-guard.js"></script>
   <script src="js/core/nav.js"></script>
   <script src="js/lib/p-crypto.js"></script>
   <script src="js/lib/pm-store.js"></script>

@@ -100,8 +100,33 @@ window.initLoginPage = () => {
 
   // ---- cards ---------------------------------------------------------------
   const CARDS = ["stepDoor", "cardAuth", "cardSent", "cardRecovery", "cardPortal"];
+
+  /**
+   * The rail: two questions, and which one you are standing in.
+   *
+   * It is driven off whichever card is open rather than off a counter, so it
+   * cannot fall out of step with the screen. Anything past the account card
+   * (the inbox notice, the reset landing, the portal) is the end of the walk,
+   * so both steps read as done rather than as a third one nobody was told about.
+   */
+  function paintRail(id) {
+    const rail = $("lgRail");
+    if (!rail) return;
+    const items = [...rail.querySelectorAll("li")];
+    const at = items.findIndex((li) => li.dataset.step === id);
+    items.forEach((li, i) => {
+      const done = at < 0 ? true : i < at;
+      const on = at >= 0 && i === at;
+      li.classList.toggle("is-done", done);
+      li.classList.toggle("is-on", on);
+      if (on) li.setAttribute("aria-current", "step");
+      else li.removeAttribute("aria-current");
+    });
+  }
+
   function show(id) {
     CARDS.forEach((c) => { const el = $(c); if (el) el.hidden = c !== id; });
+    paintRail(id);
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {}
   }
 
@@ -137,6 +162,9 @@ window.initLoginPage = () => {
     if (!chip || !m) { if (chip) chip.hidden = true; return; }
     chip.hidden = false;
     chip.style.setProperty("--d", m.accent);
+    // The card takes the door's colour, so what you chose is still visible
+    // while you fill in the thing it led to.
+    D.paint(key);
     $("chosenIc").innerHTML = m.icon;
     $("chosenName").textContent = T(m.name[0], m.name[1]);
     $("chosenWhat").textContent = T(m.what[0], m.what[1]);
@@ -155,7 +183,7 @@ window.initLoginPage = () => {
   const TITLES = {
     password: ["lg_title_signin", "Sign in", "lg_sub_signin", "Welcome back. We'll take you straight to whatever is yours."],
     code: ["lg_title_code", "Sign in with a code", "lg_sub_code", "No password to remember. We email you six digits that work once."],
-    signup: ["lg_title_signup", "Create your account", "lg_sub_signup", "One account covers houses, services and trucks — and your encrypted messages."],
+    signup: ["lg_title_signup", "Create your account", "lg_sub_signup", "One account covers houses, services and trucks, and your encrypted messages."],
   };
   let method = "password";
 
@@ -168,6 +196,11 @@ window.initLoginPage = () => {
       const tab = document.querySelector(`.lg-tab[data-method="${k}"]`);
       if (tab) tab.setAttribute("aria-selected", String(k === m));
     });
+    // The pill under the tabs slides to the chosen one. Index, not pixels: the
+    // three tabs are an equal-width grid, so a fraction of the track is the
+    // whole answer and nothing has to be measured or re-measured on resize.
+    const tabs = document.querySelector(".lg-tabs");
+    if (tabs) tabs.style.setProperty("--i", String(Object.keys(PANES).indexOf(m)));
     const [tk, te, sk, se] = TITLES[m];
     $("authTitle").textContent = T(tk, te);
     $("authSub").textContent = T(sk, se);
@@ -322,7 +355,7 @@ window.initLoginPage = () => {
     } else if (!mine.length) {
       empty.hidden = false;
       say(empty, "info", T("lg_portal_none",
-        "This account isn't linked to a portal yet. If you just registered, open the portal you signed up in — otherwise pick where you want to go."));
+        "This account isn't linked to a portal yet. If you just registered, open the portal you signed up in. Otherwise pick where you want to go."));
     } else {
       empty.hidden = true;
       say(empty, "", "");
@@ -834,7 +867,37 @@ window.initLoginPage = () => {
   if (D) {
     const remembered = D.get();
     if (remembered) { paintChosen(remembered); show("cardAuth"); }
+    else paintRail("stepDoor");
   }
+
+  // ---- the aurora follows the pointer -------------------------------------
+  // Two custom properties, a 2vmax throw, and a long ease. It is felt rather
+  // than seen: the background moves with you slightly, so the page reads as
+  // held rather than printed. Skipped entirely for a coarse pointer (there is
+  // no hover on a phone, and a touch would jump it) and for reduced motion.
+  (() => {
+    let ok = true;
+    try {
+      ok = !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+           window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    } catch (_) { ok = false; }
+    const sky = document.querySelector(".lg-aurora");
+    if (!ok || !sky) return;
+    let queued = false, mx = 0, my = 0;
+    window.addEventListener("pointermove", (e) => {
+      mx = (e.clientX / window.innerWidth - 0.5) * -1;
+      my = (e.clientY / window.innerHeight - 0.5) * -1;
+      if (queued) return;
+      queued = true;
+      // One write per frame. Without this the property is set on every
+      // pointermove, which on a laptop trackpad is several hundred a second.
+      requestAnimationFrame(() => {
+        queued = false;
+        sky.style.setProperty("--px", mx.toFixed(3));
+        sky.style.setProperty("--py", my.toFixed(3));
+      });
+    }, { passive: true });
+  })();
 
   (async () => {
     if (/type=recovery/.test(location.hash || "")) return;   // handler above takes over

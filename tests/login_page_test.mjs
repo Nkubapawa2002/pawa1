@@ -136,7 +136,17 @@ const browser = await puppeteer.launch({
 });
 
 const errors = [];
-async function newPage(query = "", theme = "dark") {
+// Every block below this line is about the ACCOUNT card, so each one opens the
+// page as somebody who has already answered the first question. That is not a
+// shortcut around the doors: it is the returning visitor, which is the state
+// this screen is in for everybody after their first visit. The door step
+// itself is asserted on its own, from a cleared browser, in section 1.
+//
+// The door is "agent" and not "user" on purpose: a plain user has exactly one
+// place to be, so login.js sends them straight there after a successful
+// sign-in. That is correct behaviour and it is tested in login_doors_test.mjs,
+// but it navigates away from the portal chooser this file needs to look at.
+async function newPage(query = "", theme = "dark", door = "agent") {
   const page = await browser.newPage();
   await page.setViewport({ width: 414, height: 900, deviceScaleFactor: 1 });
   await page.setRequestInterception(true);
@@ -153,9 +163,13 @@ async function newPage(query = "", theme = "dark") {
   });
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
-  await page.evaluateOnNewDocument((t) => {
-    try { localStorage.clear(); localStorage.setItem("pawa-theme", t); } catch (_) {}
-  }, theme);
+  await page.evaluateOnNewDocument((t, d) => {
+    try {
+      localStorage.clear();
+      localStorage.setItem("pawa-theme", t);
+      if (d) localStorage.setItem("pawa_account_type", d);
+    } catch (_) {}
+  }, theme, door);
   // The browser on this machine occasionally drops a navigation; one retry
   // costs a second and saves a whole run.
   for (let attempt = 0; ; attempt++) {
@@ -180,6 +194,20 @@ const visible = (page, sel) => page.evaluate((s) => {
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0 && getComputedStyle(el).display !== "none";
 }, sel);
+// A click that lands where a thumb would land.
+//
+// This page carries the app's fixed bottom tab bar, which covers the last ~70px
+// of a 414x900 viewport. Puppeteer only scrolls an element into view when it is
+// OUTSIDE the viewport, and a button sitting under the bar is inside it, so the
+// click was hit-tested against the bar instead: some presses did nothing, and
+// one landed on a tab link and navigated the whole test away mid-section. A
+// person scrolls first without thinking about it. So does this.
+const press = async (page, sel) => {
+  await page.$eval(sel, (el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
+  await wait(70);
+  await page.click(sel);
+};
+
 const type = async (page, sel, v) => {
   await page.$eval(sel, (el) => { el.value = ""; });
   await page.type(sel, v, { delay: 4 });
@@ -188,8 +216,27 @@ const type = async (page, sel, v) => {
 // =========================================================== 1. it renders ==
 {
   process.stdout.write("\nthe page renders\n");
+  // A browser that has never been here answers the door question first. The
+  // account card is not on screen yet, and asserting otherwise is how this
+  // section quietly stopped describing the page.
+  const fresh = await newPage("", "dark", null);
+  ok(await visible(fresh, "#stepDoor"), "a first visit is asked which door");
+  ok(!(await visible(fresh, "#cardAuth")), "and the account card waits its turn");
+  ok((await fresh.$$(".lg-door")).length === 4, "four doors, no more and no fewer");
+  ok((await fresh.$$(".lg-door.is-vip .lg-door-vip")).length === 1,
+     "exactly one of them carries the VIP mark");
+  // The block that used to sit under the doors offered the same three portals
+  // a second time, in different words. It is gone, and must stay gone.
+  ok((await fresh.$$(".lg-routes a[href^='agent-']")).length === 0,
+     "and no second list of portals underneath them");
+  ok(await until(fresh, () => {
+    const on = document.querySelector("#lgRail li.is-on");
+    return !!on && on.dataset.step === "stepDoor";
+  }), "the rail says which of the two steps you are on");
+  await fresh.close();
+
   const page = await newPage();
-  ok(await visible(page, "#cardAuth"), "the sign-in card is on screen");
+  ok(await visible(page, "#cardAuth"), "somebody coming back lands on the sign-in card");
   ok(await visible(page, "#panePassword"), "the password pane is the default");
   ok(!(await visible(page, "#paneCode")), "the code pane starts hidden");
   ok(!(await visible(page, "#cardPortal")), "the portal chooser starts hidden");
@@ -224,7 +271,7 @@ const type = async (page, sel, v) => {
   const page = await newPage();
   await type(page, "#pwEmail", "not-an-email");
   await type(page, "#pwPassword", "whatever");
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   await wait(250);
   ok(await visible(page, "#pwEmailHint"), "an incomplete address is caught on the field");
   ok((await page.$eval("#pwEmail", (e) => e.getAttribute("aria-invalid"))) === "true",
@@ -234,7 +281,7 @@ const type = async (page, sel, v) => {
 
   await type(page, "#pwEmail", "juma@example.com");
   await page.$eval("#pwPassword", (e) => { e.value = ""; });
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   await wait(250);
   ok((await text(page, "#pwPassHint")).length > 0, "a missing password is caught too");
   await page.close();
@@ -247,7 +294,7 @@ const type = async (page, sel, v) => {
   await page.evaluate(() => { window.__mode = { signIn: "wrong" }; });
   await type(page, "#pwEmail", "juma@example.com");
   await type(page, "#pwPassword", "wrong-one");
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   ok(await until(page, () => document.getElementById("authMsg").classList.contains("is-show")),
     "a message appears");
   const msg = await text(page, "#authMsg");
@@ -257,7 +304,7 @@ const type = async (page, sel, v) => {
   process.stdout.write("\nthe leak fence, on a page that just took a raw provider error\n");
   await page.evaluate(() => { window.__mode = { signIn: "raw" }; });
   await type(page, "#pwPassword", "another-try");
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   await wait(700);
   const shown = await text(page, "#authMsg");
   ok(shown.length > 0, "the failure is still reported to the person", shown);
@@ -278,7 +325,7 @@ const type = async (page, sel, v) => {
   await type(page, "#pwEmail", "juma@example.com");
   for (let i = 0; i < 5; i++) {
     await type(page, "#pwPassword", "guess" + i);
-    await page.click("#pwSubmit");
+    await press(page, "#pwSubmit");
     await wait(320);
   }
   const msg = await text(page, "#authMsg");
@@ -287,7 +334,7 @@ const type = async (page, sel, v) => {
 
   const before = await page.evaluate(() => window.__calls.filter((c) => c.name === "signInWithPassword").length);
   await page.evaluate(() => { document.getElementById("pwSubmit").disabled = false; });
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   await wait(300);
   const after = await page.evaluate(() => window.__calls.filter((c) => c.name === "signInWithPassword").length);
   ok(after === before, "and a re-enabled button still sends nothing", `${before} → ${after}`);
@@ -298,14 +345,14 @@ const type = async (page, sel, v) => {
 {
   process.stdout.write("\nsigning in with a six-digit code\n");
   const page = await newPage();
-  await page.click('.lg-tab[data-method="code"]');
+  await press(page, '.lg-tab[data-method="code"]');
   await wait(200);
   ok(await visible(page, "#paneCode"), "the code pane opens");
   ok(!(await visible(page, "#panePassword")), "and the password pane closes");
   ok((await text(page, "#authTitle")) !== "Sign in", "the card title follows the tab");
 
   await type(page, "#codeEmail", "juma@example.com");
-  await page.click("#codeSend");
+  await press(page, "#codeSend");
   ok(await until(page, () => !document.getElementById("codeStepEnter").hidden),
     "asking for a code moves to the entry step");
   const sentTo = await text(page, "#codeSentTo");
@@ -333,10 +380,10 @@ const type = async (page, sel, v) => {
 {
   process.stdout.write("\na bad code is survivable\n");
   const page = await newPage();
-  await page.click('.lg-tab[data-method="code"]');
+  await press(page, '.lg-tab[data-method="code"]');
   await page.evaluate(() => { window.__mode = { verify: "bad" }; });
   await type(page, "#codeEmail", "juma@example.com");
-  await page.click("#codeSend");
+  await press(page, "#codeSend");
   await until(page, () => !document.getElementById("codeStepEnter").hidden);
   await type(page, "#codeInput", "000000");
   await wait(600);
@@ -351,10 +398,10 @@ const type = async (page, sel, v) => {
 {
   process.stdout.write("\nthe provider's own cool-off is obeyed\n");
   const page = await newPage();
-  await page.click('.lg-tab[data-method="code"]');
+  await press(page, '.lg-tab[data-method="code"]');
   await page.evaluate(() => { window.__mode = { otp: "rate" }; });
   await type(page, "#codeEmail", "juma@example.com");
-  await page.click("#codeSend");
+  await press(page, "#codeSend");
   await wait(600);
   const stored = await page.evaluate(() => localStorage.getItem("pawa-auth-attempts"));
   ok(/until/.test(stored || ""), "a 429 with a wait time is written into the local lockout", stored);
@@ -366,7 +413,7 @@ const type = async (page, sel, v) => {
 {
   process.stdout.write("\ncreating an account\n");
   const page = await newPage();
-  await page.click('.lg-tab[data-method="signup"]');
+  await press(page, '.lg-tab[data-method="signup"]');
   await wait(200);
   ok(await visible(page, "#paneSignup"), "the sign-up pane opens");
 
@@ -403,17 +450,17 @@ const type = async (page, sel, v) => {
   await wait(150);
   ok((await text(page, "#suConfirmHint")).length > 0, "a mismatch is caught while typing");
 
-  await page.click("#suSubmit");
+  await press(page, "#suSubmit");
   await wait(300);
   ok(await visible(page, "#paneSignup"), "and it will not submit with a mismatch");
 
   await type(page, "#suConfirm", "Nyumba-2026-Dar!");
-  await page.click("#suSubmit");
+  await press(page, "#suSubmit");
   ok(await until(page, () => !document.getElementById("cardSent").hidden),
     "a good sign-up lands on 'check your inbox'");
   ok(/juma@example\.com/.test(await text(page, "#sentBody")), "which names the address it went to");
 
-  await page.click("#sentResend");
+  await press(page, "#sentResend");
   await wait(400);
   const resent = await page.evaluate(() => window.__calls.some((c) => c.name === "resend"));
   ok(resent, "and can send the confirmation again");
@@ -423,12 +470,12 @@ const type = async (page, sel, v) => {
 {
   process.stdout.write("\nsigning up with an address that already has an account\n");
   const page = await newPage();
-  await page.click('.lg-tab[data-method="signup"]');
+  await press(page, '.lg-tab[data-method="signup"]');
   await page.evaluate(() => { window.__mode = { signUp: "exists" }; });
   await type(page, "#suEmail", "juma@example.com");
   await type(page, "#suPassword", "Nyumba-2026-Dar!");
   await type(page, "#suConfirm", "Nyumba-2026-Dar!");
-  await page.click("#suSubmit");
+  await press(page, "#suSubmit");
   ok(await until(page, () => !document.getElementById("panePassword").hidden),
     "you are moved to the pane that can actually get you in");
   ok((await page.$eval("#pwEmail", (e) => e.value)) === "juma@example.com",
@@ -441,7 +488,7 @@ const type = async (page, sel, v) => {
   process.stdout.write("\nforgot password, without confirming who has an account\n");
   const page = await newPage();
   await type(page, "#pwEmail", "stranger@example.com");
-  await page.click("#forgotBtn");
+  await press(page, "#forgotBtn");
   ok(await until(page, () => !document.getElementById("cardSent").hidden), "it moves to the sent card");
   const body = await text(page, "#sentBody");
   ok(/\bif\b/i.test(body), "the wording is conditional — it never confirms the address exists", body);
@@ -459,11 +506,11 @@ const type = async (page, sel, v) => {
   ok(await until(page, () => !document.getElementById("cardRecovery").hidden),
     "the new-password card takes over");
   await type(page, "#recPassword", "short");
-  await page.click("#recSubmit");
+  await press(page, "#recSubmit");
   await wait(300);
   ok(/strength|strengthen/i.test(await text(page, "#recMsg")), "a weak new password is refused");
   await type(page, "#recPassword", "Nyumba-2026-Dar!");
-  await page.click("#recSubmit");
+  await press(page, "#recSubmit");
   ok(await until(page, () => window.__calls.some((c) => c.name === "updateUser")),
     "a strong one is saved");
   await page.close();
@@ -476,14 +523,14 @@ const type = async (page, sel, v) => {
   await page.evaluate(() => { window.__mode = { owns: false }; });
   await type(page, "#pwEmail", "juma@example.com");
   await type(page, "#pwPassword", "correct-horse");
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   ok(await until(page, () => !document.getElementById("cardPortal").hidden), "the chooser appears");
   ok(/juma@example\.com/.test(await text(page, "#portalEmail")), "it names the account");
   ok(await visible(page, "#portalEmpty"), "an account with nothing linked is told so, not left blank");
   const hrefs = await page.$$eval("#portalList a", (as) => as.map((a) => a.getAttribute("href")));
   ok(hrefs.includes("index.html"), "and is always offered the ordinary way into the app", hrefs.join(", "));
 
-  await page.click("#portalSignOut");
+  await press(page, "#portalSignOut");
   ok(await until(page, () => !document.getElementById("cardAuth").hidden), "signing out returns to the form");
   ok((await page.$eval("#pwPassword", (e) => e.value)) === "", "and clears the password field");
   await page.close();
@@ -500,7 +547,7 @@ const type = async (page, sel, v) => {
     const page = await newPage(q);
     await type(page, "#pwEmail", "juma@example.com");
     await type(page, "#pwPassword", "correct-horse");
-    await page.click("#pwSubmit");
+    await press(page, "#pwSubmit");
     await wait(900);
     const url = page.url();
     ok(url.startsWith("http://localhost:8080/login.html"), why, "landed on " + url);
@@ -509,7 +556,7 @@ const type = async (page, sel, v) => {
   const page = await newPage("?next=explore.html");
   await type(page, "#pwEmail", "juma@example.com");
   await type(page, "#pwPassword", "correct-horse");
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   await wait(1200);
   ok(/explore\.html/.test(page.url()), "a plain relative page is honoured", page.url());
   await page.close();
@@ -536,7 +583,7 @@ const type = async (page, sel, v) => {
   await page.evaluate(() => { window.__mode = { signIn: "wrong" }; });
   await type(page, "#pwEmail", "juma@example.com");
   await type(page, "#pwPassword", "nope");
-  await page.click("#pwSubmit");
+  await press(page, "#pwSubmit");
   await wait(700);
   const msg = await text(page, "#authMsg");
   ok(/havilingani/.test(msg), "and so is the error", msg);

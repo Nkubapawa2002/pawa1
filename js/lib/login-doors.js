@@ -53,7 +53,11 @@
       icon: svg('<path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/>'),
     },
     {
-      key: "owner", accent: "var(--lg-door-owner)", href: "agent-houses.html",
+      // The one door that is marked. A landlord listing their own property is
+      // the account the whole catalogue is built to carry: no agent margin, no
+      // second party, and their listing is the one a renter is looking for.
+      // The badge says so; it grants nothing, exactly like the door itself.
+      key: "owner", accent: "var(--lg-door-owner)", href: "agent-houses.html", vip: true,
       name: ["lg_door_owner", "House owner"],
       what: ["lg_door_owner_d", "Your own property, listed by you, with no agent in between."],
       can: [["lg_can_rooms", "Rooms"], ["lg_can_services", "Services"], ["lg_can_direct", "Direct contact"]],
@@ -110,8 +114,11 @@
 
   function card(d) {
     var can = d.can.map(function (c) { return "<span>" + tx(c[0], c[1]) + "</span>"; }).join("");
-    return '<button type="button" class="lg-door" data-key="' + d.key + '"' +
-      ' style="--d:' + d.accent + '" aria-pressed="false">' +
+    var vip = d.vip
+      ? '<span class="lg-door-vip">' + tx("lg_door_vip", "VIP") + "</span>"
+      : "";
+    return '<button type="button" class="lg-door' + (d.vip ? " is-vip" : "") + '" data-key="' + d.key + '"' +
+      ' style="--d:' + d.accent + '" aria-pressed="false">' + vip +
       '<span class="lg-door-ic">' + d.icon + "</span>" +
       '<span class="lg-door-tx">' +
         '<span class="lg-door-t">' + tx(d.name[0], d.name[1]) + "</span>" +
@@ -146,6 +153,23 @@
     });
   }
 
+  /**
+   * Carry the chosen door's colour onto the page.
+   *
+   * Only the DECORATIVE accent moves: the step rail, the chip, the focus ring,
+   * the hairline over the card. The button and its ink stay on the theme's own
+   * accent, because gold or orange under white text is a contrast failure in
+   * the light theme, and a screen that recognises you is worth nothing if the
+   * thing you have to press stops being readable.
+   */
+  function paint(key) {
+    var m = meta(key);
+    try {
+      document.body.setAttribute("data-door", m ? key : "");
+      document.body.style.setProperty("--lg-door-accent", m ? m.accent : "");
+    } catch (_) {}
+  }
+
   function init(opts) {
     var grid = opts && opts.grid;
     if (!grid) return;
@@ -156,6 +180,7 @@
       b.addEventListener("click", function () {
         buttons.forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
         set(b.dataset.key);
+        paint(b.dataset.key);
         if (opts.onPick) opts.onPick(b.dataset.key, meta(b.dataset.key));
       });
     });
@@ -173,7 +198,7 @@
   }
 
   window.LoginDoors = {
-    DOORS: DOORS, init: init, get: get, set: set, meta: meta,
+    DOORS: DOORS, init: init, get: get, set: set, meta: meta, paint: paint,
     fromAccount: fromAccount, STORAGE_KEY: KEY,
   };
 })();

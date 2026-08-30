@@ -352,6 +352,9 @@
   <script src="js/core/i18n.js"></script>
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>
+  <!-- The guest fence: an anonymous session is a real session, and every
+       gate on this page has to know that "signed in" is not "has an account". -->
+  <script src="js/lib/auth-guard.js"></script>
   <script src="js/core/nav.js"></script>
   <script src="js/lib/geolocate.js"></script>
   <script src="js/lib/auth-ui.js"></script>

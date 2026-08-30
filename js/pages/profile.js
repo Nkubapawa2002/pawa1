@@ -25,6 +25,12 @@
 
   var me = null;
   var fingerprint = "";
+  // Whether the DATABASE agrees this is an admin, not just the list in
+  // config.js. That list ships to every browser and is trivially edited in
+  // one; isDbAdmin() reads the `admins` table through RLS, so it is the copy
+  // that cannot be talked into a different answer. The console links are the
+  // only thing on this page gated on it, and they wait for it.
+  var adminConfirmed = false;
 
   function t(key, fallback, vars) {
     var s = window.t ? window.t(key) : key;
@@ -89,7 +95,7 @@
       el.pfName.textContent = t("pf_hello", "Hello");
       el.pfWho.textContent = t("pf_signed_out", "Not signed in");
       html += '<div class="pf-note"><b>' + esc(t("pf_out_t", "Nothing here yet")) + "</b><br>" +
-        esc(t("pf_out_d", "Sign in to manage your listings and keep your conversations across devices — or just message an agent as a guest, encrypted the same way.")) +
+        esc(t("pf_out_d", "Sign in to manage your listings and keep your conversations across devices. Or just message an agent as a guest, encrypted the same way.")) +
         '</div><div class="pf-acts">' +
         '<a class="pm-btn" href="login.html">' + esc(t("pm_signin_go", "Sign in")) + "</a>" +
         '<a class="pm-btn ghost" href="p-message.html">' + esc(t("pf_guest_go", "Chat as a guest")) + "</a>" +
@@ -101,10 +107,10 @@
       el.pfAvatar.textContent = initials(me.isGuest ? "G" : name);
       el.pfAvatar.classList.toggle("is-guest", !!me.isGuest);
       el.pfName.innerHTML = esc(me.isGuest ? t("pf_guest_name", "Guest") : String(name).split("@")[0]) +
-        (me.isAdmin ? ' <span class="pf-tag admin">' + esc(t("pf_admin", "Admin")) + "</span>" : "") +
+        (adminConfirmed ? ' <span class="pf-tag admin">' + esc(t("pf_admin", "Admin")) + "</span>" : "") +
         (me.isGuest ? ' <span class="pf-tag guest">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "");
       el.pfWho.textContent = me.isGuest
-        ? t("pf_guest_who", "No account — this device only")
+        ? t("pf_guest_who", "No account. This device only.")
         : (me.email || "");
 
       if (me.isGuest) {
@@ -172,7 +178,7 @@
             desc: t("pf_theme_d", "Dark by default."), value: theme === "light" ? t("pf_light", "Light") : t("pf_dark", "Dark") }),
     ]);
 
-    if (me.isAdmin) {
+    if (adminConfirmed) {
       html += group(t("pf_g_admin", "Admin"), [
         row({ href: "admin.html", icon: ICON.shield, tint: "ic-violet", title: t("nav_admin", "Admin"),
               desc: t("pf_admin_d", "Listings, agents, payments, the video space.") }),
@@ -186,7 +192,7 @@
         row({ act: "signout", icon: ICON.out, tint: "ic-rose",
               title: me.isGuest ? t("pf_end_guest", "End this guest session") : t("pf_signout", "Sign out"),
               desc: me.isGuest
-                ? t("pf_end_guest_d", "Leaves the conversation unreadable on this device — there is no account to come back to.")
+                ? t("pf_end_guest_d", "Leaves the conversation unreadable on this device. There is no account to come back to.")
                 : t("pf_signout_d", "Your key stays on this device.") }),
       ]);
     }
@@ -259,6 +265,12 @@
     });
 
     me = await window.PMStore.me();
+    // Asked once, after the session is known, and never for a guest: an
+    // anonymous session has no email for the table to hold. Failure is "no",
+    // so a blocked or offline read hides the console rather than opening it.
+    if (me.userId && !me.isGuest && me.isAdmin && window.Auth && window.Auth.isDbAdmin) {
+      try { adminConfirmed = await window.Auth.isDbAdmin(); } catch (_) { adminConfirmed = false; }
+    }
     // The fingerprint is read from the key already on this device — Profile
     // never CREATES one. Someone who has not opened P-Message has no key yet,
     // and inventing one here would publish them as reachable when they have

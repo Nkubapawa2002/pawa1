@@ -46,6 +46,26 @@
       <p class="lg-lead" data-i18n="lg_lead">Homes, daily services, moving trucks and day jobs, across Tanzania.</p>
     </section>
 
+    <!-- The two steps, and which one you are standing in.
+
+         The page used to move between the doors and the account card with no
+         way to tell how far along you were, so tapping a door read as "the
+         screen changed" rather than "I answered the first of two questions".
+         The rail is not decoration: it is the only thing on the page that says
+         there is an end to this. -->
+    <nav class="lg-rail" id="lgRail" aria-label="Sign-in steps" data-i18n-aria-label="lg_rail_label">
+      <ol>
+        <li class="is-on" data-step="stepDoor">
+          <span class="lg-rail-dot" aria-hidden="true"></span>
+          <span class="lg-rail-t" data-i18n="lg_step_door">Who you are</span>
+        </li>
+        <li data-step="cardAuth">
+          <span class="lg-rail-dot" aria-hidden="true"></span>
+          <span class="lg-rail-t" data-i18n="lg_step_auth">Your account</span>
+        </li>
+      </ol>
+    </nav>
+
     <!-- STEP 1. Who is coming in.
 
          Four kinds of account want different things from the same building, so
@@ -85,7 +105,12 @@
         <h2 class="lg-card-h" id="authTitle" data-i18n="lg_title_signin">Sign in</h2>
         <p class="lg-card-sub" id="authSub" data-i18n="lg_sub_signin">Welcome back. We'll take you straight to whatever is yours.</p>
 
+        <!-- The pill under the selected tab is one element that slides, not
+             three that light up: the eye follows a moving object and does not
+             follow a colour change, so the moving one is the one that tells you
+             where you went. Position comes from --i, set in login.js. -->
         <div class="lg-tabs" role="tablist" aria-label="Sign-in method" data-i18n-aria-label="lg_tabs_label">
+          <span class="lg-tabs-pill" aria-hidden="true"></span>
           <button type="button" class="lg-tab" role="tab" id="tabPassword" aria-selected="true"
                   aria-controls="panePassword" data-method="password" data-i18n="lg_tab_password">Password</button>
           <button type="button" class="lg-tab" role="tab" id="tabCode" aria-selected="false"
@@ -150,7 +175,7 @@
                        autocomplete="username" autocapitalize="none" spellcheck="false"
                        placeholder="you@example.com" aria-describedby="codeAskHint" />
               </div>
-              <div class="lg-hint" id="codeAskHint" data-i18n="lg_code_hint">No password needed — we email you a six-digit code that works once.</div>
+              <div class="lg-hint" id="codeAskHint" data-i18n="lg_code_hint">No password needed. We email you a six-digit code that works once.</div>
             </div>
             <button type="button" class="lg-btn" id="codeSend" style="margin-top:14px" data-i18n="lg_code_send">Email me a code</button>
           </div>
@@ -243,32 +268,10 @@
         <a class="lg-route" href="p-message.html" id="guestLink">
           <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 14a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><rect x="9.2" y="8.4" width="5.6" height="4" rx="1"/><path d="M10.6 8.4V7.2a1.4 1.4 0 0 1 2.8 0v1.2"/></svg></span>
           <span class="lg-route-tx"><span data-i18n="lg_guest">Message an agent as a guest</span>
-            <small data-i18n="lg_guest_d">Encrypted the same way — but it lives on this device only.</small></span>
+            <small data-i18n="lg_guest_d">Encrypted the same way. It lives on this device only.</small></span>
           <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
         </a>
 
-        <!-- ---------- where to register as a professional ---------- -->
-        <div class="lg-div" data-i18n="lg_want_to_list">Want to list something?</div>
-        <div class="lg-routes">
-          <a class="lg-route" href="agent-houses.html">
-            <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
-            <span class="lg-route-tx"><span data-i18n="lg_route_houses">Houses &amp; rooms</span>
-              <small data-i18n="lg_route_houses_d">Free agent account, created in the portal.</small></span>
-            <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-          </a>
-          <a class="lg-route" href="agent-services.html">
-            <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg></span>
-            <span class="lg-route-tx"><span data-i18n="lg_route_services">A daily service</span>
-              <small data-i18n="lg_route_services_d">Fundi, cleaner, tutor, cook.</small></span>
-            <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-          </a>
-          <a class="lg-route" href="agent-trucks.html">
-            <span class="lg-route-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg></span>
-            <span class="lg-route-tx"><span data-i18n="lg_route_trucks">A moving truck</span>
-              <small data-i18n="lg_route_trucks_d">Registered in the trucks portal.</small></span>
-            <span class="lg-route-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
-          </a>
-        </div>
       </section>
 
       <!-- ---- "check your inbox", after a sign-up or a reset request ---- -->

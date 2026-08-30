@@ -48,8 +48,13 @@
       // in app_is_guest(), so this is only for deciding what to DRAW.
       isGuest: session.user.is_anonymous === true,
       // Likewise checked again by is_admin() on every privileged call.
-      isAdmin: !!email && admins.map(function (e) { return e.toLowerCase(); })
-        .indexOf(String(email).toLowerCase()) >= 0,
+      // The anonymous test is belt and braces: a guest has no email so the
+      // list can never match one, but this value decides what gets DRAWN on
+      // five screens, and "an admin is never a guest" should be stated where
+      // the flag is made rather than assumed at each of them.
+      isAdmin: session.user.is_anonymous !== true && !!email &&
+        admins.map(function (e) { return e.toLowerCase(); })
+          .indexOf(String(email).toLowerCase()) >= 0,
     };
     return meCache;
   }

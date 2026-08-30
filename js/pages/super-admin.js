@@ -31,7 +31,19 @@ window.initSuperAdmin = async () => {
   // ---- Auth gate (unchanged from the old tenant panel) ----------
   async function evaluateAuth() {
     const session = await window.Auth.getSession();
-    if (!session) { hide(forb); hide(panel); show(gate); return; }
+    // An anonymous guest session is not an account. It goes to the gate with
+    // the reason, not to "forbidden", which would print an empty email back
+    // at somebody who never gave one.
+    const guest = window.AuthGuard
+      ? window.AuthGuard.isGuest(session)
+      : !!(session && session.user && session.user.is_anonymous === true);
+    if (!session || guest) {
+      hide(forb); hide(panel); show(gate);
+      if (guest) window.AuthGuard?.paintNote(gate);
+      else window.AuthGuard?.clearNote(gate);
+      return;
+    }
+    window.AuthGuard?.clearNote(gate);
     const email = session.user?.email || "";
     if (!window.Auth.isAllowedEmail(email)) {
       document.getElementById("saWhoami").textContent = email;
