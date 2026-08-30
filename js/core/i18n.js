@@ -176,7 +176,7 @@ window.I18N = {
     pm_lock_on: "End-to-end encrypted",
     pm_lock_off: "Not encrypted",
     pm_lock_none: "Encryption unavailable",
-    pm_lock_ai: "Not encrypted — PN-Zaki reads this",
+    pm_lock_ai: "Not encrypted. PN-Zaki reads this",
     pm_your_number: "Your safety number {n}",
     pm_seg_chats: "Chats",
     pm_seg_people: "Agents",
@@ -193,11 +193,11 @@ window.I18N = {
     pm_no_people: "Nobody matches that yet.",
     pm_badge_agent: "Agent",
     pm_who_label: "Who to show",
-    pm_who_agents: "Agents",
+    pm_who_agents: "Agents and providers",
     pm_who_all: "Everyone on P-Message",
     pm_count_agents: "{n} agents",
     pm_count_people: "{n} people",
-    pm_no_agents: "No agents match that. Switch to Everyone to see other people on P-Message.",
+    pm_no_agents: "Nobody with anything listed matches that. Switch to Everyone to see other people on P-Message.",
     pm_area_of: "Area of operation",
     pm_area_none: "Area not set",
     pm_room_everyone: "Every agent in Tanzania",
@@ -216,7 +216,7 @@ window.I18N = {
     pm_setup_failed: "Could not set up encryption on this device.",
     pm_write_ph: "Write a message",
     pm_say_first: "Say the first thing.",
-    pm_conv_note: "Encrypted on this device. Nobody else — not even us — can read it.",
+    pm_conv_note: "Encrypted on this device. Nobody else can read it, not even us.",
     pm_cast_note: "Sent to everyone in this scope. Only you can read your copy.",
     pm_ai_note: "PN-Zaki reads these messages. Do not send anything private.",
     pm_unreadable: "This message was encrypted for another device.",
@@ -327,6 +327,12 @@ window.I18N = {
     pm_seen_days: "Last opened {n} days ago",
     pm_seen_on: "Last opened on {date}",
     pm_open_listings: "See their work",
+    // The two ways of reaching one person, side by side under their card.
+    // Calling is offered because "message them" is not always the question:
+    // somebody who needs a lorry this afternoon wants the number, and it is
+    // the number that person already printed on their own listing.
+    pm_act_message: "Message",
+    pm_act_call: "Call",
 
     // Answering one message
     pm_reply: "Reply",
@@ -337,6 +343,28 @@ window.I18N = {
     // it contained.
     pm_reply_gone: "an earlier message",
     pm_you_short: "You",
+
+    // Everything else one message can have done to it, and the one that needs
+    // its limits said out loud. "Delete for me" is a phrase people arrive at
+    // carrying an expectation this app cannot meet: the other copy is on the
+    // other phone, encrypted with a key this device has never held, and there
+    // is no request that takes it back. The wording never pretends otherwise.
+    pm_msg_more: "More",
+    pm_msg_actions: "This message",
+    pm_msg_reply_d: "Quote it in your next message.",
+    pm_msg_copy: "Copy the words",
+    pm_msg_copy_d: "Put the text on this phone's clipboard.",
+    pm_msg_copied: "Copied",
+    pm_del_t2: "Delete for me",
+    pm_msg_del_d: "Hidden on this device. They keep their copy.",
+    pm_del_t: "Delete on this device?",
+    pm_del_d: "It disappears from this phone only. Whoever you were talking to keeps their copy, and there is no way for this app to reach into their phone and take it back.",
+    pm_del_d2: "Nothing is destroyed. You can show it again from the line at the bottom of the conversation.",
+    pm_del_go: "Hide it here",
+    pm_del_fail: "This browser would not save that, so the message is still here.",
+    pm_hidden_one: "1 message is hidden on this device.",
+    pm_hidden_n: "{n} messages are hidden on this device.",
+    pm_hidden_show: "Show them",
 
     // What kind of work (js/lib/listing-kinds.js). houses.type and
     // trucks.truck_type are free text, so anything not listed here is shown
@@ -374,6 +402,7 @@ window.I18N = {
     ag_all: "Everything",
     ag_message: "Message them",
     ag_msg_note: "Messages are encrypted on your device. We cannot read them, and neither can anybody with access to the database.",
+    ag_call_only: "They have not opened P-Message yet, so there is no key to encrypt to. The number is the one they printed on their own listings, and a call is an ordinary call.",
     ag_no_bio: "They have not written anything about their work yet.",
     ag_nothing: "Nothing listed yet. Write to them anyway — plenty of work never makes it onto a board.",
     ag_verified: "Verified",
@@ -2688,7 +2717,7 @@ window.I18N = {
     pm_lock_on: "Imefichwa mwanzo hadi mwisho",
     pm_lock_off: "Haijafichwa",
     pm_lock_none: "Ufichaji haupatikani",
-    pm_lock_ai: "Haijafichwa — PN-Zaki anasoma haya",
+    pm_lock_ai: "Haijafichwa. PN-Zaki anasoma haya",
     pm_your_number: "Namba yako ya usalama {n}",
     pm_seg_chats: "Mazungumzo",
     pm_seg_people: "Mawakala",
@@ -2705,11 +2734,11 @@ window.I18N = {
     pm_no_people: "Hakuna anayelingana na hilo bado.",
     pm_badge_agent: "Wakala",
     pm_who_label: "Waonyeshwe nani",
-    pm_who_agents: "Mawakala",
+    pm_who_agents: "Mawakala na watoaji",
     pm_who_all: "Kila mtu kwenye P-Message",
     pm_count_agents: "Mawakala {n}",
     pm_count_people: "Watu {n}",
-    pm_no_agents: "Hakuna wakala anayelingana. Badilisha kuwa Kila mtu uone wengine kwenye P-Message.",
+    pm_no_agents: "Hakuna mwenye kitu alichoorodhesha anayelingana. Badilisha kuwa Kila mtu uone wengine kwenye P-Message.",
     pm_area_of: "Eneo la kazi",
     pm_area_none: "Eneo halijawekwa",
     pm_room_everyone: "Kila wakala Tanzania",
@@ -2728,7 +2757,7 @@ window.I18N = {
     pm_setup_failed: "Imeshindikana kuanzisha ufichaji kwenye kifaa hiki.",
     pm_write_ph: "Andika ujumbe",
     pm_say_first: "Sema neno la kwanza.",
-    pm_conv_note: "Imefichwa kwenye kifaa hiki. Hakuna mwingine — hata sisi — anayeweza kusoma.",
+    pm_conv_note: "Imefichwa kwenye kifaa hiki. Hakuna mwingine anayeweza kusoma, hata sisi.",
     pm_cast_note: "Imetumwa kwa kila mtu katika eneo hili. Wewe pekee ndiye unasoma nakala yako.",
     pm_ai_note: "PN-Zaki anasoma ujumbe huu. Usitume kitu cha siri.",
     pm_unreadable: "Ujumbe huu ulifichwa kwa kifaa kingine.",
@@ -2833,6 +2862,8 @@ window.I18N = {
     pm_seen_days: "Alifungua siku {n} zilizopita",
     pm_seen_on: "Alifungua tarehe {date}",
     pm_open_listings: "Ona kazi zao",
+    pm_act_message: "Tuma ujumbe",
+    pm_act_call: "Piga simu",
 
     // Kujibu ujumbe mmoja
     pm_reply: "Jibu",
@@ -2840,6 +2871,25 @@ window.I18N = {
     pm_reply_cancel: "Acha kujibu",
     pm_reply_gone: "ujumbe wa awali",
     pm_you_short: "Wewe",
+
+    // Kufuta ujumbe: kwenye kifaa hiki tu. Nakala ya mwenzako ipo kwenye simu
+    // yake na hakuna njia ya kuiondoa.
+    pm_msg_more: "Zaidi",
+    pm_msg_actions: "Ujumbe huu",
+    pm_msg_reply_d: "Uweke kama nukuu kwenye ujumbe wako unaofuata.",
+    pm_msg_copy: "Nakili maneno",
+    pm_msg_copy_d: "Weka maandishi kwenye ubao wa kunakili wa simu hii.",
+    pm_msg_copied: "Umenakiliwa",
+    pm_del_t2: "Futa kwangu",
+    pm_msg_del_d: "Unafichwa kwenye kifaa hiki. Yeye anabaki na nakala yake.",
+    pm_del_t: "Ufute kwenye kifaa hiki?",
+    pm_del_d: "Unatoweka kwenye simu hii pekee. Uliyekuwa unaongea naye anabaki na nakala yake, na hakuna njia ya programu hii kuifikia simu yake na kuiondoa.",
+    pm_del_d2: "Hakuna kinachoharibiwa. Unaweza kuurudisha kutoka kwenye mstari ulio chini ya mazungumzo.",
+    pm_del_go: "Ufiche hapa",
+    pm_del_fail: "Kivinjari hiki hakikuhifadhi hilo, kwa hiyo ujumbe bado upo hapa.",
+    pm_hidden_one: "Ujumbe 1 umefichwa kwenye kifaa hiki.",
+    pm_hidden_n: "Jumbe {n} zimefichwa kwenye kifaa hiki.",
+    pm_hidden_show: "Zionyeshe",
 
     // Aina ya kazi (js/lib/listing-kinds.js)
     kind_svc_cleaning: "Usafi",
@@ -2875,6 +2925,7 @@ window.I18N = {
     ag_all: "Yote",
     ag_message: "Mwandikie",
     ag_msg_note: "Ujumbe husimbwa kwenye kifaa chako. Hatuwezi kuusoma, wala mtu yeyote mwenye ufikiaji wa hifadhidata.",
+    ag_call_only: "Bado hajafungua P-Message, kwa hiyo hakuna ufunguo wa kusimba. Namba ni ile aliyoiweka kwenye matangazo yake mwenyewe, na simu ni simu ya kawaida.",
     ag_no_bio: "Bado hajaandika chochote kuhusu kazi yake.",
     ag_nothing: "Hakuna kilichoorodheshwa bado. Mwandikie tu — kazi nyingi hazifiki kwenye orodha.",
     ag_verified: "Imethibitishwa",

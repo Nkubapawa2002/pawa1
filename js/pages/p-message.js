@@ -60,6 +60,11 @@
   // so the log has to be able to look up what it already opened.
   var replyTo = null;        // { id, name, text } or null
   var lastRows = [];
+  // The ids this device is holding back out of the page currently drawn. Kept
+  // so the "N are hidden" line and its Show button both work off the same list
+  // the log was actually filtered with, rather than re-deriving it and
+  // disagreeing with itself after a redraw. See js/lib/pm-hidden.js.
+  var hiddenHere = [];
   // The pin waiting to go with the next message. A location is not an
   // attachment in the file sense — it rides inside the encrypted body — but it
   // behaves like one at the composer, and it must be visible while typing or
@@ -539,26 +544,38 @@
 
     // The pane is called Agents, but the directory also returns anyone who has
     // simply opened P-Message — which is right for "who wrote to me?" and
-    // wrong for "who can help me find a room". Both lists are available; the
-    // agents are the default because that is what the tab is for.
+    // wrong for "who can help me find a room".
     //
-    // EXCEPT when a category is chosen, and this is the fix day jobs forced.
-    // The agent flag is a proxy for "does this person deal in anything"; the
-    // category filter is the actual measurement, applied in the database
-    // against what they have listed. Running the proxy on top of the
-    // measurement can only subtract, and what it subtracted was exactly the
-    // people the chip was for: a company that posts day jobs almost never
-    // registers as an agent, so "Day jobs" plus the default "Agents" returned
-    // an empty screen while the right answers sat one dropdown away. The same
-    // was quietly true of a landlord who lists rooms without being an agent.
-    // Evidence beats a flag, so with a chip on, the flag stands down.
-    var wantAgents = !el.pmWho || el.pmWho.value !== "all";
-    var shown = (wantAgents && !category)
-      ? rows.filter(function (p) { return p.is_agent; })
+    // EVIDENCE BEATS A FLAG, and it beats it everywhere now.
+    //
+    // The rule used to be "is_agent, unless a category chip is on". That
+    // exception was forced by day jobs: a company that hires by the day almost
+    // never registers as an agent, so the Day jobs chip returned an empty
+    // screen with the right answers one dropdown behind it. The flag is a
+    // PROXY for "does this person deal in anything"; the listing counts are the
+    // MEASUREMENT of it, and running a proxy on top of a measurement can only
+    // subtract.
+    //
+    // The same subtraction was happening with no chip on, silently, to exactly
+    // the same people: the company that posts twelve jobs a month, the
+    // landlord with four rooms who never registered, the man with two lorries.
+    // Every one of them is an agent in the only sense that matters on this
+    // screen, somebody with something to offer and a way to be reached, and
+    // every one of them was missing from the pane whose whole job is listing
+    // them. So the default is now "registered as an agent OR has something
+    // listed", and the flag only ever adds.
+    //
+    // What is still excluded by default is somebody with no listings who
+    // merely opened P-Message. They are one dropdown away, where they belong:
+    // that is a person, not a provider, and offering them as an answer to
+    // "who can move a fridge" would be noise dressed up as a result.
+    var wantProviders = !el.pmWho || el.pmWho.value !== "all";
+    var shown = (wantProviders && !category)
+      ? rows.filter(function (p) { return p.is_agent || hasListings(p); })
       : rows;
 
     if (!shown.length) {
-      el.pmPeople.innerHTML = '<div class="pm-empty">' + esc(emptyWhy(rows.length, wantAgents)) + "</div>";
+      el.pmPeople.innerHTML = '<div class="pm-empty">' + esc(emptyWhy(rows.length, wantProviders)) + "</div>";
       return;
     }
 
@@ -573,9 +590,10 @@
     var ranked = window.PMMatch.rank(shown, need);
 
     if (el.pmCount) {
-      // "12 agents" would be a lie about a list the agent flag no longer
-      // filtered. The word has to follow what is actually on screen.
-      var onlyAgents = wantAgents && !category;
+      // "12 agents" would be a lie about a list that also holds a construction
+      // firm and a landlord. The word follows what is actually on screen, row
+      // by row, rather than following which filter happens to be set.
+      var onlyAgents = ranked.every(function (x) { return !!x.agent.is_agent; });
       el.pmCount.textContent =
         t(onlyAgents ? "pm_count_agents" : "pm_count_people",
           onlyAgents ? "{n} agents" : "{n} people", { n: ranked.length }) +
@@ -590,7 +608,7 @@
   // Why the list is empty, said precisely. "Nobody matches" is four different
   // situations wearing one sentence, and three of them have a way out that
   // the fourth does not.
-  function emptyWhy(total, wantAgents) {
+  function emptyWhy(total, wantProviders) {
     if (category && total) {
       // Jobs get their own sentence rather than being forced through the
       // listing one. Nobody "lists day jobs" — a company posts them — and the
@@ -602,8 +620,8 @@
       return t("pm_no_cat", "Nobody listing {what} matches that. Try Anyone, a wider region, or fewer words.",
                { what: catName(category).toLowerCase() });
     }
-    if (total && wantAgents) {
-      return t("pm_no_agents", "No agents match that. Switch to Everyone to see other people on P-Message.");
+    if (total && wantProviders) {
+      return t("pm_no_agents", "Nobody with anything listed matches that. Switch to Everyone to see other people on P-Message.");
     }
     return t("pm_no_people", "Nobody matches that yet.");
   }
@@ -769,14 +787,6 @@
     var seenHtml = (p.reachable && window.PMPresence)
       ? window.PMPresence.html(p.last_seen_at) : "";
 
-    // Somewhere to look before writing. A separate tap target from the row,
-    // because "open a conversation" and "see their work first" are different
-    // intentions and one hit area should not have to guess which.
-    var openHtml = hasListings(p)
-      ? '<a class="pm-open" href="' + storefrontUrl(p.user_id) + '" data-open-agent="1">' +
-          BOX_SVG + "<span>" + esc(t("pm_open_listings", "See their work")) + "</span></a>"
-      : "";
-
     return '<div class="pm-person-wrap">' +
       '<button class="pm-row is-person" data-person="' + esc(p.user_id) + '" data-name="' + esc(name) +
       '" data-sub="' + esc(sub) + '"' + (p.reachable ? "" : ' data-unreachable="1"') + ">" +
@@ -788,7 +798,86 @@
       '<span class="pm-sub">' + w.html + (seenHtml ? seenHtml : "") + "</span>" +
       kindsHtml + dealsHtml +
       (why ? '<span class="pm-why">' + esc(why) + "</span>" : "") +
-      "</span></button>" + openHtml + "</div>";
+      "</span></button>" + actionsHtml(p, name, sub) + "</div>";
+  }
+
+  /**
+   * The two ways of reaching one person, and the way of looking first.
+   *
+   * These used to be one absolutely-positioned link in the bottom-right corner
+   * of the row, with 30px of padding reserved underneath it so a long "why"
+   * line would not run behind it. That is a layout holding its breath: the
+   * padding is paid by every row including the ones with no link, the link
+   * overlaps the row's own tap area, and there was nowhere to put a second
+   * action without the two of them fighting over the same corner.
+   *
+   * They are a row of their own now, under the card, which is what let the
+   * phone number in at all.
+   *
+   * WHY A CALL BUTTON EXISTS ON AN ENCRYPTED SCREEN
+   * Because "message them" is not always the question. Somebody who needs a
+   * canter this afternoon does not want a conversation, and the number on the
+   * listing is the fastest honest route to the lorry. The number shown is one
+   * they already published on their own listing, where it is printed beside a
+   * Call button that anybody can press without signing in. This saves four
+   * taps and a guess about which catalogue to look in, and publishes nothing.
+   *
+   * The chips are SIBLINGS of the row button, never children: an <a> inside a
+   * <button> is invalid markup that browsers repair by moving it, and the
+   * repair is what broke this the first time it was tried. Each is its own tap
+   * target on purpose. "Write to them", "ring them" and "look at their work
+   * first" are three different intentions and one hit area cannot guess which
+   * one a thumb meant.
+   */
+  function actionsHtml(p, name, sub) {
+    var acts = [];
+
+    // Writing is first because it is what the tab is for, and because it is
+    // the only one of the three that is encrypted.
+    if (p.reachable) {
+      acts.push('<button class="pm-act is-msg" type="button" data-person="' + esc(p.user_id) +
+        '" data-name="' + esc(name) + '" data-sub="' + esc(sub) + '">' + CHAT_SVG +
+        "<span>" + esc(t("pm_act_message", "Message")) + "</span></button>");
+    }
+
+    // A number they printed on a listing themselves. Absent for anybody who
+    // has not, and the row then says nothing at all rather than "no number":
+    // that would be a claim about the person rather than about our data, which
+    // is the same mistake the area line used to make.
+    var tel = callHref(p.phone);
+    if (tel) {
+      acts.push('<a class="pm-act is-call' + (p.reachable ? "" : " is-only") + '" href="' + esc(tel) + '">' + PHONE_SVG +
+        "<span>" + esc(t("pm_act_call", "Call")) + "</span></a>");
+    }
+
+    if (hasListings(p)) {
+      acts.push('<a class="pm-open" href="' + storefrontUrl(p.user_id) + '" data-open-agent="1">' +
+        BOX_SVG + "<span>" + esc(t("pm_open_listings", "See their work")) + "</span></a>");
+    }
+
+    // Somebody with no key, no number and nothing listed has no action at all,
+    // and an empty strip under every such row is a row of wasted height.
+    if (!acts.length) return "";
+    return '<div class="pm-acts">' + acts.join("") + "</div>";
+  }
+
+  /**
+   * A number, or nothing.
+   *
+   * Everything but digits and a leading plus is stripped, the same rule
+   * service.js and truck.js already use, so a number typed as
+   * "0712 345 678 (call after 6)" dials rather than failing silently. Anything
+   * that does not survive that as a plausible number is dropped: a Call button
+   * that opens the dialler on three digits is worse than no button, because
+   * the person has already decided not to write by the time they find out.
+   */
+  function callHref(raw) {
+    var digits = String(raw || "").replace(/[^0-9+]/g, "");
+    // A leading + is kept; any other one is somebody's typo or a range.
+    digits = digits.charAt(0) === "+" ? "+" + digits.slice(1).replace(/\+/g, "")
+                                      : digits.replace(/\+/g, "");
+    if (digits.replace(/[^0-9]/g, "").length < 9) return "";
+    return "tel:" + digits;
   }
 
   // A little open-box glyph. Not a chevron: a chevron means "more of this
@@ -796,6 +885,20 @@
   var BOX_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
     '<path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>' +
     '<path d="M4 8.5 12 13l8-4.5M12 13v7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+  // Lucide-style strokes, never emoji: they inherit currentColor, scale with
+  // the type beside them and are hidden from a screen reader, which is reading
+  // the word next to them instead.
+  var CHAT_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M20 12a8 8 0 0 1-8 8H5l-1.2 1.2A.5.5 0 0 1 3 20.8V12a8 8 0 1 1 17 0z" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+  var PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M6.5 3.5h3l1.5 4-2 1.4a12 12 0 0 0 6.1 6.1l1.4-2 4 1.5v3a2 2 0 0 1-2.2 2A17 17 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2z" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+  var MORE_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<circle cx="5" cy="12" r="1.6" fill="currentColor"/>' +
+    '<circle cx="12" cy="12" r="1.6" fill="currentColor"/>' +
+    '<circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg>';
 
   function hasListings(p) {
     return ((p.n_houses | 0) + (p.n_services | 0) + (p.n_trucks | 0) + (p.n_jobs | 0)) > 0;
@@ -888,6 +991,7 @@
     clearReply();
     clearAttach();
     lastRows = [];
+    hiddenHere = [];
     el.pmConv.classList.add("is-on");
     el.pmConv.setAttribute("aria-hidden", "false");
     el.pmConvName.textContent = info.name;
@@ -913,7 +1017,7 @@
     el.pmLog.innerHTML = '<div class="pm-empty">' + esc(t("pm_loading", "Loading…")) + "</div>";
 
     if (info.kind === "ai") {
-      lock(false, t("pm_lock_ai", "Not encrypted — PN-Zaki reads this"));
+      lock(false, t("pm_lock_ai", "Not encrypted. PN-Zaki reads this"));
       el.pmConvNote.textContent = t("pm_ai_note", "PN-Zaki reads these messages. Do not send anything private.");
       // Hidden rather than disabled when voice cannot work here: a missing
       // Supabase URL or a browser with no getUserMedia is a fact about the
@@ -935,7 +1039,7 @@
       // people are surprised by, and being surprised by it later feels like a
       // fault rather than a design.
       ? t("pm_room_note", "Encrypted to every member individually. Anything sent before you joined stays unreadable to you.")
-      : t("pm_conv_note", "Encrypted on this device. Nobody else — not even us — can read it.");
+      : t("pm_conv_note", "Encrypted on this device. Nobody else can read it, not even us.");
 
     // Not awaited: the messages should not wait on it, and it guards its own
     // staleness. It is started before the log so a substituted key is on
@@ -1358,6 +1462,7 @@
     clearAttach();
     closePlaceMap();
     lastRows = [];
+    hiddenHere = [];
     if (live) { live.unsubscribe(); live = null; }
     if (el.pmTrustBar) el.pmTrustBar.hidden = true;
     setComposerBlocked(false);
@@ -1367,10 +1472,26 @@
     refreshInbox();
   }
 
-  function renderLog(rows) {
-    lastRows = rows || [];
+  function renderLog(allRows) {
+    // Messages this device was told to stop drawing are taken out HERE, once,
+    // before anything else looks at the list. lastRows keeps the FULL page,
+    // because a reply quote is rebuilt from it and hiding a message is not the
+    // same as saying its id no longer exists: an answer to it must still be
+    // able to name what it answers.
+    var split = window.PMHidden
+      ? window.PMHidden.partition(me && me.userId, allRows || [])
+      : { rows: allRows || [], hidden: [] };
+    var rows = split.rows;
+    hiddenHere = split.hidden;
+    lastRows = allRows || [];
+
     if (!rows.length) {
-      el.pmLog.innerHTML = '<div class="pm-empty">' + esc(t("pm_say_first", "Say the first thing.")) + "</div>";
+      el.pmLog.innerHTML = hiddenHere.length
+        // Not "say the first thing" — there IS a conversation here and this
+        // device is the reason it looks empty. Saying otherwise would be the
+        // page lying to the only person who can see the difference.
+        ? hiddenNoteHtml()
+        : '<div class="pm-empty">' + esc(t("pm_say_first", "Say the first thing.")) + "</div>";
       return;
     }
     var room = open && open.kind === "group";
@@ -1412,9 +1533,150 @@
         // room you joined late.
         (m.id ? '<button class="pm-msg-act" type="button" data-reply="' + esc(m.id) + '">' +
                   esc(t("pm_reply", "Reply")) + "</button>" : "") +
+        // Everything else a person might want to do with one message, behind
+        // one dot menu rather than three more words on every bubble. Reply
+        // stays outside it because it is the one people came for.
+        (m.id ? '<button class="pm-msg-more" type="button" data-menu="' + esc(m.id) + '"' +
+                  ' aria-label="' + esc(t("pm_msg_more", "More")) + '">' + MORE_SVG + "</button>" : "") +
         "</span></div>";
-    }).join("");
+    }).join("") + hiddenNoteHtml();
     el.pmLog.scrollTop = el.pmLog.scrollHeight;
+  }
+
+  /**
+   * "You hid three of these."
+   *
+   * Drawn whenever this device is holding something back, because a
+   * conversation with a silent gap in it is the thing this page refuses to do
+   * anywhere else: an undecryptable message is SHOWN with a line saying why
+   * (see the header of this file), and a message somebody hid deserves the
+   * same honesty. It also makes the action undoable without a settings screen,
+   * which is the whole reason hiding never destroys anything.
+   */
+  function hiddenNoteHtml() {
+    if (!hiddenHere.length) return "";
+    return '<div class="pm-hidnote"><span>' +
+      esc(hiddenHere.length === 1
+        ? t("pm_hidden_one", "1 message is hidden on this device.")
+        : t("pm_hidden_n", "{n} messages are hidden on this device.", { n: hiddenHere.length })) +
+      '</span><button class="pm-hidnote-b" type="button" id="pmUnhide">' +
+      esc(t("pm_hidden_show", "Show them")) + "</button></div>";
+  }
+
+  /**
+   * Stop drawing one message here, and say plainly that here is all it means.
+   *
+   * The dialog is not a confirmation in the usual sense. The action is
+   * reversible and destroys nothing, so there is no risk to warn about. What
+   * it exists for is the OTHER half: people arrive at a Delete button in a
+   * chat app expecting it to reach the other phone, and this one cannot. The
+   * sentence explaining that has to be read before the tap, not discovered
+   * afterwards when it matters.
+   */
+  function askHideMessage(id) {
+    var src = findRow(id);
+    var quoted = (src && !src.failed && src.text) ? snip(src.text) : "";
+    modal("<h2>" + esc(t("pm_del_t", "Delete on this device?")) + "</h2>" +
+      (quoted ? '<p class="pm-modal-quote">' + esc(quoted) + "</p>" : "") +
+      "<p>" + esc(t("pm_del_d",
+        "It disappears from this phone only. Whoever you were talking to keeps their copy, and there is no way for this app to reach into their phone and take it back.")) +
+      "</p>" +
+      "<p>" + esc(t("pm_del_d2", "Nothing is destroyed. You can show it again from the line at the bottom of the conversation.")) + "</p>" +
+      '<div class="pm-modal-acts">' +
+      '<button class="pm-btn ghost" id="pmDelNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      '<button class="pm-btn is-danger" id="pmDelYes">' + esc(t("pm_del_go", "Hide it here")) + "</button>" +
+      "</div>");
+    document.getElementById("pmDelNo").addEventListener("click", closeModal);
+    document.getElementById("pmDelYes").addEventListener("click", function () {
+      var saved = window.PMHidden && window.PMHidden.hide(me && me.userId, id);
+      closeModal();
+      if (!saved) {
+        // A refused write is the one failure worth interrupting for: the
+        // message would come straight back on the next redraw and look like
+        // the button did nothing.
+        alert(t("pm_del_fail", "This browser would not save that, so the message is still here."));
+        return;
+      }
+      // If the message being hidden is the one being answered, the reply strip
+      // above the composer is now pointing at something invisible.
+      if (replyTo && replyTo.id === id) clearReply();
+      renderLog(lastRows);
+    });
+  }
+
+  function unhideAllHere() {
+    if (!window.PMHidden || !hiddenHere.length) return;
+    window.PMHidden.showAll(me && me.userId, hiddenHere);
+    renderLog(lastRows);
+  }
+
+  /**
+   * Everything you can do to one message, in one sheet.
+   *
+   * A sheet rather than three more buttons on the bubble: a chat bubble is
+   * already carrying a quote, a place card, a timestamp, a sender name and a
+   * Reply, and the fourth thing added to that row is the one that pushes the
+   * first off the screen on a 390px phone.
+   */
+  function showMsgMenu(id) {
+    var src = findRow(id);
+    if (!src) return;
+    var canCopy = !src.failed && !!src.text;
+    modal("<h2>" + esc(t("pm_msg_actions", "This message")) + "</h2>" +
+      '<div class="pm-sheet">' +
+      '<button class="pm-sheet-b" type="button" id="pmMmReply">' +
+        "<b>" + esc(t("pm_reply", "Reply")) + "</b><span>" +
+        esc(t("pm_msg_reply_d", "Quote it in your next message.")) + "</span></button>" +
+      (canCopy
+        ? '<button class="pm-sheet-b" type="button" id="pmMmCopy">' +
+          "<b>" + esc(t("pm_msg_copy", "Copy the words")) + "</b><span>" +
+          esc(t("pm_msg_copy_d", "Put the text on this phone's clipboard.")) + "</span></button>"
+        : "") +
+      '<button class="pm-sheet-b is-danger" type="button" id="pmMmDel">' +
+        "<b>" + esc(t("pm_del_t2", "Delete for me")) + "</b><span>" +
+        esc(t("pm_msg_del_d", "Hidden on this device. They keep their copy.")) + "</span></button>" +
+      "</div>" +
+      '<div class="pm-modal-acts"><button class="pm-btn ghost" id="pmMmX">' +
+      esc(t("pm_close", "Close")) + "</button></div>");
+
+    document.getElementById("pmMmX").addEventListener("click", closeModal);
+    document.getElementById("pmMmReply").addEventListener("click", function () {
+      closeModal();
+      setReply(id);
+    });
+    var copyBtn = document.getElementById("pmMmCopy");
+    if (copyBtn) copyBtn.addEventListener("click", function () {
+      var text = (findRow(id) || {}).text || "";
+      var done = function () {
+        copyBtn.classList.add("is-done");
+        copyBtn.querySelector("b").textContent = t("pm_msg_copied", "Copied");
+      };
+      // navigator.clipboard is absent on http and refused in some webviews, so
+      // the old selection trick is kept as the fallback rather than the button
+      // silently doing nothing on exactly the devices this app is installed on.
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { if (legacyCopy(text)) done(); });
+      } else if (legacyCopy(text)) { done(); }
+    });
+    document.getElementById("pmMmDel").addEventListener("click", function () {
+      closeModal();
+      askHideMessage(id);
+    });
+  }
+
+  function legacyCopy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      var done = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return done;
+    } catch (_) { return false; }
   }
 
   /**
@@ -2731,6 +2993,9 @@
     el.pmLog && el.pmLog.addEventListener("click", function (e) {
       var reply = e.target.closest("[data-reply]");
       if (reply) { setReply(reply.dataset.reply); return; }
+      var more = e.target.closest("[data-menu]");
+      if (more) { showMsgMenu(more.dataset.menu); return; }
+      if (e.target.closest("#pmUnhide")) { unhideAllHere(); return; }
       var jump = e.target.closest("[data-goto]");
       if (jump) { gotoMessage(jump.dataset.goto); return; }
       // The coordinates ride on the button itself, not on an index into a

@@ -145,6 +145,12 @@
     var bio = String(card.bio || "").trim();
 
     var canMessage = !!card.reachable;
+    // The number off their own listings, or nothing. Same rule as the agent
+    // list (js/pages/p-message.js) and as service.js / truck.js: strip
+    // everything but digits and a leading plus, and refuse anything too short
+    // to be a number, because a dialler opened on three digits is worse than
+    // no button at all.
+    var tel = callHref(card.phone);
 
     el.agCard.innerHTML =
       '<div class="ag-card">' +
@@ -179,9 +185,23 @@
                 esc(t("ag_message", "Message them")) + "</a>"
             : '<button class="ag-btn" type="button" disabled>' +
                 esc(t("ag_message", "Message them")) + "</button>") +
+          // The same number the P-Message row offers, from the same column, so
+          // the list and the page it leads to can never print two different
+          // ways of ringing one person. When there is no key to encrypt to,
+          // this is the ONLY thing on the card that works, and a disabled
+          // button beside a live one has to be the quieter of the two.
+          (tel
+            ? '<a class="ag-btn' + (canMessage ? " ghost" : "") + '" id="agCall" href="' + esc(tel) + '">' +
+                esc(t("pm_act_call", "Call")) + "</a>"
+            : "") +
         "</div>" +
         '<div class="ag-note">' + esc(canMessage
           ? t("ag_msg_note", "Messages are encrypted on your device. We cannot read them, and neither can anybody with access to the database.")
+          : tel
+          // A phone call is not encrypted and this page does not get to imply
+          // otherwise on the one card whose other half is a promise about
+          // encryption.
+          ? t("ag_call_only", "They have not opened P-Message yet, so there is no key to encrypt to. The number is the one they printed on their own listings, and a call is an ordinary call.")
           : t("pm_unreachable_d", "They have not opened P-Message yet, so there is no key to encrypt to. Their listings still carry a phone number.")) +
         "</div>" +
       "</div>";
@@ -199,6 +219,22 @@
       if (row[1] > n) { n = row[1]; best = row[0]; }
     });
     return best;
+  }
+
+  /**
+   * A number, or nothing. The one rule, written once per page that dials.
+   *
+   * It is deliberately a copy of the four lines in p-message.js rather than a
+   * shared module: two pages, four lines, no build step, and a lib file whose
+   * whole content is one regex is a file people forget exists. If a third page
+   * needs it, that is when it earns its own file.
+   */
+  function callHref(raw) {
+    var digits = String(raw || "").replace(/[^0-9+]/g, "");
+    digits = digits.charAt(0) === "+" ? "+" + digits.slice(1).replace(/\+/g, "")
+                                      : digits.replace(/\+/g, "");
+    if (digits.replace(/[^0-9]/g, "").length < 9) return "";
+    return "tel:" + digits;
   }
 
   // ---- the catalogue -------------------------------------------------------

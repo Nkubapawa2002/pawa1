@@ -82,6 +82,16 @@
       --pm-gold: #F6C45A;
       --pm-gold-soft: rgba(246,196,90,.16);
       --pm-gold-line: rgba(246,196,90,.28);
+      /* Deleting a message is the only destructive-looking thing on this
+         screen, and it wants a colour of its own or it reads as one more
+         option. The design system token --danger is 3.6:1 on this card, which
+         is a decoration rather than a word, so the dark palette lightens that
+         hue and the light one deepens it. Both are checked against the surface
+         they actually sit on, not against black or white. */
+      --pm-danger: #FF8080;
+      --pm-danger-soft: rgba(255,128,128,.13);
+      --pm-danger-line: rgba(255,128,128,.32);
+      --pm-on-danger: #2A0A0A;
 
       --c-surface: var(--pm-card); --c-border: var(--pm-line);
       --c-text: var(--pm-ink); --c-text-muted: var(--pm-ink-soft);
@@ -108,6 +118,10 @@
       --pm-gold: #8a6100;
       --pm-gold-soft: rgba(138,97,0,.10);
       --pm-gold-line: rgba(138,97,0,.28);
+      --pm-danger: #c62828;
+      --pm-danger-soft: rgba(198,40,40,.09);
+      --pm-danger-line: rgba(198,40,40,.30);
+      --pm-on-danger: #ffffff;
     }
     body[data-page="p-message"] #nav-slot,
     body[data-page="p-message"] #footer-slot { display: none !important; }
@@ -273,19 +287,60 @@
     .pm-row.is-person { align-items: flex-start; }
     .pm-row.is-person .pm-av { margin-top: 1px; }
 
-    /* Presence, the kind of work somebody does, and the link out to their
-       storefront now live in css/pm-shared.css — agent.html draws the same
-       three things, and a green dot that is a different green on the second
+    /* ---- one person, and the ways of reaching them ------------------------
+       Presence, the kind of work somebody does, and the link out to their
+       storefront live in css/pm-shared.css, because agent.html draws the same
+       three things and a green dot that is a different green on the second
        page is not a smaller bug than a wrong word. What stays here is the
-       POSITIONING, which is this page's alone: an <a> cannot live inside the
-       row's <button>, so the two are siblings in a wrapper and the link is
-       pinned to the corner. It is a separate tap target on purpose —
-       "open a conversation" and "look at their work first" are different
-       intentions and one row should not guess which one a thumb meant. */
-    .pm-person-wrap { position: relative; }
-    .pm-person-wrap > .pm-open { position: absolute; right: 8px; bottom: 8px; z-index: 2; }
-    /* Room for the link so a long "why" line never runs under it. */
-    .pm-row.is-person { padding-bottom: 30px; }
+       LAYOUT, which is this page's alone.
+
+       The card and its actions are one object with a seam through it: the card
+       is a <button> (tapping anywhere on it writes to that person), and the
+       actions are siblings underneath it. An <a> cannot live inside a
+       <button>: browsers repair that markup by moving the link out, and the
+       repair is what broke this the first time it was tried.
+
+       This replaced a link ABSOLUTELY POSITIONED in the row's bottom-right
+       corner, with 30px of padding reserved under every row so a long "why"
+       line would not run behind it. That padding was paid by every row
+       including the ones with no link, the link overlapped the row's own tap
+       target, and there was nowhere to put a second action without the two of
+       them fighting over one corner. A phone number needed somewhere to go,
+       and this is where it went. */
+    .pm-person-wrap { margin-bottom: 9px; }
+    .pm-person-wrap > .pm-row { margin-bottom: 0; border-radius: 14px 14px 0 0; border-bottom: 0; }
+    /* No actions at all (no key, no number, nothing listed) means the card is
+       the whole object and gets its corners back. */
+    .pm-person-wrap > .pm-row:last-child { border-radius: 14px; border-bottom: 1px solid var(--c-border); }
+    .pm-acts { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px;
+      background: var(--pm-card); border: 1px solid var(--c-border);
+      border-top: 1px dashed var(--pm-line); border-radius: 0 0 14px 14px; }
+    .pm-person-wrap:hover > .pm-row,
+    .pm-person-wrap:hover > .pm-acts { border-color: var(--pm-brand-line); }
+    .pm-person-wrap:hover > .pm-row { border-bottom: 0; }
+
+    /* One height, one shape, three jobs. --hit-min is 44px and is right for a
+       standalone control; these sit three to a row on a 390px screen, so they
+       are 34px tall and keep a comfortable horizontal target instead. */
+    .pm-act, .pm-acts .pm-open {
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      min-height: 34px; padding: 6px 12px; border-radius: 999px;
+      font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+      text-decoration: none; white-space: nowrap;
+      background: var(--pm-field); border: 1px solid var(--c-border); color: var(--pm-ink); }
+    .pm-act svg, .pm-acts .pm-open svg { width: 13px; height: 13px; flex: 0 0 auto; }
+    .pm-act:hover, .pm-acts .pm-open:hover { border-color: var(--pm-brand-line); }
+    /* Writing is the filled one, because it is the only one of the three that
+       is encrypted and it is what the tab is for. */
+    .pm-act.is-msg { background: var(--pm-brand); border-color: transparent; color: var(--pm-on-brand); }
+    .pm-act.is-msg:hover { filter: brightness(1.06); }
+    .pm-act.is-call { color: var(--pm-brand); background: var(--pm-brand-soft); border-color: var(--pm-brand-line); }
+    /* Somebody who is not on P-Message can only be rung, so on their row the
+       call IS the primary action and is drawn as one. Two filled buttons on a
+       row where only one of them works would be the screen guessing wrong. */
+    .pm-act.is-call.is-only { background: var(--pm-brand); border-color: transparent; color: var(--pm-on-brand); }
+    .pm-acts .pm-open { flex: 0 1 auto; min-width: 0; }
+    .pm-acts .pm-open span { overflow: hidden; text-overflow: ellipsis; }
 
     /* ---- answering one message --------------------------------------------
        In a room with thirty people "yes, 300,000" is an answer to a question
@@ -318,6 +373,58 @@
       font: inherit; font-size: 10px; font-weight: 800; letter-spacing: .04em;
       text-transform: uppercase; color: var(--pm-brand); cursor: pointer; }
     .pm-msg.failed .pm-msg-act { color: var(--pm-ink-faint); }
+    /* Everything else you can do with one message, behind one dot menu. A
+       fourth word on this row is the one that pushes the timestamp off a
+       390px screen, so the extra actions cost a glyph rather than a label. */
+    /* No line-height:0 and no height of its own. css/mobile.css gives EVERY
+       button min-height:44px, and a 44px box holding a 15px block-level SVG
+       put the dots at the top of the line while the baseline-aligned timestamp
+       sat at the bottom, so the menu was drawn on its own line ABOVE the time
+       it was supposed to sit beside. Left as ordinary inline content it
+       centres in that 44px box exactly the way Reply does, which is what makes
+       the two line up. */
+    .pm-msg-more { background: none; border: 0; padding: 0 0 0 8px; margin: 0;
+      color: var(--pm-ink-faint); cursor: pointer; }
+    .pm-msg-more svg { width: 15px; height: 15px; display: inline-block;
+      vertical-align: middle; }
+    .pm-msg-more:hover { color: var(--pm-brand); }
+
+    /* ---- what this device is holding back ---------------------------------
+       A conversation with a silent gap in it is the one thing this page
+       refuses to do anywhere else: a message that will not decrypt is SHOWN,
+       with a line saying why. A message somebody hid gets the same honesty,
+       and the Show button is what makes hiding safe to offer at all, because
+       nothing was destroyed to produce it. */
+    .pm-hidnote { display: flex; align-items: center; justify-content: center;
+      gap: 8px; flex-wrap: wrap; margin: 10px auto 2px; padding: 7px 12px;
+      max-width: 92%; border: 1px dashed var(--pm-line); border-radius: 999px;
+      font-size: 11.5px; color: var(--pm-ink-faint); text-align: center; }
+    .pm-hidnote-b { background: none; border: 0; padding: 0; font: inherit;
+      font-size: 11.5px; font-weight: 800; color: var(--pm-brand); cursor: pointer; }
+
+    /* ---- a sheet of choices about one thing --------------------------------
+       Each row says what it does on the second line. "Delete for me" is a
+       phrase people arrive at carrying an expectation this app cannot meet, so
+       the row that offers it also states the limit, before the tap rather than
+       after it. */
+    .pm-sheet { display: flex; flex-direction: column; gap: 7px; margin: 4px 0 2px; }
+    .pm-sheet-b { display: block; width: 100%; text-align: left; font: inherit;
+      background: var(--pm-field); border: 1px solid var(--c-border);
+      border-radius: 13px; padding: 10px 12px; color: var(--pm-ink); cursor: pointer; }
+    .pm-sheet-b:hover { border-color: var(--pm-brand-line); }
+    .pm-sheet-b b { display: block; font-size: 13.5px; font-weight: 700; }
+    .pm-sheet-b span { display: block; margin-top: 2px; font-size: 11.5px;
+      font-weight: 500; color: var(--pm-ink-soft); line-height: 1.4; }
+    .pm-sheet-b.is-danger { color: var(--pm-danger); border-color: var(--pm-danger-line);
+      background: var(--pm-danger-soft); }
+    .pm-sheet-b.is-danger:hover { border-color: var(--pm-danger); }
+    .pm-sheet-b.is-danger span { color: var(--pm-danger); opacity: .82; }
+    .pm-sheet-b.is-done { border-color: var(--pm-brand-line); color: var(--pm-brand); }
+    .pm-btn.is-danger { background: var(--pm-danger); border-color: transparent; color: var(--pm-on-danger); }
+    /* The words being hidden, quoted back, so nobody hides the wrong one out of
+       a room where four messages look alike at a glance. */
+    .pm-modal-quote { border-left: 3px solid var(--pm-line); padding-left: 9px;
+      font-size: 12.5px; color: var(--pm-ink-soft); }
 
     /* The strip above the composer. It has to be visible while typing or a
        reply lands on a message nobody remembers choosing. */
@@ -669,8 +776,14 @@
              placeholder="Search a name, ward or district" />
       <div class="pm-filters">
         <select id="pmRegion" data-i18n-aria-label="pm_region_label" aria-label="Region"></select>
+        <!-- The value stays "agents" and the words changed under it, because
+             the list under it changed: it is everybody who is registered as an
+             agent OR has something listed. A landlord with four rooms and a
+             company that hires by the day are both agents in the only sense
+             this screen cares about, and both used to be missing from the pane
+             whose whole job is listing them. -->
         <select id="pmWho" data-i18n-aria-label="pm_who_label" aria-label="Who">
-          <option value="agents" data-i18n="pm_who_agents">Agents</option>
+          <option value="agents" data-i18n="pm_who_agents">Agents and providers</option>
           <option value="all" data-i18n="pm_who_all">Everyone on P-Message</option>
         </select>
       </div>
@@ -813,6 +926,12 @@
   <script src="js/lib/geolocate.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.js"></script>
   <script src="js/lib/pm-store.js"></script>
+  <!-- The list of messages this device was told to stop drawing. Pure
+       localStorage, no network, no crypto: "delete for me" cannot be anything
+       more than that, and the file says at length why nothing here can reach
+       the other person's phone. Loaded before the page script, its only
+       caller. -->
+  <script src="js/lib/pm-hidden.js"></script>
   <!-- Loaded AFTER pm-store: it beats against PMStore.touchSeen(), and the
        page starts it once boot() knows there is an identity to be present as. -->
   <script src="js/lib/pm-presence.js"></script>

@@ -140,6 +140,10 @@ window.supabase = { createClient: function () {
     // different kinds for the same reason they deal in different categories:
     // a label that matched everybody would look like it worked.
     kinds: ["apartment", "house"],
+    // The number this person printed on their own listing. pm_agent_finder
+    // reads it off the listing row, never off agent_profiles, so a person with
+    // nothing listed has none here either.
+    phone: "0712 345 678",
     // Beating right now. Presence is a claim about a person, so the states
     // are seeded rather than derived — one online, one hours ago, one never
     // seen — and the never-seen row must draw NOTHING.
@@ -148,6 +152,10 @@ window.supabase = { createClient: function () {
     display_name: "Neema Kileo", region: "Mwanza", is_agent: true, area: "Ilemela",
     n_trucks: 3, last_listed_at: new Date().toISOString(),
     kinds: ["canter", "7ton"],
+    // Neema has never published a P-Message key, so a number is the ONLY way
+    // to reach her. Her row is the one that proves calling is not merely a
+    // second button beside a working first one.
+    phone: "+255 754 111 222",
     last_seen_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() };
   // An agent who never filled in where they work, and a person who is not an
   // agent at all. Both are rows the directory has to render honestly.
@@ -198,7 +206,8 @@ window.supabase = { createClient: function () {
             n_houses: v.n_houses || 0, n_services: v.n_services || 0, n_trucks: v.n_trucks || 0,
             n_jobs: v.n_jobs || 0,
             n_verified: v.n_verified || 0, last_listed_at: v.last_listed_at || null,
-            kinds: v.kinds || null, last_seen_at: v.last_seen_at || null };
+            kinds: v.kinds || null, last_seen_at: v.last_seen_at || null,
+            phone: v.phone || null };
         })
         .filter(function (r) {
           if (!args.p_category) return true;
@@ -244,6 +253,7 @@ window.supabase = { createClient: function () {
         lat: null, lng: null, bio: c.bio || null,
         n_houses: c.n_houses || 0, n_services: c.n_services || 0,
         n_trucks: c.n_trucks || 0, n_jobs: c.n_jobs || 0, n_verified: c.n_verified || 0,
+        phone: c.phone || null,
         kinds: c.kinds || null, last_seen_at: c.last_seen_at || null,
         joined_at: new Date(Date.now() - 40 * 86400000).toISOString(),
       }], error: null });
@@ -650,8 +660,15 @@ try {
   const anyRows = await pickCat("");
   ok(anyRows.length >= truckRows.length,
      "and Anyone is still the widest list", `${anyRows.length} >= ${truckRows.length}`);
-  ok(!anyRows.some((r) => r.id === "co_kilimo"),
-     "with the agent flag back in force once no category is chosen",
+  // This assertion is the REVERSE of what it used to be, and the reversal is
+  // the point. The old rule was "is_agent, unless a chip is on"; the exception
+  // existed because the flag threw away the exact people a chip was for. The
+  // same subtraction was happening with no chip on, silently, to the same
+  // people — a company that hires by the day, a landlord who never registered.
+  // Evidence beats a flag everywhere now, so a company with twelve posted jobs
+  // is in the list whether or not it ticked a box.
+  ok(anyRows.some((r) => r.id === "co_kilimo"),
+     "and a company that posts day jobs is in the list without a chip too, because listings are evidence and the agent flag is only a proxy",
      JSON.stringify(anyRows.map((r) => r.name)));
 
   section("4. Sending something private");
@@ -1158,12 +1175,17 @@ try {
 
     ok(rows.every((r) => r.id !== "user_self"), "and you are never in your own directory");
 
-    // Agents by default; everyone on request.
+    // Everyone with something to offer by default; everyone on request.
     ok(rows.some((r) => r.id === "agent_blank") && !rows.some((r) => r.id === "plain_amina"),
-       "the Agents pane shows agents — including ones with no listings yet",
+       "the pane shows registered agents, including ones with no listings yet, and not somebody who merely opened P-Message",
+       JSON.stringify(rows.map((r) => r.id)));
+    ok(rows.some((r) => r.id === "co_kilimo"),
+       "and somebody who never registered but has listings, because that is an agent in the only sense this screen cares about",
        JSON.stringify(rows.map((r) => r.id)));
     let count = await dp.page.$eval("#pmCount", (n) => n.textContent);
-    ok(/3 agents/.test(count), "and says how many there are", count);
+    // "4 agents" would be a lie about a list holding a construction firm that
+    // never registered as one. The word follows the rows on screen.
+    ok(/4 people/.test(count), "and says how many there are, in a word that fits them", count);
 
     await dp.page.evaluate(() => {
       document.getElementById("pmWho").value = "all";
@@ -1864,6 +1886,196 @@ try {
     await dp.page.close();
   }
 
+  section("13b. Two ways of reaching one person");
+  // The pane answers "who can help me" and then offered exactly one way of
+  // acting on the answer. Somebody who needs a canter this afternoon does not
+  // want a conversation, and some of the people in this list cannot hold one:
+  // they have listings and no P-Message key. The number they printed on their
+  // own listing was the missing half.
+  {
+    const dp = await openPage("someone@example.com", { peerKey: PEER_KEY });
+    await sleep(900);
+    await dp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(800);
+
+    const cards = await dp.page.$$eval("#pmPeople .pm-person-wrap", (ns) => ns.map((w) => {
+      const row = w.querySelector(".pm-row");
+      const call = w.querySelector(".pm-act.is-call");
+      return {
+        id: row ? row.dataset.person : null,
+        msg: !!w.querySelector(".pm-act.is-msg"),
+        call: call ? call.getAttribute("href") : null,
+        callPrimary: !!(call && call.classList.contains("is-only")),
+        shop: !!w.querySelector(".pm-open"),
+        // The actions must be SIBLINGS of the row button, never inside it: an
+        // <a> in a <button> is markup a browser silently repairs by moving the
+        // link out, and the repair is what breaks the layout.
+        nested: !!(row && row.querySelector(".pm-act")),
+      };
+    }));
+    const juma = cards.find((c) => c.id === "agent_juma");
+    const neema = cards.find((c) => c.id === "agent_neema");
+    const blank = cards.find((c) => c.id === "agent_blank");
+
+    ok(!!juma && juma.msg && !!juma.call,
+       "somebody reachable who also published a number offers both", JSON.stringify(juma));
+    ok(!!juma && juma.call === "tel:0712345678",
+       "the number dials, with the spaces somebody typed taken out", juma && juma.call);
+    ok(!!neema && !neema.msg && neema.call === "tel:+255754111222",
+       "somebody who never opened P-Message can still be rung, and a leading + survives",
+       JSON.stringify(neema));
+    ok(!!neema && neema.callPrimary,
+       "and on that row the call is drawn as the primary action, because it is the only one that works");
+    ok(!!juma && !juma.callPrimary,
+       "while a row that can be written to keeps writing as the filled button");
+    ok(!!blank && !blank.call,
+       "somebody who has published no number gets no call button and no empty one", JSON.stringify(blank));
+    ok(cards.every((c) => !c.nested),
+       "and no action is nested inside the row's own button", JSON.stringify(cards));
+
+    // Tapping Call must not also open a conversation: they are different
+    // intentions and one of them costs a stranger a message.
+    await dp.page.evaluate(() => {
+      const a = document.querySelector(".pm-act.is-call");
+      a.addEventListener("click", (e) => e.preventDefault(), { once: true });
+      a.click();
+    });
+    await sleep(500);
+    ok(!(await dp.page.$eval("#pmConv", (n) => n.classList.contains("is-on"))),
+       "tapping Call does not also open the conversation");
+
+    // And the Message chip does what the whole card does.
+    await dp.page.evaluate(() =>
+      document.querySelector('.pm-act.is-msg[data-person="agent_juma"]').click());
+    await sleep(1200);
+    ok(await dp.page.$eval("#pmConv", (n) => n.classList.contains("is-on")),
+       "and the Message chip opens it");
+
+    ok(dp.errs.length === 0, "no page errors", dp.errs.slice(0, 3).join(" | "));
+    await dp.page.close();
+  }
+
+  section("13c. Deleting a message, and being honest about what that means");
+  // The other copy is on the other phone, encrypted with a key this device has
+  // never held. There is no request that takes it back. So the feature does
+  // the one thing it can do, says so before the tap, and destroys nothing.
+  {
+    const dp = await openPage("someone@example.com", { peerKey: PEER_KEY });
+    await sleep(900);
+    await dp.page.evaluate(() => {
+      localStorage.removeItem("pm-trust-v1");
+      localStorage.removeItem("pm-hidden-v1");
+    });
+    await dp.page.reload({ waitUntil: "domcontentloaded" });
+    await sleep(1700);
+    await dp.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(600);
+    await dp.page.evaluate(() => document.querySelector('[data-person="agent_juma"]').click());
+    await sleep(900);
+
+    const KEEP = "Nitakuja kesho asubuhi.";
+    const DROP = "Namba yangu ya siri ni 4471.";
+    for (const txt of [KEEP, DROP]) {
+      await dp.page.evaluate((one) => {
+        document.getElementById("pmInput").value = one;
+        document.getElementById("pmComposeForm").dispatchEvent(new Event("submit"));
+      }, txt);
+      await sleep(1100);
+    }
+    ok((await dp.page.$$eval("#pmLog .pm-msg", (n) => n.length)) === 2,
+       "two messages are in the log to start with");
+
+    const storedBefore = await dp.page.evaluate(() => window.__PM_DB.messages.length);
+
+    // Open the menu on the second one.
+    await dp.page.evaluate(() => {
+      const all = document.querySelectorAll("#pmLog .pm-msg [data-menu]");
+      all[all.length - 1].click();
+    });
+    await sleep(350);
+    const sheet = await dp.page.evaluate(() => document.getElementById("pmModal").textContent);
+    ok(/Delete for me/i.test(sheet), "the dot menu offers a delete", sheet.slice(0, 120));
+    ok(/keep their copy/i.test(sheet),
+       "and states the limit on the row that offers it, not in small print afterwards",
+       sheet.slice(0, 200));
+
+    await dp.page.evaluate(() => document.getElementById("pmMmDel").click());
+    await sleep(300);
+    const confirm = await dp.page.evaluate(() => document.getElementById("pmModal").textContent);
+    ok(/this device|this phone/i.test(confirm),
+       "the confirmation says where it goes and where it does not", confirm.slice(0, 200));
+    ok(/no way for this app to reach/i.test(confirm),
+       "in words, rather than implying a delete-for-everyone it cannot do", confirm.slice(0, 260));
+    ok(confirm.indexOf(DROP.slice(0, 18)) >= 0,
+       "and quotes the message back, so nobody hides the wrong one");
+
+    await dp.page.evaluate(() => document.getElementById("pmDelYes").click());
+    await sleep(500);
+
+    const after = await dp.page.$$eval("#pmLog .pm-msg", (ns) => ns.map((n) => n.textContent));
+    ok(after.length === 1 && after[0].indexOf(KEEP) >= 0,
+       "it stops being drawn, and only it", JSON.stringify(after));
+    ok(await dp.page.evaluate(() => window.__PM_DB.messages.length) === storedBefore,
+       "no request went to delete anything, because there is nothing this app could ask for");
+
+    const note = await dp.page.evaluate(() => {
+      const n = document.querySelector("#pmLog .pm-hidnote");
+      return n ? n.textContent : null;
+    });
+    ok(!!note && /hidden on this device/i.test(note),
+       "the conversation says it is holding something back, rather than leaving a silent gap", note);
+
+    // Filed under the signed-in person: two accounts on one browser must not
+    // inherit each other's hidden lists. One of them hiding a message is not a
+    // statement about what the other should see.
+    const scoped = await dp.page.evaluate(() =>
+      Object.keys(JSON.parse(localStorage.getItem("pm-hidden-v1") || "{}")));
+    ok(scoped.length === 1 && scoped[0] !== "anon",
+       "the record is filed under the signed-in person, not under a shared bucket",
+       JSON.stringify(scoped));
+
+    // Nothing was destroyed, so it comes back.
+    await dp.page.evaluate(() => document.getElementById("pmUnhide").click());
+    await sleep(400);
+    const back = await dp.page.$$eval("#pmLog .pm-msg", (ns) => ns.map((n) => n.textContent));
+    ok(back.length === 2 && back.some((b) => b.indexOf(DROP) >= 0),
+       "and Show them puts it back, which is what makes hiding safe to offer",
+       String(back.length));
+    ok(!(await dp.page.$("#pmLog .pm-hidnote")), "with the note gone once nothing is hidden");
+
+    // Hide it again and reload. The stub's message table is rebuilt on every
+    // page load, so the LOG cannot be the witness here — it would be empty
+    // either way, and an assertion that passes for the wrong reason is worse
+    // than none. What is checked is the record itself: the store is what has
+    // to survive, and the log is what reads it.
+    await dp.page.evaluate(() => {
+      const all = document.querySelectorAll("#pmLog .pm-msg [data-menu]");
+      all[all.length - 1].click();
+    });
+    await sleep(300);
+    await dp.page.evaluate(() => document.getElementById("pmMmDel").click());
+    await sleep(250);
+    await dp.page.evaluate(() => document.getElementById("pmDelYes").click());
+    await sleep(400);
+    const kept = await dp.page.evaluate(() => {
+      const mine = JSON.parse(localStorage.getItem("pm-hidden-v1") || "{}");
+      return Object.values(mine).map((v) => Object.keys(v).length);
+    });
+    await dp.page.reload({ waitUntil: "domcontentloaded" });
+    await sleep(1700);
+    const after2 = await dp.page.evaluate(() => {
+      const mine = JSON.parse(localStorage.getItem("pm-hidden-v1") || "{}");
+      return Object.values(mine).map((v) => Object.keys(v).length);
+    });
+    ok(JSON.stringify(kept) === JSON.stringify(after2) && after2[0] === 1,
+       "and the record survives a reload, so a hidden message stays hidden",
+       JSON.stringify(after2));
+
+    await dp.page.evaluate(() => localStorage.removeItem("pm-hidden-v1"));
+    ok(dp.errs.length === 0, "no page errors", dp.errs.slice(0, 3).join(" | "));
+    await dp.page.close();
+  }
+
   section("14. The storefront — agent.html?u=<user id>");
   // The screen that did not exist: somebody could see "6 rooms" and had to
   // open a conversation to find out what those six rooms were.
@@ -1908,10 +2120,25 @@ try {
     ok(!!items[0] && /250k/.test(items[0].price),
        "and a price you can read at a glance", items[0] && items[0].price);
 
-    // No phone number, anywhere. Every function behind this page returns where
-    // somebody works and never how to ring them.
-    const body = await dp.page.evaluate(() => document.body.textContent);
-    ok(!/\+255\d|\b07\d{8}\b/.test(body), "and no phone number, which is the whole point of the tab");
+    // The storefront and the row that led to it must offer the SAME number,
+    // from the same column, or two screens are printing two different ways of
+    // ringing one person, which is worse than either printing none.
+    const call = await dp.page.evaluate(() => {
+      const a = document.getElementById("agCall");
+      return a ? { href: a.getAttribute("href"), ghost: a.classList.contains("ghost") } : null;
+    });
+    ok(!!call && call.href === "tel:0712345678",
+       "the number they printed on their own listings is offered here too, identically to the agent list",
+       JSON.stringify(call));
+    ok(!!call && call.ghost,
+       "and it is the quieter of the two, because writing to them is the encrypted half");
+
+    // What is STILL never returned is agent_profiles.phone: that number was
+    // given under a policy saying only its owner and an admin may read it.
+    // Only pm_agent_card and pm_agent_listings are asked for anything here.
+    const asked = await dp.page.evaluate(() => (window.__PM_SENT || []).map((c) => c.name));
+    ok(asked.every((n) => !/profile/i.test(n)),
+       "and nothing on this page reads the private profile row to get it", JSON.stringify(asked));
 
     ok(dp.errs.length === 0, "no page errors", dp.errs.slice(0, 3).join(" | "));
     await dp.page.close();

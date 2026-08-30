@@ -13,19 +13,19 @@ const AGENTS = [
   { user_id: "a1", display_name: "Juma Mwanga", region: "Mwanza", area: "Nyamagana",
     district: "Nyamagana", ward: "Mirongo", is_agent: true,
     n_houses: 6, n_trucks: 0, n_services: 0, n_jobs: 0,
-    kinds: ["apartment", "house", "shop"],
+    kinds: ["apartment", "house", "shop"], phone: "0712 345 678",
     last_seen_at: new Date(NOW - 20 * 1000).toISOString(),
     last_listed_at: new Date(NOW - 2 * 86400000).toISOString() },
   { user_id: "a2", display_name: "Neema Kileo", region: "Mwanza", area: "Ilemela",
     district: "Ilemela", ward: "Pasiansi", is_agent: true,
     n_houses: 0, n_trucks: 3, n_services: 0, n_jobs: 0,
-    kinds: ["canter", "7ton"],
+    kinds: ["canter", "7ton"], phone: "+255 754 111 222",
     last_seen_at: new Date(NOW - 11 * 60 * 1000).toISOString(),
     last_listed_at: new Date(NOW - 5 * 86400000).toISOString() },
   { user_id: "a3", display_name: "Salma Hamisi", region: "Mwanza", area: "Sengerema",
     district: "Sengerema", ward: "Nyamazugo", is_agent: true,
     n_houses: 0, n_trucks: 0, n_services: 9, n_jobs: 0,
-    kinds: ["plumbing", "electrical", "appliance_repair"],
+    kinds: ["plumbing", "electrical", "appliance_repair"], phone: "0682 900 300",
     last_seen_at: new Date(NOW - 4 * 3600 * 1000).toISOString(),
     last_listed_at: new Date(NOW - 10 * 86400000).toISOString() },
   { user_id: "a4", display_name: "Rashid Omari", region: "Mwanza", area: null,
@@ -60,7 +60,7 @@ return{rpc:function(n,a){
    return Promise.resolve({data:R,error:null})}
  if(n==="pm_online_window")return Promise.resolve({data:150,error:null});
  if(n==="pm_touch_seen")return Promise.resolve({data:new Date().toISOString(),error:null});
- if(n==="pm_agent_card")return Promise.resolve({data:[{user_id:"a1",display_name:"Juma Mwanga",is_agent:true,is_guest:false,reachable:true,region:"Mwanza",area:"Nyamagana",area_kind:"ward",district:"Nyamagana",ward:"Mirongo",lat:null,lng:null,bio:"Nimekuwa nikitafuta nyumba Nyamagana kwa miaka kumi. Ninajua kila mtaa, na sipendi kupoteza muda wa mteja.",n_houses:6,n_services:0,n_trucks:0,n_jobs:0,n_verified:2,kinds:["apartment","house","shop"],last_seen_at:new Date(Date.now()-20000).toISOString(),joined_at:new Date(Date.now()-90*86400000).toISOString()}],error:null});
+ if(n==="pm_agent_card")return Promise.resolve({data:[{user_id:"a1",display_name:"Juma Mwanga",is_agent:true,is_guest:false,reachable:true,region:"Mwanza",area:"Nyamagana",area_kind:"ward",district:"Nyamagana",ward:"Mirongo",lat:null,lng:null,bio:"Nimekuwa nikitafuta nyumba Nyamagana kwa miaka kumi. Ninajua kila mtaa, na sipendi kupoteza muda wa mteja.",n_houses:6,n_services:0,n_trucks:0,n_jobs:0,n_verified:2,kinds:["apartment","house","shop"],phone:"0712 345 678",last_seen_at:new Date(Date.now()-20000).toISOString(),joined_at:new Date(Date.now()-90*86400000).toISOString()}],error:null});
  if(n==="pm_agent_listings")return Promise.resolve({data:LS,error:null});
  if(n==="pm_peer")return Promise.resolve({data:[{user_id:"a1",display_name:"Juma Mwanga",public_key:window.__PK||"x",fingerprint:"11111 22222 33333 44444 55555 66666",is_agent:true,is_guest:false,region:"Mwanza",area:"Nyamagana",area_kind:null,district:"Nyamagana",ward:"Mirongo",last_seen_at:new Date(Date.now()-20000).toISOString()}],error:null});
  if(n==="pm_start_direct")return Promise.resolve({data:"t1",error:null});
