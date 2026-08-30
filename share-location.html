@@ -18,7 +18,11 @@
     * { box-sizing: border-box; }
     body {
       margin: 0; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #E9F3EE; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+      color: #E9F3EE; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      /* The app shell's fixed tab bar covers the bottom of the viewport. The
+         card used to be short enough never to reach it; with both ways out on
+         screen it is not, and the last control was landing underneath it. */
+      padding: 24px 24px calc(96px + env(safe-area-inset-bottom, 0px));
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
     }
     .sl-card {
@@ -53,7 +57,8 @@
       font-size: 1.05rem; font-weight: 800; cursor: pointer;
       box-shadow: 0 12px 28px rgba(46,230,166,.28);
     }
-    #slBtn:disabled, .sl-go:disabled { opacity: .6; cursor: default; }
+    /* The disabled look for every button on this page is one rule, further
+       down, next to the two ways out that spend most of their life in it. */
     #slStatus, .sl-msg { margin-top: 14px; font-size: .92rem; min-height: 1.2em; color: var(--green-emerald); font-weight: 600; }
     .sl-msg.is-bad { color: #FF9DB4; }
     #slResult { margin-top: 16px; }
@@ -71,6 +76,71 @@
       margin-top: 10px; min-height: 44px; width: 100%; padding: 10px; border: 0; border-radius: 12px;
       background: none; color: rgba(233,243,238,.6); font-family: inherit; font-size: .9rem; cursor: pointer;
     }
+
+    /* ---- the two ways out -----------------------------------------------
+       A link and nine characters are not a primary and a fallback. Which one
+       is right depends entirely on how the other person is reachable, and
+       only the sender knows that, so they are two equal panels rather than
+       one button with the other hidden behind it.
+
+       Both are on screen before there is a place to put in them, dimmed and
+       disabled. That is the whole fix: the code half used to be built by
+       script after a GPS fix succeeded, so a refused permission left a screen
+       that never mentioned codes at all. */
+    .sl-ways { display: grid; gap: 10px; margin-top: 18px; text-align: left; }
+    .sl-ways-hint {
+      margin: 0 !important; font-size: .82rem; font-weight: 600;
+      color: rgba(233,243,238,.5); text-align: center;
+    }
+    .sl-way {
+      padding: 15px 14px; border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.035);
+      transition: opacity .25s ease, border-color .25s ease, background .25s ease;
+    }
+    .sl-way.is-code { border-color: rgba(46,230,166,.26); background: rgba(46,230,166,.06); }
+    /* Waiting, not broken. Full opacity would promise a control that does
+       nothing; hiding it would promise a feature that does not exist. */
+    .sl-ways.is-waiting .sl-way { opacity: .5; }
+
+    .sl-way-h {
+      display: flex; align-items: center; gap: 9px; margin: 0 0 5px;
+      font-size: 1rem; font-weight: 800; color: #fff;
+    }
+    .sl-way-ic {
+      flex: none; width: 30px; height: 30px; border-radius: 10px;
+      display: grid; place-items: center;
+      background: rgba(255,255,255,.07); color: rgba(233,243,238,.75);
+    }
+    .sl-way.is-code .sl-way-ic { background: rgba(46,230,166,.15); color: var(--green-emerald); }
+    .sl-way-ic svg { width: 17px; height: 17px; }
+    .sl-way-d {
+      margin: 0 !important; font-size: .84rem !important; line-height: 1.5;
+      color: rgba(233,243,238,.6);
+    }
+    .sl-way .sl-actions { margin-top: 12px; }
+    .sl-way .sl-go { margin-top: 12px; font-size: .98rem; padding: 14px; }
+    /* Not yet, rather than broken. Fading a filled button leaves white ink on
+       a pale wash that reads as a rendering fault; dropping the fill and
+       muting the label reads as a control waiting for its turn. */
+    .sl-act:disabled, .sl-go:disabled, #slBtn:disabled {
+      opacity: 1; cursor: default; box-shadow: none;
+      background: rgba(255,255,255,.05); color: rgba(233,243,238,.40);
+      border: 1px solid rgba(255,255,255,.10);
+    }
+    :root[data-theme="light"] .sl-act:disabled,
+    :root[data-theme="light"] .sl-go:disabled,
+    :root[data-theme="light"] #slBtn:disabled {
+      background: #f0efe9; color: #8d8b82; border-color: rgba(20,30,25,.12);
+    }
+
+    :root[data-theme="light"] .sl-ways-hint { color: #6b6960; }
+    :root[data-theme="light"] .sl-way { background: #fbfaf6; border-color: rgba(20,30,25,.12); }
+    :root[data-theme="light"] .sl-way.is-code { background: #e9f7f1; border-color: #9fd9c2; }
+    :root[data-theme="light"] .sl-way-h { color: #14201a; }
+    :root[data-theme="light"] .sl-way-d { color: #5a5850; }
+    :root[data-theme="light"] .sl-way-ic { background: #f0efe9; color: #5a5850; }
+    :root[data-theme="light"] .sl-way.is-code .sl-way-ic { background: #d5f0e4; color: #0a6647; }
 
     /* ---- the map --------------------------------------------------------
        Small, and present the moment there is a fix: a pair of numbers is not
@@ -176,12 +246,21 @@
          sent here to do exactly one thing and a choice would only confuse. -->
     <div class="sl-tabs" id="slTabs" role="tablist" hidden>
       <button type="button" class="sl-tab is-on" id="slTabSend" role="tab" aria-selected="true"
-              data-i18n="sl_tab_send">Share a place</button>
+              data-i18n="sl_tab_send">Send a place</button>
       <button type="button" class="sl-tab" id="slTabRecv" role="tab" aria-selected="false"
-              data-i18n="sl_tab_recv">Enter a code</button>
+              data-i18n="sl_tab_recv">Open a code</button>
     </div>
 
     <!-- ── SEND ──────────────────────────────────────────────────────────── -->
+    <!-- TWO WAYS OUT, BOTH ON SCREEN FROM THE FIRST PAINT.
+         The code half used to be built by JavaScript inside renderCaptured(),
+         which meant it did not exist in the document until a GPS fix had
+         already succeeded. A refused permission, a desktop with no GPS, or the
+         20-second timeout left a screen whose every word was about a LINK, and
+         somebody looking for where to make a code found nothing to look at.
+         So both are markup now, side by side, disabled until there is a place
+         to put in them. A control you cannot use yet still tells you the
+         feature exists; a control that is absent tells you it does not. -->
     <section id="slSend">
       <h1 id="slTitle" data-i18n="sl_agent_title">Share this place's location</h1>
       <p id="slLead" data-i18n-html="sl_agent_lead">An agent is registering this house. Tap the button below <strong>while you are at the property</strong> to send its exact location. Nothing else is shared.</p>
@@ -189,6 +268,57 @@
       <div id="slStatus" role="status" aria-live="polite"></div>
       <div id="slMapSend" class="sl-map" hidden></div>
       <div id="slResult" hidden></div>
+
+      <div class="sl-ways" id="slWays" hidden>
+        <p class="sl-ways-hint" id="slWaysHint" data-i18n="sl_ways_hint">Capture the place first. Then pick how to hand it over.</p>
+
+        <!-- A link. For somebody holding the message. -->
+        <section class="sl-way" id="slWayLink">
+          <h2 class="sl-way-h">
+            <span class="sl-way-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/></svg></span>
+            <span data-i18n="sl_way_link">Send a link</span>
+          </h2>
+          <p class="sl-way-d" data-i18n="sl_way_link_d">For anyone holding your message. It opens in their maps app. Nothing is stored anywhere, so the link is yours to send.</p>
+          <div class="sl-actions">
+            <button id="slSendLink" class="sl-act sl-act-primary" type="button" disabled data-i18n="sl_send_link">Send the link</button>
+            <a id="slOpen" class="sl-act" href="#" target="_blank" rel="noopener" hidden data-i18n="sl_open_maps">Open in maps</a>
+          </div>
+        </section>
+
+        <!-- Nine characters. For the phone call, which is the common case and
+             the one a link cannot serve. -->
+        <section class="sl-way is-code" id="slWayCode">
+          <h2 class="sl-way-h">
+            <span class="sl-way-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg></span>
+            <span data-i18n="sl_way_code">Read out a code</span>
+          </h2>
+          <p class="sl-way-d" data-i18n="sl_way_code_d">For the phone call. Nine characters you say out loud, they type in, and the pin appears. No link and no app at their end.</p>
+          <div class="sl-opts">
+            <label class="sl-opt" for="slTtl"><span data-i18n="sl_code_ttl">Works for</span>
+              <select id="slTtl">
+                <option value="30" data-i18n="sl_ttl_30">30 minutes</option>
+                <option value="120" selected data-i18n="sl_ttl_120">2 hours</option>
+                <option value="1440" data-i18n="sl_ttl_1440">24 hours</option>
+              </select>
+            </label>
+            <label class="sl-opt" for="slOpens"><span data-i18n="sl_code_opens">Can be opened</span>
+              <select id="slOpens">
+                <option value="1" selected data-i18n="sl_opens_1">once</option>
+                <option value="3" data-i18n="sl_opens_3">3 times</option>
+                <option value="10" data-i18n="sl_opens_10">10 times</option>
+              </select>
+            </label>
+            <label class="sl-check">
+              <input type="checkbox" id="slCoarse">
+              <span data-i18n="sl_coarse">Round it to the street, not the doorstep (about 100 m)</span>
+            </label>
+          </div>
+          <button id="slMake" class="sl-go" type="button" disabled data-i18n="sl_code_make">Make a code</button>
+          <div id="slCodeOut" class="sl-msg" role="status" aria-live="polite"></div>
+        </section>
+      </div>
+
+      <button id="slAgain" class="sl-again" type="button" hidden data-i18n="sl_again">Use a different spot</button>
 
       <!-- Codes minted on this device that are still alive. Rendered only when
            there are some; an empty heading is a promise of nothing. -->
@@ -215,7 +345,7 @@
       <div id="slRecvOut" hidden></div>
     </section>
 
-    <p class="sl-fine" id="slFine" hidden data-i18n-html="sl_fine">A code is encrypted on your phone before it is stored, so the coordinates cannot be read by us or by anyone with our database — only by someone who can say the nine characters. It expires, it can be used a set number of times, and you can kill it early.</p>
+    <p class="sl-fine" id="slFine" hidden data-i18n-html="sl_fine">A code is encrypted on your phone before it is stored, so the coordinates cannot be read by us or by anyone with our database. Only somebody who can say the nine characters can open it. It expires, it can be used a set number of times, and you can cancel it early.</p>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

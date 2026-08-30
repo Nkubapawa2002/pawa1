@@ -139,10 +139,22 @@
   }
 
   // ---------------------------------------------------------------- send mode
+  // The place this tab is currently holding, or null. Both ways out read it,
+  // so it lives here rather than being closed over by whichever handler was
+  // built last.
+  let captured = null;
+
   function startShareMode() {
     if (titleEl) titleEl.textContent = T("sl_share_title");
     if (leadEl) leadEl.innerHTML = T("sl_share_lead");
     btn.textContent = T("sl_share_btn");
+
+    // The two ways out are markup now, not something renderCaptured() builds,
+    // so they are wired ONCE. They were being rebuilt and rebound on every
+    // capture, which is how the code half came to exist only after a GPS fix.
+    const ways = $("slWays");
+    if (ways) { ways.hidden = false; ways.classList.add("is-waiting"); }
+    setWaysEnabled(false);
 
     btn.addEventListener("click", async () => {
       btn.disabled = true;
@@ -156,7 +168,39 @@
       }
     });
 
+    $("slSendLink").addEventListener("click", async () => {
+      if (!captured) return;
+      const url = mapsUrl(captured.lat, captured.lng);
+      const how = await handOver(T("sl_share_text") + "\n" + url, url, T("sl_share_title"));
+      if (how === "copied") statusEl.textContent = T("sl_copied");
+    });
+
+    $("slMake").addEventListener("click", () => { if (captured) mintCode(captured); });
+
+    $("slAgain").addEventListener("click", () => {
+      captured = null;
+      resultEl.hidden = true; resultEl.innerHTML = "";
+      statusEl.textContent = "";
+      const box = $("slMapSend"); if (box) box.hidden = true;
+      const out = $("slCodeOut"); if (out) { out.className = "sl-msg"; out.innerHTML = ""; }
+      const make = $("slMake"); if (make) make.textContent = T("sl_code_make", "Make a code");
+      const hint = $("slWaysHint"); if (hint) hint.hidden = false;
+      const w = $("slWays"); if (w) w.classList.add("is-waiting");
+      const open = $("slOpen"); if (open) open.hidden = true;
+      setWaysEnabled(false);
+      $("slAgain").hidden = true;
+      btn.style.display = "";
+      btn.disabled = false;
+    });
+
     renderMine();
+  }
+
+  /** Both ways out are usable exactly when there is a place to hand over. */
+  function setWaysEnabled(on) {
+    const link = $("slSendLink"), make = $("slMake");
+    if (link) link.disabled = !on;
+    if (make) make.disabled = !on;
   }
 
   /**
@@ -175,64 +219,25 @@
     btn.style.display = "none";
     showMap("slMapSend", lat, lng, fix.accuracy);
 
+    // What was captured. The two ways out are already on screen, so this fills
+    // in the readout and switches them on rather than building them: a control
+    // that only exists after a permission prompt succeeds is a control most
+    // people never learn about.
+    captured = { lat: lat, lng: lng, accuracy: fix.accuracy || null };
+
     resultEl.hidden = false;
-    resultEl.innerHTML = `
-      <div class="sl-coords">${esc(Number(lat).toFixed(6))}, ${esc(Number(lng).toFixed(6))}</div>
-      <div class="sl-acc">${esc(acc)}</div>
-      <div class="sl-actions">
-        <button id="slSendLink" class="sl-act sl-act-primary" type="button">${esc(T("sl_send_link"))}</button>
-        <a id="slOpen" class="sl-act" href="${esc(url)}" target="_blank" rel="noopener">${esc(T("sl_open_maps"))}</a>
-      </div>
+    resultEl.innerHTML =
+      '<div class="sl-coords">' + esc(Number(lat).toFixed(6)) + ", " + esc(Number(lng).toFixed(6)) + "</div>" +
+      '<div class="sl-acc">' + esc(acc) + "</div>";
 
-      <div class="sl-code-box" id="slCodeBox">
-        <p class="sl-code-note">${esc(T("sl_code_intro", "On the phone instead? Turn this spot into nine characters you can read out. They type them in and the pin appears — no link, no app."))}</p>
-        <div class="sl-opts">
-          <label class="sl-opt">${esc(T("sl_code_ttl", "Works for"))}
-            <select id="slTtl">
-              <option value="30">${esc(T("sl_ttl_30", "30 minutes"))}</option>
-              <option value="120" selected>${esc(T("sl_ttl_120", "2 hours"))}</option>
-              <option value="1440">${esc(T("sl_ttl_1440", "24 hours"))}</option>
-            </select>
-          </label>
-          <label class="sl-opt">${esc(T("sl_code_opens", "Can be opened"))}
-            <select id="slOpens">
-              <option value="1" selected>${esc(T("sl_opens_1", "once"))}</option>
-              <option value="3">${esc(T("sl_opens_3", "3 times"))}</option>
-              <option value="10">${esc(T("sl_opens_10", "10 times"))}</option>
-            </select>
-          </label>
-          <label class="sl-check">
-            <input type="checkbox" id="slCoarse">
-            <span>${esc(T("sl_coarse", "Round it to the street, not the doorstep (about 100 m)"))}</span>
-          </label>
-        </div>
-        <button id="slMake" class="sl-go" type="button" style="margin-top:12px">${esc(T("sl_code_make", "Make a code"))}</button>
-        <div id="slCodeOut" class="sl-msg" role="status" aria-live="polite"></div>
-      </div>
-
-      <button id="slAgain" class="sl-again" type="button">${esc(T("sl_again"))}</button>`;
-
-    // slSendLink, NOT slSend. `<section id="slSend">` is the whole send panel
-    // and this button lives inside it, so naming the button slSend put two of
-    // that id in the document: getElementById returned the SECTION, the share
-    // handler bound to the entire panel, and every later tap in it — "Make a
-    // code", the dropdowns, the map, "Start again" — opened the share sheet
-    // instead of doing its own job.
-    const text = `${T("sl_share_text")}\n${url}`;
-    $("slSendLink").addEventListener("click", async () => {
-      const how = await handOver(text, url, T("sl_share_title"));
-      if (how === "copied") statusEl.textContent = T("sl_copied");
-    });
-
-    $("slMake").addEventListener("click", () => mintCode(fix));
-
-    $("slAgain").addEventListener("click", () => {
-      resultEl.hidden = true; resultEl.innerHTML = "";
-      statusEl.textContent = "";
-      const box = $("slMapSend"); if (box) box.hidden = true;
-      btn.style.display = "";
-      btn.disabled = false;
-    });
+    const open = $("slOpen");
+    if (open) { open.href = url; open.hidden = false; }
+    const hint = $("slWaysHint");
+    if (hint) hint.hidden = true;
+    const ways = $("slWays");
+    if (ways) { ways.hidden = false; ways.classList.remove("is-waiting"); }
+    setWaysEnabled(true);
+    $("slAgain").hidden = false;
   }
 
   /** Every reason a mint can fail, as the ordinary thing it is. */
@@ -280,6 +285,10 @@
     }
 
     const pretty = window.LocCode.format(res.share.code);
+    // A code now exists, so the button that made it must stop saying the thing
+    // it already did. Left alone it reads as "this did not work, press again",
+    // which is how somebody ends up with three live codes for one doorstep.
+    make.textContent = T("sl_code_again", "Make another code");
     out.className = "sl-msg";
     out.innerHTML =
       `<div class="sl-code">${esc(pretty)}</div>` +

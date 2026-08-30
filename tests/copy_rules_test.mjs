@@ -25,7 +25,7 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const LIST = process.argv.includes("--list");
 
 // The ratchet. Lower it when you clean strings; never raise it.
-const DASH_BASELINE = 247;
+const DASH_BASELINE = 241;
 
 // Unicode's own answer to "is this an emoji", rather than a hand-rolled block
 // range. Extended_Pictographic draws the line exactly where the rule wants it:

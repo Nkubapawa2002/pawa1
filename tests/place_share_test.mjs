@@ -141,6 +141,39 @@ try {
 
     ok((await dupIds(p)).length === 0, "the page starts with no id used twice");
 
+    // THE BUG THIS SECTION EXISTS FOR, second half.
+    //
+    // "Make a code" used to be built by renderCaptured(), which runs only
+    // after a GPS fix has already succeeded. Refuse the permission, open it on
+    // a desktop, or let the 20-second timeout run out, and the screen never
+    // mentioned a code at all: every word on it was about a link. Somebody
+    // looking for where to generate one concluded the feature did not exist,
+    // which is a reasonable thing to conclude from a page that never shows it.
+    //
+    // So both ways out are markup, present from the first paint and disabled
+    // until there is a place. A control you cannot use yet still teaches you
+    // the feature is there; a control that is absent teaches the opposite.
+    const cold = await p.evaluate(() => {
+      const seen = (id) => !!document.getElementById(id);
+      const off = (id) => { const el = document.getElementById(id); return el ? el.disabled : null; };
+      return {
+        make: seen("slMake"), makeOff: off("slMake"),
+        link: seen("slSendLink"), linkOff: off("slSendLink"),
+        ttl: seen("slTtl"), opens: seen("slOpens"), coarse: seen("slCoarse"),
+        text: (document.getElementById("slSend").innerText || "").toLowerCase(),
+      };
+    });
+    ok(cold.make && cold.link,
+       "both ways out are on screen before any location is captured",
+       "make=" + cold.make + " link=" + cold.link);
+    ok(cold.makeOff === true && cold.linkOff === true,
+       "and both are disabled, because there is nothing to hand over yet",
+       "make=" + cold.makeOff + " link=" + cold.linkOff);
+    ok(cold.ttl && cold.opens && cold.coarse,
+       "the code's own controls come with it, not after it");
+    ok(/code/.test(cold.text),
+       "and the send panel says the word “code” without being asked twice");
+
     await fakeGps(p);
     await p.click("#slBtn");
     await wait(900);
@@ -160,6 +193,20 @@ try {
     ok(shape.panel === "SECTION", "slSend is the panel, which is what showTab() toggles", String(shape.panel));
     ok(shape.button === "BUTTON", "and the share button answers to a name of its own", String(shape.button));
     ok(shape.hasMake, "the make-a-code box is there to be tapped");
+
+    // The other half of the same rule: capturing a place must SWITCH THEM ON,
+    // not build them, or the two halves drift apart again.
+    const warm = await p.evaluate(() => ({
+      makeOff: document.getElementById("slMake").disabled,
+      linkOff: document.getElementById("slSendLink").disabled,
+      hintGone: document.getElementById("slWaysHint").hidden,
+      again: !document.getElementById("slAgain").hidden,
+    }));
+    ok(warm.makeOff === false && warm.linkOff === false,
+       "a captured place switches both ways out on",
+       "make=" + warm.makeOff + " link=" + warm.linkOff);
+    ok(warm.hintGone, "and retires the line telling you to capture one first");
+    ok(warm.again, "with a way back to a different spot");
 
     // The bug in one assertion: the share handler must belong to the button,
     // not to an ancestor every other control also sits inside.
