@@ -27,14 +27,24 @@ const ok = (cond, msg, detail) => {
 const section = (s) => process.stdout.write("\n" + s + "\n");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const stub = (session) => `
+// `inAdminsTable` is the DATABASE's answer, which is a different question from
+// "is this address on the allowlist in config.js". Profile now asks the
+// database (Auth.isDbAdmin reads the RLS-protected `admins` table) because the
+// allowlist ships to every browser and can be edited in one. The stub has to
+// model both or it cannot tell the two apart, which is the whole point.
+const stub = (session, inAdminsTable) => `
 window.__PM_SENT = [];
 window.supabase = { createClient: function () {
   var session = ${JSON.stringify(session)};
-  function builder() { var b = {};
+  var inAdmins = ${JSON.stringify(!!inAdminsTable)};
+  function builder(table) { var b = {};
     ["select","eq","neq","gt","gte","lt","lte","in","is","or","filter","order","limit","range","match"]
       .forEach(function (m) { b[m] = function () { return b; }; });
-    b.then = function (r, j) { return Promise.resolve({ data: [], error: null }).then(r, j); };
+    b.then = function (r, j) {
+      // RLS: an admin sees a row here, everybody else sees an empty set.
+      var rows = (table === "admins" && inAdmins) ? [{ email: session.user.email }] : [];
+      return Promise.resolve({ data: rows, error: null }).then(r, j);
+    };
     return b; }
   return {
     from: builder,
@@ -59,6 +69,7 @@ const browser = await puppeteer.launch({
 });
 
 async function openProfile(session, opts) {
+  const inAdminsTable = !!(opts && opts.inAdminsTable);
   const page = await browser.newPage();
   await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 1 });
   const errs = [];
@@ -73,7 +84,8 @@ async function openProfile(session, opts) {
         "access-control-allow-methods": "*" } });
     }
     if (/cdn\.jsdelivr\.net.*supabase/.test(url)) {
-      return req.respond({ status: 200, headers: { "content-type": "application/javascript" }, body: stub(session) });
+      return req.respond({ status: 200, headers: { "content-type": "application/javascript" },
+                           body: stub(session, inAdminsTable) });
     }
     if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "text/css" }, body: "" });
@@ -216,11 +228,31 @@ try {
   section("5. An admin");
   {
     const { page } = await openProfile(
-      { user: { id: "admin_1", email: "pawa4761@gmail.com", is_anonymous: false } }, { withKey: KEYPAIR });
+      { user: { id: "admin_1", email: "pawa4761@gmail.com", is_anonymous: false } },
+      { withKey: KEYPAIR, inAdminsTable: true });
     ok((await groups(page)).some((x) => /^Admin$/i.test(x)), "gets the admin section");
     const hrefs = (await rows(page)).map((x) => x.href);
     ok(hrefs.includes("admin.html") && hrefs.includes("super-admin.html"), "with both consoles");
     ok(/Admin/.test(await page.$eval("#pfName", (n) => n.textContent)), "and is badged as one");
+    await page.close();
+  }
+
+  section("5b. An allowlisted address the database does not back");
+  {
+    // The allowlist in config.js ships to every browser and can be edited in
+    // one. It is the weaker of the two checks, and on its own it is not an
+    // answer: the `admins` table is. Same address as above, no row behind it.
+    const { page } = await openProfile(
+      { user: { id: "admin_1", email: "pawa4761@gmail.com", is_anonymous: false } },
+      { withKey: KEYPAIR, inAdminsTable: false });
+    const g = await groups(page);
+    ok(!g.some((x) => /^Admin$/i.test(x)),
+       "gets no admin section on the allowlist alone", JSON.stringify(g));
+    const hrefs = (await rows(page)).map((x) => x.href);
+    ok(!hrefs.includes("admin.html") && !hrefs.includes("super-admin.html"),
+       "and no link to either console", hrefs.filter(Boolean).join(" "));
+    ok(!/Admin/.test(await page.$eval("#pfName", (n) => n.textContent)),
+       "and is not badged as one");
     await page.close();
   }
 
