@@ -401,7 +401,7 @@ supabase/features/message/p_message_trust.sql    pm_peer returns the key (APPLIE
 supabase/features/message/p_message_presence.sql pm_presence + the beat (APPLIED)
 supabase/features/message/p_message_storefront.sql bio, kinds, agent card (APPLIED)
 supabase/features/message/p_message_replies.sql  reply_to on both send paths (APPLIED)
-supabase/features/message/p_message_delete.sql   unsend, close a room, leave one (PENDING)
+supabase/features/message/p_message_delete.sql   unsend, close a room, leave one (APPLIED)
     Run it AFTER p_message_replies.sql: it redefines pm_thread_messages to
     carry deleted_at, so re-running the replies file would revert that.
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
