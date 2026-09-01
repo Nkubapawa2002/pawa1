@@ -244,6 +244,41 @@ The cost to the guest is stated up front, on the gate and again on Profile:
 **the conversation and the key that opens it live in this browser.** Clearing
 it, or changing phone, loses both.
 
+**Ending a guest session has to end it on the server too.** Signing out of one
+was a purely local act: forget the private key, forget the pinned keys, sign
+out. Everything the guest had put on the server stayed where it was, so the
+guest went on being a published row in `pm_keys` that anybody holding the
+thread could still seal a message to, and a name in the roster of every
+conversation they had joined. Nothing sent to that identity could ever be read
+again, by anyone, because the only key that could open it had just been thrown
+away and an anonymous session cannot be signed into a second time.
+
+`p_message_guest_end.sql` adds `pm_guest_forget(p_wipe_messages boolean)`. It
+deletes the caller's `pm_keys` row and their `pm_members` rows, which is what
+"removed" means: unreachable, and gone from every roster. `app_is_guest()`
+gates the whole function, so an account that reaches it is refused rather than
+quietly wiped, because for an account signing out is supposed to destroy
+nothing and this is the one place where confusing the two is unrecoverable.
+
+What it does **not** do by default is delete what the guest sent. Those
+messages are also the other person's half of a conversation, and erasing them
+because a stranger closed a browser tab would rewrite somebody else's history.
+`p_wipe_messages` is the opt-in, off by default behind a checkbox on Profile,
+and when it is set the messages are tombstoned by exactly the rule
+`pm_message_delete` uses: blank ciphertext, every wrap dropped, the row left
+behind saying it was deleted.
+
+The order on the client is the correctness of the whole flow. Profile calls
+the function **before** `signOut()`, while there is still a session to
+authorise it, and stops on failure. Reversed, the call would arrive anonymous,
+`app_uid()` would be null, the function would refuse it, and the local key
+would be thrown away regardless, leaving a reachable identity nobody can ever
+read and nothing on screen to say so.
+
+A guest is never in a group room (every membership insert in
+`p_message_groups.sql` joins `pm_keys` with `not coalesce(is_guest,false)`), so
+there is no ownership to hand over and no room a guest can orphan by leaving.
+
 ---
 
 ## The directory
@@ -404,6 +439,7 @@ supabase/features/message/p_message_replies.sql  reply_to on both send paths (AP
 supabase/features/message/p_message_delete.sql   unsend, close a room, leave one (APPLIED)
     Run it AFTER p_message_replies.sql: it redefines pm_thread_messages to
     carry deleted_at, so re-running the replies file would revert that.
+supabase/features/message/p_message_guest_end.sql pm_guest_forget, ending a guest (APPLIED)
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
 css/pm-identity.css                     their styling, so it travels with them
 profile.html · js/pages/profile.js      the account tab

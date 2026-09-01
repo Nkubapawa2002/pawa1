@@ -413,6 +413,24 @@
    * without refetching the thread. Calling it twice is safe and returns the
    * FIRST deletion: a person tapping through a slow connection meant it once.
    */
+  /**
+   * End a guest identity on the SERVER as well as on this device.
+   *
+   * Signing out only ever forgot the private key locally, which left the guest
+   * published in pm_keys and sitting in every thread they had joined: still
+   * reachable, and unable to read anything sent to them ever again. This drops
+   * the key row and the memberships.
+   *
+   * `wipeMessages` is opt-in and off by default, because what a guest sent is
+   * also the other person's half of a conversation.
+   *
+   * Returns { threads, messages }.
+   */
+  function guestForget(wipeMessages) {
+    return rpc("pm_guest_forget", { p_wipe_messages: !!wipeMessages })
+      .then(function (r) { return r || { threads: 0, messages: 0 }; });
+  }
+
   function messageDelete(messageId) {
     return rpc("pm_message_delete", { p_message: messageId });
   }
@@ -786,6 +804,7 @@
     groupDelete: groupDelete,
     groupMax: groupMax,
     messageDelete: messageDelete,
+    guestForget: guestForget,
     inviteCreate: inviteCreate,
     invitePeek: invitePeek,
     inviteAccept: inviteAccept,

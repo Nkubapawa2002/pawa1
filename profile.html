@@ -127,6 +127,17 @@
     .pf-acts { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
     .pf-acts .pm-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
 
+    /* The one checkbox on this page. It sits in the end-guest dialog and asks
+       a question with a real cost behind it, so it is a full-width row with a
+       44px target rather than a 13px box somebody has to aim at. */
+    .pf-check { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0 0;
+      min-height: var(--hit-min); cursor: pointer; font-size: 13px; line-height: 1.5;
+      color: var(--pm-ink); }
+    .pf-check input { flex: 0 0 auto; width: 20px; height: 20px; margin: 1px 0 0;
+      accent-color: var(--pm-brand); cursor: pointer; }
+    .pf-check-d { margin: 6px 0 0 30px; font-size: 11.5px; line-height: 1.5;
+      color: var(--pm-ink-faint); }
+
     /* ---- your public page ------------------------------------------------
        The one block on this page that is not a row, because it is not a link
        to somewhere: it is the thing itself. An agent who has never opened

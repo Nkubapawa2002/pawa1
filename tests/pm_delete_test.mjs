@@ -55,9 +55,10 @@ const stub = (opts) => {
   const o = opts || {};
   return `window.supabase = { createClient: function () {
   var me = "me_self";
+  var IS_GUEST = ${JSON.stringify(!!o.guest)};
   var db = {
     keys: {
-      me_self:  { public_key: "", display_name: "You" },
+      me_self:  { public_key: "", display_name: "You", is_guest: IS_GUEST },
       peer_ana: { public_key: "", display_name: "Ana", is_agent: true, region: "Mwanza", area: "Nyamagana" },
       peer_bob: { public_key: "", display_name: "Bob", is_agent: true, region: "Mwanza", area: "Ilemela" },
     },
@@ -192,7 +193,8 @@ const stub = (opts) => {
     auth: {
       getSession: function () {
         return Promise.resolve({ data: { session: { user: {
-          id: me, email: "me@example.com", is_anonymous: false } } }, error: null });
+          id: me, email: IS_GUEST ? null : "me@example.com",
+          is_anonymous: IS_GUEST } } }, error: null });
       },
       getUser: function () { return Promise.resolve({ data: { user: { id: me, email: "me@example.com" } }, error: null }); },
       signOut: function () { return Promise.resolve({ error: null }); },
@@ -515,6 +517,45 @@ try {
     ok(errs.length === 0, "no page errors", errs.join(" | "));
     await page.close();
   }
+  // -------------------------------------------------------------------------
+  section("7. A guest can take back what a guest sent");
+  {
+    // The half that was never checked. A guest is a real session with a real
+    // key and real messages, and nothing about unsending is different for one:
+    // pm_message_delete asks who SENT the message, not what kind of account
+    // they hold. Worth pinning, because the guest path is the one people reach
+    // without an account and the one nobody tests by hand.
+    const { page, errs } = await openPage({ role: "owner", guest: true });
+    await openRoomWithMessage(page, "Nipo mlangoni sasa hivi");
+
+    let rows = await bubbles(page);
+    ok(rows.length === 1 && rows[0].text.includes("Nipo mlangoni"),
+       "a guest's message is on screen the same as anybody's", JSON.stringify(rows));
+
+    await page.evaluate(() => document.querySelector("[data-menu]").click());
+    await sleep(400);
+    ok(await page.$("#pmMmUnsend") !== null,
+       "and a guest is offered Delete for everyone, not just the device-only one");
+
+    await page.evaluate(() => document.getElementById("pmMmUnsend").click());
+    await sleep(350);
+    await page.evaluate(() => document.getElementById("pmUnYes").click());
+    await sleep(900);
+
+    rows = await bubbles(page);
+    ok(rows[0].gone && !rows[0].text.includes("Nipo mlangoni"),
+       "and it really goes", JSON.stringify(rows));
+    const held = await page.evaluate(() => ({
+      ct: window.__PM_DB.messages[0].ciphertext,
+      wraps: Object.keys(window.__PM_DB.wraps).length,
+    }));
+    ok(held.ct === "" && held.wraps === 0,
+       "leaving the server with no ciphertext and no key, exactly as for an account",
+       JSON.stringify(held));
+    ok(errs.length === 0, "no page errors", errs.join(" | "));
+    await page.close();
+  }
+
 } finally {
   await browser.close();
 }

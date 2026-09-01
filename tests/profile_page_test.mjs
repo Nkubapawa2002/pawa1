@@ -42,6 +42,13 @@ window.supabase = { createClient: function () {
   var session = ${JSON.stringify(session)};
   var inAdmins = ${JSON.stringify(!!inAdminsTable)};
   var CARD = ${JSON.stringify(card || null)};
+  function order(step) {
+    try {
+      var o = JSON.parse(sessionStorage.getItem("__order") || "[]");
+      o.push(step);
+      sessionStorage.setItem("__order", JSON.stringify(o));
+    } catch (e) {}
+  }
   function builder(table) { var b = {};
     ["select","eq","neq","gt","gte","lt","lte","in","is","or","filter","order","limit","range","match"]
       .forEach(function (m) { b[m] = function () { return b; }; });
@@ -55,17 +62,35 @@ window.supabase = { createClient: function () {
     from: builder,
     rpc: function (name, args) {
       window.__PM_SENT.push({ name: name, args: args });
+      // Survives the redirect that ends a guest session. Without this the
+      // assertions read the call log of index.html, which is a different page
+      // with a different array.
+      try {
+        var log = JSON.parse(sessionStorage.getItem("__rpc") || "[]");
+        log.push({ name: name, args: args });
+        sessionStorage.setItem("__rpc", JSON.stringify(log));
+      } catch (e) {}
       // The real function returns a one-row table, so the stub does too: a
       // page that read rows[0] wrongly would pass against a bare object.
       if (name === "pm_agent_card") {
         return Promise.resolve({ data: CARD ? [CARD] : [], error: null });
+      }
+      // Ending a guest session removes the guest on the SERVER as well. The
+      // stub reports what the real function returns so the page can be checked
+      // for calling it, and for calling it before it signs out.
+      if (name === "pm_guest_forget") {
+        order("forget");
+        return Promise.resolve({ data: { threads: 2, messages: 0 }, error: null });
       }
       return Promise.resolve({ data: [], error: null });
     },
     auth: {
       getSession: function () { return Promise.resolve({ data: { session: session }, error: null }); },
       getUser: function () { return Promise.resolve({ data: { user: session && session.user }, error: null }); },
-      signOut: function () { session = null; return Promise.resolve({ error: null }); },
+      signOut: function () {
+        order("signout");
+        session = null; return Promise.resolve({ error: null });
+      },
       onAuthStateChange: function () { return { data: { subscription: { unsubscribe: function () {} } } }; },
     },
     channel: function () { return { on: function () { return this; }, subscribe: function () { return this; } }; },
@@ -223,16 +248,54 @@ try {
     await sleep(250);
     ok(!(await page.$eval("#pfModalBack", (n) => n.classList.contains("is-on"))), "and closes");
 
+    // The backup flow is three steps now, one job each. It used to be a single
+    // box that printed a hundred characters of base64 with no way to copy them
+    // and no way to tell whether you had actually saved anything.
     await page.evaluate(() => document.querySelector('[data-act="backup"]').click());
     await sleep(400);
     ok(await page.$("#pmBkPass") !== null, "the backup dialog is here too, from the same library");
+    ok(/1 of 3/i.test(await page.$eval(".pm-steps-n", (n) => n.textContent)),
+       "and it says which step it is on, so the middle is not mistaken for a loop");
+    ok(await page.$eval("#pmBkMake", (n) => n.disabled),
+       "nothing can be created before there is a passphrase to seal it with");
+
+    // Typed twice, because a passphrase mistyped once produces a backup that
+    // looks complete and can never be opened by anybody.
     await page.type("#pmBkPass", "a long enough passphrase");
+    await sleep(150);
+    ok(await page.$eval("#pmBkMake", (n) => n.disabled),
+       "and not before it has been confirmed");
+    await page.type("#pmBkPass2", "a long enough passphraze");
+    await sleep(200);
+    ok(/do not match/i.test(await page.$eval("#pmBkMsg", (n) => n.textContent)),
+       "a mismatch is caught while it is still being typed, not after the code exists");
+
+    await page.evaluate(() => { document.getElementById("pmBkPass2").value = ""; });
+    await page.type("#pmBkPass2", "a long enough passphrase");
+    await sleep(200);
+    ok(!(await page.$eval("#pmBkMake", (n) => n.disabled)), "matching unlocks it");
+
     await page.click("#pmBkMake");
-    await sleep(900);
+    await sleep(1200);
     const code = await page.$eval(".pm-code", (n) => n.textContent.trim());
     ok(code.startsWith("PM1."), "and it really produces a backup code", code.slice(0, 16) + "…");
     ok(!code.includes(KEYPAIR.privateKey.slice(0, 24)),
        "with the private key encrypted inside it, not sitting in the open");
+
+    // The step that did not exist. Without it the code could only be taken off
+    // the screen by selecting a hundred characters of base64 with a thumb.
+    ok(await page.$("#pmBkCopy") !== null, "there is a way to copy it");
+    ok(await page.$("#pmBkFile") !== null,
+       "and a way to save it as a file, which survives the browser being cleared");
+    ok(await page.$eval(".pm-code", (n) => getComputedStyle(n).userSelect === "all"),
+       "and it can still be selected by hand where the clipboard is refused");
+
+    await page.evaluate(() => document.getElementById("pmBkNext").click());
+    await sleep(300);
+    ok(/saved it/i.test(await page.$eval("#pfModal h2", (n) => n.textContent)),
+       "the last step asks whether it was actually saved");
+    ok(await page.$("#pmBkBack") !== null,
+       "with the code one tap away, so answering honestly costs nothing");
     await page.close();
   }
 
@@ -399,6 +462,65 @@ try {
     // third person to the agent.
     ok(/You have not written/i.test(s.bio),
        "and is worded for the person who can fix it", s.bio);
+    await page.close();
+  }
+
+  // ==========================================================================
+  section("8. Ending a guest session actually ends it");
+  // ==========================================================================
+  // It used to be three local lines: forget the key, forget the pinned keys,
+  // sign out. Everything the guest had put on the server stayed exactly where
+  // it was, so the guest went on being a published key that anybody in the
+  // thread could still write to, and nothing that arrived could ever be read.
+  {
+    const { page, errs } = await openProfile(
+      { user: { id: "guest_1", email: null, is_anonymous: true } }, { withKey: KEYPAIR });
+
+    const r = await rows(page);
+    const end = r.find((x) => x.act === "signout");
+    ok(!!end && /guest/i.test(end.title), "a guest is offered a way to end the session", end && end.title);
+
+    // A guest cannot own listings, so none of those doors are drawn.
+    ok(!r.some((x) => /^agent-/.test(x.href)),
+       "and is not offered the listing portals the database would refuse");
+
+    await page.evaluate(() => document.querySelector('[data-act="signout"]').click());
+    await sleep(400);
+    const ask = await page.$eval("#pfModal", (n) => n.textContent);
+    ok(/cannot be undone/i.test(ask),
+       "ending it asks first, and says it cannot be undone", ask.slice(0, 140));
+    ok(/removed from the conversations/i.test(ask),
+       "and says the guest is removed rather than just signed out");
+
+    // The messages the guest sent are the OTHER person's half of a
+    // conversation too. Deleting them by default would rewrite somebody
+    // else's history because a stranger closed a tab.
+    const wipe = await page.$eval("#pfWipe", (n) => n.checked);
+    ok(wipe === false, "deleting what they sent is offered, and is off by default");
+
+    await page.evaluate(() => document.getElementById("pfEndYes").click());
+    await sleep(900);
+
+    // Read from sessionStorage, not from window: the flow ends by sending the
+    // guest to index.html, so by now window.__PM_SENT is that page's array.
+    const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("__rpc") || "[]"));
+    const calls = log.map((c) => c.name);
+    ok(calls.includes("pm_guest_forget"),
+       "confirming it tells the server to remove the guest", JSON.stringify(calls));
+    const args = (log.filter((c) => c.name === "pm_guest_forget")[0] || {}).args || {};
+    ok(args.p_wipe_messages === false,
+       "with the wipe left off, because the box was not ticked", JSON.stringify(args));
+
+    ok(/index\.html$/.test(page.url()), "and the guest is sent back to the home page", page.url());
+
+    // The ordering is the whole correctness of this flow. signOut first would
+    // leave an anonymous call with no app_uid(), the function refuses it, and
+    // the guest stays published with nothing on screen to say so.
+    const order = await page.evaluate(() => JSON.parse(sessionStorage.getItem("__order") || "[]"));
+    ok(order.indexOf("forget") >= 0 && order.indexOf("forget") < order.indexOf("signout"),
+       "and it does so BEFORE signing out, while there is still a session to authorise it",
+       JSON.stringify(order));
+    ok(errs.length === 0, "no page errors", errs.slice(0, 3).join("\n        "));
     await page.close();
   }
 

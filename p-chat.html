@@ -320,17 +320,25 @@
             <span class="ha-find-d" data-i18n="pc_share_d">Send the exact spot of a house, a shop or a meeting point. As a link, or as nine characters you read down the phone.</span>
           </span>
         </a>
-        <!-- The receive half of the same feature. It was reachable only by
-             opening share-location.html and finding a tab, which is two taps
-             and a guess for the person who is on the phone RIGHT NOW being
-             read nine characters. ?recv=1 lands on that tab directly.
+        <!-- The receive half of the same feature, and a door of its own rather
+             than a footnote under the send half.
 
-             The row above is the other half, and it now says so: its old
-             description mentioned only "the exact spot", so the only word for
-             "code" anywhere on this tab sat under this link, which OPENS one.
-             Somebody looking for where to MAKE a code read that line and
-             concluded the feature did not exist. -->
-        <a class="pc-more" href="share-location.html?recv=1&amp;from=pchat" data-i18n="pc_share_recv">Somebody read you a code? Open it here</a>
+             It was a 12px link. That was wrong twice over: it is a whole flow
+             (type nine characters, see the pin, keep it), and it is the half
+             somebody needs while they are ON THE PHONE being read a code,
+             which is the most hurried moment this tab has. A person in that
+             state scans the cards; they do not read the small print between
+             them.
+
+             ?recv=1 lands on that tab directly, so it is one tap from here
+             rather than opening share-location.html and finding a tab. -->
+        <a class="ha-find-card" href="share-location.html?recv=1&amp;from=pchat">
+          <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg></span>
+          <span class="ha-find-tx">
+            <span class="ha-find-t" data-i18n="pc_recv">Open a code somebody read out to you</span>
+            <span class="ha-find-d" data-i18n="pc_recv_d">Nine characters said down the phone. Type them in and the exact spot appears on a map, saved on this phone for when you need it.</span>
+          </span>
+        </a>
 
         <!-- Codes this device has minted and that have not expired. Rendered
              only when there are some: an empty box here would be a promise

@@ -154,3 +154,84 @@
   content: ""; position: absolute; inset: 16%; border: 2px solid rgba(255, 255, 255, .85);
   border-radius: 12px; pointer-events: none;
 }
+
+/* ── The dialogs' new furniture ─────────────────────────────────────────────
+   Pairs with the rebuilt key flows in js/lib/pm-identity-ui.js. Each dialog
+   opens with a ROLE line saying what it is for, because "Safety numbers" and
+   "Restore your key" are names, not explanations, and somebody who has to
+   guess which of three dialogs they want will pick wrong.
+   ------------------------------------------------------------------------ */
+
+/* The role line. Quieter than a heading, louder than body copy: it is read
+   once, on arrival, and then never again. */
+.pm-role {
+  margin: -4px 0 12px; font-size: 12.5px; line-height: 1.5;
+  color: var(--green-emerald);
+}
+
+/* Step 2 of 3. A flow with a middle needs to say so, or the second screen
+   reads as the dialog having reopened itself. */
+.pm-steps { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; }
+.pm-steps-n {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: rgba(233, 243, 238, .45);
+}
+.pm-steps-dots { display: inline-flex; gap: 5px; }
+.pm-step-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255, 255, 255, .16);
+}
+.pm-step-dot.is-done { background: rgba(46, 230, 166, .45); }
+.pm-step-dot.is-on { background: var(--green-emerald); }
+
+/* A fact worth reading before the fields under it. Not an error, so it is not
+   red; the warn variant is for the one dialog that replaces something. */
+.pm-note {
+  font-size: 12.5px; line-height: 1.55; color: rgba(233, 243, 238, .72);
+  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 12px; padding: 11px 12px; margin: 0 0 4px;
+}
+.pm-note.is-warn {
+  background: rgba(246, 196, 90, .09); border-color: rgba(246, 196, 90, .30);
+  color: rgba(233, 243, 238, .82);
+}
+
+/* The sentence under a field that says what it is really asking for. */
+.pm-hint {
+  font-size: 11.5px; line-height: 1.5; margin: 6px 0 0;
+  color: rgba(233, 243, 238, .5);
+}
+
+/* The other way out, at the bottom: "I already have a code". A link rather
+   than a third button, so it cannot compete with the two that are the point
+   of the screen. */
+.pm-alt { margin: 14px 0 0; text-align: center; }
+.pm-link {
+  background: none; border: 0; padding: 6px 4px; font: inherit; font-size: 12.5px;
+  font-weight: 700; color: var(--green-emerald); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+  min-height: var(--hit-min);
+}
+.pm-link:hover { color: var(--green-bright); }
+.pm-link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 8px; }
+
+/* The backup code itself. It has to be selectable by hand on the phones where
+   the clipboard is refused, so it wraps and breaks anywhere rather than
+   scrolling sideways out of reach. */
+.pm-code { user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }
+.pm-code:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Light ─────────────────────────────────────────────────────────────── */
+:root[data-theme="light"] .pm-role { color: #0a6647; }
+:root[data-theme="light"] .pm-steps-n { color: #6b6960; }
+:root[data-theme="light"] .pm-step-dot { background: rgba(20, 30, 25, .16); }
+:root[data-theme="light"] .pm-step-dot.is-done { background: rgba(10, 102, 71, .45); }
+:root[data-theme="light"] .pm-step-dot.is-on { background: #0a6647; }
+:root[data-theme="light"] .pm-note {
+  background: rgba(20, 30, 25, .04); border-color: rgba(20, 30, 25, .12); color: #35332c;
+}
+:root[data-theme="light"] .pm-note.is-warn {
+  background: rgba(138, 97, 0, .08); border-color: rgba(138, 97, 0, .30); color: #3a3320;
+}
+:root[data-theme="light"] .pm-hint { color: #6b6960; }
+:root[data-theme="light"] .pm-link { color: #0a6647; }

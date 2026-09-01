@@ -347,19 +347,87 @@
         return render();
       }
       if (act === "signout") {
-        // The key is deliberately NOT wiped on sign-out: signing out of a
-        // shared computer should not destroy the history on your own phone.
-        // Ending a GUEST session is different — there is no account to come
-        // back to, so the key is dead weight and keeping it would be a lie.
-        var guest = me.isGuest;
-        if (guest && window.PMCrypto) window.PMCrypto.forget();
-        // The pinned keys of everyone that guest identity ever spoke to go
-        // with it. Left behind they would be attached to a user id nothing
-        // can sign in as again, and a later guest could be handed them.
-        if (guest && window.PMTrust) window.PMTrust.forgetAll(me.userId);
+        // Ending a GUEST session is not signing out, and the two used to run
+        // the same three lines. Signing out of an account destroys nothing on
+        // purpose: the key stays so a shared computer does not take your
+        // history with it. A guest has no account to come back to, so the
+        // opposite is true, and until now "ending" one left the guest
+        // published in pm_keys and sitting in every thread they had joined.
+        if (me.isGuest) return askEndGuest();
         try { if (window.Auth) await window.Auth.signOut(); } catch (_) {}
-        location.href = guest ? "index.html" : "profile.html";
+        location.href = "profile.html";
       }
+    });
+  }
+
+  /**
+   * End a guest session, and say what that removes.
+   *
+   * Three different things happen and only one of them was ever mentioned:
+   *
+   *   the key on this device is forgotten, so the thread stops opening HERE;
+   *   the guest identity is deleted on the server, so nobody can write to it
+   *     again and it disappears from the rosters it was sitting in;
+   *   and what they SENT stays with the people they sent it to, unless they
+   *     ask otherwise, because it is those people's conversation too.
+   *
+   * The third is the one worth a checkbox rather than a default. Erasing
+   * somebody else's copy of a conversation because a stranger closed a tab is
+   * not tidying up.
+   */
+  function askEndGuest() {
+    window.PMIdentityUI.open("<h2>" + esc(t("pf_end_t", "End this guest session?")) + "</h2>" +
+      "<p>" + esc(t("pf_end_d1",
+        "There is no account behind a guest, so this cannot be undone and there is nothing to sign back into.")) + "</p>" +
+      "<p>" + esc(t("pf_end_d2",
+        "Your key is forgotten on this phone, and the guest is removed from the conversations it joined so nobody can write to it again.")) + "</p>" +
+      '<label class="pf-check"><input type="checkbox" id="pfWipe" />' +
+        "<span>" + esc(t("pf_end_wipe",
+          "Also delete the messages I sent, for everyone")) + "</span></label>" +
+      '<p class="pf-check-d">' + esc(t("pf_end_wipe_d",
+        "Off by default. What you sent is the other person's half of the conversation as well, and a copy they already read cannot be taken back.")) + "</p>" +
+      '<div class="pm-modal-acts">' +
+      '<button class="pm-btn ghost" id="pfEndNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      '<button class="pm-btn is-danger" id="pfEndYes">' + esc(t("pf_end_go", "End the session")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pfEndMsg\"></div>");
+
+    document.getElementById("pfEndNo").addEventListener("click", window.PMIdentityUI.close);
+    document.getElementById("pfEndYes").addEventListener("click", async function (e) {
+      var btn = e.currentTarget;          // captured, never read after an await
+      var out = document.getElementById("pfEndMsg");
+      var wipe = !!document.getElementById("pfWipe").checked;
+      btn.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_working", "Working…");
+
+      // The SERVER first, while there is still a session to authorise it. Doing
+      // it after signOut would be an anonymous call with no app_uid(), which
+      // the function refuses, and the guest would be left published exactly as
+      // before with nothing on screen to say so.
+      var wiped = null;
+      try {
+        if (window.PMStore && window.PMStore.guestForget) {
+          wiped = await window.PMStore.guestForget(wipe);
+        }
+      } catch (err) {
+        // A failure here matters enough to stop: carrying on would forget the
+        // key locally and leave a reachable identity nobody can ever read.
+        btn.disabled = false;
+        out.className = "pm-msg-out bad";
+        out.textContent = ((err && err.message) || String(err)) + " " +
+          t("pf_end_fail", "Nothing was changed. Try again when you have a connection.");
+        return;
+      }
+
+      // Only now the local half. The key is dead weight once the identity is
+      // gone, and keeping it would be a lie about what this device can open.
+      if (window.PMCrypto) window.PMCrypto.forget();
+      // The pinned keys of everyone that guest identity ever spoke to go with
+      // it. Left behind they would be attached to a user id nothing can sign
+      // in as again, and a later guest on this phone could be handed them.
+      if (window.PMTrust) window.PMTrust.forgetAll(me.userId);
+      try { if (window.Auth) await window.Auth.signOut(); } catch (_) {}
+      location.href = "index.html";
     });
   }
 
