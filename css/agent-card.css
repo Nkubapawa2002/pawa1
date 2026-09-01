@@ -1,0 +1,98 @@
+/* ============================================================================
+   agent-card.css — the shared storefront block.
+
+   Pairs with js/lib/agent-card.js: identity, the numbers, and the bio, drawn
+   once and used by agent.html (what a customer sees) and profile.html (the
+   agent looking at their own page). If the two ever look different, the
+   preview stops being a preview, so the styling is shared for the same reason
+   the markup is.
+
+   Written against the --pm-* names, which both pages define with their own
+   light and dark values. Nothing here hard-codes a brand colour.
+   ========================================================================== */
+
+/* ---- identity ----------------------------------------------------------- */
+.agc-top { display: flex; align-items: flex-start; gap: var(--space-3); }
+
+.agc-av {
+  flex: 0 0 auto; width: 56px; height: 56px; border-radius: var(--radius-lg);
+  display: grid; place-items: center;
+  background: var(--pm-brand-soft); color: var(--pm-brand);
+  font-weight: var(--fw-extrabold); font-size: 1.15rem;
+  font-family: var(--font-app);
+}
+.agc-av.is-guest { background: var(--pm-gold-soft); color: var(--pm-gold); }
+
+.agc-id { min-width: 0; flex: 1; }
+
+.agc-name {
+  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+  font-size: 1.2rem; font-weight: var(--fw-extrabold); color: var(--pm-ink);
+  line-height: 1.25;
+}
+
+.agc-meta {
+  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+  margin-top: 5px; font-size: var(--text-xs); color: var(--pm-ink-soft);
+}
+.agc-area {
+  display: inline-flex; align-items: center; gap: 3px; min-width: 0;
+  color: var(--pm-brand); font-weight: var(--fw-bold);
+}
+.agc-area svg { width: 12px; height: 12px; flex: 0 0 auto; }
+/* An area nobody set is stated, not left blank. It is the one piece of this
+   block an agent can fix in ten seconds, and it has to look unfinished. */
+.agc-area.is-none { color: var(--pm-ink-faint); font-weight: var(--fw-medium); font-style: italic; }
+
+.agc-badge {
+  font-size: 9.5px; font-weight: var(--fw-extrabold); letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 6px; border-radius: var(--radius-xs);
+  background: var(--pm-brand-soft); color: var(--pm-brand);
+}
+.agc-badge.warn { background: var(--pm-gold-soft); color: var(--pm-gold); }
+
+/* ---- the numbers -------------------------------------------------------- */
+/* A rail rather than a grid: the tiles are between two and six depending on
+   what somebody lists, and a grid with a fixed column count leaves a hole on
+   most agents. It scrolls sideways on a narrow phone instead of shrinking the
+   numbers, which are the content. */
+.agc-stats {
+  display: flex; gap: var(--space-2); margin-top: var(--space-4);
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.agc-stats::-webkit-scrollbar { display: none; }
+
+.agc-stat {
+  flex: 1 0 auto; min-width: 84px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--space-3); border-radius: var(--radius-md);
+  background: var(--pm-field); border: 1px solid var(--pm-line);
+}
+.agc-stat b {
+  font-family: var(--font-mono); font-feature-settings: "tnum", "zero";
+  font-size: 1.05rem; font-weight: var(--fw-bold); color: var(--pm-ink);
+  line-height: 1.1;
+}
+.agc-stat small {
+  font-size: 10.5px; font-weight: var(--fw-semibold); color: var(--pm-ink-faint);
+  line-height: 1.3;
+}
+/* The count we checked ourselves. The only tile that earns a colour, because
+   it is the only one that is a claim rather than a total. */
+.agc-stat.is-good { background: var(--pm-brand-soft); border-color: var(--pm-brand-line); }
+.agc-stat.is-good b { color: var(--pm-brand); }
+
+.agc-stats.is-compact .agc-stat { min-width: 72px; padding: var(--space-2) var(--space-3); }
+.agc-stats.is-compact .agc-stat b { font-size: .95rem; }
+
+/* ---- their own words ---------------------------------------------------- */
+.agc-bio {
+  margin-top: var(--space-3); font-size: var(--text-sm); line-height: 1.6;
+  color: var(--pm-ink);
+  /* pre-line so the paragraph breaks somebody typed survive. The text is
+     escaped on the way in, so a URL in a bio stays visible text rather than a
+     destination this app appears to vouch for. */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.agc-bio.is-none { color: var(--pm-ink-faint); font-style: italic; }

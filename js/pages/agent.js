@@ -50,14 +50,9 @@
     });
   }
 
-  function initials(name) {
-    var parts = String(name || "?").trim().split(/\s+/).slice(0, 2);
-    return parts.map(function (p) { return p.charAt(0).toUpperCase(); }).join("") || "?";
-  }
-
-  var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-    '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z" stroke="currentColor" stroke-width="2"/>' +
-    '<circle cx="12" cy="10" r="2.4" stroke="currentColor" stroke-width="2"/></svg>';
+  // initials() and the map pin used to live here. Both moved to
+  // js/lib/agent-card.js when profile.html started drawing the same block, so
+  // there is one copy of what an agent's avatar and area look like.
 
   // ---- price ---------------------------------------------------------------
   // 1,250,000 as "1.3M" rather than in full: on a card the magnitude is the
@@ -124,25 +119,12 @@
     if (!el.agCard) return;
     el.agCard.setAttribute("aria-busy", "false");
 
-    var name = card.display_name || t("pm_someone", "Someone");
-    var area = String(card.area || "").trim();
-    // The broader places, minus whatever already appears as the area — the
-    // same rule the agent list follows, so an agent whose area IS "Nyamagana"
-    // never reads "Nyamagana · Nyamagana".
-    var rest = [card.district, card.ward, card.region].filter(function (v) {
-      return v && String(v).trim() && String(v).trim().toLowerCase() !== area.toLowerCase();
-    }).slice(0, 2).join(" · ");
-
-    var seen = window.PMPresence ? window.PMPresence.html(card.last_seen_at) : "";
-
+    // The name, the area, the broader places, the presence dot and the bio are
+    // all AgentCard's now. What is left here is what only this page knows: the
+    // work kinds, whether there is a key to encrypt to, and the number.
     var kinds = (card.kinds || []);
     var kindWords = window.ListingKinds
       ? window.ListingKinds.labels(dominantCat(), kinds, { max: 6 }) : [];
-
-    // A bio nobody wrote is SAID to be missing rather than left blank. A blank
-    // space under a name reads as "this person had nothing to say", which is a
-    // claim about them instead of about our data.
-    var bio = String(card.bio || "").trim();
 
     var canMessage = !!card.reachable;
     // The number off their own listings, or nothing. Same rule as the agent
@@ -152,33 +134,29 @@
     // no button at all.
     var tel = callHref(card.phone);
 
+    // Identity, the numbers and the bio come from js/lib/agent-card.js, which
+    // profile.html also uses to show an agent their own storefront. Rendering
+    // those three here as well is how the preview and the page would drift,
+    // and a preview that reassures about a page saying something else is worse
+    // than no preview at all.
     el.agCard.innerHTML =
       '<div class="ag-card">' +
-        '<div class="ag-top">' +
-          '<span class="ag-av">' + esc(initials(name)) + "</span>" +
-          '<span class="ag-id">' +
-            '<span class="ag-name">' + esc(name) +
-              (card.is_agent ? ' <span class="ag-badge">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
-              (canMessage ? "" : ' <span class="ag-badge warn">' + esc(t("pm_badge_unreachable", "Not on P-Message")) + "</span>") +
-            "</span>" +
-            '<span class="ag-meta">' +
-              (area
-                ? '<span class="ag-area" title="' + esc(t("pm_area_of", "Area of operation")) + '">' +
-                    PIN_SVG + "<span>" + esc(area) + "</span></span>"
-                : '<span class="ag-area is-none">' + esc(t("pm_area_none", "Area not set")) + "</span>") +
-              (rest ? "<span>" + esc(rest) + "</span>" : "") +
-              seen +
-            "</span>" +
-          "</span>" +
-        "</div>" +
+        window.AgentCard.identity(card, {
+          badges: canMessage ? "" :
+            ' <span class="agc-badge warn">' + esc(t("pm_badge_unreachable", "Not on P-Message")) + "</span>",
+        }) +
         (kindWords.length
           ? '<span class="pm-kinds">' + kindWords.map(function (w) {
               return '<span class="pm-kind">' + esc(w) + "</span>";
             }).join("") + "</span>"
           : "") +
-        '<div class="ag-bio' + (bio ? "" : " is-none") + '">' +
-          esc(bio || t("ag_no_bio", "They have not written anything about their work yet.")) +
-        "</div>" +
+        window.AgentCard.bio(card) +
+        // What they have listed, how much of it we checked, and how long they
+        // have been here. Every one of those numbers came back from
+        // pm_agent_card the day this page was written and none of them was
+        // drawn: the card said who somebody was and left a stranger with no
+        // way to weigh it.
+        window.AgentCard.stats(card) +
         '<div class="ag-acts">' +
           (canMessage
             ? '<a class="ag-btn" id="agMsg" href="p-message.html?to=' + encodeURIComponent(card.user_id) + '">' +

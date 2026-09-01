@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Explore — everything on Maisha na Lifeza, one search</title>
@@ -133,7 +134,7 @@
       max-width: 620px; margin: 0 auto;
       padding: 18px 16px 40px;
       background: var(--wash);
-      min-height: 100vh;
+      min-height: var(--app-vh, 100vh);
     }
     button, input, select { font-family: inherit; }
     a { color: inherit; }
@@ -566,7 +567,38 @@
     /* ...but only the button in that row is clickable, so the rest of the row
        does not steal taps from the card face behind it. */
     .xp-card-acts { pointer-events: none; display: flex; justify-content: flex-end;
+      gap: var(--space-2); flex-wrap: wrap;
       padding: 0 var(--space-3) var(--space-3); margin-top: calc(var(--space-2) * -1); }
+    /* "See the rooms": the way into the listing itself. It shares every
+       measurement with .xp-reach beside it so the pair reads as one control
+       with two halves, and differs only in weight. Quieter, because the card
+       face behind it already opens the same page for anyone using a mouse:
+       this exists so that a keyboard, a screen reader and a person reading the
+       card can all find that door, and it does not need to shout to do that. */
+    .xp-open {
+      pointer-events: auto;
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+      min-height: var(--hit-min); padding: 0 var(--space-4);
+      border-radius: var(--radius-pill); text-decoration: none;
+      background: var(--surface-2); border: 1px solid var(--border);
+      color: var(--text); font-size: var(--text-xs); font-weight: var(--fw-bold);
+      /* "See the rooms" is three words where "Message" is one, and without
+         these it refuses to shrink below its own label: on a 320px Android the
+         card could not fit the row, the layout viewport stretched to 330 and
+         the BROWSER zoomed the whole page out to 97% to cover it. A pill that
+         quietly rescales every other screen is a high price for one label. */
+      min-width: 0; flex: 0 1 auto;
+    }
+    .xp-open span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .xp-open:hover { border-color: var(--text-faint); }
+    .xp-open svg { flex: none; opacity: .75; }
+    /* Below this the two pills cannot sit side by side without one of them
+       becoming an ellipsis, so they stop trying and take a line each. */
+    @media (max-width: 359px) {
+      .xp-card-acts { flex-direction: column; align-items: stretch; }
+      .xp-open, .xp-reach { width: 100%; }
+    }
+    .xp-open:focus-visible, .xp-reach:focus-visible { outline: none; box-shadow: var(--focus-ring); }
     .xp-reach {
       pointer-events: auto;
       display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
@@ -723,6 +755,10 @@
       .xp-card:hover { transform: none; }
     }
   </style>
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 
 <body data-page="explore" data-app-shell="explore.html">

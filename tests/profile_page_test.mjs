@@ -32,11 +32,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // database (Auth.isDbAdmin reads the RLS-protected `admins` table) because the
 // allowlist ships to every browser and can be edited in one. The stub has to
 // model both or it cannot tell the two apart, which is the whole point.
-const stub = (session, inAdminsTable) => `
+// `card` is what pm_agent_card() answers for THIS user: the same row, from the
+// same call, that agent.html draws a customer's view of. Profile now renders
+// the storefront rather than linking to it, so the stub has to be able to hand
+// it one, and to hand it nothing (a person with no key yet) as well.
+const stub = (session, inAdminsTable, card) => `
 window.__PM_SENT = [];
 window.supabase = { createClient: function () {
   var session = ${JSON.stringify(session)};
   var inAdmins = ${JSON.stringify(!!inAdminsTable)};
+  var CARD = ${JSON.stringify(card || null)};
   function builder(table) { var b = {};
     ["select","eq","neq","gt","gte","lt","lte","in","is","or","filter","order","limit","range","match"]
       .forEach(function (m) { b[m] = function () { return b; }; });
@@ -50,6 +55,11 @@ window.supabase = { createClient: function () {
     from: builder,
     rpc: function (name, args) {
       window.__PM_SENT.push({ name: name, args: args });
+      // The real function returns a one-row table, so the stub does too: a
+      // page that read rows[0] wrongly would pass against a bare object.
+      if (name === "pm_agent_card") {
+        return Promise.resolve({ data: CARD ? [CARD] : [], error: null });
+      }
       return Promise.resolve({ data: [], error: null });
     },
     auth: {
@@ -70,6 +80,7 @@ const browser = await puppeteer.launch({
 
 async function openProfile(session, opts) {
   const inAdminsTable = !!(opts && opts.inAdminsTable);
+  const card = (opts && opts.card) || null;
   const page = await browser.newPage();
   await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 1 });
   const errs = [];
@@ -85,7 +96,7 @@ async function openProfile(session, opts) {
     }
     if (/cdn\.jsdelivr\.net.*supabase/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "application/javascript" },
-                           body: stub(session, inAdminsTable) });
+                           body: stub(session, inAdminsTable, card) });
     }
     if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "text/css" }, body: "" });
@@ -286,6 +297,108 @@ try {
       await page.screenshot({ path: "tests/shot_profile.png", fullPage: true });
       process.stdout.write("  (screenshot written)\n");
     }
+    await page.close();
+  }
+
+  // ==========================================================================
+  section("7. Your public page is the page, not a link to it");
+  // ==========================================================================
+  // The row that used to sit here read "Your public page ›" and said nothing
+  // about the state of the thing behind it. An agent has one reason to open
+  // their own storefront, which is to find out whether it is any good, and a
+  // link cannot answer that. So the page draws it.
+  //
+  // It is drawn by js/lib/agent-card.js, the SAME module agent.html uses, from
+  // the SAME pm_agent_card row. That is the whole claim being tested: a
+  // preview assembled separately would eventually reassure an agent about a
+  // page that says something else, and they would be the last to know.
+  const AGENT = { user: { id: "agent_1", email: "agent@example.com", is_anonymous: false } };
+  const CARD = {
+    user_id: "agent_1", display_name: "Asha Mwakyusa", is_agent: true, is_guest: false,
+    reachable: true, region: "Mwanza", area: "Nyamagana", area_kind: null,
+    district: "Nyamagana", ward: null, lat: null, lng: null,
+    bio: "Nakodisha vyumba Nyamagana.\nPiga simu wakati wowote.",
+    n_houses: 4, n_services: 0, n_trucks: 2, n_jobs: 0, n_verified: 3,
+    kinds: null, last_seen_at: null, joined_at: "2026-03-04T09:00:00Z", phone: null,
+  };
+  {
+    const { page, errs } = await openProfile(AGENT, { withKey: KEYPAIR, card: CARD });
+    await sleep(900);   // the storefront lands after the first paint, on purpose
+
+    const asked = await page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_agent_card"));
+    ok(asked.length === 1 && asked[0].args.p_user === "agent_1",
+       "it asks the same question a customer's page asks, about this account",
+       JSON.stringify(asked));
+
+    const shop = await page.evaluate(() => {
+      const s = document.querySelector(".pf-shop-card");
+      if (!s) return null;
+      return {
+        text: s.textContent,
+        name: (s.querySelector(".agc-name") || {}).textContent || "",
+        area: (s.querySelector(".agc-area") || {}).textContent || "",
+        bio: (s.querySelector(".agc-bio") || {}).textContent || "",
+        bioEmpty: !!s.querySelector(".agc-bio.is-none"),
+        stats: [...s.querySelectorAll(".agc-stat")].map((n) => n.textContent),
+        open: (s.querySelector('a[href^="agent.html"]') || {}).getAttribute
+          ? s.querySelector('a[href^="agent.html"]').getAttribute("href") : "",
+        edit: !!s.querySelector('[data-act="agentbio"]'),
+        warn: !!s.querySelector(".pf-shop-warn"),
+      };
+    });
+    ok(!!shop, "the storefront is drawn on the page itself");
+    // The shared classes are the evidence that it came from the shared module
+    // rather than from a second copy of the same idea.
+    ok(/Asha Mwakyusa/.test(shop.name), "with the name a customer sees", shop.name);
+    ok(/Nyamagana/.test(shop.area), "and the area they work in", shop.area);
+    ok(!shop.bioEmpty && /Nakodisha/.test(shop.bio), "and their own words", shop.bio);
+
+    // n_verified and joined_at came back from pm_agent_card the day the
+    // storefront was written and were drawn nowhere. They answer the question
+    // a stranger actually has, which is not "how many" but "should I trust
+    // this".
+    ok(shop.stats.length >= 3, "the numbers are shown", JSON.stringify(shop.stats));
+    ok(shop.stats.some((s) => /^4/.test(s)), "the houses count", JSON.stringify(shop.stats));
+    ok(shop.stats.some((s) => /^2/.test(s)), "the trucks count");
+    ok(shop.stats.some((s) => /^3/.test(s) && /Checked/i.test(s)),
+       "how much of it we checked ourselves", JSON.stringify(shop.stats));
+    ok(shop.stats.some((s) => /2026/.test(s)), "and how long they have been here",
+       JSON.stringify(shop.stats));
+    // A "Daily services 0" tile is the page telling an agent what they have
+    // NOT done on the one screen that exists to show what they have.
+    ok(!shop.stats.some((s) => /^0/.test(s)), "and nothing they do not have",
+       JSON.stringify(shop.stats));
+
+    ok(shop.open === "agent.html?u=agent_1", "it can be opened as a customer sees it", shop.open);
+    ok(shop.edit, "and the bio can be edited from beside it");
+    ok(!shop.warn, "a reachable agent gets no warning");
+    ok(errs.length === 0, "no page errors", errs.slice(0, 3).join("\n        "));
+    await page.close();
+  }
+  {
+    // The state worth catching. The storefront exists and looks complete, and
+    // nobody can write to them from it, because this device never published a
+    // key. Silence is how an agent currently finds that out.
+    const { page } = await openProfile(AGENT, {
+      withKey: KEYPAIR,
+      card: Object.assign({}, CARD, { reachable: false, bio: null }),
+    });
+    await sleep(900);
+    const s = await page.evaluate(() => {
+      const c = document.querySelector(".pf-shop-card");
+      return { warn: (c.querySelector(".pf-shop-warn") || {}).textContent || "",
+               bio: (c.querySelector(".agc-bio") || {}).textContent || "",
+               bioEmpty: !!c.querySelector(".agc-bio.is-none") };
+    });
+    ok(/encryption key/i.test(s.warn),
+       "an unreachable storefront says so, on the screen where it can be fixed", s.warn);
+    ok(s.bioEmpty, "an empty bio is marked as empty rather than left blank");
+    // The visitor's version of this blank reads "they have not written
+    // anything yet", which would be the page talking about the agent in the
+    // third person to the agent.
+    ok(/You have not written/i.test(s.bio),
+       "and is worded for the person who can fix it", s.bio);
     await page.close();
   }
 

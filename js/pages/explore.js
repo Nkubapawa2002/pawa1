@@ -583,18 +583,69 @@
    * no owner id in the index, so they get nothing here, which is correct: the
    * jobs board has its own claim flow.
    */
-  function reachHtml(it) {
-    if (!window.PMReach || !it.ownerId) return "";
-    var btn = window.PMReach.button(it.ownerId, {
-      className: "xp-reach",
-      // No sub-label: the honest "no phone number needed" line earns its space
-      // on a detail page where it is the argument for tapping. On a card in a
-      // list of twenty-one it would be twenty-one repetitions of a sentence
-      // nobody reads twice.
-      sub: false,
-    });
-    return btn ? '<div class="xp-card-acts">' + btn + "</div>" : "";
+  /**
+   * The two things you can do with a result, side by side.
+   *
+   * "Message" reaches the person. "View" opens the listing, and it had to be
+   * added for two reasons that turned out to be the same reason:
+   *
+   *   • the only way in was the invisible <a class="xp-card-hit"> stretched
+   *     over the card face. It carries tabindex="-1" and aria-hidden="true",
+   *     which is correct for a decorative overlay and means that a keyboard,
+   *     a screen reader and a switch device could reach the Message button on
+   *     every card and could not reach a single LISTING. The one visible
+   *     action was "write to a stranger about a room you cannot open".
+   *   • and that is what it looked like to everyone else too. A card with one
+   *     button reads as a card with one thing to do, whatever else happens to
+   *     be clickable underneath it.
+   *
+   * The View link is therefore a real link with a real label, and it is FIRST:
+   * looking is what people came to do, and asking is what they do after.
+   */
+  function actionsHtml(it) {
+    var view = it.href
+      ? '<a class="xp-open" href="' + esc(it.href) + '">' +
+          EYE_SVG + "<span>" + esc(viewLabel(it.kind)) + "</span></a>"
+      : "";
+    var reach = (window.PMReach && it.ownerId)
+      ? window.PMReach.button(it.ownerId, {
+          className: "xp-reach",
+          // No sub-label: the honest "no phone number needed" line earns its
+          // space on a detail page where it is the argument for tapping. On a
+          // card in a list of twenty-one it would be twenty-one repetitions of
+          // a sentence nobody reads twice.
+          sub: false,
+        })
+      : "";
+    if (!view && !reach) return "";
+    return '<div class="xp-card-acts">' + view + reach + "</div>";
   }
+
+  /**
+   * "See the rooms", not "View".
+   *
+   * A verb on its own is the weakest label a button can carry: it says what
+   * the tap does mechanically and nothing about what is on the other side. A
+   * house has rooms and photos, a service has what it covers and what it
+   * costs, a truck has its size. Naming the thing is what makes the second
+   * button worth having beside the first.
+   */
+  // The four kinds are the ones in ExploreIndex.KIND_META: room, truck,
+  // service, job. Not "house": the index calls it a room because most of them
+  // are, and a label keyed on a name the index does not use would silently
+  // fall through to the generic word on every listing.
+  function viewLabel(kind) {
+    if (kind === "room") return t("xp_view_room", "See the rooms");
+    if (kind === "service") return t("xp_view_service", "See the details");
+    if (kind === "truck") return t("xp_view_truck", "See the truck");
+    if (kind === "job") return t("xp_view_job", "See the job");
+    return t("xp_view", "See more");
+  }
+
+  var EYE_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"' +
+    ' stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>' +
+    '<circle cx="12" cy="12" r="2.6"/></svg>';
 
   function cardHtml(row, idx) {
     var it = row.item;
@@ -647,7 +698,7 @@
       // and would have to survive CSS.escape to be selectable. The index is
       // ours, and always safe.
       '<div data-comp="' + idx + '"></div>' +
-      reachHtml(it) +
+      actionsHtml(it) +
       "</article>";
   }
 

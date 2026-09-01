@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Agent — Maisha na Lifeza</title>
@@ -24,6 +25,9 @@
   <!-- Presence, work kinds and the link back into a conversation, shared with
        p-message.html. This page is the other end of that link. -->
   <link rel="stylesheet" href="css/pm-shared.css" />
+  <!-- Identity, the numbers and the bio: the block profile.html draws too, so
+       an agent looking at "your public page" is looking at this one. -->
+  <link rel="stylesheet" href="css/agent-card.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 
   <style>
@@ -71,7 +75,7 @@
       --c-text: var(--pm-ink); --c-text-muted: var(--pm-ink-soft);
       background: var(--pm-ground);
       color: var(--pm-ink); font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-      min-height: 100vh;
+      min-height: var(--app-vh, 100vh);
     }
     :root[data-theme="light"] body[data-page="agent"] {
       --pm-ground: linear-gradient(180deg, #FAF9F5 0%, #F2F1EA 100%);
@@ -100,34 +104,15 @@
     .ag-back:hover { text-decoration: none; }
 
     /* ---- who this is --------------------------------------------------- */
+    /* The identity block, the numbers and the bio are css/agent-card.css.
+       They are shared with profile.html, where the same agent looks at the
+       same storefront, so the two cannot be styled apart. What stays here is
+       the card AROUND them and the actions UNDER them, which is the half that
+       genuinely differs between a visitor and the owner. */
     .ag-card { background: var(--pm-card); border: 1px solid var(--pm-line);
       border-radius: 18px; padding: 16px; margin-bottom: 16px; }
-    .ag-top { display: flex; align-items: flex-start; gap: 12px; }
-    .ag-av { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 16px; display: grid;
-      place-items: center; background: var(--pm-brand-soft); color: var(--pm-brand);
-      font-weight: 800; font-size: 18px; }
-    .ag-id { min-width: 0; flex: 1; }
-    .ag-name { font-size: 1.15rem; font-weight: 800; color: var(--pm-ink);
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .ag-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      margin-top: 5px; font-size: 12px; color: var(--pm-ink-soft); }
-    .ag-area { display: inline-flex; align-items: center; gap: 3px; color: var(--pm-brand);
-      font-weight: 700; min-width: 0; }
-    .ag-area svg { width: 12px; height: 12px; flex: 0 0 auto; }
-    .ag-area.is-none { color: var(--pm-ink-faint); font-weight: 500; font-style: italic; }
-    .ag-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
-      padding: 2px 6px; border-radius: 6px; background: var(--pm-brand-soft); color: var(--pm-brand); }
-    .ag-badge.warn { background: var(--pm-gold-soft); color: var(--pm-gold); }
 
-    /* Their own words. Pre-line so paragraph breaks survive, and escaped on
-       the way in — a bio is plain text and never markup, so a link typed
-       into one stays visible text rather than becoming a destination this
-       app appears to vouch for. */
-    .ag-bio { margin-top: 12px; font-size: 13.5px; line-height: 1.6; color: var(--pm-ink);
-      white-space: pre-line; }
-    .ag-bio.is-none { color: var(--pm-ink-faint); font-style: italic; }
-
-    .ag-acts { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
+    .ag-acts { display: flex; gap: 9px; margin-top: 16px; flex-wrap: wrap; }
     .ag-btn { flex: 1 1 160px; display: inline-flex; align-items: center; justify-content: center;
       gap: 7px; padding: 12px 14px; border-radius: 13px; font: inherit; font-size: 14px;
       font-weight: 700; text-decoration: none; cursor: pointer; border: 1px solid var(--pm-brand-line);
@@ -177,6 +162,10 @@
       color: var(--pm-ink-faint); margin: 0 0 9px; font-weight: 800; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-page="agent">
   <div id="nav-slot"></div>
@@ -210,6 +199,9 @@
   <script src="js/lib/pm-trust.js"></script>
   <script src="js/lib/pm-store.js"></script>
   <script src="js/lib/pm-presence.js"></script>
+  <!-- The storefront block itself, shared with profile.html. AFTER
+       pm-presence.js, whose html() it calls for the last-seen dot. -->
+  <script src="js/lib/agent-card.js"></script>
   <script src="js/pages/agent.js"></script>
   <script src="js/core/sw-register.js"></script>
 </body>

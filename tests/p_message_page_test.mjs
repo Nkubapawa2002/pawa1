@@ -2086,13 +2086,19 @@ try {
     const card = await dp.page.evaluate(() => {
       const q = (s) => document.querySelector(s);
       const msg = q("#agMsg");
+      // .agc-*, not .ag-*. Identity, the numbers and the bio moved out of this
+      // page into js/lib/agent-card.js when profile.html started drawing the
+      // same storefront under "Your public page". Both screens now render one
+      // block from one pm_agent_card row, so a preview cannot reassure an
+      // agent about a page that says something else. What is still .ag-* is
+      // what only this page has: the card around it and the actions under it.
       return {
-        name: (q(".ag-name") || {}).textContent || "",
-        area: (q(".ag-area") || {}).textContent || "",
+        name: (q(".agc-name") || {}).textContent || "",
+        area: (q(".agc-area") || {}).textContent || "",
         seen: (q(".pm-seen") || {}).textContent || "",
         kinds: Array.from(document.querySelectorAll(".ag-card .pm-kind")).map((k) => k.textContent.trim()),
-        bio: (q(".ag-bio") || {}).textContent || "",
-        bioNone: !!q(".ag-bio.is-none"),
+        bio: (q(".agc-bio") || {}).textContent || "",
+        bioNone: !!q(".agc-bio.is-none"),
         msg: msg ? msg.getAttribute("href") : null,
       };
     });

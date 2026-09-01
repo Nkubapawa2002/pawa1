@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Profile: your account, your key, your listings | Maisha na Lifeza</title>
@@ -21,6 +22,9 @@
   <link rel="stylesheet" href="css/action-cards.css" />
   <!-- The key dialogs (safety number, backup, restore), shared with p-message.html. -->
   <link rel="stylesheet" href="css/pm-identity.css" />
+  <!-- The storefront block. This page draws the SAME one agent.html publishes,
+       so "Your public page" is the page rather than a description of it. -->
+  <link rel="stylesheet" href="css/agent-card.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 
   <style>
@@ -43,8 +47,38 @@
     body[data-page="profile"] {
       --c-surface: #141A18; --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-text-muted: rgba(233,243,238,.55);
+
+      /* The --pm-* names css/agent-card.css is written against. They are the
+         same names p-message.html and agent.html define, with the same values,
+         because the storefront block on this page IS the one agent.html
+         publishes and a preview in different colours is a different page. */
+      --pm-ink: #E9F3EE;
+      --pm-ink-soft: rgba(233,243,238,.62);
+      --pm-ink-faint: rgba(233,243,238,.5);
+      --pm-card: #141A18;
+      --pm-line: rgba(255,255,255,.08);
+      --pm-field: rgba(255,255,255,.05);
+      --pm-brand: #2EE6A6;
+      --pm-brand-soft: rgba(46,230,166,.14);
+      --pm-brand-line: rgba(46,230,166,.28);
+      --pm-gold: #F6C45A;
+      --pm-gold-soft: rgba(246,196,90,.16);
+
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
+    }
+    :root[data-theme="light"] body[data-page="profile"] {
+      --pm-ink: #1a1915;
+      --pm-ink-soft: #4b493f;
+      --pm-ink-faint: #6b6960;
+      --pm-card: #ffffff;
+      --pm-line: rgba(20,20,15,.12);
+      --pm-field: rgba(20,20,15,.04);
+      --pm-brand: #0a6647;
+      --pm-brand-soft: rgba(10,102,71,.10);
+      --pm-brand-line: rgba(10,102,71,.30);
+      --pm-gold: #8a6100;
+      --pm-gold-soft: rgba(138,97,0,.12);
     }
     body[data-page="profile"] #nav-slot,
     body[data-page="profile"] #footer-slot { display: none !important; }
@@ -93,6 +127,37 @@
     .pf-acts { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
     .pf-acts .pm-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
 
+    /* ---- your public page ------------------------------------------------
+       The one block on this page that is not a row, because it is not a link
+       to somewhere: it is the thing itself. An agent who has never opened
+       their own storefront has no reason to think the empty bio on it
+       matters, and a row reading "Your public page ›" never told them. */
+    .pf-shop-card {
+      background: var(--pm-card); border: 1px solid var(--pm-line);
+      border-radius: 18px; padding: 15px;
+    }
+    /* Held open at roughly the height of the drawn card, so the page does not
+       jump when the storefront lands a moment after everything else. */
+    .pf-shop-card.is-wait { min-height: 132px; display: grid; place-items: center; }
+    .pf-shop-wait { font-size: 12.5px; color: var(--pm-ink-faint); }
+
+    .pf-shop-acts { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 15px; }
+    .pf-shop-acts .pm-btn { flex: 1 1 130px; text-align: center; text-decoration: none;
+      justify-content: center; }
+
+    /* A storefront nobody can write to is the one thing on this card that is
+       broken rather than merely empty, so it is the one thing that gets the
+       warning colour. */
+    .pf-shop-warn {
+      margin: 13px 0 0; padding: 10px 12px; border-radius: 12px;
+      font-size: 12px; line-height: 1.55;
+      background: var(--pm-gold-soft); border: 1px solid var(--pm-gold-soft);
+      color: var(--pm-ink-soft);
+    }
+    .pf-shop-note { margin: 9px 2px 0; font-size: 11.5px; line-height: 1.5;
+      color: rgba(233,243,238,.5); }
+    :root[data-theme="light"] .pf-shop-note { color: var(--pm-ink-faint); }
+
     :root[data-theme="light"] body[data-page="profile"] {
       background: var(--c-bg, #F7F5EF); color: var(--c-text);
     }
@@ -104,6 +169,10 @@
     :root[data-theme="light"] .pf-val { color: #0a6647; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-page="profile" data-app-shell="profile.html">
   <div id="nav-slot"></div>
@@ -142,6 +211,11 @@
   <script src="js/lib/qr.js"></script>
   <script src="js/lib/pm-device-lock.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
+  <!-- The storefront block, shared with agent.html. pm-presence.js first: the
+       identity line asks it for the last-seen dot, and without it the block
+       silently loses that line rather than failing. -->
+  <script src="js/lib/pm-presence.js"></script>
+  <script src="js/lib/agent-card.js"></script>
   <!-- The area-and-bio form, shared with the three agent dashboards. Profile
        is where an agent can reach it once their region and area are already
        set — AgentProfile.ensure() only ever prompts when something required

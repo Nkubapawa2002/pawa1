@@ -156,6 +156,7 @@ try {
       const c = document.querySelector(".xp-card");
       const hit = c.querySelector(".xp-card-hit");
       const reach = c.querySelector(".xp-reach");
+      const view = c.querySelector(".xp-open");
       return {
         tag: c.tagName,
         nestedAnchor: !!c.querySelector("a a"),
@@ -163,6 +164,13 @@ try {
         reachHref: reach ? reach.getAttribute("href") : null,
         hitHidden: hit ? hit.getAttribute("aria-hidden") : null,
         hitTab: hit ? hit.getAttribute("tabindex") : null,
+        viewHref: view ? view.getAttribute("href") : null,
+        viewText: view ? view.textContent.trim() : null,
+        viewTab: view ? view.getAttribute("tabindex") : null,
+        // Everything on this card a keyboard can actually land on.
+        focusable: [...c.querySelectorAll("a[href], button")]
+          .filter((n) => n.getAttribute("tabindex") !== "-1")
+          .map((n) => n.className),
       };
     });
     ok(card.tag === "ARTICLE", "the card is no longer one big anchor", card.tag);
@@ -171,6 +179,22 @@ try {
     ok(/^p-message\.html\?to=/.test(card.reachHref || ""), "and the button opens an encrypted thread", card.reachHref);
     ok(card.hitHidden === "true" && card.hitTab === "-1",
        "the stretched link is hidden from screen readers and out of the tab order");
+
+    // ...which is correct for a decorative overlay, and is exactly why there
+    // has to be a real one as well. Until "See the rooms" was added, the ONLY
+    // thing on this card a keyboard or a screen reader could reach was
+    // "Message" — the card offered to write to a stranger about a room it
+    // gave no way to open.
+    ok(/^house\.html\?id=/.test(card.viewHref || ""),
+       "a real, visible link opens the listing", card.viewHref);
+    ok(card.viewTab !== "-1", "and it is in the tab order, unlike the overlay");
+    ok(card.focusable.some((c) => /xp-open/.test(c)) && card.focusable.some((c) => /xp-reach/.test(c)),
+       "so both destinations are reachable without a mouse",
+       JSON.stringify(card.focusable));
+    // A bare verb says what the tap does mechanically and nothing about what
+    // is on the other side of it.
+    ok(/room/i.test(card.viewText || ""),
+       "and it names what is behind it rather than saying 'View'", card.viewText);
 
     // The failure this shape invites: an overlay that eats its own button.
     const hitTest = await p.evaluate(() => {
