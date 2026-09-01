@@ -1182,6 +1182,71 @@
     } catch (_) { /* the sheet still works; the count is a convenience */ }
   }
 
+  /**
+   * One sentence and a Close button, in the dialog vocabulary this page
+   * already has. Not a new toast primitive: there is exactly one thing on this
+   * screen that finishes with news rather than with a visible change, and a
+   * whole floating-banner system with its own timing and its own CSS would be
+   * more moving parts than the sentence is worth.
+   */
+  function say(text) {
+    modal("<p>" + esc(text) + "</p>" +
+      '<div class="pm-modal-acts"><button class="pm-btn" id="pmSayX">' +
+      esc(t("pm_close", "Close")) + "</button></div>");
+    document.getElementById("pmSayX").addEventListener("click", closeModal);
+  }
+
+  /**
+   * Close a room for everybody in it.
+   *
+   * The count is in the question because it is the fact that changes the
+   * answer: closing a room of two is tidying up and closing a room of eighty
+   * is an announcement somebody should have made first.
+   */
+  function askDeleteRoom(threadId, title, memberCount) {
+    // pm_thread_size, not the length of the roster. The roster is built from
+    // pm_thread_keys, which omits anybody who has not published a key yet, so
+    // on a room of forty where a few are still setting up it would understate
+    // what is being closed. Falls back to the roster only when the size never
+    // arrived, which is better than saying nothing.
+    var n = (open && open.size) || memberCount || 0;
+    modal("<h2>" + esc(t("pm_room_del_t", "Delete this room?")) + "</h2>" +
+      '<p class="pm-modal-quote">' + esc(title) + "</p>" +
+      // One key per number, because "1 people" is the kind of thing that makes
+      // a warning dialog read as a machine rather than a sentence, and Swahili
+      // does not inflect this the way English does anyway.
+      "<p>" + esc(n === 1
+        ? t("pm_room_del_d1_one",
+            "It closes for the one person in it, and every message in it is deleted from the server. Nobody can open it again, including us.")
+        : t("pm_room_del_d1",
+            "It closes for all {n} people in it, and every message in it is deleted from the server. Nobody can open it again, including us.",
+            { n: n })) + "</p>" +
+      "<p>" + esc(t("pm_room_del_d2",
+        "What people already read on their own phones stays theirs. There is no undo.")) + "</p>" +
+      '<div class="pm-modal-acts">' +
+      '<button class="pm-btn ghost" id="pmRdNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      '<button class="pm-btn is-danger" id="pmRdYes">' + esc(t("pm_room_del_go", "Delete the room")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmRdMsg\"></div>");
+
+    document.getElementById("pmRdNo").addEventListener("click", closeModal);
+    document.getElementById("pmRdYes").addEventListener("click", async function (e) {
+      var btn = e.currentTarget;        // captured, never read after an await
+      var out = document.getElementById("pmRdMsg");
+      btn.disabled = true;
+      try {
+        await window.PMStore.groupDelete(threadId);
+        closeModal();
+        closeThread();
+        await refreshInbox();
+        say(t("pm_room_del_ok", "The room is closed."));
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        btn.disabled = false;
+      }
+    });
+  }
+
   async function showMembers() {
     if (!open || open.kind !== "group") return;
     var threadId = open.threadId, title = open.name;
@@ -1210,25 +1275,56 @@
       '<div class="pm-count">' + esc(t("pm_members_n", "{n} members", { n: rows.length })) + "</div>" +
       '<div class="pm-scroll">' + rows.map(function (r) { return memberRow(r, canManage); }).join("") + "</div>";
 
+    // Closing the room is the owner's, or an admin's, which is the same test
+    // as adding and removing people. It is deliberately the CURRENT owner
+    // rather than whoever opened the room: an owner who leaves hands the room
+    // on, and keying this to the original creator would leave rooms that
+    // nobody alive can close.
+    var canDelete = canManage;
+
     document.getElementById("pmMemActs").insertAdjacentHTML("afterbegin",
       (canManage ? '<button class="pm-btn" id="pmMemAdd">' + esc(t("pm_mem_add", "Add people")) + "</button>" : "") +
-      '<button class="pm-btn danger" id="pmMemLeave">' + esc(t("pm_mem_leave", "Leave room")) + "</button>");
+      '<button class="pm-btn danger" id="pmMemLeave">' + esc(t("pm_mem_leave", "Leave room")) + "</button>" +
+      (canDelete
+        ? '<button class="pm-btn danger" id="pmMemDelete">' + esc(t("pm_room_del", "Delete room")) + "</button>"
+        : ""));
 
     var add = document.getElementById("pmMemAdd");
     if (add) add.addEventListener("click", function () { showAddMembers(threadId, rows); });
 
+    var del = document.getElementById("pmMemDelete");
+    if (del) del.addEventListener("click", function () { askDeleteRoom(threadId, title, rows.length); });
+
     document.getElementById("pmMemLeave").addEventListener("click", async function (e) {
       var out = document.getElementById("pmMemMsg");
-      // Leaving is not undoable by the person leaving — only the owner can put
-      // them back — so it asks once rather than acting on a tap.
-      if (!confirm(t("pm_mem_leave_q", "Leave this room? You will stop receiving what is said in it."))) return;
+      // Leaving is not undoable by the person leaving, only the owner can put
+      // them back, so it asks once rather than acting on a tap. An owner is
+      // asked a DIFFERENT question, because leaving does a different thing:
+      // the room carries on under somebody else, or closes if they were the
+      // last one in it, and neither is what "leave" usually implies.
+      var mineRole = mine && mine.role;
+      var last = rows.length <= 1;
+      var q = last
+        ? t("pm_mem_leave_last_q", "You are the only one left. Leaving closes this room and everything in it goes.")
+        : mineRole === "owner"
+        ? t("pm_mem_leave_own_q", "Leave this room? It stays open and the longest standing member takes it over.")
+        : t("pm_mem_leave_q", "Leave this room? You will stop receiving what is said in it.");
+      if (!confirm(q)) return;
       var btn = e.currentTarget;      // captured, never read after an await
       btn.disabled = true;
       try {
-        await window.PMStore.groupLeave(threadId);
+        var what = await window.PMStore.groupLeave(threadId);
         closeModal();
         closeThread();
         await refreshInbox();
+        // Say which of the three things happened. A person who owned a room
+        // and expected it to close, or expected it not to, has no way to find
+        // out from an inbox that simply has one fewer row in it.
+        say(what === "deleted"
+          ? t("pm_left_closed", "You were the last one there, so the room is closed.")
+          : what === "handed_over"
+          ? t("pm_left_handed", "You left. The room stays open and the longest standing member owns it now.")
+          : t("pm_left_ok", "You left the room."));
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
@@ -1496,8 +1592,17 @@
     }
     var room = open && open.kind === "group";
     el.pmLog.innerHTML = rows.map(function (m) {
-      // An unreadable message is reported, never dropped — see the header.
-      var text = m.failed
+      // A withdrawn message and an unreadable one look identical from here and
+      // mean opposite things, so they are told apart before anything else. The
+      // sender took this one back: there is no ciphertext on the server and no
+      // key left to open it with. Calling that "encrypted for another device"
+      // would blame this phone for something that happened on theirs.
+      var gone = !!m.deletedAt;
+      var text = gone
+        ? (m.mine ? t("pm_gone_mine", "You deleted this message.")
+                  : t("pm_gone", "This message was deleted."))
+        : m.failed
+        // An unreadable message is reported, never dropped — see the header.
         ? t("pm_unreadable", "This message was encrypted for another device.")
         : m.text;
       // In a room the name beside a message is one its sender chose for
@@ -1510,10 +1615,11 @@
       // INSTEAD of them: the sentence somebody typed above the pin is often
       // the useful half ("the blue gate, not the green one"), and a card that
       // swallowed it would lose the thing only a person could say.
-      var place = (!m.failed && window.PMPlace) ? window.PMPlace.read(text) : null;
+      var place = (!m.failed && !gone && window.PMPlace) ? window.PMPlace.read(text) : null;
       var shown = place ? placeStripped(text) : text;
 
       return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") +
+        (gone ? " gone" : "") +
         (place ? " has-place" : "") +
         '" data-msg="' + esc(m.id || "") + '">' +
         quoteHtml(m) + (place ? window.PMPlace.card(place, {
@@ -1531,13 +1637,18 @@
         // cannot open: the id is what gets sent, not the words, so replying
         // to something unreadable is a perfectly sensible thing to do in a
         // room you joined late.
-        (m.id ? '<button class="pm-msg-act" type="button" data-reply="' + esc(m.id) + '">' +
-                  esc(t("pm_reply", "Reply")) + "</button>" : "") +
+        // A withdrawn message carries neither button. There is nothing to
+        // quote, nothing to copy and nothing left to delete, and three dead
+        // controls on a tombstone is an invitation to find that out by tapping.
+        (m.id && !gone
+          ? '<button class="pm-msg-act" type="button" data-reply="' + esc(m.id) + '">' +
+              esc(t("pm_reply", "Reply")) + "</button>" : "") +
         // Everything else a person might want to do with one message, behind
         // one dot menu rather than three more words on every bubble. Reply
         // stays outside it because it is the one people came for.
-        (m.id ? '<button class="pm-msg-more" type="button" data-menu="' + esc(m.id) + '"' +
-                  ' aria-label="' + esc(t("pm_msg_more", "More")) + '">' + MORE_SVG + "</button>" : "") +
+        (m.id && !gone
+          ? '<button class="pm-msg-more" type="button" data-menu="' + esc(m.id) + '"' +
+              ' aria-label="' + esc(t("pm_msg_more", "More")) + '">' + MORE_SVG + "</button>" : "") +
         "</span></div>";
     }).join("") + hiddenNoteHtml();
     el.pmLog.scrollTop = el.pmLog.scrollHeight;
@@ -1632,6 +1743,16 @@
           "<b>" + esc(t("pm_msg_copy", "Copy the words")) + "</b><span>" +
           esc(t("pm_msg_copy_d", "Put the text on this phone's clipboard.")) + "</span></button>"
         : "") +
+      // Unsend comes FIRST of the two deletes, and only on your own messages.
+      // It is the one people are looking for when they tap Delete, and putting
+      // the device-only one above it is how somebody hides a wrong price on
+      // their own phone and leaves it standing on the other.
+      (src.mine
+        ? '<button class="pm-sheet-b is-danger" type="button" id="pmMmUnsend">' +
+          "<b>" + esc(t("pm_unsend", "Delete for everyone")) + "</b><span>" +
+          esc(t("pm_unsend_d", "Removes it from the server and from their app. Anything already saved or photographed stays theirs.")) +
+          "</span></button>"
+        : "") +
       '<button class="pm-sheet-b is-danger" type="button" id="pmMmDel">' +
         "<b>" + esc(t("pm_del_t2", "Delete for me")) + "</b><span>" +
         esc(t("pm_msg_del_d", "Hidden on this device. They keep their copy.")) + "</span></button>" +
@@ -1661,6 +1782,60 @@
     document.getElementById("pmMmDel").addEventListener("click", function () {
       closeModal();
       askHideMessage(id);
+    });
+    var unsend = document.getElementById("pmMmUnsend");
+    if (unsend) unsend.addEventListener("click", function () {
+      closeModal();
+      askUnsendMessage(id);
+    });
+  }
+
+  /**
+   * Take a message back, from the server and from everybody's app.
+   *
+   * The dialog carries the one sentence that separates this from the other
+   * Delete: what it cannot do. It removes the ciphertext and every key that
+   * could open it, so there is nothing left to read anywhere, including here.
+   * It does not reach into a phone that already downloaded and opened it, and
+   * nothing ever could. Someone deleting a wrong price needs to know which of
+   * those two they are getting BEFORE they tap, not afterwards.
+   */
+  function askUnsendMessage(id) {
+    var src = findRow(id);
+    var quoted = (src && !src.failed && src.text) ? snip(src.text) : "";
+    modal("<h2>" + esc(t("pm_unsend_t", "Delete this for everyone?")) + "</h2>" +
+      (quoted ? '<p class="pm-modal-quote">' + esc(quoted) + "</p>" : "") +
+      "<p>" + esc(t("pm_unsend_d1",
+        "The message is removed from the server, and from the app on every phone it reached. Nobody can open it again, including us.")) + "</p>" +
+      "<p>" + esc(t("pm_unsend_d2",
+        "What it cannot do is take back a copy somebody already read, photographed or wrote down. Nothing can do that.")) + "</p>" +
+      "<p>" + esc(t("pm_unsend_d3",
+        "A line saying the message was deleted stays in its place, so the conversation still makes sense.")) + "</p>" +
+      '<div class="pm-modal-acts">' +
+      '<button class="pm-btn ghost" id="pmUnNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      '<button class="pm-btn is-danger" id="pmUnYes">' + esc(t("pm_unsend_go", "Delete for everyone")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmUnMsg\"></div>");
+
+    document.getElementById("pmUnNo").addEventListener("click", closeModal);
+    document.getElementById("pmUnYes").addEventListener("click", async function (e) {
+      var btn = e.currentTarget;          // captured, never read after an await
+      var out = document.getElementById("pmUnMsg");
+      btn.disabled = true;
+      try {
+        var at = await window.PMStore.messageDelete(id);
+        // Redraw from the copy in hand rather than refetching the thread: the
+        // server has already agreed, and a round trip here is a second of the
+        // old text sitting on screen after somebody asked for it to go.
+        var row = findRow(id);
+        if (row) { row.deletedAt = at || new Date().toISOString(); row.text = null; row.failed = false; }
+        if (replyTo && replyTo.id === id) clearReply();
+        closeModal();
+        renderLog(lastRows);
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        btn.disabled = false;
+      }
     });
   }
 
@@ -1699,6 +1874,13 @@
   function quoteHtml(m) {
     if (!m.replyTo) return "";
     var src = findRow(m.replyTo);
+    // A withdrawn parent says so. "An earlier message" would be true and
+    // useless: the reader can see the answer and is entitled to know that the
+    // question was taken back rather than that it scrolled out of reach.
+    if (src && src.deletedAt) {
+      return '<span class="pm-quote is-gone"><span>' +
+        esc(t("pm_gone", "This message was deleted.")) + "</span></span>";
+    }
     if (!src || src.failed || !src.text) {
       return '<span class="pm-quote is-gone"><span>' +
         esc(t("pm_reply_gone", "an earlier message")) + "</span></span>";

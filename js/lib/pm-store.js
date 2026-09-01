@@ -383,11 +383,39 @@
   function groupAdd(threadId, members) {
     return rpc("pm_group_add", { p_thread: threadId, p_members: members || [] });
   }
-  function groupLeave(threadId) { return rpc("pm_group_leave", { p_thread: threadId }); }
+  /**
+   * Leave a room, and find out what leaving DID.
+   *
+   * Four answers, because the screen has to say something different to each:
+   * "left" (ordinary), "handed_over" (you owned it and somebody else does
+   * now), "deleted" (you were the last one, so the room is gone), and
+   * "not_member" (you were not in it, which is not an error).
+   */
+  function groupLeave(threadId) {
+    return rpc("pm_group_leave", { p_thread: threadId })
+      .then(function (r) { return r || "left"; });
+  }
   function groupRemove(threadId, userId) {
     return rpc("pm_group_remove", { p_thread: threadId, p_user: userId });
   }
+  /**
+   * Close a room for everyone. The room's CURRENT owner, or an admin: an owner
+   * who leaves hands the room on, and keying this to whoever opened it would
+   * leave rooms nobody alive could close.
+   */
+  function groupDelete(threadId) { return rpc("pm_group_delete", { p_thread: threadId }); }
   function groupMax() { return rpc("pm_group_max"); }
+
+  /**
+   * Unsend one message.
+   *
+   * Returns the time it was withdrawn, so the caller can draw the tombstone
+   * without refetching the thread. Calling it twice is safe and returns the
+   * FIRST deletion: a person tapping through a slow connection meant it once.
+   */
+  function messageDelete(messageId) {
+    return rpc("pm_message_delete", { p_message: messageId });
+  }
 
   // ---- invite links ---------------------------------------------------------
   // The token is generated here and NEVER sent to the server — only its
@@ -473,15 +501,23 @@
     var out = [];
     for (var i = 0; i < (rows || []).length; i++) {
       var r = rows[i], text = null, failed = false;
-      try {
-        if (r.generation !== null && r.generation !== undefined) {
-          var key = senderKeys[r.sender_id + "|" + r.generation];
-          if (!key) throw new Error("no sender key for this generation");
-          text = await window.PMCrypto.openWithSenderKey(r, key);
-        } else {
-          text = await window.PMCrypto.open(r, identity);
-        }
-      } catch (_) { failed = true; }
+      var gone = !!r.deleted_at;
+      // A withdrawn message is not a decryption that went wrong, and it must
+      // never be reported as one. Its ciphertext and every wrap for it are
+      // gone from the server, so trying would fail, and "could not read this"
+      // is the screen telling somebody their key is broken when the truth is
+      // that the sender took it back.
+      if (!gone) {
+        try {
+          if (r.generation !== null && r.generation !== undefined) {
+            var key = senderKeys[r.sender_id + "|" + r.generation];
+            if (!key) throw new Error("no sender key for this generation");
+            text = await window.PMCrypto.openWithSenderKey(r, key);
+          } else {
+            text = await window.PMCrypto.open(r, identity);
+          }
+        } catch (_) { failed = true; }
+      }
       out.push({
         id: r.id, at: r.sent_at, senderId: r.sender_id, senderName: r.sender_name,
         // The message this one answers, as an ID and nothing more. The quoted
@@ -495,6 +531,9 @@
         // is the difference between "the agent said so" and "somebody calling
         // themselves that said so".
         senderGuest: !!r.sender_guest,
+        // When it was withdrawn, or null. The page draws a tombstone from
+        // this; nothing else about the message survives on the server.
+        deletedAt: r.deleted_at || null,
         mine: r.sender_id === identity.userId, text: text, failed: failed,
       });
     }
@@ -744,7 +783,9 @@
     groupAdd: groupAdd,
     groupLeave: groupLeave,
     groupRemove: groupRemove,
+    groupDelete: groupDelete,
     groupMax: groupMax,
+    messageDelete: messageDelete,
     inviteCreate: inviteCreate,
     invitePeek: invitePeek,
     inviteAccept: inviteAccept,

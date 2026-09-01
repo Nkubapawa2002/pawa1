@@ -390,6 +390,10 @@ js/lib/listing-kinds.js                 the ONE map from a stored kind to a word
 js/pages/p-message.js                   the screen
 p-message.html                          markup + styles
 agent.html · js/pages/agent.js          one agent's storefront
+js/lib/agent-card.js                    identity, the numbers and the bio, from one pm_agent_card row
+css/agent-card.css                      their styling. BOTH agent.html and profile.html draw this block,
+                                        so an agent looking at "Your public page" is looking at the
+                                        page a customer opens, not at a second rendering of it
 css/pm-shared.css                       presence, kinds and the link — used by both pages
 supabase/features/message/p_message.sql          tables, RLS, RPCs   (APPLIED)
 supabase/features/message/p_message_guests.sql   guests + the fence  (APPLIED)
@@ -397,6 +401,9 @@ supabase/features/message/p_message_trust.sql    pm_peer returns the key (APPLIE
 supabase/features/message/p_message_presence.sql pm_presence + the beat (APPLIED)
 supabase/features/message/p_message_storefront.sql bio, kinds, agent card (APPLIED)
 supabase/features/message/p_message_replies.sql  reply_to on both send paths (APPLIED)
+supabase/features/message/p_message_delete.sql   unsend, close a room, leave one (PENDING)
+    Run it AFTER p_message_replies.sql: it redefines pm_thread_messages to
+    carry deleted_at, so re-running the replies file would revert that.
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
 css/pm-identity.css                     their styling, so it travels with them
 profile.html · js/pages/profile.js      the account tab
