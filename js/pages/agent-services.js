@@ -6,9 +6,24 @@
 // inserts (RLS-enforced), photo upload into the `service-photos` bucket, the 48h
 // subscription banner, and a setup card with the SQL when the `services` table
 // hasn't been applied yet.
+//
+// Every visible string on this screen goes through t(). It used to be written
+// in English here and nowhere else, which meant a Swahili provider met an
+// entirely English portal the moment they signed in — the one screen in the
+// app that asks somebody to type for ten minutes.
 
 window.initAgentServicesPage = async () => {
   const sb = window.DataStore?.sb;
+
+  // t() with a hard fallback: this file runs before nothing, but a missing key
+  // must show the English word rather than the key name.
+  const T = (k, en) => {
+    const v = window.t ? window.t(k) : k;
+    return v === k && en ? en : v;
+  };
+  // "{email} already exists" → the email. i18n.js keeps the braces so a
+  // translator can move the value inside the sentence.
+  const fill = (s, vars) => String(s).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
 
   const SETUP_SQL = `-- Pawa Daily Services — public.services table + service-photos storage bucket.
 create table if not exists public.services (
@@ -57,10 +72,15 @@ drop policy if exists "service-photos upload" on storage.objects;
 create policy "service-photos upload" on storage.objects for insert
   with check (bucket_id = 'service-photos' and auth.uid() is not null);`;
 
-  const CAT_EMOJI = {
-    cleaning: "", plumbing: "", electrical: "", carpentry: "", painting: "",
-    gardening: "", moving_help: "", laundry: "", cooking: "", tutoring: "",
-    beauty: "", security: "", childcare: "", appliance_repair: "", other: "",
+  // Icons. Lucide-style stroke SVGs, so they take currentColor, scale with the
+  // type beside them, and read the same on every phone. This is what replaced
+  // the category emoji map that used to sit here.
+  const IC = {
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+    empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 9v5M12 17.2v.1"/></svg>',
   };
 
   const $ = (id) => document.getElementById(id);
@@ -77,24 +97,38 @@ create policy "service-photos upload" on storage.objects for insert
   const pinSearch = $("asPinSearch"), pinResults = $("asPinResults");
   const pinMapEl = $("asPinMap"), pinCoords = $("asPinCoords"), pinGps = $("asPinGps");
 
+  const MAX_PHOTOS = 8;
+
   let authMode = "signin";
   let editingId = null;
   let photoState = [];
   let agentProfile = null;            // region + area this agent operates in
   let pin = { lat: null, lng: null };
   let pinMap = null, pinMarker = null;
+  let rail = null;
 
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // The label of a button is now a span beside an icon, so setting textContent
+  // on the button would delete the icon with it.
+  function setBtnLabel(btn, text) {
+    const span = btn?.querySelector("span");
+    if (span) span.textContent = text; else if (btn) btn.textContent = text;
+  }
+  function btnLabel(btn) {
+    return btn?.querySelector("span")?.textContent ?? btn?.textContent ?? "";
+  }
   function showFatal(msg) {
     if (!warnEl) { alert(msg); return; }
-    warnEl.innerHTML = `<div class="as-msg error"><strong>Error:</strong> ${esc(String(msg))}</div>`;
+    warnEl.innerHTML =
+      `<div class="ap-note ap-note--warn"><span class="ap-note__ic">${IC.warn}</span>` +
+      `<span><strong>${esc(T("ap_error"))}</strong> ${esc(String(msg))}</span></div>`;
   }
-  window.addEventListener("error", (e) => showFatal(e.message || "Unknown JS error"));
-  window.addEventListener("unhandledrejection", (e) => showFatal(e.reason?.message || e.reason || "Promise rejected"));
+  window.addEventListener("error", (e) => showFatal(e.message || T("ap_err_unknown")));
+  window.addEventListener("unhandledrejection", (e) => showFatal(e.reason?.message || e.reason || T("ap_err_unknown")));
 
   signOutBtn?.addEventListener("click", async () => {
     if (!sb) { location.reload(); return; }
@@ -106,7 +140,7 @@ create policy "service-photos upload" on storage.objects for insert
 
   if (!sb) {
     authCard.hidden = false;
-    setAuthMsg("Supabase isn't configured, so sign-in is unavailable.", "error");
+    setAuthMsg(esc(T("ap_msg_supabase_missing")), "error");
     authForm.querySelectorAll("input,button").forEach((el) => (el.disabled = true));
     return;
   }
@@ -140,7 +174,7 @@ create policy "service-photos upload" on storage.objects for insert
       : (s?.user && s.user.is_anonymous !== true ? "account" : "out");
     if (who === "account") {
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
-      userEmailEl.textContent = s.user.email || "—";
+      userEmailEl.textContent = s.user.email || T("ap_no_email");
       // First thing after sign-in: make sure the agent has declared the region
       // they belong to + the area they operate in. New listings inherit these
       // so searchers in that area find this provider's services.
@@ -171,13 +205,13 @@ create policy "service-photos upload" on storage.objects for insert
 
   tabSignIn.addEventListener("click", () => {
     authMode = "signin"; tabSignIn.classList.add("active"); tabSignUp.classList.remove("active");
-    authSubmit.textContent = "Sign in"; authPassword.autocomplete = "current-password";
+    authSubmit.textContent = T("as_tab_signin"); authPassword.autocomplete = "current-password";
     if (authPasswordConfirmRow) authPasswordConfirmRow.hidden = true;
     setAuthMsg("", "");
   });
   tabSignUp.addEventListener("click", () => {
     authMode = "signup"; tabSignUp.classList.add("active"); tabSignIn.classList.remove("active");
-    authSubmit.textContent = "Create account"; authPassword.autocomplete = "new-password";
+    authSubmit.textContent = T("as_tab_signup"); authPassword.autocomplete = "new-password";
     if (authPasswordConfirmRow) { authPasswordConfirmRow.hidden = false; authPasswordConfirm.value = ""; }
     setAuthMsg("", "");
   });
@@ -193,22 +227,22 @@ create policy "service-photos upload" on storage.objects for insert
     try {
       const { error } = await sb.auth.resend({ type: "signup", email });
       if (error) throw error;
-      setAuthMsg(`Verification link re-sent to <strong>${esc(email)}</strong>. Check your inbox (and spam folder).`, "success");
+      setAuthMsg(fill(T("ap_verify_resent"), { email: `<strong>${esc(email)}</strong>` }), "success");
     } catch (err) {
       const m = err?.message || "";
       if (/rate limit|too many|over_email_send_rate_limit/i.test(m)) {
-        setAuthMsg("Please wait a minute before requesting another verification email.", "error");
+        setAuthMsg(esc(T("ap_verify_rate")), "error");
       } else {
-        setAuthMsg("Couldn't resend the link: " + esc(m || "please try again later."), "error");
+        setAuthMsg(esc(T("ap_verify_resend_fail")) + " " + esc(m), "error");
       }
     }
   }
 
   function showVerifyNotice(email, lead, kind) {
     setAuthMsg(
-      `${lead} We sent a verification link to <strong>${esc(email)}</strong>. ` +
-      `Open it to activate your account, then sign in. ` +
-      `<button type="button" id="asResendVerify" class="as-btn" style="margin-top:8px;">Resend verification email</button>`,
+      `${esc(lead)} ${fill(T("ap_verify_sent"), { email: `<strong>${esc(email)}</strong>` })} ` +
+      `<button type="button" id="asResendVerify" class="ap-btn ap-btn--sm" style="margin-top:var(--space-2)">` +
+      `${esc(T("ap_verify_resend"))}</button>`,
       kind || "success"
     );
     $("asResendVerify")?.addEventListener("click", () => resendVerification(email));
@@ -220,7 +254,7 @@ create policy "service-photos upload" on storage.objects for insert
     const email = authEmail.value.trim(), password = authPassword.value;
 
     if (!isValidEmail(email)) {
-      setAuthMsg("Please enter a valid email address (e.g. name@example.com).", "error");
+      setAuthMsg(esc(T("ap_err_bad_email")), "error");
       authEmail.focus();
       return;
     }
@@ -230,26 +264,26 @@ create policy "service-photos upload" on storage.objects for insert
       if (authMode === "signup") {
         const confirm = authPasswordConfirm ? authPasswordConfirm.value : password;
         if (password !== confirm) {
-          setAuthMsg("The two passwords don't match. Please re-enter them.", "error");
+          setAuthMsg(esc(T("ap_err_pw_mismatch")), "error");
           return;
         }
         const { data, error } = await sb.auth.signUp({ email, password });
         if (error) {
           if (/already registered|already been registered|user already/i.test(error.message || "")) {
             authMode = "signin"; tabSignIn.click();
-            setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
+            setAuthMsg(fill(T("ap_err_email_exists"), { email: `<strong>${esc(email)}</strong>` }), "error");
             return;
           }
           throw error;
         }
         if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           authMode = "signin"; tabSignIn.click();
-          setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
+          setAuthMsg(fill(T("ap_err_email_exists"), { email: `<strong>${esc(email)}</strong>` }), "error");
           return;
         }
         if (data?.session) return;
         authMode = "signin"; tabSignIn.click();
-        showVerifyNotice(email, "Account created.", "success");
+        showVerifyNotice(email, T("ap_msg_account_created"), "success");
       } else {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -257,15 +291,15 @@ create policy "service-photos upload" on storage.objects for insert
     } catch (err) {
       const msg = err?.message || "";
       if (/invalid login|invalid_credentials|invalid_grant/i.test(msg)) {
-        setAuthMsg(`Wrong email or password. If you're new, tap <strong>Create account</strong>.`, "error");
+        setAuthMsg(T("ap_err_wrong_password"), "error");
       } else if (/email not confirmed|email_not_confirmed/i.test(msg)) {
-        showVerifyNotice(email, "Your email isn't verified yet.", "error");
+        showVerifyNotice(email, T("ap_err_not_verified"), "error");
       } else if (/rate limit|over_email_send_rate_limit|too many/i.test(msg)) {
-        setAuthMsg("Too many attempts. Please wait a minute, then try again.", "error");
+        setAuthMsg(esc(T("ap_err_too_many")), "error");
       } else if (/password.*should be at least|weak password|password is too short/i.test(msg)) {
-        setAuthMsg("Password must be at least 6 characters.", "error");
+        setAuthMsg(esc(T("ap_err_pw_short")), "error");
       } else {
-        setAuthMsg(esc(msg) || "Sign-in failed. Please try again.", "error");
+        setAuthMsg(esc(msg) || esc(T("ap_err_signin_failed")), "error");
       }
     } finally {
       authSubmit.disabled = false;
@@ -275,7 +309,7 @@ create policy "service-photos upload" on storage.objects for insert
   // ---- list my services ----------------------------------------------------
   async function loadMyServices() {
     listEl.setAttribute("aria-busy", "true");
-    listEl.innerHTML = `<div class="as-hint">Loading your services…</div>`;
+    listEl.innerHTML = `<p class="ap-hint">${esc(T("as_loading"))}</p>`;
     const { data: { session } } = await sb.auth.getSession();
     const uid = session?.user?.id;
     if (!uid) return;
@@ -287,26 +321,32 @@ create policy "service-photos upload" on storage.objects for insert
         renderSetupCard();
         return;
       }
-      listEl.innerHTML = `<div class="as-msg error">Couldn't load your services: ${esc(error.message)}</div>`;
+      listEl.innerHTML =
+        `<div class="ap-msg is-error">${esc(T("as_load_fail"))} ${esc(error.message)}</div>`;
       return;
     }
     newBtn.hidden = false;
     if (!data.length) {
-      listEl.innerHTML = `<div class="as-hint">No services yet. Tap <strong>+ New service</strong> to add your first one.</div>`;
+      listEl.innerHTML =
+        `<div class="ap-empty">${IC.empty}<h3>${esc(T("as_empty_h"))}</h3>` +
+        `<p>${esc(T("as_empty_p"))}</p></div>`;
       return;
     }
     listEl.innerHTML = data.map((t) => {
       const img = t.photo ? window.DataStore.servicePhotoUrl(t.photo) : "";
-      return `<div class="as-tile">
-        <div class="as-tile-photo" style="${img ? `background-image:url('${esc(img)}')` : ""}">${img ? "" : (CAT_EMOJI[t.category] || "")}</div>
-        <div class="as-tile-body">
-          <h4>${esc(t.title || "Service")}</h4>
-          <div class="as-hint" style="margin:0">${esc([t.area, t.region].filter(Boolean).join(", ") || "—")}</div>
-          <div class="as-tile-actions">
-            <button data-edit="${esc(t.id)}">Edit</button>
-            <button data-del="${esc(t.id)}" style="color:#b91c1c">Delete</button>
-          </div>
-        </div></div>`;
+      const where = [t.area, t.region].filter(Boolean).join(", ");
+      return `<article class="ap-card">
+        <div class="ap-card__photo" data-empty="${esc(T("ap_no_photo"))}"
+             style="${img ? `background-image:url('${esc(img)}')` : ""}"></div>
+        <div class="ap-card__body">
+          <h4 class="ap-card__title">${esc(t.title || T("as_untitled"))}</h4>
+          <span class="ap-card__meta">${esc(where || T("ap_no_area"))}</span>
+        </div>
+        <div class="ap-card__acts">
+          <button type="button" class="ap-btn ap-btn--sm" data-edit="${esc(t.id)}">${IC.edit}<span>${esc(T("ap_edit"))}</span></button>
+          <button type="button" class="ap-btn ap-btn--sm ap-btn--danger" data-del="${esc(t.id)}">${IC.trash}<span>${esc(T("ap_delete"))}</span></button>
+        </div>
+      </article>`;
     }).join("");
     listEl.querySelectorAll("[data-edit]").forEach((b) =>
       b.addEventListener("click", () => openForm(data.find((x) => x.id === b.dataset.edit))));
@@ -322,19 +362,28 @@ create policy "service-photos upload" on storage.objects for insert
   function renderSetupCard() {
     newBtn.hidden = true;
     listEl.innerHTML = `
-      <div class="as-card as-setup" style="grid-column:1/-1">
-        <h3 style="margin-top:0"> One-time setup needed</h3>
-        <p class="as-hint">The <code>services</code> table doesn't exist yet. Run this SQL once in your Supabase SQL editor, then reload.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <a class="as-btn as-btn-brand" target="_blank" rel="noopener" href="${sqlEditorUrl()}">Open SQL editor</a>
-          <button id="asSetupCopy" class="as-btn" type="button">Copy SQL</button>
-          <button id="asSetupReload" class="as-btn" type="button">I've run it — reload</button>
+      <div class="ap-panel" style="grid-column:1/-1">
+        <div class="ap-panel__head">
+          <span class="ap-panel__n" aria-hidden="true">${IC.warn}</span>
+          <div class="ap-panel__tx">
+            <h3>${esc(T("ap_setup_h"))}</h3>
+            <p>${esc(T("as_setup_p"))}</p>
+          </div>
         </div>
-        <pre id="asSetupSql">${esc(SETUP_SQL)}</pre>
+        <div class="ap-inline" style="margin-bottom:var(--space-3)">
+          <a class="ap-btn ap-btn--brand" target="_blank" rel="noopener" href="${sqlEditorUrl()}">${esc(T("ap_setup_open"))}</a>
+          <button id="asSetupCopy" class="ap-btn" type="button"><span>${esc(T("ap_setup_copy"))}</span></button>
+          <button id="asSetupReload" class="ap-btn" type="button">${esc(T("ap_setup_reload"))}</button>
+        </div>
+        <pre class="ap-code" id="asSetupSql">${esc(SETUP_SQL)}</pre>
       </div>`;
     $("asSetupCopy")?.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(SETUP_SQL); const b = $("asSetupCopy"); b.textContent = "Copied!"; setTimeout(() => (b.textContent = "Copy SQL"), 1500); }
-      catch (_) { alert("Select the SQL below and copy it manually."); }
+      const b = $("asSetupCopy");
+      try {
+        await navigator.clipboard.writeText(SETUP_SQL);
+        setBtnLabel(b, T("ap_setup_copied"));
+        setTimeout(() => setBtnLabel(b, T("ap_setup_copy")), 1500);
+      } catch (_) { alert(T("ap_setup_copy_fail")); }
     });
     $("asSetupReload")?.addEventListener("click", () => { newBtn.hidden = false; loadMyServices(); });
   }
@@ -342,7 +391,7 @@ create policy "service-photos upload" on storage.objects for insert
   // ---- form ----------------------------------------------------------------
   function openForm(t) {
     editingId = t?.id || null;
-    formTitle.textContent = t ? "Edit service" : "Add a service";
+    formTitle.textContent = T(t ? "as_form_title_edit" : "as_form_title_new");
     formMsg.hidden = true;
     dashboard.hidden = true; formSection.hidden = false;
 
@@ -370,6 +419,10 @@ create policy "service-photos upload" on storage.objects for insert
     renderPhotoGrid();
 
     initPinMap();
+    // The rail is only useful once the form exists on screen, and it has to
+    // re-read the ticks after a listing is loaded into it.
+    rail = rail || window.AgentPortalRail?.mount({ rail: "#asRail", form: "#asForm" });
+    rail?.refresh();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeForm() {
@@ -378,7 +431,7 @@ create policy "service-photos upload" on storage.objects for insert
 
   photoInput.addEventListener("change", () => {
     [...photoInput.files].forEach((file) => {
-      if (photoState.length >= 8) return;
+      if (photoState.length >= MAX_PHOTOS) return;
       const reader = new FileReader();
       reader.onload = () => { photoState.push({ file, preview: reader.result }); renderPhotoGrid(); };
       reader.readAsDataURL(file);
@@ -388,16 +441,26 @@ create policy "service-photos upload" on storage.objects for insert
   function renderPhotoGrid() {
     photoGrid.innerHTML = photoState.map((p, i) => {
       const url = p.preview || window.DataStore.servicePhotoUrl(p.path);
-      return `<div class="as-photo-cell" style="background-image:url('${esc(url)}')"><button type="button" data-rm="${i}">×</button></div>`;
+      return `<div class="ap-tile" style="background-image:url('${esc(url)}')">
+        ${i === 0 ? `<span class="ap-tile__flag">${esc(T("ap_cover"))}</span>` : ""}
+        <button type="button" class="ap-tile__x" data-rm="${i}"
+                aria-label="${esc(T("ap_remove_photo"))}">${IC.x}</button>
+      </div>`;
     }).join("");
     photoGrid.querySelectorAll("[data-rm]").forEach((b) =>
       b.addEventListener("click", () => { photoState.splice(+b.dataset.rm, 1); renderPhotoGrid(); }));
+    $("asPhotoAdd")?.classList.toggle("is-full", photoState.length >= MAX_PHOTOS);
   }
 
   // ---- pin map -------------------------------------------------------------
   function updatePinCoords() {
-    pinCoords.textContent = (pin.lat != null && pin.lng != null)
-      ? `Pin: ${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}` : "No pin set";
+    const set = pin.lat != null && pin.lng != null;
+    pinCoords.textContent = set
+      ? `${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}`
+      : T("ap_pin_none");
+    // The rail counts a dropped pin as an answered section, and a pin has no
+    // input behind it to read.
+    pinCoords.dataset.hasPin = set ? "1" : "0";
   }
   function setPin(lat, lng, recenter) {
     pin = { lat, lng };
@@ -423,12 +486,14 @@ create policy "service-photos upload" on storage.objects for insert
     setTimeout(() => pinMap.invalidateSize(), 120);
   }
   pinGps.addEventListener("click", async () => {
-    pinGps.disabled = true; const old = pinGps.textContent; pinGps.textContent = "Locating…";
+    pinGps.disabled = true;
+    const old = btnLabel(pinGps);
+    setBtnLabel(pinGps, T("ap_locating"));
     try {
       const fix = await window.pawaLocate.best({ targetAccuracy: 50, hardTimeout: 12000 });
       setPin(fix.lat, fix.lng, true);
-    } catch (e) { alert((e && e.message) || "Couldn't get your location."); }
-    finally { pinGps.disabled = false; pinGps.textContent = old; }
+    } catch (e) { alert((e && e.message) || T("ap_err_geo")); }
+    finally { pinGps.disabled = false; setBtnLabel(pinGps, old); }
   });
 
   // AI-assisted pin: describe the location in plain words → AI resolves → drop pin.
@@ -436,19 +501,25 @@ create policy "service-photos upload" on storage.objects for insert
   pinAi?.addEventListener("click", async () => {
     const q = (pinSearch.value || "").trim();
     if (!q) { pinSearch.focus(); return; }
-    if (!window.AI?.locate) { if (pinAiMsg) pinAiMsg.textContent = "AI unavailable — use the list or GPS."; return; }
-    const old = pinAi.textContent; pinAi.disabled = true; pinAi.textContent = "Locating…";
+    if (!window.AI?.locate) { if (pinAiMsg) pinAiMsg.textContent = T("ap_ai_unavailable"); return; }
+    const old = btnLabel(pinAi);
+    pinAi.disabled = true; setBtnLabel(pinAi, T("ap_locating"));
     if (pinAiMsg) pinAiMsg.textContent = "";
     try {
       const loc = await window.AI.locate(q, { regions: window.APP_CONFIG?.REGIONS });
       if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
         setPin(loc.lat, loc.lng, true);
         if (pinResults) pinResults.hidden = true;
-        if (pinAiMsg) pinAiMsg.textContent = " " + (loc.label || "Pinned") + (loc.answer ? " — " + loc.answer : "") + " (drag to fine-tune)";
+        if (pinAiMsg) {
+          const what = loc.label || T("ap_ai_pinned");
+          pinAiMsg.textContent = loc.answer
+            ? `${what}. ${loc.answer} ${T("ap_ai_drag")}`
+            : `${what}. ${T("ap_ai_drag")}`;
+        }
       } else if (pinAiMsg) {
-        pinAiMsg.textContent = "Couldn't locate that — try a nearby landmark or tap the map.";
+        pinAiMsg.textContent = T("ap_ai_no_match");
       }
-    } finally { pinAi.disabled = false; pinAi.textContent = old; }
+    } finally { pinAi.disabled = false; setBtnLabel(pinAi, old); }
   });
 
   let searchTimer = null;
@@ -493,12 +564,18 @@ create policy "service-photos upload" on storage.objects for insert
     e.preventDefault();
     formMsg.hidden = true;
     const saveBtn = $("asSaveBtn");
-    saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+    saveBtn.disabled = true;
+    const oldSave = saveBtn.textContent;
+    saveBtn.textContent = T("ap_saving");
     try {
       const { data: { session } } = await sb.auth.getSession();
       const uid = session?.user?.id;
-      if (!uid) throw new Error("Your session expired — please sign in again.");
-      if (pin.lat == null || pin.lng == null) throw new Error("Please drop a pin for where you're based.");
+      if (!uid) throw new Error(T("ap_err_session_expired"));
+      if (pin.lat == null || pin.lng == null) {
+        // Send them to the section that is missing rather than only saying so.
+        document.getElementById("asSecPin")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        throw new Error(T("as_err_no_pin"));
+      }
 
       const paths = [];
       for (const p of photoState) {
@@ -539,30 +616,29 @@ create policy "service-photos upload" on storage.objects for insert
         : sb.from("services").insert(row).select();
       const { data: saved, error } = await q;
       if (error) throw error;
-      if (!saved || !saved.length) {
-        throw new Error("Save returned no rows — check that the services table + RLS policies are applied (run the setup SQL).");
-      }
+      if (!saved || !saved.length) throw new Error(T("as_err_no_rows"));
 
       window.DataStore?.invalidateCache(["services"]);
-      formMsg.className = "as-msg success";
-      formMsg.textContent = editingId ? "Service updated." : "Service listed! Customers nearby can now find it.";
+      formMsg.className = "ap-msg is-ok";
+      formMsg.textContent = T(editingId ? "as_msg_updated" : "as_msg_listed");
       formMsg.hidden = false;
       setTimeout(() => { closeForm(); loadMyServices(); }, 700);
     } catch (err) {
-      formMsg.className = "as-msg error";
-      formMsg.textContent = err?.message || "Couldn't save the service.";
+      formMsg.className = "ap-msg is-error";
+      formMsg.textContent = err?.message || T("as_err_save");
       formMsg.hidden = false;
     } finally {
-      saveBtn.disabled = false; saveBtn.textContent = "Save service";
+      saveBtn.disabled = false; saveBtn.textContent = oldSave;
     }
   });
 
   async function deleteService(t) {
-    if (!t || !confirm(`Delete "${t.title || "this service"}"?`)) return;
+    if (!t) return;
+    if (!confirm(fill(T("as_confirm_delete"), { title: t.title || T("as_untitled") }))) return;
     const { data: { session } } = await sb.auth.getSession();
     const uid = session?.user?.id;
     const { error } = await sb.from("services").delete().eq("id", t.id).eq("owner_user_id", uid);
-    if (error) { alert("Delete failed: " + error.message); return; }
+    if (error) { alert(T("as_err_delete") + " " + error.message); return; }
     const paths = [t.photo, ...(t.photos || [])].filter((p) => p && !p.startsWith("http") && !p.startsWith("data/"));
     if (paths.length) sb.storage.from(bucket()).remove(paths).catch(() => {});
     window.DataStore?.invalidateCache(["services"]);

@@ -32,7 +32,13 @@ const BASE = "http://localhost:8080";
 const PAGES = process.argv[2]
   ? [process.argv[2]]
   : ["index.html", "houses.html", "login.html", "services.html", "chat.html",
-     "p-message.html", "frame.html", "agent.html?u=nobody"];
+     "p-message.html", "frame.html", "agent.html?u=nobody",
+     // The two "earn with us" portals. Their dark palette used to be pasted
+     // into each page unguarded, so in light mode the auth card kept its dark
+     // glass while the page around it went cream. css/agent-portal.css puts
+     // that block behind :root:not([data-theme="light"]); these two rows are
+     // what stops it drifting back.
+     "agent-houses.html", "agent-services.html"];
 
 // Only ever reached when something is genuinely wrong: the pass path resolves
 // as soon as the attribute lands, typically in tens of milliseconds.

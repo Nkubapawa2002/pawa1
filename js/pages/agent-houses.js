@@ -14,6 +14,16 @@ window.initAgentHousesPage = async () => {
   const sb = window.DataStore?.sb;
   const tr = (k) => (window.t ? window.t(k) : k);
 
+  // The brand green, read from the design token rather than written out
+  // again. MapLibre paint properties and inline SVG fills take a colour
+  // string, not a var(), so this is the one place the token is resolved.
+  // Falls back to the foundation green if the stylesheet has not landed.
+  const brandGreen = () => {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue("--green").trim();
+    return v || "#0a6f4d";
+  };
+
   // ---- Element refs --------------------------------------------------------
   const authCard      = document.getElementById("ahAuthCard");
   const dashboard     = document.getElementById("ahDashboard");
@@ -113,7 +123,7 @@ window.initAgentHousesPage = async () => {
   const fIsFrame      = document.getElementById("ahIsFrame");
   // Show the free-text box only when the provider picks "Other (any kind)".
   function syncTypeOther() {
-    if (fTypeOtherRow) fTypeOtherRow.style.display = fType.value === "other" ? "" : "none";
+    if (fTypeOtherRow) fTypeOtherRow.hidden = fType.value !== "other";
   }
   if (fType) fType.addEventListener("change", () => {
     syncTypeOther();
@@ -730,10 +740,12 @@ create policy "house-photos upload" on storage.objects for insert
 
   // "Minimum months upfront" only makes sense for rentals — hide it for sale.
   function toggleMinMonths() {
-    if (fMinMonthsRow) fMinMonthsRow.style.display = (fListing.value === "rent") ? "" : "none";
-    if (fAgentFeeRow)  fAgentFeeRow.style.display  = (fListing.value === "rent") ? "" : "none";
+    if (fMinMonthsRow) fMinMonthsRow.hidden = fListing.value !== "rent";
+    if (fAgentFeeRow)  fAgentFeeRow.hidden  = fListing.value !== "rent";
   }
   fListing?.addEventListener("change", toggleMinMonths);
+
+  let formRail = null;
 
   function openForm(row) {
     editingId = row?.id || null;
@@ -757,7 +769,7 @@ create policy "house-photos upload" on storage.objects for insert
     if (fPinPlace) fPinPlace.hidden = true;
     fPinCoords.textContent = "No pin set";
     if (fPinSearch)        fPinSearch.value = "";
-    if (fPinSearchResults) fPinSearchResults.style.display = "none";
+    if (fPinSearchResults) fPinSearchResults.hidden = true;
     fAmenities.querySelectorAll(".ah-chip").forEach(c => c.classList.remove("active"));
     fAmenities.querySelectorAll("input").forEach(i => i.checked = false);
     fAmenities.querySelectorAll(".ah-chip--custom").forEach(c => c.remove());
@@ -865,6 +877,12 @@ create policy "house-photos upload" on storage.objects for insert
     // Init or refresh pin picker map (must wait for the section to be
     // visible before MapLibre can size itself correctly).
     setTimeout(() => initPinMap(), 80);
+
+    // The section rail: which of the eight parts you are in, and which ones
+    // already hold an answer. It can only be mounted once the form is on
+    // screen, and it has to re-read the ticks after a listing is loaded in.
+    formRail = formRail || window.AgentPortalRail?.mount({ rail: "#ahRail", form: "#ahForm" });
+    formRail?.refresh();
   }
 
   function closeForm() {
@@ -1188,24 +1206,28 @@ create policy "house-photos upload" on storage.objects for insert
 
     // GPS-accuracy circle (filled when a device fix arrives) — shows buyers
     // and the agent how tight the location lock is.
+    // MapLibre paint properties and an inline SVG fill cannot read a CSS
+    // variable, so the brand green is read off the document once, from the
+    // token, rather than written out as a literal in three more places.
+    const BRAND = brandGreen();
     pinMap.on("load", () => {
       if (pinMap.getSource("ah-acc")) return;
       pinMap.addSource("ah-acc", { type: "geojson", data: emptyFC() });
       pinMap.addLayer({
         id: "ah-acc-fill", type: "fill", source: "ah-acc",
-        paint: { "fill-color": "#0a6f4d", "fill-opacity": 0.12 }
+        paint: { "fill-color": BRAND, "fill-opacity": 0.12 }
       });
       pinMap.addLayer({
         id: "ah-acc-line", type: "line", source: "ah-acc",
-        paint: { "line-color": "#0a6f4d", "line-width": 1.5, "line-dasharray": [2, 2] }
+        paint: { "line-color": BRAND, "line-width": 1.5, "line-dasharray": [2, 2] }
       });
     });
 
     const el = document.createElement("div");
-    el.style.cssText = "width:32px;height:42px;display:flex;align-items:center;justify-content:center;cursor:grab;";
+    el.className = "ah-marker";
     el.innerHTML = `
-      <svg width="32" height="42" viewBox="0 0 32 42" fill="none">
-        <path d="M16 0C7.2 0 0 7.2 0 16c0 12 16 26 16 26s16-14 16-26C32 7.2 24.8 0 16 0z" fill="#0a6f4d" stroke="#fff" stroke-width="2"/>
+      <svg width="32" height="42" viewBox="0 0 32 42" fill="none" aria-hidden="true">
+        <path d="M16 0C7.2 0 0 7.2 0 16c0 12 16 26 16 26s16-14 16-26C32 7.2 24.8 0 16 0z" fill="${BRAND}" stroke="#fff" stroke-width="2"/>
         <circle cx="16" cy="16" r="6" fill="#fff"/>
       </svg>`;
 
@@ -1662,15 +1684,14 @@ create policy "house-photos upload" on storage.objects for insert
   }
   function renderSearchResults(rows) {
     if (!fPinSearchResults) return;
-    if (!rows.length) { fPinSearchResults.style.display = "none"; return; }
+    if (!rows.length) { fPinSearchResults.hidden = true; return; }
     fPinSearchResults.innerHTML = rows.map((r, i) => `
-      <button type="button" class="ah-search-row" data-i="${i}"
-              style="display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 14px;border-bottom:1px solid #eef1f4;cursor:pointer;font-size:.9rem;">
-        <strong style="font-weight:600;">${esc(r.name)}</strong>${r.tag ? ` <span style="color:#0a6f4d;font-size:.74rem;">${esc(r.tag)}</span>` : ""}
-        ${r.context ? `<br><small style="color:#6b7a73;font-size:.78rem;">${esc(r.context)}</small>` : ""}
+      <button type="button" class="ah-search-row" data-i="${i}">
+        <strong>${esc(r.name)}</strong>${r.tag ? ` <span class="ah-search-tag">${esc(r.tag)}</span>` : ""}
+        ${r.context ? `<br><small>${esc(r.context)}</small>` : ""}
       </button>
     `).join("");
-    fPinSearchResults.style.display = "block";
+    fPinSearchResults.hidden = false;
     fPinSearchResults.querySelectorAll(".ah-search-row").forEach(b => {
       b.addEventListener("click", () => {
         const r = rows[Number(b.dataset.i)];
@@ -1681,14 +1702,14 @@ create policy "house-photos upload" on storage.objects for insert
         if (pinMap)    pinMap.easeTo({ center: [r.lng, r.lat], zoom: 16, duration: 600 });
         updatePinReadout();
         fPinSearch.value = r.name;
-        fPinSearchResults.style.display = "none";
+        fPinSearchResults.hidden = true;
       });
     });
   }
   fPinSearch?.addEventListener("input", () => {
     clearTimeout(searchTimer);
     const q = fPinSearch.value.trim();
-    if (!q) { fPinSearchResults.style.display = "none"; return; }
+    if (!q) { fPinSearchResults.hidden = true; return; }
     searchTimer = setTimeout(async () => {
       const rows = await pinSearch(q);
       renderSearchResults(rows);
@@ -1696,10 +1717,10 @@ create policy "house-photos upload" on storage.objects for insert
   });
   fPinSearch?.addEventListener("blur", () => {
     // Delay so clicks on results land before we hide the panel.
-    setTimeout(() => { fPinSearchResults.style.display = "none"; }, 180);
+    setTimeout(() => { fPinSearchResults.hidden = true; }, 180);
   });
   fPinSearch?.addEventListener("focus", () => {
-    if (fPinSearchResults?.children.length) fPinSearchResults.style.display = "block";
+    if (fPinSearchResults?.children.length) fPinSearchResults.hidden = false;
   });
 
   // AI-assisted pin: the agent types a free description (landmark, "behind X")
@@ -1721,7 +1742,7 @@ create policy "house-photos upload" on storage.objects for insert
         if (pinMarker) pinMarker.setLngLat([loc.lng, loc.lat]);
         if (pinMap) pinMap.easeTo({ center: [loc.lng, loc.lat], zoom: 16, duration: 600 });
         updatePinReadout();
-        if (fPinSearchResults) fPinSearchResults.style.display = "none";
+        if (fPinSearchResults) fPinSearchResults.hidden = true;
         if (fPinAiMsg) fPinAiMsg.textContent = " " + (loc.label || "Pinned") + (loc.answer ? " — " + loc.answer : "") + " (drag the pin to fine-tune)";
       } else if (fPinAiMsg) {
         fPinAiMsg.textContent = "Couldn't locate that — try a nearby landmark or place the pin manually.";
@@ -1770,7 +1791,7 @@ create policy "house-photos upload" on storage.objects for insert
       if (error) throw error;
       const base = location.origin + location.pathname.replace(/[^/]*$/, "");
       const link = `${base}share-location.html?c=${code}`;
-      document.getElementById("ahReqLocBox").style.display = "block";
+      document.getElementById("ahReqLocBox").hidden = false;
       document.getElementById("ahReqLocLink").value = link;
       document.getElementById("ahReqLocWa").href =
         `https://wa.me/?text=${encodeURIComponent("Please share the house location for the listing: " + link)}`;
@@ -1864,11 +1885,11 @@ create policy "house-photos upload" on storage.objects for insert
     NEARBY_RADIUS_M = r;
     fNearbyRadius.querySelectorAll("button[data-r]").forEach(b => {
       const on = Number(b.dataset.r) === NEARBY_RADIUS_M;
+      // .ah-seg button.active carries the fill now. The three inline styles
+      // that used to live here wrote the brand green and white out as
+      // literals, which made this segment the one control on the page that
+      // never followed the theme.
       b.classList.toggle("active", on);
-      // Inline-style toggle since these buttons don't pull from a stylesheet.
-      b.style.background = on ? "#0a6f4d" : "transparent";
-      b.style.color      = on ? "#fff"    : "";
-      b.style.fontWeight = on ? "600"     : "";
     });
     if (pickedLatLng) refreshNearby({ force: true });
   });
@@ -1884,17 +1905,21 @@ create policy "house-photos upload" on storage.objects for insert
     refreshNearby({ force: true });
   });
   function groupNearby(elements, lat, lng) {
+    // `icon` used to sit beside every label and was rendered into a span. The
+    // emoji it held were stripped when the no-emoji rule landed, leaving ten
+    // empty strings and an empty span on every row, while the labels stayed in
+    // English on a bilingual page. Both are gone: the label is a key now.
     const G = {
-      schools:    { label: "Schools",            icon: "", items: [] },
-      hospitals:  { label: "Hospitals & clinics",icon: "", items: [] },
-      pharmacies: { label: "Pharmacies",         icon: "", items: [] },
-      worship:    { label: "Mosques & churches", icon: "", items: [] },
-      markets:    { label: "Markets & shops",    icon: "", items: [] },
-      banks:      { label: "Banks & ATMs",       icon: "", items: [] },
-      transport:  { label: "Transport",          icon: "", items: [] },
-      food:       { label: "Restaurants & cafes",icon: "", items: [] },
-      services:   { label: "Public services",    icon: "", items: [] },
-      leisure:    { label: "Parks & leisure",    icon: "", items: [] }
+      schools:    { label: tr("ahn_schools"),    items: [] },
+      hospitals:  { label: tr("ahn_hospitals"),  items: [] },
+      pharmacies: { label: tr("ahn_pharmacies"), items: [] },
+      worship:    { label: tr("ahn_worship"),    items: [] },
+      markets:    { label: tr("ahn_markets"),    items: [] },
+      banks:      { label: tr("ahn_banks"),      items: [] },
+      transport:  { label: tr("ahn_transport"),  items: [] },
+      food:       { label: tr("ahn_food"),       items: [] },
+      services:   { label: tr("ahn_services"),   items: [] },
+      leisure:    { label: tr("ahn_leisure"),    items: [] }
     };
     for (const el of elements) {
       const t = el.tags || {};
@@ -1933,26 +1958,28 @@ create policy "house-photos upload" on storage.objects for insert
   function renderNearbyPanel() {
     if (!fNearbyPanel) return;
     if (!pickedLatLng) {
-      fNearbyPanel.innerHTML = `<p class="muted" style="margin:0;font-size:.9rem;">Drop a pin first, then this panel will fill in automatically.</p>`;
+      fNearbyPanel.innerHTML = `<p class="ap-hint" style="margin:0">${esc(tr("ah_nearby_hint"))}</p>`;
       return;
     }
     if (!nearbyData) return; // mid-fetch — already showed loader
     const cats = Object.entries(nearbyData).filter(([, g]) => g.items.length > 0);
     if (!cats.length) {
-      fNearbyPanel.innerHTML = `<p class="muted" style="margin:0;font-size:.9rem;">No tagged services found in OpenStreetMap within 1.5 km. Buyers can still see your pin on the map.</p>`;
+      fNearbyPanel.innerHTML = `<p class="ap-hint" style="margin:0">${esc(tr("ah_nearby_none"))}</p>`;
       return;
     }
+    // The nine inline styles this used to carry hardcoded #fff and #e6ebf0,
+    // so every category card stayed a white slab on the dark portal. They are
+    // .ah-nearby-cat and .ahn-* in the page stylesheet now.
     fNearbyPanel.innerHTML = cats.map(([, g]) => `
-      <details class="ah-nearby-cat" style="margin:6px 0;background:#fff;border:1px solid #e6ebf0;border-radius:8px;padding:8px 10px;">
-        <summary style="cursor:pointer;font-size:.92rem;display:flex;align-items:center;gap:8px;">
-          <span style="font-size:1.05rem;">${g.icon}</span>
+      <details class="ah-nearby-cat">
+        <summary class="ahn-sum">
           <strong>${esc(g.label)}</strong>
-          <span class="muted" style="margin-left:auto;font-size:.85rem;">${g.items.length}</span>
+          <span class="ahn-n">${g.items.length}</span>
         </summary>
-        <ul style="list-style:none;margin:8px 0 4px;padding:0 0 0 28px;font-size:.86rem;">
-          ${g.items.map(it => `<li style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;">
-            <span>${esc(it.name || "Unnamed")}</span>
-            <span class="muted" style="white-space:nowrap;">${fmtDist(it.dist)}</span>
+        <ul class="ahn-list">
+          ${g.items.map(it => `<li>
+            <span>${esc(it.name || tr("ahn_unnamed"))}</span>
+            <span class="ahn-d">${fmtDist(it.dist)}</span>
           </li>`).join("")}
         </ul>
       </details>
@@ -3219,7 +3246,7 @@ create policy "house-photos upload" on storage.objects for insert
       .replace("{n}", rows.length).replace("{where}", esc(area));
     panel.innerHTML = `
       <div class="ah-wait-card">
-        <div class="ah-wait-head"> ${wHead}</div>
+        <div class="ah-wait-head">${wHead}</div>
         <div class="ah-wait-sub">${tr("ahw_pin_sub").replace("{what}", listing.listing === "sale" ? tr("ahw_what_buy") : tr("ahw_what_rent"))}</div>
         ${items}
         <button type="button" id="ahWaitDone" class="ah-wait-done">${tr("ahw_done")}</button>
@@ -3232,41 +3259,55 @@ create policy "house-photos upload" on storage.objects for insert
     });
   }
 
+  // The "renters waiting near you" card and the demand board, styled once and
+  // injected on first use. This block used to hold twenty-six literal hex
+  // values, all of them light: a mint card with dark-green ink, dropped onto
+  // a portal that is dark by default. It reads on both themes now because
+  // every value is a token, and the tokens are what the theme switch moves.
   function ensureWaitStyles() {
     if (document.getElementById("ahWaitStyles")) return;
     const s = document.createElement("style");
     s.id = "ahWaitStyles";
     s.textContent = `
-      #ahWaitingPanel{margin-top:16px}
-      .ah-wait-card{background:#f0f8f4;border:1px solid #bfe0cf;border-radius:16px;padding:16px 18px}
-      .ah-wait-head{font-weight:700;font-size:1.02rem;color:#0a6f4d;margin-bottom:2px}
-      .ah-wait-sub{font-size:.85rem;color:#41504a;margin-bottom:12px;line-height:1.45}
-      .ah-wait-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
-        padding:10px 0;border-top:1px solid #d6e8de}
-      .ah-wait-who strong{display:block;font-size:.92rem}
-      .ah-wait-who small{color:#6b7a73;font-size:.78rem}
-      .ah-wait-spec{display:block;color:#41504a;font-size:.78rem;margin-top:3px;line-height:1.4}
+      #ahWaitingPanel{margin-top:var(--space-4)}
+      .ah-wait-card{background:var(--c-brand-faint);border:1px solid var(--c-brand-soft);
+        border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5)}
+      .ah-wait-head{font-weight:var(--fw-bold);font-size:var(--text-md);color:var(--c-brand);margin-bottom:2px}
+      .ah-wait-sub{font-size:var(--text-sm);color:var(--c-text-soft);margin-bottom:var(--space-3);
+        line-height:var(--lh-normal)}
+      .ah-wait-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
+        padding:var(--space-3) 0;border-top:1px solid var(--c-border)}
+      .ah-wait-who strong{display:block;font-size:var(--text-sm)}
+      .ah-wait-who small{color:var(--c-text-muted);font-size:var(--text-xs)}
+      .ah-wait-spec{display:block;color:var(--c-text-soft);font-size:var(--text-xs);margin-top:3px;
+        line-height:var(--lh-snug)}
       .ah-misfit{opacity:.6}
-      .ah-misfit-chip{display:inline-block;font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;
-        background:#fdecea;color:#b3261e;margin-left:4px;white-space:nowrap}
-      .ah-wait-cta{display:flex;gap:6px;flex-shrink:0}
-      .ah-wait-btn{font-size:.82rem;font-weight:600;text-decoration:none;padding:7px 12px;border-radius:8px;white-space:nowrap}
-      .ah-wait-btn.call{background:#0a6f4d;color:#fff}
-      .ah-wait-btn.wa{background:#fff;color:#0a6f4d;box-shadow:inset 0 0 0 1.5px #0a6f4d}
-      .ah-wait-done{margin-top:12px;width:100%;padding:10px;border:0;border-radius:9px;
-        background:#0a6f4d;color:#fff;font-weight:600;font-size:.9rem;cursor:pointer}
-      .ah-by-chip{display:inline-block;margin-top:4px;font-size:.74rem;font-weight:700;
-        padding:2px 8px;border-radius:999px;white-space:nowrap}
-      .ah-by-chip.urgent{background:#fde6e2;color:#b3261e}
-      .ah-by-chip.soon{background:#fff3d6;color:#946200}
-      .ah-by-chip.later{background:#e7f0ea;color:#41504a}
-      #ahDemandBoard{margin:0 0 18px}
-      .ah-board{position:relative;background:#fff7ed;border-color:#fcd9a8}
-      .ah-board .ah-wait-head{color:#9a3412}
-      .ah-board-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:20px;
-        line-height:1;color:#9a3412;cursor:pointer;opacity:.6}
+      .ah-misfit-chip{display:inline-block;font-size:var(--text-xs);font-weight:var(--fw-bold);
+        padding:1px 7px;border-radius:var(--radius-pill);background:var(--c-danger-soft);
+        color:var(--c-danger);margin-left:var(--space-1);white-space:nowrap}
+      .ah-wait-cta{display:flex;gap:var(--space-2);flex-shrink:0}
+      .ah-wait-btn{font-size:var(--text-sm);font-weight:var(--fw-semibold);text-decoration:none;
+        padding:7px var(--space-3);border-radius:var(--radius-sm);white-space:nowrap}
+      .ah-wait-btn.call{background:var(--c-brand);color:var(--c-brand-on)}
+      .ah-wait-btn.wa{background:var(--c-surface);color:var(--c-brand);
+        box-shadow:inset 0 0 0 1.5px var(--c-brand)}
+      .ah-wait-done{margin-top:var(--space-3);width:100%;min-height:var(--hit-min);padding:var(--space-3);
+        border:0;border-radius:var(--radius);background:var(--c-brand);color:var(--c-brand-on);
+        font:inherit;font-weight:var(--fw-semibold);font-size:var(--text-sm);cursor:pointer}
+      .ah-by-chip{display:inline-block;margin-top:var(--space-1);font-size:var(--text-xs);
+        font-weight:var(--fw-bold);padding:2px var(--space-2);border-radius:var(--radius-pill);
+        white-space:nowrap}
+      .ah-by-chip.urgent{background:var(--c-danger-soft);color:var(--c-danger)}
+      .ah-by-chip.soon{background:var(--c-warning-soft);color:var(--c-warning)}
+      .ah-by-chip.later{background:var(--c-bg-elev);color:var(--c-text-soft)}
+      #ahDemandBoard{margin:0 0 var(--space-5)}
+      .ah-board{position:relative;background:var(--c-warning-soft);border-color:var(--c-warning)}
+      .ah-board .ah-wait-head{color:var(--c-warning)}
+      .ah-board-x{position:absolute;top:var(--space-2);right:var(--space-3);border:0;background:none;
+        font-size:var(--text-md);line-height:1;color:var(--c-warning);cursor:pointer;opacity:.6}
       .ah-board-x:hover{opacity:1}
-      .ah-board-more{margin-top:10px;font-size:.8rem;color:#9a3412;font-weight:600;text-align:center}`;
+      .ah-board-more{margin-top:var(--space-3);font-size:var(--text-sm);color:var(--c-warning);
+        font-weight:var(--fw-semibold);text-align:center}`;
     document.head.appendChild(s);
   }
 

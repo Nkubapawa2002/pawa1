@@ -58,6 +58,13 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
   "houses.html",
   "trucks.html",
   "services.html",
+  // The two "earn with us" doors off the home screen. Neither was ever
+  // scanned, which is exactly how agent-services.html came to be written in
+  // English from its <title> to its Save button while the rest of the app was
+  // bilingual: no test ever looked at it. Signed out they show the auth gate,
+  // which is the screen a new agent actually meets.
+  "agent-houses.html",
+  "agent-services.html",
 ];
 
 // Words that are the same in Swahili, or are not words at all. Kept small and
