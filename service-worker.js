@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v312-2026-08-30-guest-fence-and-doors";
+const VERSION = "v314-2026-09-01-adaptive-layer-precached";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -24,6 +24,13 @@ const APP_SHELL = [
   "./css/auth.css",
   "./css/design-system.css",
   "./css/theme-light.css",
+  // The adaptive layer, and it is not optional. Every page links it in <head>,
+  // and an install that cannot fetch it comes back with the three bugs it
+  // exists to fix: a header behind the notch, a 100vh panel hanging past the
+  // bottom of the screen, and a tab bar eating a fifth of an iPhone X. The
+  // page still renders without it, which is exactly why this had to be
+  // listed — the failure is silent and looks like the layout was never fixed.
+  "./css/adaptive.css",
   "./css/ds/tokens/fonts.css",
   "./css/ds/tokens/colors.css",
   "./css/ds/tokens/typography.css",
@@ -59,6 +66,13 @@ const APP_SHELL = [
   "./js/lib/home-search.js",
   "./js/core/notify.js",
   "./js/lib/notify-ui.js",
+  // The bell's two readers. Without house-alerts.js it counts every new room
+  // in the country instead of the ones this device asked about, and without
+  // pm-trust.js it never mentions a changed safety number at all. Both fail
+  // silently, so a cached install missing them looks like it is working.
+  // geo-poly.js is already precached above; house-alerts needs it.
+  "./js/lib/house-alerts.js",
+  "./js/lib/pm-trust.js",
   // The Frame reads details.rooms through HouseSpec to find business rooms and
   // names their kinds through ListingKinds. Without them it falls back to
   // judging a listing by its type alone, which is the bug they fixed.
@@ -90,6 +104,11 @@ const APP_SHELL = [
   "./js/lib/service-categories.js",
   "./js/core/app-shell.js",
   "./js/core/theme.js",
+  // Beside theme.js because it loads beside it, first in every <head> and
+  // before first paint. It is what stamps data-shell, so a missing copy does
+  // not just lose the measurements — app-shell.js draws both chromes and CSS
+  // never learns which one to show.
+  "./js/core/viewport.js",
   "./js/pages/tenant.js",
   "./manifest.json",
   "./icons/icon-maskable.svg",

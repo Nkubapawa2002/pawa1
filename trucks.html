@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Moving trucks for hire — Maisha na Lifeza</title>
@@ -158,7 +159,7 @@
        These say WHERE things sit, not what colour they are, so they must not
        be scoped to a theme. */
     body[data-page="trucks"] {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
     }
     body[data-page="trucks"] .page-hero { min-height: auto !important; padding: 26px 16px 10px !important; }
     body[data-page="trucks"] .container { padding-bottom: 96px; }
@@ -224,6 +225,10 @@
       color: rgba(233, 243, 238, .45) !important;
     }
   </style>
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-houses-pro data-page="trucks" data-app-shell="trucks.html">
   <div id="nav-slot"></div>

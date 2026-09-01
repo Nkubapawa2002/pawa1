@@ -4,11 +4,16 @@
    Targets ≤ 700px primarily; some tweaks apply universally.
    ===================================================================== */
 
+/* The insets are measured once by js/core/viewport.js and published as
+   --sa-*; these four names are the ones this file and the pages that came
+   before it already use, so they alias rather than re-read env(). One source
+   of truth, and the env() fallback still covers the frame before script runs
+   and the case where script never does. */
 :root {
-  --safe-top:    env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left:   env(safe-area-inset-left, 0px);
-  --safe-right:  env(safe-area-inset-right, 0px);
+  --safe-top:    var(--sa-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--sa-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left:   var(--sa-left, env(safe-area-inset-left, 0px));
+  --safe-right:  var(--sa-right, env(safe-area-inset-right, 0px));
   --bottom-nav-h: 64px;
   --fab-size: 60px;
 }
@@ -400,7 +405,7 @@ body:not([data-page="meet"]) .meet-exit-btn { display: none; }
   body[data-page="chat"] main.container { padding: 0 !important; }
   body[data-page="chat"] .chat-container {
     margin: 0; border-radius: 0; box-shadow: none;
-    height: calc(100vh - var(--bottom-nav-h) - var(--safe-bottom));
+    height: calc(var(--app-vh, 100vh) - var(--bottom-nav-h) - var(--safe-bottom));
     display: flex; flex-direction: column;
   }
   body[data-page="chat"] .chat-tab-bar {

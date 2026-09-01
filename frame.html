@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>The Frame — read any area as a room for business — Maisha na Lifeza</title>
@@ -430,7 +431,7 @@
       --fr-track:     rgba(255,255,255,.10);   /* meter / progress groove */
       --fr-feature:   linear-gradient(180deg, rgba(246,196,90,.10), rgba(246,196,90,.02));
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
     }
     body[data-page="frame"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; min-height: auto !important; padding: 26px 16px 10px !important; }
     body[data-page="frame"] .page-title { color: #fff; }
@@ -519,6 +520,10 @@
     }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-houses-pro data-page="frame" data-app-shell="frame.html">
   <div id="nav-slot"></div>

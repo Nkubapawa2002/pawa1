@@ -93,13 +93,26 @@
     return fallback;
   }
 
+  // ── The two chromes ───────────────────────────────────────────────────────
+  //  Both are built, once, and CSS shows whichever `data-shell` on <html>
+  //  asks for. Building only the active one meant re-rendering on every view
+  //  change and re-deriving the active tab each time; building both means the
+  //  switch is a repaint and nothing else, which is why it can be instant.
+  //
+  //  APP is the bottom tab bar: five destinations, thumb-height, fixed. It is
+  //  the right shape on a phone with room for it.
+  //  WEB is a sticky top rail that scrolls away going down and returns coming
+  //  up. It is the right shape when there is no room to keep 120px of the
+  //  screen permanently spoken for, which on an iPhone X in Safari is a fifth
+  //  of everything the person can see.
+
   function injectStyles() {
     if (document.getElementById("appshell-styles")) return;
     const s = document.createElement("style");
     s.id = "appshell-styles";
     s.textContent = `
       /* Pure app-shell: the desktop top nav + legacy mobile bottom-nav are
-         replaced by the in-app header + this single tab bar. */
+         replaced by the in-app header + one of the two chromes below. */
       body[data-app-shell] .navbar,
       body[data-app-shell] #nav-slot,
       body[data-app-shell] .footer,
@@ -110,7 +123,13 @@
       .app-tabbar {
         position: fixed; left: 50%; transform: translateX(-50%);
         bottom: 0; width: 100%; max-width: 560px; z-index: 900;
-        display: flex; padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+        display: flex;
+        /* The insets come from js/core/viewport.js, which measures them once
+           and republishes them as ordinary custom properties. env() is kept
+           as the fallback so the bar is still correct before script runs. */
+        padding: 8px 14px calc(var(--sa-bottom, env(safe-area-inset-bottom, 0px)) + 10px);
+        padding-left: calc(var(--sa-left, 0px) + 14px);
+        padding-right: calc(var(--sa-right, 0px) + 14px);
         background: rgba(8,16,12,.82);
         -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
         border-top: 1px solid rgba(255,255,255,.07);
@@ -123,10 +142,24 @@
            inactive/active distinction while staying legible. */
         text-decoration: none; padding: 4px 0; color: rgba(231,241,236,.58);
         -webkit-tap-highlight-color: transparent;
+        min-width: 0;
       }
       .app-tabbar a svg { width: 23px; height: 23px; }
-      .app-tabbar a span { font-size: 10px; font-weight: 700; }
+      .app-tabbar a span {
+        font-size: 10px; font-weight: 700;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .app-tabbar a.active { color: #2EE6A6; }
+
+      /* A cramped screen keeps the bar but stops it eating the page: the icons
+         come down 3px and the vertical padding halves. Below that it would be
+         under the 44px hit minimum, so this is as small as it goes — the
+         answer on a screen smaller still is the web chrome, not a smaller
+         bar. */
+      :root[data-vp="compact"] .app-tabbar { padding-top: 5px; }
+      :root[data-vp="compact"] .app-tabbar a { gap: 3px; padding: 2px 0; }
+      :root[data-vp="compact"] .app-tabbar a svg { width: 20px; height: 20px; }
+      :root[data-vp="compact"] .app-tabbar a span { font-size: 9.5px; }
 
       /* The bar rides on all 21 app-shell pages, so its colours were the one
          thing a page's light theme could never reach: they are written here,
@@ -140,21 +173,17 @@
       :root[data-theme="light"] .app-tabbar a { color: rgba(20,32,27,.65); }
       :root[data-theme="light"] .app-tabbar a.active { color: #0A6647; }
 
-      /* room so the last content clears the fixed bar */
-      .app-shell-pad { height: calc(86px + env(safe-area-inset-bottom, 0px)); }
+      /* Room so the last content clears whichever chrome is showing. In web
+         mode --app-bottom is just the home indicator, so the spacer collapses
+         to 0 on a phone without one and the page ends where it ends. */
+      .app-shell-pad { height: calc(var(--app-bottom, 86px) + 12px); }
+      :root[data-shell="web"] .app-shell-pad { height: calc(var(--sa-bottom, 0px) + 8px); }
     `;
     document.head.appendChild(s);
   }
 
-  function render() {
-    if (document.querySelector(".app-tabbar")) return;
-    injectStyles();
-
-    const file = (document.body.dataset.appShell ||
-      location.pathname.split("/").pop() || "index.html").toLowerCase();
-    const active = resolveTab(file);
-
-    const tabs = [
+  function tabList() {
+    return [
       { id: "home", href: "index.html", label: t("nav_home", "Home"), icon: ICON.home },
       // Explore is the global view across all four catalogues. It used to point
       // at houses.html, which meant the "Explore" tab could only ever show one
@@ -164,16 +193,75 @@
       { id: "pmessage", href: "p-message.html", label: t("tab_pmessage", "P-Message"), icon: ICON.pmessage },
       { id: "profile", href: "profile.html", label: t("tab_profile", "Profile"), icon: ICON.profile },
     ];
+  }
 
+  // ── The web nav hides on the way down ─────────────────────────────────────
+  //  Only downward, only past the fold, and it comes straight back on the
+  //  first upward pixel. A header that hides while you are reading and
+  //  reappears the moment you look for it is the reason a web page feels
+  //  roomier than an app on the same screen.
+  function wireScrollAway(nav) {
+    let last = window.scrollY;
+    let ticking = false;
+    const REVEAL_AT = 8;   // an upward nudge this small still counts
+    const ARM_AFTER = 120; // never hide while the top of the page is in view
+
+    function frame() {
+      ticking = false;
+      const y = window.scrollY;
+      const down = y > last;
+      // A view change can leave the class on while the nav is not even
+      // showing; cheap to keep it honest here rather than track it.
+      if (y <= ARM_AFTER) nav.classList.remove("is-hidden");
+      else if (down && y - last > 2) nav.classList.add("is-hidden");
+      else if (!down && last - y > REVEAL_AT) nav.classList.remove("is-hidden");
+      last = y;
+    }
+    window.addEventListener("scroll", () => {
+      if (!ticking) { ticking = true; requestAnimationFrame(frame); }
+    }, { passive: true });
+  }
+
+  function render() {
+    if (document.querySelector(".app-tabbar")) return;
+    injectStyles();
+
+    const file = (document.body.dataset.appShell ||
+      location.pathname.split("/").pop() || "index.html").toLowerCase();
+    const active = resolveTab(file);
+    const tabs = tabList();
+
+    const mark = (tab) =>
+      `${tab.id === active ? ' class="active" aria-current="page"' : ""}`;
+
+    // The bottom bar.
     const nav = document.createElement("nav");
     nav.className = "app-tabbar";
-    nav.setAttribute("aria-label", "Primary");
+    nav.setAttribute("aria-label", t("nav_primary", "Primary"));
     nav.innerHTML = tabs.map((tab) =>
-      `<a href="${tab.href}" class="${tab.id === active ? "active" : ""}"${tab.id === active ? ' aria-current="page"' : ""}>${tab.icon}<span>${tab.label}</span></a>`
+      `<a href="${tab.href}"${mark(tab)}>${tab.icon}<span>${tab.label}</span></a>`
     ).join("");
-    document.body.appendChild(nav);
 
-    // Spacer so fixed bar never covers the final content.
+    // The top rail. Same five destinations, same active tab, different shape:
+    // it is one row, it scrolls sideways rather than shrinking its labels, and
+    // it is part of the document instead of bolted to the bottom edge.
+    const web = document.createElement("nav");
+    web.className = "app-webnav";
+    web.setAttribute("aria-label", t("nav_primary", "Primary"));
+    web.innerHTML =
+      `<div class="app-webnav-rail">` +
+      tabs.map((tab) =>
+        `<a href="${tab.href}"${mark(tab)}>${tab.icon}<span>${tab.label}</span></a>`
+      ).join("") +
+      `</div>`;
+
+    // The rail goes at the very top of the body so it is the first thing in
+    // the flow and `position: sticky` has something to stick to.
+    document.body.insertBefore(web, document.body.firstChild);
+    document.body.appendChild(nav);
+    wireScrollAway(web);
+
+    // Spacer so the fixed bar never covers the final content.
     if (!document.querySelector(".app-shell-pad")) {
       const pad = document.createElement("div");
       pad.className = "app-shell-pad";
@@ -183,6 +271,12 @@
     // The Profile tab used to rewrite itself to agent-houses.html for signed-in
     // users, because login.html had nothing to offer them. profile.html serves
     // every state itself, so the tab now goes to one place for everyone.
+
+    // A view change is a repaint, not a rebuild — but the rail may have been
+    // hidden by a scroll that happened in the other shell, so it is reset.
+    window.addEventListener("pawa:viewchange", () => {
+      web.classList.remove("is-hidden");
+    });
   }
 
   if (document.body) {

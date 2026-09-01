@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>PN-Zaki, Homes and Daily Services in Tanzania</title>
@@ -213,10 +214,18 @@
        the mark reads as a small x beside the text rather than a second button
        competing with the field it sits in. */
     .ha-search-clear {
+      position: relative;
       flex: none; width: 34px; min-height: var(--hit-min); align-self: stretch;
       display: grid; place-items: center; cursor: pointer;
       border: 0; background: none; color: var(--text-faint);
       transition: color var(--dur-fast) var(--ease);
+    }
+    /* 34px tall enough and 34px wide is still 34px wide, and a thumb on a
+       moving daladala misses it. The mark stays exactly where it is and the
+       hit area grows past it on both sides: 40px to press, nothing to see,
+       and not a pixel of layout moved. */
+    .ha-search-clear::after {
+      content: ""; position: absolute; top: 0; bottom: 0; left: -3px; right: -3px;
     }
     .ha-search-clear:hover, .ha-search-clear:focus-visible { color: var(--text); }
 
@@ -502,6 +511,10 @@
     }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-page="index" data-app-shell="index.html">
   <div id="nav-slot"></div>
@@ -787,6 +800,15 @@
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>
   <script src="js/core/nav.js"></script>
+  <!-- The three files the bell reads and never writes. They are here rather
+       than only on the pages they belong to because this is the ONLY page that
+       draws the bell, and without them it silently falls back to its old
+       answers: every new room in the country instead of the ones somebody
+       asked about, and no word at all about a changed safety number.
+       geo-poly first, because house-alerts tests drawn shapes with it. -->
+  <script src="js/lib/geo-poly.js"></script>
+  <script src="js/lib/house-alerts.js"></script>
+  <script src="js/lib/pm-trust.js"></script>
   <!-- Notifications: the engine works out what is new since this device last
        looked; the UI draws the bell under the theme toggle. Both need
        DataStore and Auth above them. -->

@@ -424,13 +424,18 @@ window.initHousesPage = async () => {
   //    3. Tap " GPS" to drop the pin at the user's current location
   //  Radius is a slider, 250 m → 10 km. Save persists to localStorage.
   // ====================================================================
-  function getGeoAlerts() {
-    try { return JSON.parse(localStorage.getItem("pawa_house_geo_alerts") || "[]"); }
-    catch { return []; }
-  }
-  function saveGeoAlerts(arr) {
-    localStorage.setItem("pawa_house_geo_alerts", JSON.stringify(arr));
-  }
+  //  The alert LIST, its dates and the "does this room match" rule all moved to
+  //  js/lib/house-alerts.js, because the notification bell needs to ask the
+  //  same questions and could not reach into this closure to do it. Two copies
+  //  of "what did this person actually ask for" would let the banner on this
+  //  page and the badge on every other one describe different rooms, and
+  //  nothing would catch it: each would look right on its own screen.
+  //
+  //  What stays here is everything with a DOM in it — the modal, the map, the
+  //  chips, the banner, and the seen-ids bookkeeping that decides which rooms
+  //  are new to THIS page.
+  function getGeoAlerts() { return window.HouseAlerts.load(); }
+  function saveGeoAlerts(arr) { window.HouseAlerts.save(arr); }
   function getSeenIds() {
     try { return new Set(JSON.parse(localStorage.getItem("pawa_house_seen_ids") || "[]")); }
     catch { return new Set(); }
@@ -529,56 +534,27 @@ window.initHousesPage = async () => {
   // Does a listing satisfy EVERY criterion of an alert (place + when + type
   // + price + bedrooms)? Users only get pinged about the rooms they actually
   // want — never the wrong type or price.
-  function alertMatches(h, a) {
-    if (!pointInAlertArea(h.lat, h.lng, a)) return false;
-    if (a.listing && (h.listing || "rent") !== a.listing) return false;
-    if (a.type && (h.type || "house") !== a.type) return false;
-    if (a.beds && Number(h.bedrooms || 0) < a.beds) return false;
-    if (a.price_max && Number(h.price_tzs || 0) > a.price_max) return false;
-    return true;
-  }
-
-  // Normalise any alert to a list of watched areas — the new multi-area shape
-  // (a.areas) as-is, or a legacy single circle / polygon wrapped in one. Each
-  // area is { kind, geo?, bbox?, lat?, lng?, radius_m?, name? }.
-  function alertAreas(a) {
-    if (Array.isArray(a.areas) && a.areas.length) return a.areas;
-    if (a.geo) return [{ kind: a.areaKind || "custom", geo: a.geo, bbox: a.bbox }];
-    if (a.radius_m != null) return [{ kind: "circle", lat: a.lat, lng: a.lng, radius_m: a.radius_m }];
-    return [];
-  }
-
-  // Is a listing's point inside ANY of the alert's watched areas? One alert can
-  // hold several areas (e.g. Mikocheni OR Mbezi OR Sinza). Falls back to a
-  // circle-only test if pawaPoly hasn't loaded, so an old cached page can never
-  // silently stop matching.
-  function pointInAlertArea(lat, lng, a) {
-    if (lat == null || lng == null) return false;
-    const areas = alertAreas(a);
-    if (window.pawaPoly) return pawaPoly.pointInAreas(+lng, +lat, areas);
-    return areas.some((ar) => ar.radius_m && ar.lat != null &&
-      haversineKm(lat, lng, ar.lat, ar.lng) * 1000 <= ar.radius_m);
-  }
+  const alertMatches     = (h, a) => window.HouseAlerts.matches(h, a);
+  const alertAreas       = (a) => window.HouseAlerts.areasOf(a);
+  const pointInAlertArea = (lat, lng, a) => window.HouseAlerts.pointInAlert(lat, lng, a);
 
   // Drop alerts whose "needed by" date has passed — the user found a place
   // (or stopped looking); silence beats stale notifications. Alerts that haven't
   // STARTED yet (a future "from" date) are KEPT — they just don't fire until then.
+  //
+  // The pruning itself is HouseAlerts.active(); what is this page's alone is
+  // redrawing the chips when it removed one, which the shared file cannot do
+  // because it has no DOM.
   function activeGeoAlerts() {
-    const all = getGeoAlerts();
-    const today = new Date().toISOString().slice(0, 10);
-    const live = all.filter(a => !a.until || a.until >= today);
-    if (live.length !== all.length) { saveGeoAlerts(live); renderWatchChips(); }
+    const before = getGeoAlerts().length;
+    const live = window.HouseAlerts.active();
+    if (live.length !== before) renderWatchChips();
     return live;
   }
 
   // Is an alert within its active window right now? It fires only on/after its
   // "from" date and on/before its "needed by" date. No dates → always open.
-  function alertWindowOpen(a) {
-    const today = new Date().toISOString().slice(0, 10);
-    if (a.from && a.from > today) return false;     // hasn't started yet
-    if (a.until && a.until < today) return false;   // already ended
-    return true;
-  }
+  const alertWindowOpen = (a) => window.HouseAlerts.windowOpen(a);
 
   // "300k" / "1.2m" / "300,000" → TZS number (0 = not set / unparseable).
   function parseTzsValue(s) {

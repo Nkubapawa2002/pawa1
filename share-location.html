@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Share location — Maisha na Lifeza</title>
@@ -18,7 +19,7 @@
     * { box-sizing: border-box; }
     body {
       margin: 0; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #E9F3EE; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      color: #E9F3EE; min-height: var(--app-vh, 100vh); display: flex; align-items: center; justify-content: center;
       /* The app shell's fixed tab bar covers the bottom of the viewport. The
          card used to be short enough never to reach it; with both ways out on
          screen it is not, and the last control was landing underneath it. */
@@ -238,6 +239,10 @@
     :root[data-theme="light"] .sl-fine { color: #6b6960; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-app-shell="share-location.html">
   <div class="sl-card">

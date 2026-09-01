@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>My Favorites Pnzaki Houses</title>
@@ -235,7 +236,7 @@
   <style>
     /* ── Layout and type, both themes ──────────────────────────────────── */
     body[data-page="favorites"] {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
     }
     body[data-page="favorites"] .tw-head { max-width: 560px; margin: 0 auto; padding: 30px 16px 4px; }
     body[data-page="favorites"] .tw-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; color: var(--c-text, #1a1915); margin: 0; }
@@ -268,6 +269,10 @@
     :root:not([data-theme="light"]) body[data-page="favorites"] .hp-empty__cta { color: #06170F; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-houses-pro data-page="favorites" data-app-shell="favorites.html">
   <a href="#favGrid" class="hp-skip-link">Skip to favorites</a>

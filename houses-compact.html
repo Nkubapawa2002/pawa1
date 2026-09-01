@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script src="js/core/viewport.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Maisha · Houses — Compact (iOS & Android)</title>
@@ -246,6 +247,10 @@
   .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:128px;z-index:120;max-width:90%;display:flex;align-items:center;gap:8px;background:rgba(15,28,21,.97);backdrop-filter:blur(12px);border:1px solid rgba(46,230,166,.32);color:var(--text);border-radius:12px;padding:10px 14px;font-size:11.5px;font-weight:600;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:toastIn .26s ease}
   svg{display:block}
 </style>
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-os="ios" data-page="houses">
 

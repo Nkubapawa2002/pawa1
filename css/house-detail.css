@@ -79,7 +79,7 @@ body[data-page="house"] {
   font-family: var(--font-app);
   font-size: var(--text-base);
   line-height: var(--lh-normal);
-  min-height: 100vh;
+  min-height: var(--app-vh, 100vh);
 }
 
 /* This is a pushed detail screen, not a tab: no top nav, no footer, no tab bar. */

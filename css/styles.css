@@ -956,7 +956,7 @@ td code { font-size: 0.85rem; background: var(--gray-light); padding: 2px 6px; b
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   overflow: hidden;
-  height: calc(100vh - 200px);
+  height: calc(var(--app-vh, 100vh) - 200px);
   min-height: 500px;
   display: flex;
   flex-direction: column;
@@ -3018,7 +3018,7 @@ body[data-bg] .container > .page-subtitle {
   display: grid;
   grid-template-columns: 1fr 320px;
   gap: 12px;
-  height: calc(100vh - 240px);
+  height: calc(var(--app-vh, 100vh) - 240px);
   min-height: 520px;
 }
 @media (max-width: 900px) {

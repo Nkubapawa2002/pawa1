@@ -5,7 +5,7 @@
 /* ── Login Page ──────────────────────────────────────────── */
 .fin-login-page {
   display: flex;
-  min-height: 100vh;
+  min-height: var(--app-vh, 100vh);
   font-family: var(--font-sans, system-ui, sans-serif);
 }
 
@@ -196,7 +196,7 @@
 .fin-layout {
   display: grid;
   grid-template-columns: 240px 1fr;
-  min-height: calc(100vh - 52px);
+  min-height: calc(var(--app-vh, 100vh) - 52px);
 }
 
 /* Mobile menu button (hidden on desktop) */

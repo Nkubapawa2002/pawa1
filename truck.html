@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Moving truck — Maisha na Lifeza</title>
@@ -85,7 +86,7 @@
       --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
       --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-accent: #F6C45A; --c-success: #2EE6A6;
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
     }
     body[data-page="truck"] .td-wrap { max-width: 560px; padding-bottom: 48px; }
     body[data-page="truck"] .td-back { color: #2EE6A6; }
@@ -95,6 +96,10 @@
     body[data-page="truck"] #nav-slot, body[data-page="truck"] #footer-slot { display: none !important; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-houses-pro data-page="truck">
   <div id="nav-slot"></div>

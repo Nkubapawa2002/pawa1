@@ -38,6 +38,7 @@
     job:     '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12h18"/>',
     message: '<path d="M21 14a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/>',
     group:   '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5M17 5.2a3 3 0 0 1 0 6M18.5 20c0-2.6-1-4.2-2.7-5"/>',
+    shield:  '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.6-7 9.5-4.1-1.9-7-5.2-7-9.5V6z"/><path d="M12 9v4M12 16h.01"/>',
     close:   '<path d="M6 6l12 12M18 6L6 18"/>',
     check:   '<path d="M4 12.5l5 5L20 6.5"/>',
     empty:   '<circle cx="12" cy="12" r="9"/><path d="M8.5 13.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/>',
@@ -51,6 +52,10 @@
   // One sentence per kind of news, singular and plural, so neither language is
   // left saying "1 new rooms".
   var WORDS = {
+    // Not "1 new safety number". Nothing here is news; something is wrong, and
+    // the wording has to carry that or the row reads as one more thing posted.
+    trust:    { one: ["nt_trust_1", "1 safety number changed"],
+                many: ["nt_trusts", "{n} safety numbers changed"] },
     houses:   { one: ["nt_room_1", "1 new room"],       many: ["nt_rooms", "{n} new rooms"] },
     services: { one: ["nt_service_1", "1 new service"], many: ["nt_services", "{n} new services"] },
     trucks:   { one: ["nt_truck_1", "1 new truck"],     many: ["nt_trucks", "{n} new trucks"] },
@@ -59,6 +64,7 @@
     groups:   { one: ["nt_group_1", "1 new group chat"],many: ["nt_groups", "{n} new group chats"] },
   };
   var SUBS = {
+    trust:    ["nt_trust_d", "Check it before you send anything private. Sending is blocked until you do."],
     houses:   ["nt_room_d", "Rooms and houses posted since you last looked."],
     services: ["nt_service_d", "People offering everyday work near you."],
     trucks:   ["nt_truck_d", "Trucks available for moving."],
@@ -67,10 +73,25 @@
     groups:   ["nt_group_d", "Somebody added you to a conversation."],
   };
 
+  // When the rooms row has been narrowed to this device's own area alerts, it
+  // has to say so. "3 new rooms" and "3 new rooms in your areas" are different
+  // claims, and a reader who cannot tell which one they are looking at cannot
+  // tell whether the alert they saved is doing anything.
+  var WATCHED = {
+    one:  ["nt_room_w1", "1 new room in your areas"],
+    many: ["nt_rooms_w", "{n} new rooms in your areas"],
+    sub:  ["nt_room_wd", "Matching the areas and the budget you asked to be told about."],
+  };
+
   function headline(g) {
-    var w = WORDS[g.key];
+    var w = (g.watched && g.key === "houses") ? WATCHED : WORDS[g.key];
     if (!w) return "";
     return g.count === 1 ? tx(w.one[0], w.one[1]) : tx(w.many[0], w.many[1], { n: g.count });
+  }
+
+  function subline(g) {
+    if (g.watched && g.key === "houses") return tx(WATCHED.sub[0], WATCHED.sub[1]);
+    return tx(SUBS[g.key][0], SUBS[g.key][1]);
   }
 
   // ---- the bell -------------------------------------------------------------
@@ -125,11 +146,12 @@
       var preview = items.length
         ? '<span class="nt-row-eg">' + items.map(function (i) { return esc(i.title); }).join(" · ") + "</span>"
         : "";
-      return '<a class="nt-row" href="' + esc(g.href) + '" data-key="' + esc(g.key) + '">' +
+      return '<a class="nt-row' + (g.alarm ? " is-alarm" : "") + '" href="' + esc(g.href) +
+        '" data-key="' + esc(g.key) + '">' +
         '<span class="nt-row-ic">' + icon(g.icon) + "</span>" +
         '<span class="nt-row-tx">' +
           '<span class="nt-row-h">' + esc(headline(g)) + "</span>" +
-          '<span class="nt-row-d">' + esc(tx(SUBS[g.key][0], SUBS[g.key][1])) + "</span>" +
+          '<span class="nt-row-d">' + esc(subline(g)) + "</span>" +
           preview +
         "</span>" +
         '<span class="nt-row-n">' + (g.count > 99 ? "99+" : g.count) + "</span>" +
@@ -142,8 +164,11 @@
     var st = window.Notify ? window.Notify.state() : { total: 0, groups: [] };
     panel.querySelector(".nt-body").innerHTML = rowsHtml(st);
     var clear = panel.querySelector(".nt-clear");
+    // The engine owns the list of rows this button cannot touch; asking it
+    // beats keeping a second copy here, which is how the button ends up
+    // offered for an alarm it will not clear.
     if (clear) clear.hidden = !(st.groups || []).some(function (g) {
-      return g.count > 0 && g.key !== "messages";
+      return g.count > 0 && (!window.Notify || window.Notify.isDismissible(g.key));
     });
     // A row is a door AND a dismissal: opening the page is the same as saying
     // "I have seen these", so the badge does not still claim them on the way back.
@@ -311,6 +336,13 @@
     ".nt-row-ic{ flex:0 0 auto; width:36px; height:36px; border-radius:var(--radius-sm,10px);",
     "  display:flex; align-items:center; justify-content:center;",
     "  background:var(--green-soft); color:var(--brand-primary); }",
+    /* An alarm is not news, so it does not wear the brand green every other
+       row wears. --warn rather than --danger: the key MAY have changed because
+       somebody reinstalled the app, and painting that red would teach people
+       to dismiss the one row that is worth stopping for. */
+    ".nt-row.is-alarm .nt-row-ic{ background:color-mix(in srgb, var(--warn) 16%, transparent);",
+    "  color:var(--warn); }",
+    ".nt-row.is-alarm .nt-row-h{ color:var(--warn); }",
     ".nt-row-ic .nt-ic{ width:19px; height:19px; }",
     ".nt-row-tx{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }",
     ".nt-row-h{ font-weight:var(--fw-bold,700); font-size:var(--text-sm,.85rem); }",

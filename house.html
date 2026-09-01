@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Property — Pawa Houses</title>
@@ -29,6 +30,10 @@
        palette of raw hexes that used to sit in this <head> are gone; the file
        header says why that mattered. -->
   <link rel="stylesheet" href="css/house-detail.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-houses-pro data-page="house">
   <a href="#hdBody" class="hp-skip-link">Skip to property details</a>

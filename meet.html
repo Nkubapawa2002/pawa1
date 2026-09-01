@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Meet & Locate — Maisha na Lifeza</title>
@@ -621,7 +622,7 @@
       --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-brand-on: #06170F; --c-brand-faint: rgba(46,230,166,.10); --c-brand-soft: rgba(46,230,166,.30);
       --c-accent: #F6C45A; --c-success: #2EE6A6; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
     }
     body[data-page="meet"] .container { padding-bottom: 96px; }
     /* ── The fields, and why every declaration here carries !important ────
@@ -729,6 +730,10 @@
       color: rgba(233, 243, 238, .45) !important;
     }
   </style>
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-page="meet" data-app-shell="meet.html">
   <div id="nav-slot"></div>

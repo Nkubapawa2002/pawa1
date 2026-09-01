@@ -1,0 +1,352 @@
+/* ============================================================================
+   Maisha na Lifeza — Adaptive layer
+   Load AFTER css/design-system.css and after every page-level stylesheet, so
+   it can correct them. Pairs with js/core/viewport.js, which stamps
+   `data-shell`, `data-vp` and `data-notch` on <html> and publishes the real
+   viewport height and the safe-area insets as custom properties.
+
+   WHAT THIS FILE IS FOR
+   The app chrome was drawn for a 390-430px phone. On an iPhone X, 375 wide and
+   812 tall with a 44px notch and a 34px home indicator, three things went
+   wrong at once and the screen stopped being usable:
+
+     the header sat under the notch, because nothing reserved the top inset;
+     `100vh` resolved to 812 against a visible 635, so full-height panels ran
+     past the bottom of the screen and their last row could not be reached;
+     the type and the cards were sized for a wider screen, so a viewport with
+     roughly 515 usable pixels showed two cards and no content.
+
+   The fix is in three layers, in this order:
+
+     1. METRICS. One set of names for the insets, the real height, and the
+        height of the chrome. Everything else is written in terms of these.
+     2. DENSITY. A single `--ui-scale` that a cramped screen turns down, so
+        one change tightens type, padding and card size together.
+     3. SHELL. `data-shell="web"` swaps the fixed bottom tab bar for a top nav
+        that scrolls away, which hands a short screen back 120px.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. METRICS
+   ========================================================================== */
+
+:root {
+  /* Fallbacks. js/core/viewport.js overwrites all six on <html> within a frame
+     of parse; these keep the page correct in between, and correct forever if
+     script is off. */
+  --sa-top: env(safe-area-inset-top, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
+  --sa-left: env(safe-area-inset-left, 0px);
+  --sa-right: env(safe-area-inset-right, 0px);
+
+  /* The height you can actually see. `dvh` is the standards answer and is
+     correct on every current browser; the JS value is used in preference
+     because it is also correct while the on-screen keyboard is open, which
+     `dvh` is not. Order matters: last valid declaration wins, so the plain
+     `vh` is the floor and each better source overrides it. */
+  --app-vh: 100vh;
+  --app-vw: 100vw;
+
+  /* Chrome. The tab bar is icon over label plus its own padding; the top nav
+     is a single row. Both are measured, not guessed, and both are read by the
+     spacer the shell inserts. */
+  --tabbar-h: 62px;
+  --topnav-h: 54px;
+
+  /* What a page must leave clear at each end so its content is never under the
+     chrome or under the hardware. Written once, used by every page. */
+  --app-top: var(--sa-top);
+  --app-bottom: calc(var(--tabbar-h) + var(--sa-bottom));
+
+  /* 2. DENSITY. 1 is the drawn size, tuned for a 390-430px phone. */
+  --ui-scale: 1;
+
+  /* Reading measure for the web shell. Long lines are the thing that makes a
+     wide window harder to read than a phone, not easier. */
+  --web-measure: 720px;
+  --web-measure-wide: 1080px;
+}
+
+@supports (height: 100dvh) {
+  :root { --app-vh: 100dvh; }
+}
+
+/* ==========================================================================
+   2. DENSITY
+   A cramped screen is not a smaller copy of a roomy one. It has the same
+   number of words to show and fewer pixels to show them in, so the chrome
+   gives up proportionally more than the content does.
+   ========================================================================== */
+
+:root[data-vp="compact"] {
+  --ui-scale: 0.9;
+  --tabbar-h: 54px;
+  --topnav-h: 48px;
+}
+
+/* Under 340px is an Android 320 and the old SE. Below this the layout stops
+   scaling and starts wrapping, so the scale bottoms out here. */
+@media (max-width: 340px) {
+  :root { --ui-scale: 0.84; }
+}
+
+:root[data-vp="wide"] {
+  --ui-scale: 1;
+  --topnav-h: 60px;
+}
+
+/* Utilities any page can use so the density is one decision, not thirty.
+   Deliberately few: a page that needs more should scale a token, not add a
+   class. */
+.u-scale-text { font-size: calc(1em * var(--ui-scale)); }
+.u-pad { padding: calc(var(--space-4) * var(--ui-scale)); }
+.u-gap { gap: calc(var(--space-3) * var(--ui-scale)); }
+
+/* The notch, in one place. Any in-app header gets this and stops being a
+   header that nobody can read on an iPhone. */
+.u-safe-top { padding-top: calc(var(--sa-top) + var(--space-3)); }
+.u-safe-bottom { padding-bottom: calc(var(--sa-bottom) + var(--space-3)); }
+.u-safe-x {
+  padding-left: calc(var(--sa-left) + var(--space-4));
+  padding-right: calc(var(--sa-right) + var(--space-4));
+}
+
+/* A full-height pane that is actually full height. The single most common
+   cause of the unreachable-button bug, available as a class so the fix is
+   the same everywhere. */
+.u-vh { height: var(--app-vh); }
+.u-vh-min { min-height: var(--app-vh); }
+.u-vh-app { height: calc(var(--app-vh) - var(--app-top) - var(--app-bottom)); }
+
+/* ==========================================================================
+   3. THE NOTCH, APPLIED
+   Every page in the app puts something at the very top: a sticky header, a
+   greeting row, a hero. On a notched phone all of them were underneath it.
+   These are the shared shapes; a page with its own header opts in with
+   `data-app-top` on the element.
+   ========================================================================== */
+
+:root[data-notch] [data-app-top],
+:root[data-notch] .app-topsafe {
+  padding-top: calc(var(--sa-top) + var(--space-3));
+}
+
+/* A sticky element pinned to the top of a notched screen must stick BELOW the
+   notch, not at 0, or it spends its first 44px behind the hardware. */
+:root[data-notch] [data-app-top][style*="sticky"],
+:root[data-notch] .app-sticky-top {
+  position: sticky;
+  top: var(--sa-top);
+}
+
+/* ==========================================================================
+   4. THE WEB SHELL
+   What "make it like the web" means, concretely: the chrome stops being
+   furniture bolted to the edges of the screen and becomes part of the
+   document. The tab bar leaves the bottom, the page scrolls the way a page
+   does, and the 120px the bar and the home indicator were holding goes back
+   to the content.
+   ========================================================================== */
+
+/* The bottom bar is gone in web mode, so nothing needs to clear it. */
+:root[data-shell="web"] { --app-bottom: var(--sa-bottom); }
+
+:root[data-shell="web"] .app-tabbar { display: none; }
+
+/* The spacer's own height is NOT set here. app-shell.js builds that element
+   and injects its style, and that style lands after this file, so a rule here
+   with the same selector loses silently — which is worse than not having one,
+   because the next person to change the number changes it in the file that is
+   not being read. One owner: js/core/app-shell.js. This file owns the metric
+   it is written in terms of, --app-bottom, immediately above. */
+
+/* -- The top nav ---------------------------------------------------------- */
+.app-webnav {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  display: none;
+  align-items: center;
+  gap: calc(var(--space-2) * var(--ui-scale));
+  padding: calc(var(--sa-top) + 6px) calc(var(--sa-right) + var(--space-3))
+           6px calc(var(--sa-left) + var(--space-3));
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-app);
+  /* It scrolls away going down and comes back coming up. That is the whole
+     point of a web header: it is not spending a band of the screen while you
+     are reading. */
+  transition: transform var(--dur, 0.24s) var(--ease, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+
+:root[data-shell="web"] .app-webnav { display: flex; }
+
+.app-webnav.is-hidden { transform: translateY(-100%); }
+
+/* The rail of destinations. It scrolls sideways on a narrow screen rather than
+   shrinking the labels past reading size, which is what the bottom bar did. */
+.app-webnav-rail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-1) * var(--ui-scale));
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.app-webnav-rail::-webkit-scrollbar { display: none; }
+
+.app-webnav-rail a {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  scroll-snap-align: start;
+  padding: 8px calc(var(--space-3) * var(--ui-scale));
+  /* --hit-min is the floor everywhere else in the app and this is no
+     different: a nav that is hard to hit is a nav people stop using. */
+  min-height: var(--hit-min);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--text-soft);
+  font-size: calc(0.86rem * var(--ui-scale));
+  font-weight: var(--fw-semibold);
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-fast, 0.15s) var(--ease, ease),
+              color var(--dur-fast, 0.15s) var(--ease, ease);
+}
+.app-webnav-rail a svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.app-webnav-rail a:hover { background: var(--surface-2); color: var(--text); }
+.app-webnav-rail a.active {
+  background: var(--green-soft);
+  color: var(--green-emerald);
+}
+.app-webnav-rail a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* On a screen wide enough to hold all five, centre them and let them breathe
+   rather than leaving the rail hugging the left edge. */
+:root[data-vp="wide"] .app-webnav-rail { justify-content: center; gap: var(--space-2); }
+:root[data-vp="wide"] .app-webnav {
+  padding-left: calc(var(--sa-left) + var(--space-6));
+  padding-right: calc(var(--sa-right) + var(--space-6));
+}
+
+/* -- The reading column --------------------------------------------------- */
+/* The web shell's other half. A phone's content column is the screen; a
+   window's is not, and a page that stretches its cards to 1400px is the
+   reason "the desktop version looks wrong" is a sentence people say. */
+:root[data-shell="web"][data-vp="wide"] .app-web-measure {
+  max-width: var(--web-measure-wide);
+  margin-inline: auto;
+}
+
+/* -- Light theme ---------------------------------------------------------- */
+/* The nav rides on every app-shell page, so like the tab bar its colours are
+   written here rather than left to a page stylesheet that may or may not have
+   a light palette. */
+:root[data-theme="light"] .app-webnav {
+  background: color-mix(in srgb, var(--white) 88%, transparent);
+  border-bottom-color: rgba(20, 32, 27, 0.1);
+  box-shadow: 0 2px 16px rgba(20, 40, 32, 0.06);
+}
+:root[data-theme="light"] .app-webnav-rail a { color: #33413a; }
+:root[data-theme="light"] .app-webnav-rail a:hover { background: rgba(10, 102, 71, 0.08); color: #0a6647; }
+:root[data-theme="light"] .app-webnav-rail a.active {
+  background: rgba(10, 102, 71, 0.12);
+  color: #0a6647;
+}
+
+/* ==========================================================================
+   5. THE VIEW SWITCH
+   The control that makes the whole thing honest: whatever the device was
+   guessed to want, a person can say otherwise, on any device, in either
+   direction, and it sticks.
+   ========================================================================== */
+
+.app-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.app-view-switch button {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 7px 13px;
+  /* --hit-min, like every other control in the app. This was 38px, which is
+     under the floor mobile_audit holds the whole site to, and it failed on all
+     six phones the moment the row was added to profile.html. A control that
+     switches the entire layout is a bad one to have to aim at. */
+  min-height: var(--hit-min);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-app);
+  font-size: calc(0.8rem * var(--ui-scale));
+  font-weight: var(--fw-bold);
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-fast, 0.15s) var(--ease, ease),
+              color var(--dur-fast, 0.15s) var(--ease, ease);
+}
+.app-view-switch button[aria-pressed="true"] {
+  background: var(--green-neon);
+  color: var(--text-on-brand);
+}
+.app-view-switch button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+:root[data-theme="light"] .app-view-switch {
+  background: rgba(20, 32, 27, 0.05);
+  border-color: rgba(20, 32, 27, 0.1);
+}
+:root[data-theme="light"] .app-view-switch button { color: #4a5a52; }
+:root[data-theme="light"] .app-view-switch button[aria-pressed="true"] {
+  background: #0a6647;
+  color: var(--white);
+}
+
+/* ==========================================================================
+   6. CORRECTIONS
+   Things that were wrong on a cramped screen regardless of which shell is
+   showing, fixed once here rather than in each of the twenty-seven pages.
+   ========================================================================== */
+
+/* The tab bar's own safe-area maths, restated against the measured inset so
+   it agrees with --app-bottom. app-shell.js injects the rest. */
+:root[data-shell="app"] .app-tabbar {
+  padding-bottom: calc(var(--sa-bottom) + 10px);
+}
+
+/* Two floating controls, both pinned top-right, both 42px, both below the
+   notch: on a notched phone they overlapped the header and each other.
+   They are now stacked against the measured inset. */
+.pawa-theme-toggle { top: calc(var(--sa-top) + 8px) !important; }
+
+/* iOS zooms the page in when a control smaller than 16px takes focus, and does
+   not zoom back out. Every input in the app is affected, so it is set here
+   once. */
+input, select, textarea { font-size: max(16px, 1rem); }
+
+/* A cramped screen has no pixels to spare on a horizontal scroll nobody
+   wanted. */
+:root[data-vp="compact"] body { overflow-x: hidden; }
+
+/* ==========================================================================
+   7. MOTION
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .app-webnav,
+  .app-webnav-rail a,
+  .app-view-switch button { transition: none; }
+  .app-webnav.is-hidden { transform: none; }
+}

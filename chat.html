@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Contact support — Maisha na Lifeza</title>
@@ -72,7 +73,7 @@
       --c-text: var(--sp-ink); --c-text-muted: var(--sp-ink-soft);
       background: var(--sp-ground); color: var(--sp-ink);
       font-family: var(--font-app, 'Plus Jakarta Sans', system-ui, sans-serif);
-      min-height: 100vh;
+      min-height: var(--app-vh, 100vh);
     }
     /* Light values are picked for contrast, not for being the same hue: the
        brand mint is 1.5:1 on white, which is a decoration rather than a word.
@@ -203,6 +204,10 @@
     }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-page="support" data-app-shell="chat.html">
   <div id="nav-slot"></div>

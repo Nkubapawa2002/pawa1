@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <script src="js/core/theme.js"></script>
+  <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Admin — Maisha na Lifeza</title>
@@ -150,7 +151,7 @@
       --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03); --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
       --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14); --auth-ring: #2EE6A6;
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: 100vh;
+      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
     }
     body[data-page="admin"] .container { padding-bottom: 96px; }
     :root:not([data-theme="light"]) body[data-page="admin"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
@@ -174,6 +175,10 @@
     body[data-page="admin"] #nav-slot, body[data-page="admin"] #footer-slot { display: none !important; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- Adaptive layer: safe areas, the real viewport height, density,
+       and the app/web shell switch. Loads last so it can correct the sheets
+       above it. Pairs with js/core/viewport.js. -->
+  <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-page="admin" data-app-shell="admin.html">
   <div id="nav-slot"></div>

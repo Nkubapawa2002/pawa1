@@ -5,6 +5,13 @@
 //  nobody has read, and a group somebody added you to. js/core/notify.js counts
 //  them against a mark this device keeps; js/lib/notify-ui.js draws them.
 //
+//  A seventh row is not news at all. A peer's safety number changing is the
+//  most serious thing this app can notice, and until sections 7 and 8 below it
+//  could only be found by opening the conversation. Those two sections pin the
+//  pair of claims that make the bell worth reading rather than worth ignoring:
+//  the rooms row answers the alert this device actually saved, and the alarm
+//  cannot be tapped away.
+//
 //  Everything external is answered locally, so this spends no quota and does
 //  not need Supabase to be reachable. See the browser-test recipe.
 //
@@ -17,12 +24,44 @@ const now = Date.now();
 const iso = (msAgo) => new Date(now - msAgo).toISOString();
 const AN_HOUR_AGO = new Date(now - 3600000).toISOString();
 
+// Rooms carry a point and a price because the area alert in section 7 tests
+// both. Mwenge and Sinza are about 1.7 km apart, which is the whole point: a
+// 1 km watch around Mwenge has to leave Sinza out.
+const MWENGE = { lat: -6.7710, lng: 39.2390 };
+const SINZA  = { lat: -6.7830, lng: 39.2290 };
 const HOUSES = [
-  { id: "r1", title: "Mwenge single, water tank", created_at: iso(60000), available: true },
-  { id: "r2", title: "Sinza bedsitter", created_at: iso(120000), available: true },
+  { id: "r1", title: "Mwenge single, water tank", created_at: iso(60000), available: true,
+    ...MWENGE, price_tzs: 300000, listing: "rent", type: "house", bedrooms: 1 },
+  { id: "r2", title: "Sinza bedsitter", created_at: iso(120000), available: true,
+    ...SINZA, price_tzs: 250000, listing: "rent", type: "house", bedrooms: 1 },
+  // In the watched circle, over the budget somebody typed into it. A person
+  // who asked for under 500,000 and gets pinged about 900,000 learns to ignore
+  // the ping, and then the one that mattered arrives and is ignored too.
+  { id: "r3", title: "Mwenge two-bedroom, new", created_at: iso(45000), available: true,
+    ...MWENGE, price_tzs: 900000, listing: "rent", type: "house", bedrooms: 2 },
   // Older than the mark: already seen, must not be counted.
-  { id: "r0", title: "Ancient listing", created_at: iso(7200000), available: true },
+  { id: "r0", title: "Ancient listing", created_at: iso(7200000), available: true, ...MWENGE },
 ];
+
+// What somebody typed into the "Set up an area alert" sheet on houses.html:
+// this pin, one kilometre, for rent, under 500,000. Same storage key the page
+// writes, because the point of js/lib/house-alerts.js is that there is one.
+const ALERT = [{
+  id: "a1", name: "Mwenge", lat: MWENGE.lat, lng: MWENGE.lng, radius_m: 1000,
+  listing: "rent", price_max: 500000,
+}];
+
+// One peer whose key is not the one this device wrote down. Written in
+// pm-trust.js's own storage shape, scoped by my user id, because that is where
+// the alarm lives and the bell only reads it.
+const TRUST_BOOK = {
+  me: {
+    peer9: { key: "NEWKEY", name: "Juma", state: "changed",
+             firstSeen: iso(86400000), changedAt: iso(300000), previousKey: "OLDKEY",
+             wasVerified: true },
+    peer8: { key: "SAMEKEY", name: "Asha", state: "seen", firstSeen: iso(86400000) },
+  },
+};
 const SERVICES = [{ id: "s1", title: "Fundi umeme, Kinondoni", created_at: iso(90000) }];
 const TRUCKS = [];
 const JOBS = [
@@ -61,8 +100,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"], protocolTimeout: 120000 });
 
-/** A page whose device has looked before, unless `firstRun` says otherwise. */
-async function open({ firstRun = false } = {}) {
+/**
+ * A page whose device has looked before, unless `firstRun` says otherwise.
+ *
+ * `alerts` and `trust` seed the two stores the bell reads and never writes:
+ * the area alerts houses.html saves, and pm-trust.js's book of keys.
+ */
+async function open({ firstRun = false, alerts = null, trust = null } = {}) {
   const ctx = await browser.createBrowserContext();
   const page = await ctx.newPage();
   const errs = [];
@@ -79,7 +123,7 @@ async function open({ firstRun = false } = {}) {
     if (/fonts\.googleapis|fonts\.gstatic/.test(u)) return r.respond({ status: 200, headers: { "content-type": "text/css" }, body: "" });
     r.continue();
   });
-  await page.evaluateOnNewDocument((since, fresh) => {
+  await page.evaluateOnNewDocument((since, fresh, al, tr) => {
     try {
       localStorage.setItem("pawa-theme", "dark");
       if (!fresh) {
@@ -87,8 +131,10 @@ async function open({ firstRun = false } = {}) {
           houses: since, services: since, trucks: since, jobs: since, threads: [], seededAt: since,
         }));
       }
+      if (al) localStorage.setItem("pawa_house_geo_alerts", JSON.stringify(al));
+      if (tr) localStorage.setItem("pm-trust-v1", JSON.stringify(tr));
     } catch (e) {}
-  }, AN_HOUR_AGO, firstRun);
+  }, AN_HOUR_AGO, firstRun, alerts, trust);
   await page.goto(BASE + "/index.html", { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForFunction(() => !!window.Notify && !!document.getElementById("pawa-notify-bell"), { timeout: 30000 });
   return { page, errs, close: () => ctx.close() };
@@ -105,13 +151,13 @@ console.log("\n1. It counts what arrived since this device last looked");
     s.groups.forEach((g) => { by[g.key] = g.count; });
     return { total: s.total, by, badge: document.querySelector(".pawa-notify-badge").textContent };
   });
-  ok(st.by.houses === 2, "two rooms, and the one older than the mark is not news", JSON.stringify(st.by));
+  ok(st.by.houses === 3, "three rooms, and the one older than the mark is not news", JSON.stringify(st.by));
   ok(st.by.services === 1, "one service");
   ok(st.by.trucks === 0, "no trucks, so no row for them");
   ok(st.by.jobs === 2, "two day jobs");
   ok(st.by.messages === 5, "five unread messages across the inbox", String(st.by.messages));
   ok(st.by.groups === 1, "one group nobody on this device had seen", String(st.by.groups));
-  ok(st.total === 11, "and the badge adds them up", String(st.total));
+  ok(st.total === 12, "and the badge adds them up", String(st.total));
   ok(st.badge === "9+", "capped at 9+ so the pill never outgrows the button", st.badge);
   await t.close();
 }
@@ -153,7 +199,10 @@ console.log("\n3. The panel says what changed, with examples");
     title: document.querySelector(".nt-head b")?.textContent,
   }));
   ok(p.rows.length === 5, "one row per kind of news, and none for the empty one", String(p.rows.length));
-  ok(p.rows.some((r) => r.h === "2 new rooms"), "counts read as sentences", p.rows.map((r) => r.h).join(" | "));
+  ok(p.rows.some((r) => r.h === "3 new rooms"), "counts read as sentences", p.rows.map((r) => r.h).join(" | "));
+  // With nothing saved the row must NOT claim an alert is behind it.
+  ok(!p.rows.some((r) => /in your areas/.test(r.h || "")),
+     "and a device watching nothing is not told it is watching");
   ok(p.rows.some((r) => r.h === "1 new service"), "and singular is singular");
   // A number is not news. "Mwenge single, water tank" is a reason to tap.
   ok(/Mwenge single/.test(p.rows.find((r) => /rooms/.test(r.h))?.eg || ""),
@@ -243,6 +292,103 @@ console.log("\n6. The two controls share one corner without fighting over it");
   ok(rest.top < 20, "so the bell rides up into the empty slot", String(rest.top));
   ok(!rest.hitsSearch, "and stops covering the page's own search button");
   ok(t.errs.length === 0, "no page errors across the whole run", t.errs.slice(0, 2).join(" | "));
+  await t.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n7. The rooms row answers the alert this device actually saved");
+{
+  // Before js/lib/house-alerts.js the bell counted every new room in the
+  // country, so the one that matched somebody's pin was indistinguishable from
+  // the two that did not. A count of everything is not a notification.
+  const t = await open({ alerts: ALERT });
+  await t.page.waitForFunction(() => window.Notify.state().total > 0, { timeout: 20000 });
+  const st = await t.page.evaluate(() => {
+    const g = window.Notify.state().groups.find((x) => x.key === "houses");
+    return { count: g.count, watched: !!g.watched, ids: (g.items || []).map((i) => i.id) };
+  });
+  ok(st.count === 1, "only the room inside the watched circle and under the budget",
+     JSON.stringify(st.ids));
+  ok(st.ids[0] === "r1", "and it is the right one", JSON.stringify(st.ids));
+  ok(st.watched, "the row knows it was narrowed");
+
+  await t.page.click("#pawa-notify-bell");
+  await t.page.waitForSelector(".nt-row", { timeout: 10000 });
+  const row = await t.page.evaluate(() => {
+    const el = [...document.querySelectorAll(".nt-row")].find((r) => r.dataset.key === "houses");
+    return { h: el?.querySelector(".nt-row-h")?.textContent, d: el?.querySelector(".nt-row-d")?.textContent };
+  });
+  // "1 new room" and "1 new room in your areas" are different claims, and a
+  // reader who cannot tell which one they are looking at cannot tell whether
+  // the alert they saved is doing anything.
+  ok(row.h === "1 new room in your areas", "and says so, instead of claiming the catalogue", row.h);
+  ok(/areas and the budget/.test(row.d || ""), "with the reason under it", row.d);
+
+  // The page and the badge must never be able to describe different rooms:
+  // one rule, two callers. This is the rule, asked directly.
+  const A = { lat: -6.7710, lng: 39.2390, radius_m: 1000, listing: "rent", price_max: 500000 };
+  const shared = await t.page.evaluate((a) => ({
+    any: window.HouseAlerts.any(),
+    near: window.HouseAlerts.matches({ lat: -6.7710, lng: 39.2390, price_tzs: 300000, listing: "rent" }, a),
+    dear: window.HouseAlerts.matches({ lat: -6.7710, lng: 39.2390, price_tzs: 900000, listing: "rent" }, a),
+    far:  window.HouseAlerts.matches({ lat: -6.7830, lng: 39.2290, price_tzs: 250000, listing: "rent" }, a),
+  }), A);
+  ok(shared.any && shared.near && !shared.dear && !shared.far,
+     "and it is the same shared rule houses.html asks", JSON.stringify(shared));
+  ok(t.errs.length === 0, "no page errors while narrowing", t.errs.slice(0, 2).join(" | "));
+  await t.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n8. A changed safety number is an alarm, and it cannot be tapped away");
+{
+  const t = await open({ trust: TRUST_BOOK });
+  await t.page.waitForFunction(() => window.Notify.state().total > 0, { timeout: 20000 });
+  await t.page.click("#pawa-notify-bell");
+  await t.page.waitForSelector(".nt-row", { timeout: 10000 });
+  const p = await t.page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".nt-row")];
+    const el = rows.find((r) => r.dataset.key === "trust");
+    const g = window.Notify.state().groups.find((x) => x.key === "trust");
+    return {
+      first: rows[0]?.dataset.key,
+      count: g ? g.count : -1,
+      names: ((g && g.items) || []).map((i) => i.title),
+      h: el?.querySelector(".nt-row-h")?.textContent,
+      d: el?.querySelector(".nt-row-d")?.textContent,
+      href: el?.getAttribute("href"),
+      alarm: !!el?.classList.contains("is-alarm"),
+      icon: !!el?.querySelector(".nt-row-ic svg"),
+    };
+  });
+  // Only the peer whose key changed. Somebody merely seen is not an alarm.
+  ok(p.count === 1, "one peer, not everyone on file", String(p.count));
+  ok(p.names.join() === "Juma", "and it names them", p.names.join());
+  ok(p.first === "trust", "the alarm is the first row, above every kind of news", p.first);
+  ok(p.h === "1 safety number changed", "worded as something wrong, not something posted", p.h);
+  ok(/blocked until you do/.test(p.d || ""), "and says what it costs to ignore", p.d);
+  ok(p.href === "p-message.html", "a door to the place it can be dealt with", p.href);
+  ok(p.alarm, "painted as an alarm rather than in the brand green");
+  ok(p.icon, "a stroke icon, never an emoji");
+
+  // The whole point of a sticky alarm is that doing nothing cannot clear it.
+  const after = await t.page.evaluate(() => {
+    window.Notify.markAllSeen();
+    window.Notify.markSeen("trust");                 // and a tap on the row itself
+    const g = window.Notify.state().groups.find((x) => x.key === "trust");
+    return {
+      count: g.count,
+      stillDrawn: !!document.querySelector('.nt-row[data-key="trust"]'),
+      clearHidden: document.querySelector(".nt-clear").hidden,
+      dismissible: window.Notify.isDismissible("trust"),
+    };
+  });
+  ok(after.count === 1, 'the "mark all as read" button does not touch it', String(after.count));
+  ok(after.stillDrawn, "and neither does tapping the row on the way to the thread");
+  ok(!after.dismissible, "the engine says so out loud, so the UI need not guess");
+  // Nothing left that the button could clear, so offering it would be a lie.
+  ok(after.clearHidden, "and the button that cannot clear it stops offering to");
+  ok(t.errs.length === 0, "no page errors across the alarm run", t.errs.slice(0, 2).join(" | "));
   await t.close();
 }
 

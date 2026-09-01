@@ -100,11 +100,16 @@
    * member — so a thread id nobody here has seen before IS the invitation.
    */
   async function inbox(knownThreads) {
-    var out = { unread: 0, newThreads: [], threads: [] };
+    // userId rides back with the inbox rather than being fetched a second
+    // time: this function already has the session in hand, and the trust
+    // alarms below are scoped by exactly that id.
+    var out = { unread: 0, newThreads: [], threads: [], userId: null };
     var D = window.DataStore;
     if (!D || !D.sb) return out;
     try {
-      if (!window.Auth || !(await window.Auth.getSession())) return out;
+      var sess = window.Auth && await window.Auth.getSession();
+      if (!sess) return out;
+      out.userId = (sess.user && sess.user.id) || null;
     } catch (_) { return out; }
     try {
       var res = await D.sb.rpc("pm_inbox");
@@ -122,6 +127,12 @@
 
   // ---- putting it together -------------------------------------------------
   var GROUPS = [
+    // Trust is FIRST, and it is the only row here that is not news about the
+    // catalogue. Somebody's safety number changing is the most serious thing
+    // this app can notice, it already blocks the composer in that thread, and
+    // until now the only way to find out was to open the conversation. A
+    // warning nobody is shown is not a warning.
+    { key: "trust",    href: "p-message.html",  icon: "shield", alarm: true },
     { key: "houses",   href: "houses.html",     icon: "room" },
     { key: "services", href: "services.html",   icon: "service" },
     { key: "trucks",   href: "trucks.html",     icon: "truck" },
@@ -129,6 +140,53 @@
     { key: "messages", href: "p-message.html",  icon: "message", live: true },
     { key: "groups",   href: "p-message.html",  icon: "group",   live: true },
   ];
+
+  /**
+   * Peers whose key is not the one this device wrote down.
+   *
+   * Pure localStorage, no network, no session round-trip: js/lib/pm-trust.js
+   * already keeps the verdicts, scoped by my own user id, and the alarm is
+   * STICKY by design — it is written down rather than recomputed, so a
+   * re-fetch cannot clear it. Reading it here costs nothing and cannot fail
+   * in a way that matters: no PMTrust, or no signed-in id, means no rows.
+   *
+   * Deliberately NOT dismissible from the panel, for the same reason unread
+   * messages are not: it clears when a person compares the number or says the
+   * change was expected, and nowhere else. A badge that could be tapped away
+   * would let somebody dismiss the one alarm that is worth stopping for.
+   */
+  function trustAlarms(userId) {
+    try {
+      if (!userId || !window.PMTrust || !window.PMTrust.list) return [];
+      return window.PMTrust.list(userId).filter(function (r) {
+        return r.state === window.PMTrust.CHANGED;
+      });
+    } catch (_) { return []; }
+  }
+
+  /**
+   * The rooms this person actually asked about.
+   *
+   * An area alert is the ONE place on the site where somebody states what they
+   * want to be told about: this pin, this radius, two bedrooms, under 400,000,
+   * for rent. Until this, the bell could not see any of it and counted every
+   * new room in the country, so the three that matched were indistinguishable
+   * from forty that did not. A count of everything is not a notification.
+   *
+   * With no alerts saved, nothing is narrowed: a person who has asked for
+   * nothing in particular wants the catalogue, and filtering it to empty would
+   * be the badge deciding on their behalf that nothing is news.
+   *
+   * The rule lives in js/lib/house-alerts.js, which houses.html uses for its
+   * own banner. One rule, two callers: the page and the badge must never be
+   * able to describe different rooms.
+   */
+  function narrowToAlerts(rows) {
+    var HA = window.HouseAlerts;
+    if (!HA || !HA.any()) return { rows: rows, watched: false };
+    var picked = HA.pick(rows).map(function (p) { return p.h; });
+    return { rows: picked, watched: true };
+  }
 
   async function compute() {
     var m = mark();
@@ -140,8 +198,9 @@
       catalogue(function () { return D.getDayJobs ? D.getDayJobs() : []; }, m.jobs),
       inbox(m.threads),
     ]);
+    var homes = narrowToAlerts(results[0]);
     var byKey = {
-      houses: results[0], services: results[1], trucks: results[2], jobs: results[3],
+      houses: homes.rows, services: results[1], trucks: results[2], jobs: results[3],
     };
     var pm = results[4];
 
@@ -157,7 +216,17 @@
       pm.newThreads = [];
     }
 
+    var alarms = trustAlarms(pm.userId);
+
     var groups = GROUPS.map(function (g) {
+      if (g.key === "trust") {
+        return Object.assign({}, g, {
+          count: alarms.length,
+          items: alarms.slice(0, MAX_LIST).map(function (r) {
+            return { id: r.userId, title: r.name || "", at: r.changedAt };
+          }),
+        });
+      }
       if (g.key === "messages") {
         return Object.assign({}, g, { count: pm.unread, items: [] });
       }
@@ -172,6 +241,11 @@
       var rows = byKey[g.key] || [];
       return Object.assign({}, g, {
         count: rows.length,
+        // Only the rooms row can be narrowed, and the panel has to SAY when it
+        // was: "3 new rooms" and "3 new rooms in your areas" are different
+        // claims, and a reader who cannot tell which one they are being shown
+        // cannot tell whether their alert is working.
+        watched: g.key === "houses" ? homes.watched : false,
         items: rows.slice(0, MAX_LIST).map(function (r) {
           return { id: r.id, title: r.title || "", at: r.created_at };
         }),
@@ -214,19 +288,35 @@
    * sender cannot see would be this app lying to its own reader about what they
    * have read. It clears when the conversation is opened, which is the only
    * place it means anything.
+   *
+   * `trust` is not dismissible for a harder reason. A changed safety number is
+   * the one alarm worth stopping for, the alarm is sticky precisely so it
+   * cannot be cleared by doing nothing, and a badge that could be tapped away
+   * would hand somebody the "do nothing" exit that pm-trust.js exists to
+   * close. It clears by comparing the number or by saying the change was
+   * expected, both of which happen in the conversation.
    */
+  var UNDISMISSABLE = { messages: true, trust: true };
+
   function markSeen(key) {
     var m = mark();
     var now = new Date().toISOString();
     if (key === "groups") {
       m.threads = (cache && cache._threads) || m.threads || [];
-    } else if (key !== "messages" && Object.prototype.hasOwnProperty.call(m, key)) {
+    } else if (!UNDISMISSABLE[key] && Object.prototype.hasOwnProperty.call(m, key)) {
       m[key] = now;
     }
     saveSeen(m);
     // Recompute from what is already loaded rather than re-reading everything.
+    // The undismissable pair is skipped HERE too, not only above: zeroing the
+    // cached count is what the reader actually sees, so clearing it while the
+    // mark stays put would make the row vanish on tap and come back on the
+    // next poll. For trust that is the whole hole this closes; a tap on the
+    // row is a door to the conversation, never an acknowledgement.
     if (cache) {
-      cache.groups.forEach(function (g) { if (g.key === key) { g.count = 0; g.items = []; } });
+      cache.groups.forEach(function (g) {
+        if (g.key === key && !UNDISMISSABLE[key]) { g.count = 0; g.items = []; }
+      });
       cache.total = cache.groups.reduce(function (n, g) { return n + g.count; }, 0);
     }
     emit();
@@ -241,7 +331,7 @@
     });
     if (cache) {
       cache.groups.forEach(function (g) {
-        if (g.key !== "messages") { g.count = 0; g.items = []; }
+        if (!UNDISMISSABLE[g.key]) { g.count = 0; g.items = []; }
       });
       cache.total = cache.groups.reduce(function (n, g) { return n + g.count; }, 0);
     }
@@ -286,6 +376,10 @@
     refresh: refresh,
     markSeen: markSeen,
     markAllSeen: markAllSeen,
+    // Asked by notify-ui.js so "Mark all as read" hides when the only thing
+    // left is an alarm that button cannot touch. A second copy of the list
+    // over there would drift into offering a button that does nothing.
+    isDismissible: function (key) { return !UNDISMISSABLE[key]; },
     on: function (fn) { if (typeof fn === "function") listeners.push(fn); },
     GROUPS: GROUPS,
   };
