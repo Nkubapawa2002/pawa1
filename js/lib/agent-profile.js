@@ -274,6 +274,21 @@
         <p class="apf-hint">${esc(t("ap_ward_hint",
           "Write it exactly as it is written locally. People looking for a room often know their ward but cannot point at it on a map, and this is what puts their request in front of you."))}</p>
 
+        <!-- THE DISTRICT, for the same reason and with one of its own.
+             It was filled by the same guess as the ward and was null just as
+             often. It matters twice: a seeker who does not know their ward
+             names their district instead, and house_demand_near falls to the
+             district arm for them; and an agent who leaves the ward blank has
+             this as their only name-based reach. -->
+        <label class="apf-label" for="apfDistrict">${t("ap_district_label", "Your district")}</label>
+        <div class="apf-field">
+          <input id="apfDistrict" class="apf-input" type="text" autocomplete="off"
+            placeholder="${esc(t("ap_district_ph", "the district exactly, e.g. Kinondoni"))}"
+            value="${esc(existing && existing.district || "")}">
+        </div>
+        <p class="apf-hint">${esc(t("ap_district_hint",
+          "Not everybody knows their ward. Somebody who only knows the district still reaches you through this one."))}</p>
+
         <details class="apf-details">
           <summary class="apf-summary">Your contact (optional)</summary>
           <div class="apf-details__body">
@@ -407,7 +422,9 @@
           region,
           area_of_operations: area,
           area_kind: cls.area_kind,
-          district: cls.district || (existing && existing.district) || null,
+          // Typed beats inferred, exactly as for the ward below it.
+          district: (($("apfDistrict") && $("apfDistrict").value.trim()) || cls.district
+                     || (existing && existing.district) || null),
           // What the agent TYPED wins over what the geocoder inferred. They
           // know their own ward; classify() is guessing from a suggestion tag,
           // and it returns "" for every area entered as free text.
