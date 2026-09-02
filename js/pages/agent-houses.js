@@ -3323,7 +3323,11 @@ create policy "house-photos upload" on storage.objects for insert
       // fire at all and every unmappable request stays invisible.
       // See supabase/features/house/house_demand_place.sql.
       p_ward: listing.ward || (agentProfile && agentProfile.ward) || null,
-      p_district: listing.district || (agentProfile && agentProfile.district) || null
+      p_district: listing.district || (agentProfile && agentProfile.district) || null,
+      // The whole set, not just the primary. An agent covering three wards was
+      // reachable in one of them until agent_multi_area.sql.
+      p_wards: (agentProfile && agentProfile.wards) || null,
+      p_districts: (agentProfile && agentProfile.districts) || null
     });
     if (error) {
       // RPC missing (setup SQL not run yet) → silently skip; it's an add-on.
@@ -3479,6 +3483,8 @@ create policy "house-photos upload" on storage.objects for insert
             // what reaches a seeker who could name theirs but not pin it.
             p_ward: (agentProfile && agentProfile.ward) || null,
             p_district: (agentProfile && agentProfile.district) || null,
+            p_wards: (agentProfile && agentProfile.wards) || null,
+            p_districts: (agentProfile && agentProfile.districts) || null,
           }).then((r) => Array.isArray(r.data) ? r.data.map((x) => ({ ...x, listing })) : [])
             .catch(() => [])));
         const seen = new Set();

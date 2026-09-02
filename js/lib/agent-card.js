@@ -69,13 +69,65 @@
    * whose area is "Nyamagana" reads "Nyamagana · Nyamagana" and looks like a
    * data-entry mistake rather than a person.
    */
+  /**
+   * Ward, district and region, each said by name.
+   *
+   * They used to be one anonymous string: district, ward and region filtered
+   * against the area, sliced to two and joined with a dot. "Kinondoni ·
+   * Mikocheni" does not tell a reader which of those is the ward, and the
+   * slice quietly dropped the region whenever both of the others were set.
+   *
+   * The ward in particular is no longer decoration. house_demand_near matches
+   * a seeker who can NAME their ward but not pin it against the agent's own
+   * ward, so an agent who has not set one is invisible to those requests. See
+   * docs/TELLING_AGENTS_WHERE.md.
+   *
+   * Which is why the two audiences get different rows:
+   *
+   *   a customer  sees only what is filled in, and never a value that merely
+   *               repeats the area above it, because "Area Nyamagana / Ward
+   *               Nyamagana" reads as a data-entry fault rather than a place.
+   *   the owner   sees all three ALWAYS, duplicates included and blanks
+   *               spelled out, because this is the one screen where "Ward, not
+   *               set" is the useful sentence. Their own page is a control
+   *               panel; the public one is a storefront.
+   */
+  function places(card, own) {
+    var area = String(card.area || "").trim();
+    // An agent works in more than one ward, so the value is the whole set with
+    // the singular column folded in: pm_agent_card returns both, and an agent
+    // who has only ever set the singular one must still read correctly.
+    function all(list, one) {
+      var seen = {};
+      return [].concat(list || [], one ? [one] : []).map(function (v) {
+        return String(v == null ? "" : v).trim();
+      }).filter(function (v) {
+        var k = v.toLowerCase();
+        if (!v || seen[k]) return false;
+        seen[k] = 1;
+        return true;
+      }).join(" · ");
+    }
+    var rows = [
+      ["pm_lbl_ward", "Ward", all(card.wards, card.ward)],
+      ["pm_lbl_district", "District", all(card.districts, card.district)],
+      ["pm_lbl_region", "Region", card.region],
+    ];
+    var out = rows.map(function (r) {
+      var val = String(r[2] == null ? "" : r[2]).trim();
+      var dupe = val && val.toLowerCase() === area.toLowerCase();
+      if (!own && (!val || dupe)) return "";
+      return '<span class="agc-place' + (val ? "" : " is-none") + '">' +
+        "<b>" + esc(t(r[0], r[1])) + "</b>" +
+        "<span>" + esc(val || t("pm_not_set", "not set")) + "</span></span>";
+    }).filter(Boolean).join("");
+    return out ? '<span class="agc-places">' + out + "</span>" : "";
+  }
+
   function identity(card, opts) {
     var o = opts || {};
     var name = card.display_name || t("pm_someone", "Someone");
     var area = String(card.area || "").trim();
-    var rest = [card.district, card.ward, card.region].filter(function (v) {
-      return v && String(v).trim() && String(v).trim().toLowerCase() !== area.toLowerCase();
-    }).slice(0, 2).join(" · ");
 
     var seen = (o.presence !== false && window.PMPresence)
       ? window.PMPresence.html(card.last_seen_at) : "";
@@ -93,9 +145,9 @@
             ? '<span class="agc-area" title="' + esc(t("pm_area_of", "Area of operation")) + '">' +
                 PIN + "<span>" + esc(area) + "</span></span>"
             : '<span class="agc-area is-none">' + esc(t("pm_area_none", "Area not set")) + "</span>") +
-          (rest ? "<span>" + esc(rest) + "</span>" : "") +
           seen +
         "</span>" +
+        places(card, !!o.own) +
       "</span>" +
     "</div>";
   }

@@ -170,6 +170,56 @@ rollback;`;
        String(r[0].r));
   }
 
+  // =========================================================================
+  section("7. An agent who works in more than one ward");
+  // =========================================================================
+  // agent_profiles carried ONE ward until agent_multi_area.sql, which made the
+  // singular column decide which requests an agent could see at all. An agent
+  // covering three wards was reachable in one and invisible in the other two.
+  const NEAR_MULTI = (wards, districts) => `
+    select coalesce(string_agg(matched_on || '|' || coalesce(ward,'-'), ' ; '), 'NONE') as r
+    from public.house_demand_near(
+      ${AGENT.lat}, ${AGENT.lng}, 1500, 'rent', null, 0, 0,
+      null, null, ${wards}, ${districts})
+    where id like 'pmtest_%';`;
+  {
+    const r = await inTx(
+      pin({ anchor_kind: "'ward'", ward: "'Vijibweni'", district: "'Kigamboni'",
+            place_label: "'Kwa Ndege'" }),
+      NEAR_MULTI("array['Kigamboni','Vijibweni','Kibada']", "null"));
+    ok(String(r[0].r).startsWith("ward|"),
+       "a request in the agent's SECOND ward reaches them", String(r[0].r));
+  }
+  {
+    const r = await inTx(
+      pin({ anchor_kind: "'ward'", ward: "'Mikocheni'", district: "'Kinondoni'",
+            place_label: "'x'" }),
+      NEAR_MULTI("array['Kigamboni','Vijibweni','Kibada']", "null"));
+    ok(String(r[0].r) === "NONE",
+       "a ward outside the set still does not, so covering more is not covering everything",
+       String(r[0].r));
+  }
+  {
+    // Spelling drift across the array, not just against a single value.
+    const r = await inTx(
+      pin({ anchor_kind: "'ward'", ward: "'kata ya  VIJIBWENI Ward'",
+            district: "'Kigamboni'", place_label: "'x'" }),
+      NEAR_MULTI("array['Kigamboni','Vijibweni']", "null"));
+    ok(String(r[0].r).startsWith("ward|"),
+       "and every entry in the set is compared normalised, not literally",
+       String(r[0].r));
+  }
+  {
+    // The singular argument must still be folded in, or a caller that passes
+    // only p_ward loses its match the moment arrays exist.
+    const r = await inTx(
+      pin({ anchor_kind: "'ward'", ward: "'Kigamboni'", district: "'Kigamboni'",
+            place_label: "'x'" }),
+      NEAR());
+    ok(String(r[0].r).startsWith("ward|"),
+       "a caller still passing only the singular ward keeps working", String(r[0].r));
+  }
+
   const left = await runSql("select count(*)::int c from public.house_demand_pins where id like 'pmtest_%';");
   ok(Number(left[0].c) === 0, "every test row is gone", JSON.stringify(left[0]));
 } finally {

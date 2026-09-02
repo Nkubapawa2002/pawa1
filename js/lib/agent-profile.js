@@ -29,6 +29,29 @@
     return (v && v !== k) ? v : en;
   };
 
+  /**
+   * "Mikocheni, Msasani , mikocheni" -> ["Mikocheni", "Msasani"]
+   *
+   * An agent works in more than one ward, so these fields are lists. The rules
+   * are deliberately the same ones public.agent_area_set() applies in the
+   * database (blank entries dropped, duplicates collapsed case- and
+   * space-insensitively, first spelling kept): the two have to agree, because
+   * whichever wrote last is what house_demand_near will match on.
+   */
+  function parseAreas(text) {
+    const seen = new Set();
+    return String(text || "").split(/[,\n;]+/)
+      .map((x) => x.trim())
+      .filter((x) => {
+        if (!x) return false;
+        const key = x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+  const joinAreas = (v) => (Array.isArray(v) ? v : (v ? [v] : [])).join(", ");
+
   // All 31 regions of the United Republic of Tanzania — 26 Mainland + 5 Zanzibar
   // (Unguja & Pemba). Used so an agent (incl. Zanzibar) can ALWAYS pick their
   // region even if the live `regions` table hasn't been seeded with Zanzibar.
@@ -265,14 +288,15 @@
              who could NAME their ward but not pin it against the agent's own
              ward, so an agent with none never sees those requests at all and
              is never told why. See docs/TELLING_AGENTS_WHERE.md. -->
-        <label class="apf-label" for="apfWard">${t("ap_ward_label", "Your ward")}</label>
+        <label class="apf-label" for="apfWard">${t("ap_wards_label", "Wards you work in")}</label>
         <div class="apf-field">
           <input id="apfWard" class="apf-input" type="text" autocomplete="off"
-            placeholder="${esc(t("ap_ward_ph", "the ward exactly, e.g. Mikocheni"))}"
-            value="${esc(existing && existing.ward || "")}">
+            placeholder="${esc(t("ap_wards_ph", "Mikocheni, Msasani, Kijitonyama"))}"
+            value="${esc(joinAreas((existing && existing.wards && existing.wards.length)
+                                    ? existing.wards : (existing && existing.ward) || ""))}">
         </div>
-        <p class="apf-hint">${esc(t("ap_ward_hint",
-          "Write it exactly as it is written locally. People looking for a room often know their ward but cannot point at it on a map, and this is what puts their request in front of you."))}</p>
+        <p class="apf-hint">${esc(t("ap_wards_hint",
+          "List every ward you cover, separated by commas, spelled the way they are written locally. People looking for a room often know their ward but cannot point at it on a map, and this is what puts their request in front of you."))}</p>
 
         <!-- THE DISTRICT, for the same reason and with one of its own.
              It was filled by the same guess as the ward and was null just as
@@ -280,14 +304,15 @@
              names their district instead, and house_demand_near falls to the
              district arm for them; and an agent who leaves the ward blank has
              this as their only name-based reach. -->
-        <label class="apf-label" for="apfDistrict">${t("ap_district_label", "Your district")}</label>
+        <label class="apf-label" for="apfDistrict">${t("ap_districts_label", "Districts you work in")}</label>
         <div class="apf-field">
           <input id="apfDistrict" class="apf-input" type="text" autocomplete="off"
-            placeholder="${esc(t("ap_district_ph", "the district exactly, e.g. Kinondoni"))}"
-            value="${esc(existing && existing.district || "")}">
+            placeholder="${esc(t("ap_districts_ph", "Kinondoni, Ilala"))}"
+            value="${esc(joinAreas((existing && existing.districts && existing.districts.length)
+                                    ? existing.districts : (existing && existing.district) || ""))}">
         </div>
-        <p class="apf-hint">${esc(t("ap_district_hint",
-          "Not everybody knows their ward. Somebody who only knows the district still reaches you through this one."))}</p>
+        <p class="apf-hint">${esc(t("ap_districts_hint",
+          "Also separated by commas. Not everybody knows their ward, and somebody who only knows the district still reaches you through these."))}</p>
 
         <details class="apf-details">
           <summary class="apf-summary">Your contact (optional)</summary>
@@ -415,6 +440,8 @@
 
         saveBtn.disabled = true; saveBtn.textContent = "Saving…";
         const cls = classify(picked);
+        const wList = parseAreas($("apfWard") && $("apfWard").value);
+        const dList = parseAreas($("apfDistrict") && $("apfDistrict").value);
         const row = {
           user_id: uid,
           name: ($("apfName").value.trim()) || (existing && existing.name) || null,
@@ -422,14 +449,18 @@
           region,
           area_of_operations: area,
           area_kind: cls.area_kind,
-          // Typed beats inferred, exactly as for the ward below it.
-          district: (($("apfDistrict") && $("apfDistrict").value.trim()) || cls.district
-                     || (existing && existing.district) || null),
+          // The full set, and the primary kept in step with it. The singular
+          // columns are still what the admin tracker and the listing stamp
+          // read, so they cannot be allowed to disagree with the array: the
+          // first entry IS the primary, which is the same rule
+          // public.agent_area_set() applies server-side.
+          districts: dList,
+          district: dList[0] || cls.district || (existing && existing.district) || null,
+          wards: wList,
           // What the agent TYPED wins over what the geocoder inferred. They
-          // know their own ward; classify() is guessing from a suggestion tag,
-          // and it returns "" for every area entered as free text.
-          ward: (($("apfWard") && $("apfWard").value.trim()) || cls.ward
-                 || (existing && existing.ward) || null),
+          // know their own wards; classify() is guessing from a suggestion tag
+          // and returns "" for every area entered as free text.
+          ward: wList[0] || cls.ward || (existing && existing.ward) || null,
           lat: picked && Number.isFinite(+picked.lat) ? +picked.lat : (existing && existing.lat) || null,
           lng: picked && Number.isFinite(+picked.lng) ? +picked.lng : (existing && existing.lng) || null,
           // Sliced rather than rejected: the textarea already caps at 400 with

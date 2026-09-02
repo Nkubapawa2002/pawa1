@@ -69,6 +69,26 @@ Ward is tried first because that is the unit agents work in: `agent_profiles`
 has carried `ward` and `district` since it was written, and until now a demand
 pin had no `ward` column to meet it on.
 
+### An agent works in more than one ward
+
+`agent_profiles` carried ONE ward and ONE district until
+`agent_multi_area.sql`, which was already wrong (an agent in Kinondoni covers
+Mikocheni *and* Msasani *and* Kijitonyama) and became load-bearing the moment
+the ward turned into a routing key: an agent covering three wards was reachable
+in one and invisible in the other two, with nothing on any screen saying so.
+
+`agent_profiles.wards` and `.districts` are arrays; the singular columns stay as
+the **primary**, because the admin tracker and the listing stamp read them.
+The array always contains the singular value, and `agent_area_set()` is what
+keeps that true rather than a convention someone has to remember: the first
+entry *is* the primary.
+
+A demand pin still names a **single** ward, because a seeker wants one place.
+It is the agent side that is plural, so the test is "is the seeker's ward among
+the ones this agent covers" — `= any()` over the normalised array.
+`house_demand_near` takes `p_wards` / `p_districts` and folds the singular
+argument in, so a caller that passes only `p_ward` keeps working.
+
 ### Two fences that keep it from becoming a shotgun
 
 - **A ward pin does not fall through to its district.** Somebody who could name
@@ -120,7 +140,10 @@ they typed, and states plainly what happens if they leave it blank:
 ```
 supabase/features/house/house_demand_place.sql   the columns, the normaliser,
                                                  the two-armed match  (APPLIED)
-tests/house_demand_place_test.mjs                13 checks, against the real DB
+supabase/features/agent/agent_multi_area.sql     wards[]/districts[], agent_area_set,
+                                                 =any() matching       (APPLIED)
+js/lib/agent-card.js                             draws every area, labelled
+tests/house_demand_place_test.mjs                17 checks, against the real DB
 js/lib/request-place.js                          the anchor block and the rule
 js/pages/agent-houses.js                         passes the agent's ward
 ```

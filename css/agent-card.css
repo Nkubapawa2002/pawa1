@@ -96,3 +96,29 @@
   overflow-wrap: anywhere;
 }
 .agc-bio.is-none { color: var(--pm-ink-faint); font-style: italic; }
+
+/* ---- ward, district, region, each said by name --------------------------
+   These were one anonymous dot-joined string, which meant a reader could not
+   tell which name was the ward, and the region was dropped whenever the other
+   two were set. The label is the point: the ward is what a seeker who cannot
+   pin their street is matched on, so an agent has to be able to SEE whether
+   theirs is filled in. See docs/TELLING_AGENTS_WHERE.md.
+
+   Own line rather than joining .agc-meta, because on a 320px card three
+   labelled pairs and a presence dot on one row wrap into porridge. */
+.agc-places {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  margin-top: 6px; font-size: var(--text-xs); line-height: 1.5;
+  color: var(--pm-ink-soft);
+}
+.agc-place { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
+.agc-place b {
+  font-size: 9.5px; font-weight: var(--fw-extrabold); letter-spacing: .07em;
+  text-transform: uppercase; color: var(--pm-ink-faint);
+  flex: 0 0 auto;
+}
+.agc-place > span { overflow-wrap: anywhere; }
+/* A place nobody set is stated rather than left blank, the same way an unset
+   area is. It is shown ONLY on the owner's own page: a customer has no use for
+   the news that a field is empty, but the owner can fix it in ten seconds. */
+.agc-place.is-none > span { color: var(--pm-ink-faint); font-style: italic; }

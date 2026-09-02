@@ -115,7 +115,10 @@
     // anything yet", which would be this page telling an agent about
     // themselves in the third person.
     var body =
-      window.AgentCard.identity(storeCard, { presence: false }) +
+      // own: this is the agent looking at their own page, so the places are
+      // listed in full and a blank one says so. A customer gets the tidied
+      // version; the owner gets the one they can act on.
+      window.AgentCard.identity(storeCard, { presence: false, own: true }) +
       window.AgentCard.bio(storeCard, {
         emptyText: t("pf_shop_nobio", "You have not written anything about your work yet. This is the space a customer reads first."),
       }) +
