@@ -109,8 +109,15 @@ body[data-agent-portal] .container { padding-bottom: var(--space-16); }
    and premium's `input[type="text"]` (0,2,0) beats neon's bare `input` (0,0,1).
    The result was a white-glass field with dark ink sitting on a dark panel, on
    every text, tel, email, number and date box on both portals. Only an
-   important declaration can answer an important one. */
-body[data-agent-portal] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+   important declaration can answer an important one.
+
+   `:not(.auth-input)` keeps this OFF the sign-in card. The portal's own fields
+   sit on a pale panel and want dark ink; the auth card is a dark green aurora
+   in both themes, and this rule was painting --c-text on it, which in light
+   mode is the near-black #1a1915. Typing your email made it disappear. That
+   card states its own colours in css/auth.css under .auth-scene, so the fix is
+   to stop reaching into it rather than to out-shout it from here. */
+body[data-agent-portal] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.auth-input),
 body[data-agent-portal] select,
 body[data-agent-portal] textarea {
   background: var(--ap-field-bg) !important;
@@ -124,7 +131,9 @@ body[data-agent-portal] textarea:focus {
   border-color: var(--c-brand) !important;
   box-shadow: var(--focus-ring) !important;
 }
-body[data-agent-portal] input::placeholder,
+/* Same exclusion, same reason: the sign-in card's placeholder is set against
+   its own dark panel in auth.css, not against the portal's pale one. */
+body[data-agent-portal] input:not(.auth-input)::placeholder,
 body[data-agent-portal] textarea::placeholder { color: var(--c-text-muted) !important; }
 
 /* Dark ink on the bright fills, in both themes: --c-brand-on is the token
@@ -924,4 +933,26 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .ap-btn, .ap-chip, .ap-card, .ap-rail a, .ap-acc__chev,
   .ap-field input, .ap-field select, .ap-field textarea { transition: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   15. The sign-in band, on a phone
+   ---------------------------------------------------------------------------
+   These two pages already introduce themselves before the form: the header
+   band carries the kicker, the h1 and the three facts. Underneath it sat the
+   shared .login-brand panel, which on a phone collapses to a logo and a name,
+   and then the auth card underneath THAT opens with its own logo and its own
+   title. Three headings and two logos, all saying "offer a service", stacked
+   in 400px.
+
+   auth.css hides only the panel's lead on phones, which is right for
+   login.html where that panel is the page's only introduction. Here it is the
+   second of three, so the whole band goes and the card follows the facts
+   directly. Nothing is lost: the checklist the panel carries is still there at
+   the width where it has room to sit BESIDE the form, which is the only width
+   where it was ever readable.
+   --------------------------------------------------------------------------- */
+@media (max-width: 560px) {
+  body[data-agent-portal] .login-brand { display: none; }
+  body[data-agent-portal] .auth-scene { margin-top: 0; }
 }

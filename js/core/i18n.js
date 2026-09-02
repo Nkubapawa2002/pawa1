@@ -121,7 +121,7 @@ window.I18N = {
     home_quick_title: "Popular services",
     home_view: "View details",
     home_empty: "Nothing here yet",
-    home_empty_sub: "Check back soon — new listings arrive daily.",
+    home_empty_sub: "Check back soon. New listings arrive daily.",
     home_loading: "Loading…",
     home_earn_kicker: "List and earn",
     // The three proof lines that rotate under the earn pitch. Each one is a
@@ -3012,7 +3012,7 @@ window.I18N = {
     home_quick_title: "Huduma maarufu",
     home_view: "Angalia zaidi",
     home_empty: "Hakuna kilichopo bado",
-    home_empty_sub: "Rudi hivi karibuni — matangazo mapya kila siku.",
+    home_empty_sub: "Rudi hivi karibuni. Matangazo mapya huingia kila siku.",
     home_loading: "Inapakia…",
     home_earn_kicker: "Orodhesha, upate",
     home_earn_pf1: "Bei unapanga wewe, na namba yako ipo kwenye tangazo, hivyo wateja wanakupigia.",

@@ -151,6 +151,15 @@
   color: var(--c-text-muted, #5d5b52);
   background: transparent;
   transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+  /* "Create account" broke onto two lines beside a one-line "Sign in", which
+     made the pair look like two different controls. The two are one switch and
+     should read as one. Shrinking the type on the narrowest phones keeps both
+     on a single line without dropping either below the 44px target, which the
+     padding above still guarantees. */
+  white-space: nowrap;
+}
+@media (max-width: 400px) {
+  .auth-tabs button { font-size: .82rem; padding: 10px 4px; }
 }
 .auth-tabs button:hover { color: var(--c-brand-deep, #064a33); }
 .auth-tabs button.active {
@@ -189,6 +198,26 @@
   transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
 .auth-input::placeholder { color: var(--c-text-faint, #94918a); }
+
+/* The icon sat ON TOP of the placeholder, on every auth screen, in both
+   themes. premium.css:383 paints every typed input `padding: 11px 14px
+   !important`, and it loads after this file, so the 42px of room reserved for
+   the icon above was thrown away and the text started at 14px, under it.
+
+   Matching the !important is not enough: `input[type="text"]` is (0,1,1) and
+   `.auth-input` is only (0,1,0), so premium would still win. Doubling the
+   class to (0,2,0) is what actually carries it. Keep both parts, or the icon
+   goes back on top of the first two characters somebody types.
+   See also the same fight over background in css/agent-portal.css. */
+.auth-input.auth-input {
+  padding: 0 14px 0 42px !important;
+}
+/* The eye toggle on a password field needs the same room on the right, or the
+   dots run underneath it. */
+.auth-input-wrap:has(.auth-eye) .auth-input.auth-input {
+  padding-right: 44px !important;
+}
+
 .auth-input:hover { border-color: var(--c-brand, #0a6f4d); }
 .auth-input:focus,
 .auth-input:focus-visible {
@@ -502,7 +531,7 @@ body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 1
     linear-gradient(135deg, #042318 0%, #075640 55%, #021b13 100%);
   background-size: 200% 200%;
   animation: aurora-flow 18s ease-in-out infinite;
-  box-shadow: 0 30px 70px -26px rgba(0, 20, 12, .6), inset 0 1px 0 rgba(255, 255, 255, .12);
+  box-shadow: 0 30px 70px -26px rgba(0, 20, 12, .6), inset 0 1px 0 var(--glass-border);
 }
 .auth-scene .login-split { padding: 0; min-height: 0; max-width: none; gap: clamp(24px, 5vw, 64px); }
 .auth-scene .auth-shell { margin: 0; }
@@ -552,6 +581,44 @@ body[data-page="login"] .auth-card { box-shadow: 0 30px 70px -20px rgba(0, 20, 1
 }
 .auth-scene .auth-tabs button { color: rgba(234, 255, 246, .80); }
 .auth-scene .auth-tabs button:hover { color: #ffffff; }
+/* The last two pieces still borrowing the page palette: the ink somebody
+   types, and the placeholder before they type it.
+
+   .auth-input asks for --c-text, whose light-theme value is the near-black
+   #1a1915, and the placeholder asks for --c-text-faint, a warm grey. On this
+   panel, which is a dark green aurora in BOTH themes, that put black text on
+   dark green the moment anybody typed their email in light mode. Sampled, not
+   inferred: the field renders dark in both themes and in both the resting and
+   the focused state, so the ink has to be light in both too.
+
+   The background is pinned here as well, at a specificity that beats
+   premium.css's `input:focus { background: #fff !important }` (0,1,1). That
+   rule never wins today, because another sheet already out-shouts it, but the
+   pairing of a dark field with light ink must not depend on which of two other
+   files happens to win: if the white ever landed, this text would vanish. */
+.auth-scene .auth-input.auth-input {
+  color: rgba(240, 245, 242, .98) !important;
+  background: rgba(255, 255, 255, .07) !important;
+}
+.auth-scene .auth-input.auth-input::placeholder {
+  color: rgba(234, 255, 246, .58);
+}
+/* The show/hide toggle and the field icon are the same story: both borrow a
+   warm grey that is meant for ink on cream, and both sit on this dark panel.
+   The toggle matters more than it looks, because it is the only control in the
+   card somebody has to FIND rather than read. */
+.auth-scene .auth-eye { color: rgba(234, 255, 246, .70); }
+.auth-scene .auth-eye:hover,
+.auth-scene .auth-eye[aria-pressed="true"] {
+  color: #ffffff; background: var(--glass-border);
+}
+.auth-scene .auth-field-icon { color: rgba(142, 240, 196, .85); opacity: 1; }
+.auth-scene .auth-input.auth-input:focus,
+.auth-scene .auth-input.auth-input:focus-visible {
+  background: var(--glass-border) !important;
+  color: rgba(240, 245, 242, .98) !important;
+}
+
 .auth-scene .auth-tabs button.active {
   background: rgba(255, 255, 255, .94);
   color: #064a33;
