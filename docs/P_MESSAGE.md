@@ -279,6 +279,54 @@ A guest is never in a group room (every membership insert in
 `p_message_groups.sql` joins `pm_keys` with `not coalesce(is_guest,false)`), so
 there is no ownership to hand over and no room a guest can orphan by leaving.
 
+## Getting rid of a conversation
+
+Unsend and "close this room" both live INSIDE a thread: you have to open the
+room and find the roster sheet. That left two rows in a busy inbox that nobody
+could ever remove.
+
+A **guest enquiry**. Anyone can write to an agent without an account, and an
+agent who lists three houses collects these the way a phone collects missed
+calls. `pm_group_delete` refuses anything that is not a room, and a direct
+thread has no owner, so every one of them was permanent.
+
+A **guest who has since gone**. `pm_guest_forget` deletes their key and their
+memberships, which is right, and it leaves the thread standing in the agent's
+list with nobody on the other side: a row holding ciphertext no living key can
+open, which could not be answered, reported or removed.
+
+`p_message_purge.sql` adds `pm_direct_delete(thread)`. Who may call it is not
+"either side", and the asymmetry is deliberate:
+
+| the other side is | who may delete |
+|---|---|
+| a guest | the account may |
+| gone | anyone still in it may, there is no second half to protect |
+| another account | nobody, exactly as before |
+| any of the above | an admin, the same reach `pm_message_delete` already has |
+
+**A guest may not call it at all.** Deleting from the guest's side would erase
+the agent's copy of a conversation the agent may need, on the say-so of a
+browser tab. A guest who wants out has `pm_guest_forget`, which removes *them*.
+
+**This one really deletes, while a message only tombstones.** A tombstone
+exists so a conversation still reads correctly with a hole in it; delete the
+whole thread and there is no conversation left to read, no replies pointing
+into it and no sender-key sequence to keep numbered. Everything hanging off
+`pm_threads` is `ON DELETE CASCADE` and `pm_invites` is `ON DELETE SET NULL`,
+so one delete is the whole operation.
+
+`pm_inbox()` gains **`my_role`** in the same file, so the list knows who owns a
+room before it draws the menu. The alternative was a roster query per room, on
+a screen whose whole design note is that a thread list firing one request per
+line is how a list gets slow. Run this file AFTER `p_message_guests.sql`: it
+redefines `pm_inbox`, so re-running the guests file would revert the column.
+
+On screen the dots appear only on rows where something is actually on offer.
+A conversation between two accounts gets no menu at all, because its only
+possible content would be a refusal, and a menu whose one item is "no" is worse
+than no menu. A guest sees no menu anywhere.
+
 ---
 
 ## The directory
@@ -440,6 +488,9 @@ supabase/features/message/p_message_delete.sql   unsend, close a room, leave one
     Run it AFTER p_message_replies.sql: it redefines pm_thread_messages to
     carry deleted_at, so re-running the replies file would revert that.
 supabase/features/message/p_message_guest_end.sql pm_guest_forget, ending a guest (APPLIED)
+supabase/features/message/p_message_purge.sql    pm_direct_delete + my_role (APPLIED)
+    Run it AFTER p_message_guests.sql: it redefines pm_inbox to carry my_role,
+    so re-running the guests file would revert that.
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
 css/pm-identity.css                     their styling, so it travels with them
 profile.html · js/pages/profile.js      the account tab
