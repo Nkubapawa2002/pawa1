@@ -407,12 +407,22 @@
   function groupMax() { return rpc("pm_group_max"); }
 
   /**
-   * Unsend one message.
+   * Delete a one to one conversation, for both sides.
    *
-   * Returns the time it was withdrawn, so the caller can draw the tombstone
-   * without refetching the thread. Calling it twice is safe and returns the
-   * FIRST deletion: a person tapping through a slow connection meant it once.
+   * Only where there is not a second account to protect: the other party is a
+   * guest, or has already gone. Two accounts are refused by the database, and
+   * so is a guest calling it about their own conversation — a guest leaves
+   * with guestForget instead. The rules and the reasons are in
+   * supabase/features/message/p_message_purge.sql.
+   *
+   * Returns { deleted, messages, guest, orphan }. `deleted:false` means the
+   * row had already gone, which is not an error.
    */
+  function directDelete(threadId) {
+    return rpc("pm_direct_delete", { p_thread: threadId })
+      .then(function (r) { return r || { deleted: false, messages: 0 }; });
+  }
+
   /**
    * End a guest identity on the SERVER as well as on this device.
    *
@@ -431,6 +441,13 @@
       .then(function (r) { return r || { threads: 0, messages: 0 }; });
   }
 
+  /**
+   * Unsend one message.
+   *
+   * Returns the time it was withdrawn, so the caller can draw the tombstone
+   * without refetching the thread. Calling it twice is safe and returns the
+   * FIRST deletion: a person tapping through a slow connection meant it once.
+   */
   function messageDelete(messageId) {
     return rpc("pm_message_delete", { p_message: messageId });
   }
@@ -803,6 +820,7 @@
     groupRemove: groupRemove,
     groupDelete: groupDelete,
     groupMax: groupMax,
+    directDelete: directDelete,
     messageDelete: messageDelete,
     guestForget: guestForget,
     inviteCreate: inviteCreate,

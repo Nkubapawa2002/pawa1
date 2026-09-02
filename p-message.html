@@ -203,6 +203,30 @@
     /* A room reads as a place, not a person, so it gets the brand tint rather
        than initials in a circle. */
     .pm-av.is-room { background: var(--pm-brand-soft); color: var(--pm-brand); }
+    /* ---- the dots on a row in the thread list ------------------------------
+       A row is a <button> and a button cannot contain a button: browsers
+       repair that markup by moving the inner one out of the row entirely, so
+       the dots are a SIBLING and the two are held together by this wrapper.
+       Same seam, same reason, as .pm-person-wrap further down.
+
+       The pair reads as one card: the row gives up its right corners and its
+       right border, the dots take them, and the hover lands on both at once.
+       The dots are not offered on every row (see rowMenuKind in
+       js/pages/p-message.js), so the rows without them keep the plain shape
+       and there is nothing to line up. */
+    .pm-chat-wrap { display: flex; align-items: stretch; margin-bottom: 7px; }
+    .pm-chat-wrap > .pm-row { margin-bottom: 0; border-radius: 14px 0 0 14px;
+      border-right: 0; flex: 1; min-width: 0; }
+    .pm-row-more { flex: 0 0 auto; width: 40px; display: grid; place-items: center;
+      background: var(--pm-card); border: 1px solid var(--c-border);
+      border-left: 1px dashed var(--pm-line); border-radius: 0 14px 14px 0;
+      color: var(--pm-ink-faint); cursor: pointer; padding: 0; }
+    .pm-row-more svg { width: 17px; height: 17px; }
+    .pm-chat-wrap:hover > .pm-row,
+    .pm-chat-wrap:hover > .pm-row-more { border-color: var(--pm-brand-line); }
+    .pm-chat-wrap:hover > .pm-row { border-right: 0; }
+    .pm-row-more:hover { color: var(--pm-brand); background: var(--pm-brand-soft); }
+
     .pm-inv-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       padding: 9px 0; border-bottom: 1px solid var(--pm-line); font-size: .86rem; }
     .pm-inv-row:last-child { border-bottom: 0; }

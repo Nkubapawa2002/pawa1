@@ -479,16 +479,67 @@
       // deciding how much time to give an enquiry should know it.
       var guestTag = (!broadcast && r.other_guest)
         ? ' <span class="pm-badge off">' + esc(t("pm_badge_guest", "Guest")) + "</span>" : "";
-      return '<button class="pm-row" data-thread="' + esc(r.thread_id) + '" data-kind="' + esc(r.kind) +
+      // A one to one thread with nobody on the other side. It happens when a
+      // guest ends their session: p_message_guest_end.sql drops their key and
+      // their memberships, which is right, and leaves this row behind holding
+      // ciphertext no living key can open. Saying so is the difference between
+      // a conversation that has gone quiet and one that cannot be answered.
+      var orphan = !broadcast && !group && !r.other_id;
+      var goneTag = orphan
+        ? ' <span class="pm-badge off">' + esc(t("pm_badge_left", "Left")) + "</span>" : "";
+      // Which rows carry a menu, and why not all of them: see rowMenuKind().
+      var menu = rowMenuKind(r, orphan);
+      return (menu ? '<div class="pm-chat-wrap">' : "") +
+        '<button class="pm-row" data-thread="' + esc(r.thread_id) + '" data-kind="' + esc(r.kind) +
         '" data-name="' + esc(name) + '" data-sub="' + esc(sub) + '" data-other="' + esc(r.other_id || "") + '">' +
         '<span class="pm-av' + (broadcast ? " is-cast" : group ? " is-room" : "") + '">' +
           (broadcast ? CAST_SVG : group ? ROOM_SVG : esc(initials(name))) + "</span>" +
-        '<span class="pm-rtx"><span class="pm-name">' + esc(name) + guestTag +
+        '<span class="pm-rtx"><span class="pm-name">' + esc(name) + guestTag + goneTag +
           (broadcast ? ' <span class="pm-badge">' + esc(t("pm_badge_cast", "Announcement")) + "</span>" : "") +
           (group ? ' <span class="pm-badge">' + esc(t("pm_badge_room", "Room")) + "</span>" : "") +
         '</span><span class="pm-sub">' + esc(sub || clock(r.last_at)) + "</span></span>" +
-        (r.unread ? '<span class="pm-unread">' + r.unread + "</span>" : "") + "</button>";
+        (r.unread ? '<span class="pm-unread">' + r.unread + "</span>" : "") + "</button>" +
+        (menu
+          ? '<button class="pm-row-more" type="button" data-chat-menu="' + esc(r.thread_id) + '"' +
+            ' data-menu-kind="' + esc(menu) + '" data-name="' + esc(name) + '"' +
+            ' data-role="' + esc(r.my_role || "member") + '"' +
+            ' aria-label="' + esc(t("pm_chat_more", "What to do with this conversation")) + '">' +
+            MORE_SVG + "</button></div>"
+          : "");
     }).join("");
+  }
+
+  /**
+   * Which menu a row in the list gets, or "" for no menu at all.
+   *
+   * Three kinds, and the third is the one that does not exist:
+   *
+   *   "room"    a group. Everyone in it can leave; its owner, or an admin, can
+   *             close it. Until now the only way to either was to open the
+   *             room and find the roster sheet, which is a strange place to
+   *             keep the way out.
+   *   "guest"   a one to one conversation with somebody who has no account,
+   *             and "gone", the same thing after they closed their browser.
+   *             Both can be deleted outright, for the reasons written at the
+   *             top of supabase/features/message/p_message_purge.sql. They are
+   *             told apart because the dialog has a different fact to state.
+   *   ""        a one to one conversation between two accounts, and every
+   *             announcement. Nothing on offer, so no button: a conversation
+   *             with another account is also theirs and the database refuses
+   *             to let one side erase it, and drawing a dot menu whose only
+   *             content is a refusal is worse than drawing nothing.
+   *
+   * A guest sees no menu anywhere. They cannot delete an agent's copy of a
+   * conversation, they are never in a room, and ending the session is on the
+   * Profile tab where the rest of their identity lives.
+   */
+  function rowMenuKind(r, orphan) {
+    if (me && me.isGuest) return "";
+    if (r.kind === "group") return "room";
+    if (r.kind !== "direct") return "";
+    if (orphan) return "gone";
+    if (r.other_guest) return "guest";
+    return "";
   }
 
   // ---- directory -----------------------------------------------------------
@@ -1214,8 +1265,14 @@
       '<p class="pm-modal-quote">' + esc(title) + "</p>" +
       // One key per number, because "1 people" is the kind of thing that makes
       // a warning dialog read as a machine rather than a sentence, and Swahili
-      // does not inflect this the way English does anyway.
-      "<p>" + esc(n === 1
+      // does not inflect this the way English does anyway. Zero is not a
+      // count that failed to load: it is what the menu in the thread list
+      // passes when pm_thread_size could not be reached, and a warning that
+      // says "all 0 people" is a warning nobody will finish reading.
+      "<p>" + esc(n === 0
+        ? t("pm_room_del_d1_none",
+            "It closes for everyone in it, and every message in it is deleted from the server. Nobody can open it again, including us.")
+        : n === 1
         ? t("pm_room_del_d1_one",
             "It closes for the one person in it, and every message in it is deleted from the server. Nobody can open it again, including us.")
         : t("pm_room_del_d1",
@@ -1236,9 +1293,200 @@
       try {
         await window.PMStore.groupDelete(threadId);
         closeModal();
-        closeThread();
+        // Only if the room being closed is the one on screen. This is reached
+        // from the thread list too, where closing the conversation pane would
+        // be shutting a door that is not open.
+        if (open && open.threadId === threadId) closeThread();
         await refreshInbox();
         say(t("pm_room_del_ok", "The room is closed."));
+      } catch (err) {
+        out.className = "pm-msg-out bad";
+        out.textContent = (err && err.message) || String(err);
+        btn.disabled = false;
+      }
+    });
+  }
+
+  /**
+   * Walk out of a room, from wherever you are standing.
+   *
+   * Shared by the roster sheet and the menu on the thread list, because the
+   * question leaving has to ask is not a property of the screen it was asked
+   * from. It asks a DIFFERENT question of an owner and of the last person in
+   * the room, since leaving does a different thing in each case: the room
+   * carries on under somebody else, or it closes, and neither is what "leave"
+   * usually implies.
+   *
+   * `fail` is the caller's, because the two screens have different places to
+   * put an error: the roster has a message line under its buttons, the list
+   * menu has one under its own.
+   */
+  async function leaveRoom(threadId, role, last, fail) {
+    var q = last
+      ? t("pm_mem_leave_last_q", "You are the only one left. Leaving closes this room and everything in it goes.")
+      : role === "owner"
+      ? t("pm_mem_leave_own_q", "Leave this room? It stays open and the longest standing member takes it over.")
+      : t("pm_mem_leave_q", "Leave this room? You will stop receiving what is said in it.");
+    if (!confirm(q)) return false;
+    try {
+      var what = await window.PMStore.groupLeave(threadId);
+      closeModal();
+      if (open && open.threadId === threadId) closeThread();
+      await refreshInbox();
+      // Say which of the three things happened. A person who owned a room and
+      // expected it to close, or expected it not to, has no way to find out
+      // from an inbox that simply has one fewer row in it.
+      say(what === "deleted"
+        ? t("pm_left_closed", "You were the last one there, so the room is closed.")
+        : what === "handed_over"
+        ? t("pm_left_handed", "You left. The room stays open and the longest standing member owns it now.")
+        : t("pm_left_ok", "You left the room."));
+      return true;
+    } catch (err) {
+      fail(err);
+      return false;
+    }
+  }
+
+  /**
+   * Everything you can do to one row in the thread list, in one sheet.
+   *
+   * The list had exactly one gesture on it, tap to open, and so the only way
+   * out of a room was to go into it first and find the roster sheet, and there
+   * was no way at all to be rid of a guest enquiry. Which rows carry these
+   * dots, and which deliberately do not, is in rowMenuKind() above.
+   *
+   * The room's own count is fetched here rather than passed down the row,
+   * because a list that asks the size of every room while drawing is the
+   * per-row query the inbox is written to avoid. One tap, one question.
+   */
+  async function showChatMenu(btn) {
+    var threadId = btn.dataset.chatMenu;
+    var kind = btn.dataset.menuKind;
+    var name = btn.dataset.name || t("pm_someone", "Someone");
+    var role = btn.dataset.role || "member";
+    var room = kind === "room";
+    // The owner of the room, or an admin: the same test pm_group_delete makes,
+    // asked here so the button is not offered to somebody the database will
+    // turn away. my_role comes down with the row from pm_inbox.
+    var canDelete = !room || role === "owner" || !!(me && me.isAdmin);
+
+    modal("<h2>" + esc(name) + "</h2>" +
+      '<div class="pm-sheet">' +
+      '<button class="pm-sheet-b" type="button" id="pmCmOpen">' +
+        "<b>" + esc(t("pm_chat_open", "Open it")) + "</b><span>" +
+        esc(t("pm_chat_open_d", "Read what is there and answer.")) + "</span></button>" +
+      (room
+        ? '<button class="pm-sheet-b is-danger" type="button" id="pmCmLeave">' +
+            "<b>" + esc(t("pm_mem_leave", "Leave room")) + "</b><span>" +
+            esc(t("pm_chat_leave_d", "You stop receiving what is said in it. It stays open for everyone else.")) +
+            "</span></button>" +
+          (canDelete
+            ? '<button class="pm-sheet-b is-danger" type="button" id="pmCmDelRoom">' +
+              "<b>" + esc(t("pm_room_del", "Delete room")) + "</b><span>" +
+              esc(t("pm_chat_delroom_d", "Closes it for everyone in it and deletes every message from the server.")) +
+              "</span></button>"
+            : "")
+        : '<button class="pm-sheet-b is-danger" type="button" id="pmCmDelChat">' +
+            "<b>" + esc(t("pm_chat_del", "Delete this conversation")) + "</b><span>" +
+            esc(kind === "gone"
+              ? t("pm_chat_del_gone_d", "They have already gone, so nothing here can be opened again.")
+              : t("pm_chat_del_guest_d", "They have no account, so the whole conversation goes from the server.")) +
+            "</span></button>") +
+      "</div>" +
+      '<div class="pm-modal-acts"><button class="pm-btn ghost" id="pmCmX">' +
+      esc(t("pm_close", "Close")) + "</button></div>" +
+      '<div class="pm-msg-out" id="pmCmMsg"></div>');
+
+    document.getElementById("pmCmX").addEventListener("click", closeModal);
+
+    // The row beside these dots already knows its own name, area and the id of
+    // whoever is on the other side, and the list's own click handler already
+    // knows how to open one. Clicking it is that handler, not a second copy of
+    // the four fields it reads.
+    document.getElementById("pmCmOpen").addEventListener("click", function () {
+      var row = btn.parentNode && btn.parentNode.querySelector(".pm-row");
+      closeModal();
+      if (row) row.click();
+    });
+
+    var fail = function (err) {
+      var out = document.getElementById("pmCmMsg");
+      if (!out) return;
+      out.className = "pm-msg-out bad";
+      out.textContent = (err && err.message) || String(err);
+    };
+
+    var chat = document.getElementById("pmCmDelChat");
+    if (chat) chat.addEventListener("click", function () {
+      closeModal();
+      askDeleteChat(threadId, name, kind === "gone");
+    });
+
+    var leave = document.getElementById("pmCmLeave");
+    if (leave) leave.addEventListener("click", async function (e) {
+      var b = e.currentTarget;            // captured, never read after an await
+      b.disabled = true;
+      var n = await roomSize(threadId);
+      var went = await leaveRoom(threadId, role, n === 1, fail);
+      if (!went) b.disabled = false;
+    });
+
+    var delRoom = document.getElementById("pmCmDelRoom");
+    if (delRoom) delRoom.addEventListener("click", async function (e) {
+      e.currentTarget.disabled = true;
+      var n = await roomSize(threadId);
+      closeModal();
+      askDeleteRoom(threadId, name, n);
+    });
+  }
+
+  /** The size of a room, or 0 when it could not be asked. */
+  async function roomSize(threadId) {
+    try { return (await window.PMStore.threadSize(threadId)) || 0; }
+    catch (_) { return 0; }
+  }
+
+  /**
+   * Delete a whole one to one conversation.
+   *
+   * Only ever offered where there is no second account to protect: the other
+   * side has no account, or has already gone. The dialog says which of those
+   * two it is, because they leave the reader with different questions, and it
+   * says the one thing this cannot do in the same words the unsend dialog
+   * uses. A copy somebody already read is theirs, and nothing reaches it.
+   */
+  function askDeleteChat(threadId, name, gone) {
+    modal("<h2>" + esc(t("pm_chat_del_t", "Delete this conversation?")) + "</h2>" +
+      '<p class="pm-modal-quote">' + esc(name) + "</p>" +
+      "<p>" + esc(gone
+        ? t("pm_chat_del_d1_gone",
+            "They ended their guest session, so there is nobody on the other side and nothing here can be opened again. The conversation and every message in it are deleted from the server.")
+        : t("pm_chat_del_d1_guest",
+            "They wrote to you without an account. The conversation and every message in it are deleted from the server, for both of you. Nobody can open them again, including us.")) + "</p>" +
+      "<p>" + esc(t("pm_chat_del_d2",
+        "What either of you already read on a phone stays there. There is no undo.")) + "</p>" +
+      '<div class="pm-modal-acts">' +
+      '<button class="pm-btn ghost" id="pmCdNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      '<button class="pm-btn is-danger" id="pmCdYes">' + esc(t("pm_chat_del_go", "Delete it")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pmCdMsg\"></div>");
+
+    document.getElementById("pmCdNo").addEventListener("click", closeModal);
+    document.getElementById("pmCdYes").addEventListener("click", async function (e) {
+      var btn = e.currentTarget;          // captured, never read after an await
+      var out = document.getElementById("pmCdMsg");
+      btn.disabled = true;
+      try {
+        var res = await window.PMStore.directDelete(threadId);
+        closeModal();
+        if (open && open.threadId === threadId) closeThread();
+        await refreshInbox();
+        // A row that had already gone on another device is not an error and is
+        // not a deletion either. Saying "deleted" there would claim this tap
+        // did something it did not do.
+        say(res && res.deleted
+          ? t("pm_chat_del_ok", "The conversation is deleted.")
+          : t("pm_chat_del_already", "That conversation had already gone."));
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
@@ -1296,40 +1544,17 @@
     if (del) del.addEventListener("click", function () { askDeleteRoom(threadId, title, rows.length); });
 
     document.getElementById("pmMemLeave").addEventListener("click", async function (e) {
-      var out = document.getElementById("pmMemMsg");
       // Leaving is not undoable by the person leaving, only the owner can put
-      // them back, so it asks once rather than acting on a tap. An owner is
-      // asked a DIFFERENT question, because leaving does a different thing:
-      // the room carries on under somebody else, or closes if they were the
-      // last one in it, and neither is what "leave" usually implies.
-      var mineRole = mine && mine.role;
-      var last = rows.length <= 1;
-      var q = last
-        ? t("pm_mem_leave_last_q", "You are the only one left. Leaving closes this room and everything in it goes.")
-        : mineRole === "owner"
-        ? t("pm_mem_leave_own_q", "Leave this room? It stays open and the longest standing member takes it over.")
-        : t("pm_mem_leave_q", "Leave this room? You will stop receiving what is said in it.");
-      if (!confirm(q)) return;
+      // them back, so leaveRoom() asks once rather than acting on a tap.
       var btn = e.currentTarget;      // captured, never read after an await
       btn.disabled = true;
-      try {
-        var what = await window.PMStore.groupLeave(threadId);
-        closeModal();
-        closeThread();
-        await refreshInbox();
-        // Say which of the three things happened. A person who owned a room
-        // and expected it to close, or expected it not to, has no way to find
-        // out from an inbox that simply has one fewer row in it.
-        say(what === "deleted"
-          ? t("pm_left_closed", "You were the last one there, so the room is closed.")
-          : what === "handed_over"
-          ? t("pm_left_handed", "You left. The room stays open and the longest standing member owns it now.")
-          : t("pm_left_ok", "You left the room."));
-      } catch (err) {
+      var went = await leaveRoom(threadId, mine && mine.role, rows.length <= 1, function (err) {
+        var out = document.getElementById("pmMemMsg");
+        if (!out) return;
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
-        btn.disabled = false;
-      }
+      });
+      if (!went) btn.disabled = false;
     });
 
     document.getElementById("pmMemList").addEventListener("click", async function (e) {
@@ -3122,6 +3347,12 @@
     el.segAi && el.segAi.addEventListener("click", function () { showSeg("ai"); });
 
     el.pmInbox && el.pmInbox.addEventListener("click", function (e) {
+      // The dots sit BESIDE the row, not inside it: a button cannot contain a
+      // button, and browsers repair that markup by moving the inner one out.
+      // So this is tested first and returns, rather than relying on the row
+      // test failing.
+      var menuBtn = e.target.closest("[data-chat-menu]");
+      if (menuBtn) { showChatMenu(menuBtn); return; }
       var row = e.target.closest("[data-thread]");
       if (!row) return;
       openThread({
