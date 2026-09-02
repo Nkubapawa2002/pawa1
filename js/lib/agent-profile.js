@@ -20,6 +20,15 @@
   const esc = (s) => (window.escHtml ? window.escHtml(s) : String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"));
 
+  // This file predates the i18n rule and its copy is still hardcoded English.
+  // Rewriting all of it is not this change's job, but NEW copy is not going in
+  // untranslated: window.t() takes a key and returns the key itself when the
+  // string is missing, so the fallback is checked for explicitly.
+  const t = (k, en) => {
+    const v = window.t ? window.t(k) : null;
+    return (v && v !== k) ? v : en;
+  };
+
   // All 31 regions of the United Republic of Tanzania — 26 Mainland + 5 Zanzibar
   // (Unguja & Pemba). Used so an agent (incl. Zanzibar) can ALWAYS pick their
   // region even if the live `regions` table hasn't been seeded with Zanzibar.
@@ -247,6 +256,24 @@
         <p id="apfAreaHint" class="apf-hint">
           Start typing and pick from the list to place it precisely — or just type the name.</p>
 
+        <!-- THE WARD, typed rather than guessed.
+             Until now this column was only ever filled when the geocoder
+             happened to tag the picked suggestion as a ward. An agent who
+             typed their area as free text, which is most of them, saved a
+             profile with ward = null.
+             That column is not decoration. house_demand_near matches a seeker
+             who could NAME their ward but not pin it against the agent's own
+             ward, so an agent with none never sees those requests at all and
+             is never told why. See docs/TELLING_AGENTS_WHERE.md. -->
+        <label class="apf-label" for="apfWard">${t("ap_ward_label", "Your ward")}</label>
+        <div class="apf-field">
+          <input id="apfWard" class="apf-input" type="text" autocomplete="off"
+            placeholder="${esc(t("ap_ward_ph", "the ward exactly, e.g. Mikocheni"))}"
+            value="${esc(existing && existing.ward || "")}">
+        </div>
+        <p class="apf-hint">${esc(t("ap_ward_hint",
+          "Write it exactly as it is written locally. People looking for a room often know their ward but cannot point at it on a map, and this is what puts their request in front of you."))}</p>
+
         <details class="apf-details">
           <summary class="apf-summary">Your contact (optional)</summary>
           <div class="apf-details__body">
@@ -381,7 +408,11 @@
           area_of_operations: area,
           area_kind: cls.area_kind,
           district: cls.district || (existing && existing.district) || null,
-          ward: cls.ward || (existing && existing.ward) || null,
+          // What the agent TYPED wins over what the geocoder inferred. They
+          // know their own ward; classify() is guessing from a suggestion tag,
+          // and it returns "" for every area entered as free text.
+          ward: (($("apfWard") && $("apfWard").value.trim()) || cls.ward
+                 || (existing && existing.ward) || null),
           lat: picked && Number.isFinite(+picked.lat) ? +picked.lat : (existing && existing.lat) || null,
           lng: picked && Number.isFinite(+picked.lng) ? +picked.lng : (existing && existing.lng) || null,
           // Sliced rather than rejected: the textarea already caps at 400 with
