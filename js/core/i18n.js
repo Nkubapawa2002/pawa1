@@ -2793,7 +2793,7 @@ window.I18N = {
     // ── Offer a service (agent-services.html)
     as_kicker: "Daily services",
     as_page_title: "Offer a service",
-    as_page_sub: "Whatever you do with your hands or your head, listed where people look for it.",
+    as_page_sub: "Cleaning, plumbing, tutoring, repairs, anywhere in Tanzania.",
     as_fact_free: "Free to list",
     as_fact_near: "Found by people nearby",
     as_fact_call: "They call you directly",
@@ -5610,7 +5610,7 @@ window.I18N = {
     // ── Toa huduma yako (agent-services.html)
     as_kicker: "Huduma za kila siku",
     as_page_title: "Toa huduma",
-    as_page_sub: "Chochote unachofanya kwa mikono au akili yako, kimeorodheshwa panapotafutwa.",
+    as_page_sub: "Usafi, mabomba, kufundisha, matengenezo, popote Tanzania.",
     as_fact_free: "Bure kuorodhesha",
     as_fact_near: "Unapatikana na watu wa karibu",
     as_fact_call: "Wanakupigia wewe moja kwa moja",
