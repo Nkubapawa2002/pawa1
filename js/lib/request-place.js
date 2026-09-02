@@ -208,6 +208,10 @@
       .rp-sug b{display:block;font-size:.9rem}
       .rp-sug span{font-size:.78rem;color:#6b7a73}
       .rp-picked{font-size:.8rem;color:#0a6f4d;margin-top:5px;font-weight:600}
+      .rp-anchor-note{font-size:.86rem;line-height:1.5;color:#7a5b12;background:#fff8e6;
+        border:1px solid #f2dda0;border-radius:10px;padding:10px 12px;margin-bottom:10px}
+      .rp-anchor-say{font-size:.82rem;line-height:1.5;color:#4c6a5d;margin-top:8px;min-height:1.2em}
+      .rp-anchor-say b{color:#0a6f4d}
       .rp-go{width:100%;padding:13px;border:0;border-radius:11px;background:#0a6f4d;color:#fff;font-weight:800;
         font-size:1rem;cursor:pointer;margin-top:4px}
       .rp-go:disabled{opacity:.6;cursor:default}
@@ -440,7 +444,10 @@
         p_name:           pin.name || null,
         p_note:           pin.note || null,
         p_needed_from:    pin.needed_from || null,
-        p_needed_by:      pin.needed_by || null
+        p_needed_by:      pin.needed_by || null,
+        p_ward:           pin.ward || null,
+        p_place_label:    pin.place_label || null,
+        p_anchor_kind:    pin.anchor_kind || "exact"
       });
       if (!error) return;
       if (!rpcMissing(error.message)) throw error;   // real error → surface it
@@ -581,6 +588,22 @@
           <input id="rpWhere" type="text" autocomplete="off" placeholder="${T("rp_where_ph")}" />
           <div id="rpSug" class="rp-sug" hidden></div>
           <div id="rpPicked" class="rp-picked" hidden></div>
+        </div>
+
+        <!-- THE ANCHOR. Shown only when the typed place did not resolve to a
+             real point, which is the case this whole block exists for: half
+             the places people actually live are exact to a person and to every
+             agent on that street, and nothing at all to a geocoder. When that
+             happens the request must carry the smallest unit that CAN be named
+             exactly, and the local name is carried BESIDE it, never instead.
+             See supabase/features/house/house_demand_place.sql. -->
+        <div class="rp-row" id="rpAnchorRow" hidden>
+          <div class="rp-anchor-note" id="rpAnchorNote"></div>
+          <label for="rpWard">${T("rp_ward_label")} <small>${T("rp_ward_small")}</small></label>
+          <input id="rpWard" type="text" autocomplete="off" placeholder="${T("rp_ward_ph")}" />
+          <label for="rpDistrict" style="margin-top:9px">${T("rp_district_label")} <small>${T("rp_district_small")}</small></label>
+          <input id="rpDistrict" type="text" autocomplete="off" placeholder="${T("rp_district_ph")}" />
+          <div class="rp-anchor-say" id="rpAnchorSay"></div>
         </div>
 
         <!-- The area the request will actually cover. Static markup carries no
@@ -727,6 +750,8 @@
     const $ = (id) => back.querySelector(id);
     const regionEl = $("#rpRegion"), locEl = $("#rpLoc");
     const whereEl = $("#rpWhere"), sugEl = $("#rpSug"), pickedEl = $("#rpPicked");
+    const anchorRow = $("#rpAnchorRow"), wardEl = $("#rpWard"), distEl = $("#rpDistrict");
+    const anchorNote = $("#rpAnchorNote"), anchorSay = $("#rpAnchorSay");
     const msgEl = $("#rpMsg"), goEl = $("#rpGo");
     const setMsg = (t, ok) => { msgEl.textContent = t || ""; msgEl.classList.toggle("ok", !!ok); };
 
@@ -821,6 +846,7 @@
     function setPinned(lat, lng) {
       pinned = { lat: +lat, lng: +lng };
       shown = { lat: pinned.lat, lng: pinned.lng, src: "pin" };
+      paintAnchor(shown);
       draw(shown, { recentre: false });
       setCaption("pin");
       labelFromPoint(pinned.lat, pinned.lng);
@@ -881,6 +907,56 @@
       return null;
     }
 
+    // ---- the anchor ------------------------------------------------------
+    // computePoint() already knows whether it found a real place or gave up
+    // and used the middle of the region. Until now only the caption saw that.
+    // It decides the ANCHOR too, because a distance measured from a centroid
+    // nobody chose is not an approximation, it is a wrong answer, and
+    // house_demand_near now refuses to match on one.
+    //
+    //   pin | gps | pick | typed  ->  'exact'   the point means something
+    //   region (or nothing)       ->  the seeker names the unit instead
+    //
+    // Ward first, district second, and the local name travels beside whichever
+    // wins rather than instead of it: the ward is what routes the request to
+    // the right agents, and the name is the only part they will recognise.
+    const FIRM_SRC = { pin: 1, gps: 1, pick: 1, typed: 1 };
+
+    function anchorNow(pt) {
+      if (pt && FIRM_SRC[pt.src]) return { kind: "exact", ward: null, district: null };
+      const w = (wardEl && wardEl.value || "").trim();
+      const d = (distEl && distEl.value || "").trim();
+      if (w) return { kind: "ward", ward: w, district: d || null };
+      if (d) return { kind: "district", ward: null, district: d };
+      // Nothing named. The request still goes, on the region, exactly as it did
+      // before this block existed: a weaker request is better than none.
+      return { kind: "region", ward: null, district: d || null };
+    }
+
+    // Show the block only when it is load-bearing, and say why in the seeker's
+    // terms rather than in ours. A form that always asks for a ward would be
+    // asking most people for something they did not need to give.
+    function paintAnchor(pt) {
+      if (!anchorRow) return;
+      const firm = !!(pt && FIRM_SRC[pt.src]);
+      // Nothing to anchor to before a region is chosen, and asking for a ward
+      // on an empty form reads as a demand rather than as the help it is.
+      const ready = !!(regionEl.value || (whereEl.value || "").trim());
+      anchorRow.hidden = firm || !ready;
+      if (firm || !ready) return;
+      const typed = (whereEl.value || "").trim();
+      anchorNote.textContent = typed
+        ? T("rp_anchor_note_typed").replace("{place}", typed)
+        : T("rp_anchor_note");
+      const a = anchorNow(pt);
+      anchorSay.innerHTML =
+        a.kind === "ward"
+          ? T("rp_anchor_ward").replace("{ward}", "<b>" + esc(a.ward) + "</b>")
+          : a.kind === "district"
+          ? T("rp_anchor_district").replace("{district}", "<b>" + esc(a.district) + "</b>")
+          : T("rp_anchor_none");
+    }
+
     // Re-resolve and repaint. Returns the promise so submit can wait out an
     // in-flight geocode instead of racing it, and sequence-numbered so a slow
     // answer for an old query cannot overwrite a newer one.
@@ -893,9 +969,16 @@
           Math.abs(shown.lat - pt.lat) > 1e-6 || Math.abs(shown.lng - pt.lng) > 1e-6;
         shown = pt;
         setCaption(pt ? pt.src : "none");
+        // Painted from the SAME point the caption just described, so the block
+        // asking for a ward can never appear beside a caption saying the place
+        // was found, or stay hidden beside one saying it was not.
+        paintAnchor(pt);
         if (pt) draw(pt, { recentre: moved });
       })();
     }
+
+    if (wardEl) wardEl.addEventListener("input", () => paintAnchor(shown));
+    if (distEl) distEl.addEventListener("input", () => paintAnchor(shown));
 
     function scheduleRefresh() {
       clearTimeout(mapTimer);
@@ -1090,12 +1173,18 @@
           amenities,
           elseText: $("#rpElse").value || "",
         });
+        const anchorOut = anchorNow(place && place.lat != null ? place : null);
         const pin = {
           id: "dp-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           lat: place.lat, lng: place.lng,
           area: place.area || text || region,
           region: place.region || region,
-          district: place.district || null,
+          district: anchorOut.district || place.district || null,
+          ward: anchorOut.ward,
+          // The seeker's own words, kept whether or not the map knew them.
+          // This is the line an agent reads to recognise the street.
+          place_label: (whereEl.value || "").trim() || null,
+          anchor_kind: anchorOut.kind,
           radius_m: radiusM(),
           listing: $("#rpListing").value === "sale" ? "sale" : "rent",
           type: typeVal || null,

@@ -163,7 +163,16 @@ window.initAgentHousesPage = async () => {
   // ---- State ---------------------------------------------------------------
   let mode          = "auth";       // 'auth' | 'dashboard' | 'form'
   let authMode      = "signin";     // 'signin' | 'signup'
+  // What kind of account this is, and what that allows. Declared up here with
+  // the rest of the module state because routeOnAuth() is awaited near the top
+  // of this file and reaches them through syncAccountKind(): a `let` further
+  // down is a temporal dead zone, not a definition.
+  let ownerQuota    = null;         // owner_post_quota(), or null for an agent
+  const isOwnerAccount = () => !!(ownerQuota && ownerQuota.is_owner);
+  const trf = (k, en) => { const v = window.t ? window.t(k) : null; return (v && v !== k) ? v : en; };
+
   let editingId     = null;         // null = create, set = editing this id
+  let openedForEdit = false;        // what the form was opened for (see openForm)
   let agentProfile  = null;         // region + area this agent operates in
   let pickedLatLng  = null;         // { lat, lng }
   let pinMap        = null;
@@ -433,6 +442,97 @@ create policy "house-photos upload" on storage.objects for insert
     } catch (_) { /* RPC not deployed yet — ignore */ }
   }
 
+  // ---- the owner's account, and their allowance ---------------------------
+  //
+  //  js/lib/login-doors.js has four doors and one of them is marked VIP: a
+  //  landlord listing their own property, with no agent in between and no
+  //  monthly agent fee. Everything that makes that true lives in the database
+  //  (supabase/features/house/house_owner_accounts.sql). What this dashboard
+  //  has to do is three things:
+  //
+  //    say which account this is, on the SERVER, because the door itself is
+  //    user metadata and metadata cannot be what decides who pays;
+  //    not ask an owner an agent's questions;
+  //    and say where they stand on their three posts BEFORE the form, because
+  //    a refusal after twenty minutes of typing is an ambush, not a rule.
+  async function syncAccountKind() {
+    if (!window.OwnerAccount) return;
+    let door = null;
+    try { door = window.LoginDoors && window.LoginDoors.get(); } catch (_) {}
+    if (!door) {
+      try {
+        const { data } = await sb.auth.getSession();
+        door = data?.session?.user?.user_metadata?.account_type || null;
+      } catch (_) {}
+    }
+    ownerQuota = await window.OwnerAccount.quota();
+    // The claim is made every time this page opens, not once at sign-up, so an
+    // account that predates the table is corrected the first time its owner
+    // looks at it. A refusal is swallowed on purpose: it means "you are already
+    // trading as an agent", which is exactly what the page does next anyway.
+    if (door === "owner" && ownerQuota && ownerQuota.kind !== "owner") {
+      try {
+        await window.OwnerAccount.claim("owner");
+        ownerQuota = await window.OwnerAccount.quota();
+      } catch (_) { /* refused, and the page carries on as an agent's */ }
+    }
+    renderOwnerQuota();
+  }
+
+  async function refreshOwnerQuota() {
+    if (!window.OwnerAccount || !isOwnerAccount()) return;
+    ownerQuota = await window.OwnerAccount.quota();
+    renderOwnerQuota();
+  }
+
+  function renderOwnerQuota() {
+    const host = document.getElementById("ahOwnerQuota");
+    if (!host) return;
+    const q = ownerQuota;
+    if (!q || !q.is_owner) { host.innerHTML = ""; blockNewListing(false); return; }
+    const O = window.OwnerAccount;
+    const full = Number(q.left) <= 0;
+    // The numbers come down from the database, which reads the same two
+    // functions the trigger reads. Nothing here is written twice.
+    const said = [
+      O.leftSentence(q),
+      O.nextSentence(q),
+      trf("own_acc_window", "An owner account posts {limit} listings every {days} days, with no monthly fee.")
+        .replace("{limit}", q.limit).replace("{days}", q.window_days),
+    ].filter(Boolean).join(" ");
+    host.innerHTML =
+      '<div class="owner-quota' + (full ? " is-full" : "") + '">' +
+        '<span class="owner-quota-n">' + esc(String(q.left)) + "<small>/" + esc(String(q.limit)) + "</small></span>" +
+        '<span class="owner-quota-tx">' +
+          '<span class="owner-quota-t">' + esc(trf("own_acc_t", "Owner account")) + "</span>" +
+          '<span class="owner-quota-d">' + esc(said) + "</span>" +
+        "</span>" +
+      "</div>";
+    blockNewListing(full);
+  }
+
+  /**
+   * Stop offering a form that cannot be saved.
+   *
+   * The database refuses the fourth post whatever this button does, so this is
+   * not the fence: it is the difference between being told before and being
+   * told after.
+   */
+  function blockNewListing(blocked) {
+    const btn = document.getElementById("ahNewBtn");
+    if (!btn) return;
+    btn.disabled = !!blocked;
+    btn.setAttribute("aria-disabled", String(!!blocked));
+    if (blocked) {
+      btn.title = window.OwnerAccount
+        ? [window.OwnerAccount.leftSentence(ownerQuota), window.OwnerAccount.nextSentence(ownerQuota)]
+            .filter(Boolean).join(" ")
+        : "";
+    } else {
+      btn.removeAttribute("title");
+    }
+  }
+
   // A guest session is a real session. `s?.user` answered yes to one, which
   // opened this whole dashboard for somebody who has no account to own a
   // listing with. AuthGuard is the one place that knows the difference, and
@@ -451,13 +551,30 @@ create policy "house-photos upload" on storage.objects for insert
       userEmailEl.textContent = s.user.email || tr("ah_no_email");
       // Capture (once) the region the agent belongs to + the area they operate
       // in, so their listings surface for searchers in that area.
-      try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
+      // Which kind of account this is, first, because the next line depends on
+      // the answer. AgentProfile.ensure() opens a modal asking for an "area of
+      // operations" and WRITES an agent_profiles row, and that row is what
+      // makes somebody an agent everywhere else in this app: pm_publish_key
+      // reads exactly it. Asking a landlord with one house an agent's question
+      // and then filing them as an agent for answering it is how the VIP door
+      // would have quietly stopped meaning anything.
+      await syncAccountKind();
+      if (!isOwnerAccount()) {
+        try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
+      }
       if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyListings();
-      checkSubscription();
+      if (!isOwnerAccount()) checkSubscription();
       loadWaitingNearMe();   // proactive demand board (renters waiting near them)
-      window.renderAgentClientTip?.({ mount: dashboard, id: "ahClientTip", kind: "houses" });
-      window.renderFrameScout?.({ mount: dashboard, id: "ahFrameScout", kind: "houses" });
+      // Two panels of coaching for somebody building an agency: keep a client
+      // list, scout an area's Frame before you invest in it. Both are the
+      // right advice for an agent and neither is addressed to a landlord with
+      // one house to let, so an owner is spared them. The waiting-renters
+      // board above is NOT gated: a room to fill is a room to fill.
+      if (!isOwnerAccount()) {
+        window.renderAgentClientTip?.({ mount: dashboard, id: "ahClientTip", kind: "houses" });
+        window.renderFrameScout?.({ mount: dashboard, id: "ahFrameScout", kind: "houses" });
+      }
       window.renderAgentMessages?.({ sb, mount: dashboard });   // admin → agent inbox
     } else {
       authCard.hidden = false;
@@ -749,6 +866,14 @@ create policy "house-photos upload" on storage.objects for insert
 
   function openForm(row) {
     editingId = row?.id || null;
+    // What the form was OPENED for, kept separately from what it is editing.
+    // They can only ever come apart one way, and that way is a bug: a form
+    // opened on an existing listing that has lost the id it was editing. If
+    // that ever happens the save must stop, not fall through to an insert,
+    // because on an owner account an insert spends one of three posts for six
+    // months. The database counts inserts and nothing else, so this is the
+    // screen keeping its own promise rather than a second fence.
+    openedForEdit = !!row;
     formTitle.textContent = row ? tr("ah_form_title_edit") : tr("ah_form_title_new");
     formMsg.hidden = true;
     warmVideoGateway();  // wake the faststart service while the agent fills the form
@@ -890,6 +1015,7 @@ create policy "house-photos upload" on storage.objects for insert
     dashboard.hidden = false;
     mode = "dashboard";
     editingId = null;
+    openedForEdit = false;
   }
 
   // ---- Multi-photo + video upload -----------------------------------------
@@ -3051,6 +3177,15 @@ create policy "house-photos upload" on storage.objects for insert
       // saves with the legacy `photo` cover. Use .select() so we get the
       // actual saved row back — that's the only way to know an insert
       // didn't silently get filtered out by RLS or a write-only schema.
+      // An edit that has lost its id is not a new listing. See openForm().
+      if (openedForEdit && !editingId) {
+        formMsg.hidden = false;
+        formMsg.className = "ah-msg error";
+        formMsg.textContent = trf("ah_edit_lost",
+          "This listing lost track of which one it was editing. Close the form and open it again from the list. Saving now would post a second listing.");
+        return;
+      }
+
       const trySave = async (payload) => editingId
         ? sb.from("houses").update(payload).eq("id", editingId).eq("owner_user_id", uid).select()
         : sb.from("houses").insert(payload).select();
@@ -3127,6 +3262,9 @@ create policy "house-photos upload" on storage.objects for insert
 
       formMsg.className = "ah-msg success";
       formMsg.textContent = editingId ? tr("ah_msg_saved_edit") : tr("ah_msg_saved_new");
+      // One of the three posts has just been spent, so the panel and the New
+      // listing button have to say so before the owner reaches for either.
+      refreshOwnerQuota();
       formMsg.hidden = false;
 
       // The clip(s) saved, but the optimiser couldn't reach/process them, so
@@ -3178,7 +3316,14 @@ create policy "house-photos upload" on storage.objects for insert
       p_listing: listing.listing || "rent",
       p_type: listing.type || null,
       p_price: Number(listing.price_tzs) || 0,
-      p_bedrooms: Number(listing.bedrooms) || 0
+      p_bedrooms: Number(listing.bedrooms) || 0,
+      // The listing's OWN ward and district, so a request whose point is a
+      // stand-in can still be matched by the name the seeker could state
+      // exactly. Without these two the named arm of house_demand_near cannot
+      // fire at all and every unmappable request stays invisible.
+      // See supabase/features/house/house_demand_place.sql.
+      p_ward: listing.ward || (agentProfile && agentProfile.ward) || null,
+      p_district: listing.district || (agentProfile && agentProfile.district) || null
     });
     if (error) {
       // RPC missing (setup SQL not run yet) → silently skip; it's an add-on.
@@ -3330,6 +3475,10 @@ create policy "house-photos upload" on storage.objects for insert
           sb.rpc("house_demand_near", {
             p_lat: center.lat, p_lng: center.lng, p_radius_m: 12000,
             p_listing: listing, p_type: null, p_price: 0, p_bedrooms: 0,
+            // Same reason as notifyWaitingRenters: the agent's own ward is
+            // what reaches a seeker who could name theirs but not pin it.
+            p_ward: (agentProfile && agentProfile.ward) || null,
+            p_district: (agentProfile && agentProfile.district) || null,
           }).then((r) => Array.isArray(r.data) ? r.data.map((x) => ({ ...x, listing })) : [])
             .catch(() => [])));
         const seen = new Set();
