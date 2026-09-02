@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v320-2026-09-02-home-blocks-alive";
+const VERSION = "v321-2026-09-02-ward-anchor-and-owner";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -103,6 +103,8 @@ const APP_SHELL = [
   "./js/pages/home-bands.js",
   "./js/pages/home-live.js",
   "./js/lib/native-feel.js",
+  "./js/lib/owner-account.js",
+  "./css/owner-badge.css",
   "./js/lib/service-categories.js",
   "./js/core/app-shell.js",
   "./js/core/theme.js",
