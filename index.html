@@ -22,6 +22,8 @@
   <link rel="stylesheet" href="css/design-system.css" />
   <!-- The helper-card styling, shared with p-chat.html. -->
   <link rel="stylesheet" href="css/action-cards.css" />
+  <!-- "From the owner": one badge, four pages. css/owner-badge.css -->
+  <link rel="stylesheet" href="css/owner-badge.css" />
 
   <!-- Plus Jakarta Sans: the app-home (Twilight design) UI typeface -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
@@ -131,10 +133,48 @@
       background: radial-gradient(900px 620px at 50% -12%, #11231C 0%, rgba(7,12,10,0) 62%);
     }
     .ha * { box-sizing: border-box; }
-    .ha-head { display: flex; align-items: flex-start; justify-content: space-between; }
-    .ha-greet { font-size: 12.5px; color: rgba(231,241,236,.55); font-weight: 600; }
+    /* ---- the two top corners ------------------------------------------
+       Three controls used to be stacked in the top-RIGHT corner of this page
+       and two of them were drawn on top of the third. Measured at 390px:
+
+         theme toggle   fixed,   y 8..52,   x 336..378
+         avatar         in flow, y 20..60,  x 334..374   <- under the toggle
+         bell           fixed,   y 60..104, x 336..378   <- over the search box
+
+       The toggle and the bell are both FIXED and both injected by shared
+       modules (js/core/theme.js, js/lib/notify-ui.js) that ride on every page,
+       so neither knows this header exists. The header is what has to move.
+
+       The toggle goes to the top LEFT here and ONLY here. It is top-right
+       everywhere else because that corner is empty on every other page, and
+       the top-left is not: it holds a page title, a back arrow or the profile
+       avatar on all twelve of them. Moving it globally would fix one collision
+       and create twelve.
+
+       So each corner is given to one floating control and the header keeps out
+       of both, which costs 46px of width on each side and no vertical space at
+       all. */
+    body[data-page="index"] .pawa-theme-toggle { left: 12px; right: auto; }
+    /* The bell used to sit UNDER the toggle and slide up when it faded. The
+       corner above it is empty now, so it simply lives there. */
+    body[data-page="index"] .pawa-notify-bell { top: calc(env(safe-area-inset-top, 0px) + 10px); }
+
+    .ha-head { display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 10px; padding-right: 46px; }
+    .ha-head > div:first-child { min-width: 0; flex: 1 1 auto; }
+    /* Karibu shares its line with the toggle and truncates rather than wrapping
+       under it. The place name does NOT share: it is the control people
+       actually press, "Dar es Salaam" is the longest name it has to hold, and
+       an ellipsis in the middle of the city you are standing in is not a fit.
+       So it drops below the toggle instead and gets the column to itself,
+       which costs about 20px at the top of the page and nothing else. */
+    .ha-greet { padding-left: 46px; }
+    .ha-greet { font-size: 12.5px; color: rgba(231,241,236,.55); font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ha-greet #haGreetName { color: #EAF1EE; }
-    .ha-loc { position: relative; display: flex; align-items: center; gap: 5px; margin-top: 3px; background: none; border: 0; padding: 0; cursor: pointer; color: #EAF1EE; font: inherit; }
+    /* margin-top clears the theme toggle, which is fixed over the top-left
+       corner of this page and ends at y 52. See the corner note above. */
+    .ha-loc { position: relative; display: flex; align-items: center; gap: 5px; margin-top: 20px; background: none; border: 0; padding: 0; cursor: pointer; color: #EAF1EE; font: inherit; }
     /* The location line and the "See all" links are 20-26px tall, which is a
        miss on a phone. The hit area is grown with a pseudo-element rather than
        padding so the layout does not move by a single pixel — the homepage
@@ -142,8 +182,9 @@
     .ha-loc::after { content: ""; position: absolute; inset: -9px -8px; }
     .ha-sec-head a { position: relative; }
     .ha-sec-head a::after { content: ""; position: absolute; inset: -11px -10px; }
-    .ha-loc span { font-size: 17px; font-weight: 800; }
-    .ha-head-right { display: flex; align-items: center; gap: 10px; }
+    .ha-loc span { font-size: 17px; font-weight: 800;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .ha-head-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
     .ha-lang { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 999px; padding: 7px 12px; cursor: pointer; color: #EAF1EE; font-weight: 800; font-size: 12.5px; }
     .ha-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,#2EE6A6,#13a679); display: grid; place-items: center; font-weight: 800; color: #06170F; font-size: 16px; text-decoration: none; }
     /* ── Search ───────────────────────────────────────────────────────────
@@ -371,6 +412,13 @@
     .ha-feat { position: relative; flex: 0 0 300px; height: 204px; border-radius: 26px; overflow: hidden; scroll-snap-align: start; box-shadow: 0 18px 42px rgba(0,0,0,.42); text-decoration: none; display: block; background: #141A18; }
     .ha-feat img, .ha-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .ha-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.12) 28%, rgba(4,10,8,.88)); pointer-events: none; }
+    /* Two chips can sit over one photograph now (Verified, and "from the
+       owner"), so the ROW is the positioned thing and the chips inside it are
+       ordinary content. Absolutely positioning each of them individually is
+       what put the second one underneath the first. */
+    .ha-chips { position: absolute; top: 12px; left: 12px; z-index: 2; display: flex;
+      align-items: center; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 62px); }
+    .ha-chips .ha-chip-verified { position: static; top: auto; left: auto; }
     .ha-chip-verified { position: absolute; top: 12px; left: 12px; z-index: 2; display: flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 999px; background: rgba(8,16,12,.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid rgba(46,230,166,.5); font-size: 10.5px; font-weight: 700; color: #2EE6A6; }
     .ha-heart { position: absolute; top: 10px; right: 10px; z-index: 3; width: 38px; height: 38px; border-radius: 50%; background: rgba(8,14,12,.5); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.16); display: grid; place-items: center; cursor: pointer; padding: 0; }
     .ha-feat-body { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 2; display: block; }
@@ -505,6 +553,148 @@
       .ha-frame-pt { transition: none; }
     }
 
+
+    /* ====================================================================
+       NATIVE FEEL  (js/lib/native-feel.js)
+       ====================================================================
+       The physical layer. A press that tracks the finger, content that
+       arrives, and a radar that is telling the truth.
+
+       .is-pressed is set on pointerdown and removed if the finger slides
+       off, which :active cannot express. That second half is the one that
+       makes a card feel like a button rather than a link. */
+    .ha-near, .ha-frame-pt, .ha-earn-btns a, .ha-frame-btns a, .ha-chip {
+      transition: transform var(--dur-fast, .14s) var(--ease, cubic-bezier(.2,.7,.3,1)),
+                  box-shadow var(--dur-fast, .14s) var(--ease, cubic-bezier(.2,.7,.3,1)),
+                  background var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1)),
+                  border-color var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1));
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ha-near.is-pressed { transform: scale(.975); box-shadow: 0 6px 16px rgba(0,0,0,.34); }
+    .ha-frame-pt.is-pressed, .ha-chip.is-pressed { transform: scale(.955); }
+    .ha-earn-btns a.is-pressed, .ha-frame-btns a.is-pressed { transform: scale(.955); }
+
+    /* Arrival. Only ever plays once; see reveal() for why. */
+    .will-reveal {
+      opacity: 0; transform: translateY(14px) scale(.985);
+      transition: opacity .5s var(--ease, cubic-bezier(.2,.7,.3,1)),
+                  transform .5s var(--ease, cubic-bezier(.2,.7,.3,1));
+      will-change: opacity, transform;
+    }
+    .will-reveal.is-shown { opacity: 1; transform: none; }
+
+    /* ---- the radar, once it knows where it is --------------------------
+       The card used to draw a sweep over nothing: three rings and a spinner
+       that meant "near you" as decoration. When a fix is available the same
+       radar plots REAL listings, each blip at the true bearing and at a
+       radius proportional to its real distance, so the picture is a reading
+       rather than an ornament. No fix, no blips: it never fakes a return. */
+    .ha-near-blip {
+      position: absolute; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--ha-radar-ink, #7FD0FF);
+      box-shadow: 0 0 9px 2px rgba(110,200,255,.55);
+      transform: translate(-50%, -50%) scale(0);
+      animation: ha-blip-in .5s var(--ease, cubic-bezier(.2,.7,.3,1)) forwards;
+    }
+    @keyframes ha-blip-in { to { transform: translate(-50%, -50%) scale(1); } }
+
+    /* The live line replaces the invitation once there is something true to
+       say. It is a row so the count and the distance can carry different
+       weight without two elements fighting for the same line. */
+    /* The reading arrives when the listings do, which is the same fetch the
+       feed below is already waiting on. That can be a second or two after the
+       card is on screen, so it fades in rather than snapping: a line that
+       replaces itself instantly reads as a glitch, and the same swap over
+       220ms reads as an update. */
+    .ha-near-live { display: flex; align-items: baseline; gap: 7px; margin-top: 4px; flex-wrap: wrap;
+      animation: ha-live-in .22s var(--ease, cubic-bezier(.2,.7,.3,1)) both; }
+    @keyframes ha-live-in { from { opacity: 0; transform: translateY(-3px); } }
+    .ha-near-live b { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: -.01em; }
+    .ha-near-live span { font-size: 12px; color: rgba(220,236,248,.78); }
+    .ha-near-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 800;
+      letter-spacing: .06em; text-transform: uppercase;
+      background: rgba(110,200,255,.16); color: #AEDDFF;
+    }
+    .ha-near-pill i {
+      width: 5px; height: 5px; border-radius: 50%; background: #7FD0FF;
+      animation: ha-pulse 1.9s ease-in-out infinite;
+    }
+    @keyframes ha-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+    /* ---- the area card, opened in place -------------------------------
+       Tapping it used to cost a page load before you could type a single
+       letter. The field is here, the recent areas are here, and area.html
+       is still one tap away for anybody who wants the full screen. */
+    .ha-find-inline { margin-top: 11px; }
+    .ha-area-open { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .34s var(--ease, cubic-bezier(.2,.7,.3,1)); }
+    .ha-area-open.is-open { grid-template-rows: 1fr; }
+    .ha-area-open > div { overflow: hidden; min-height: 0; }
+    .ha-area-box { padding: 12px 13px 13px; border-radius: 0 0 24px 24px;
+      background: linear-gradient(180deg, rgba(18,58,44,.96), rgba(11,36,27,.96));
+      border: 1px solid rgba(46,230,166,.22); border-top: 0; margin-top: -14px; }
+    .ha-area-field { position: relative; display: flex; align-items: center; }
+    .ha-area-field svg { position: absolute; left: 12px; pointer-events: none; opacity: .8; color: var(--green-emerald); }
+    /* The class is doubled for the same reason it is doubled on .auth-input:
+       premium.css paints every typed input `padding: 11px 14px !important` and
+       loads after this page's own style block, and `input[type="text"]`
+       (0,1,1) out-specifies a single class (0,1,0). Without the second class
+       the search icon sits on top of the first two characters somebody types.
+       See css/auth.css for the same fight and the same answer. */
+    .ha-area-field input.ha-area-in {
+      width: 100%; box-sizing: border-box; height: 44px;
+      padding: 0 12px 0 38px !important; font-size: 16px; font-family: inherit;
+      color: #EAF1EE !important;
+      background: rgba(255,255,255,.07) !important;
+      border: 1px solid rgba(46,230,166,.28) !important;
+      border-radius: 13px !important;
+    }
+    .ha-area-field input.ha-area-in::placeholder { color: rgba(220,240,232,.5); }
+    .ha-area-field input.ha-area-in:focus { outline: none;
+      border-color: var(--green-emerald) !important;
+      box-shadow: 0 0 0 3px rgba(46,230,166,.18); }
+    .ha-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .ha-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+      color: #DCEFE7; background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.10);
+      text-decoration: none; cursor: pointer; font-family: inherit;
+      min-height: 36px;
+    }
+    .ha-chip:hover { background: rgba(46,230,166,.14); border-color: rgba(46,230,166,.34); color: #fff; }
+    .ha-chip:focus-visible { outline: 2px solid var(--green-emerald); outline-offset: 2px; }
+    .ha-chip-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: .1em;
+      text-transform: uppercase; color: rgba(220,240,232,.45); margin: 12px 0 0; display: block; }
+
+    /* ---- the Frame, as something you can move through -----------------
+       Four lenses that could only be tapped one at a time now take a swipe,
+       and the edge fade says there is more to the side without a scrollbar
+       drawn over the design. */
+    .ha-frame-pts { touch-action: pan-y; }
+    .ha-frame-pt { position: relative; }
+    .ha-frame-swipe { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 11px; }
+    .ha-frame-swipe b {
+      width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.22);
+      transition: width var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1)),
+                  background var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1));
+    }
+    .ha-frame-swipe b.is-on { width: 18px; background: #fff; }
+    .ha-frame-hint { font-size: 11px; color: rgba(234,231,251,.55); text-align: center; margin: 8px 0 0; }
+
+    @media (prefers-reduced-motion: reduce) {
+      /* The press keeps its colour change and loses only the movement. */
+      .ha-near.is-pressed, .ha-frame-pt.is-pressed, .ha-chip.is-pressed,
+      .ha-earn-btns a.is-pressed, .ha-frame-btns a.is-pressed { transform: none; }
+      .will-reveal { opacity: 1; transform: none; transition: none; }
+      .ha-near-blip { animation: none; transform: translate(-50%, -50%); }
+      .ha-near-live { animation: none; }
+      .ha-near-pill i { animation: none; }
+      .ha-area-open { transition: none; }
+      .ha-frame-swipe b { transition: none; }
+    }
+
     @media (max-width: 360px) {
       .ha-frame-pts { grid-template-columns: 1fr; }
       .ha-frame-d { min-height: 40px; }
@@ -584,7 +774,7 @@
 
     <!-- live "near you" radar — taps straight into near-me.html -->
     <a class="ha-near" href="near-me.html">
-      <span class="ha-near-radar" aria-hidden="true">
+      <span class="ha-near-radar" id="haRadar" aria-hidden="true">
         <span class="ha-near-sweep"></span>
         <i></i><i></i><i></i>
         <span class="ha-near-dot"></span>
@@ -592,7 +782,12 @@
       <span class="ha-near-text">
         <span class="ha-near-k" data-i18n="near_card_kicker">Around you</span>
         <span class="ha-near-t" data-i18n="near_card_title">Rooms and trucks near you</span>
-        <span class="ha-near-s" data-i18n="near_card_sub">Turn on location and the closest comes first.</span>
+        <span class="ha-near-s" id="haNearSub" data-i18n="near_card_sub">Turn on location and the closest comes first.</span>
+        <!-- Filled by js/pages/home-live.js only when a real fix and real rows
+             exist. Until then it stays hidden and the invitation above stands,
+             because a radar that reports a number it does not have is worse
+             than one that admits it is switched off. -->
+        <span class="ha-near-live" id="haNearLive" hidden></span>
       </span>
       <span class="ha-near-go" aria-hidden="true">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -615,6 +810,23 @@
       </span>
     </a>
 
+    <!-- The area card opens HERE rather than costing a page load before you
+         can type a letter. The card above keeps its href, so with no script
+         it still goes to area.html: this panel is an enhancement, never the
+         only way in. -->
+    <div class="ha-area-open" id="haAreaOpen"><div>
+      <div class="ha-area-box">
+        <div class="ha-area-field">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.6-3.6"/></svg>
+          <input type="text" id="haAreaInput" class="ha-area-in" autocomplete="off" spellcheck="false"
+                 data-i18n-placeholder="area_ph" placeholder="Region, district, ward or village"
+                 data-i18n-aria-label="area_card_title" aria-label="Explore an area by name" />
+        </div>
+        <span class="ha-chip-lbl" id="haAreaLbl" data-i18n="area_recent">Recently opened</span>
+        <div class="ha-chips" id="haAreaChips"></div>
+      </div>
+    </div></div>
+
     <!-- featured carousel (best houses) -->
     <div class="ha-featured-wrap">
       <div class="ha-sec-head">
@@ -622,6 +834,21 @@
         <a href="houses.html" data-i18n="home_see_all">See all</a>
       </div>
       <div class="ha-featured" id="haFeatured" aria-busy="true"></div>
+    </div>
+
+    <!-- Straight from the owner. The one door in js/lib/login-doors.js that is
+         marked VIP is the landlord listing their own property: no agent in
+         between, and no agent fee on the room. That is worth its own rail
+         rather than a badge somebody might not notice, and the section is
+         HIDDEN until there is at least one such listing, because a heading
+         over an empty rail promises a kind of room we do not have yet. -->
+    <div class="ha-featured-wrap" id="haOwnerWrap" hidden>
+      <div class="ha-sec-head">
+        <h2 data-i18n="own_band_t">Straight from the owner</h2>
+        <a href="houses.html?owner=1" data-i18n="home_see_all">See all</a>
+      </div>
+      <p class="ha-owner-sub" data-i18n="own_band_s">No agent fee. The person you message owns the place.</p>
+      <div class="ha-featured" id="haOwner" aria-busy="true"></div>
     </div>
 
 
@@ -679,6 +906,10 @@
       </div>
       <p class="ha-frame-d" id="haFrameCopy" role="tabpanel" aria-live="polite" data-i18n="home_frame_p1_d">Schools, markets, offices, bus stands. The reason anybody is on that street at all.</p>
       <div class="ha-band-bar ha-frame-bar" aria-hidden="true"><span></span></div>
+      <!-- Position, and the fact that there IS a position. The tablist is
+           keyboard-reachable on its own; these dots are for the thumb. -->
+      <div class="ha-frame-swipe" id="haFrameDots" aria-hidden="true"><b class="is-on"></b><b></b><b></b><b></b></div>
+      <p class="ha-frame-hint" id="haFrameHint" data-i18n="home_frame_swipe">Swipe to change the lens</p>
       <div class="ha-frame-btns">
         <a href="frame.html" data-i18n="home_frame_cta">Open the Frame</a>
       </div>
@@ -887,8 +1118,15 @@
     <script src="js/lib/explore-rank.js"></script>
     <script src="js/lib/explore-index.js"></script>
     <script src="js/lib/home-search.js"></script>
+    <script src="js/lib/owner-account.js"></script>
     <script src="js/pages/home-app.js"></script>
-    <script src="js/pages/home-bands.js"></script>
+    <!-- geolocate.js is what lets the radar read a fix the device has
+         already given, without prompting. It is in the service worker's
+         APP_SHELL already, so on a warm cache it costs no request. -->
+    <script src="js/lib/geolocate.js"></script>
+    <script src="js/lib/native-feel.js"></script>
+  <script src="js/pages/home-bands.js"></script>
+  <script src="js/pages/home-live.js"></script>
     <script src="js/core/app-shell.js"></script>
     <script src="js/core/sw-register.js"></script>
 <!-- pawa-mobile-bundle -->

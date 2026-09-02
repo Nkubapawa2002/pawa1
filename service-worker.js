@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v319-2026-09-02-services-subtitle";
+const VERSION = "v320-2026-09-02-home-blocks-alive";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -101,6 +101,8 @@ const APP_SHELL = [
   // strip counts. Both are on the critical path for the home screen: without
   // the catalogue the first stat has nothing to count.
   "./js/pages/home-bands.js",
+  "./js/pages/home-live.js",
+  "./js/lib/native-feel.js",
   "./js/lib/service-categories.js",
   "./js/core/app-shell.js",
   "./js/core/theme.js",
