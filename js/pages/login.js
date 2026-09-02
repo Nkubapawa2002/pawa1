@@ -399,6 +399,17 @@ window.initLoginPage = () => {
     if (said && D) D.set(said);
     const type = said || (D && D.get());
 
+    // Record the OWNER door on the server, once, at the first sign-in that
+    // knows about it. The door itself is user metadata, which the account can
+    // rewrite, so it cannot be the thing that decides who pays an agent fee;
+    // account_kind_claim() writes a row the account cannot touch and refuses
+    // the claim for anybody already trading as an agent. A refusal is not an
+    // error here: it means they are an agent, which is what they were a moment
+    // ago. See supabase/features/house/house_owner_accounts.sql.
+    if (type === "owner" && window.OwnerAccount) {
+      try { await window.OwnerAccount.claim("owner"); } catch (_) {}
+    }
+
     // A company and a plain user each have exactly one place to be, so send
     // them there. An agent or an owner may hold several portals, and the
     // chooser below already works that out by asking what they actually own —

@@ -1255,6 +1255,8 @@
   <!-- Professional mobile declutter — must load LAST so it wins over the
        page's inline layout blocks above (equal specificity, later source). -->
   <link rel="stylesheet" href="css/houses-mobile-pro.css" />
+  <!-- "From the owner": one badge, four pages. css/owner-badge.css -->
+  <link rel="stylesheet" href="css/owner-badge.css" />
   <style>
     /* ── Text inputs in the dark theme ──────────────────────────────────────
        premium.css paints input[type="text"] (and email/tel/search/number/date/
@@ -1792,6 +1794,7 @@
        both have to come from the sheet rather than from a column, or an old
        listing without one gets a claim that is not true of it. -->
   <script src="js/lib/house-spec.js"></script>
+  <script src="js/lib/owner-account.js"></script>
   <script src="js/pages/houses.js"></script>
   <script src="js/pages/houses-mobile.js"></script>
   <script>

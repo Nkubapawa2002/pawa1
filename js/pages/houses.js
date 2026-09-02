@@ -55,6 +55,12 @@ window.initHousesPage = async () => {
   // ---- State -------------------------------------------------------------
   let houses    = [];
   let visible   = [];
+  // Only listings the owner posted themselves. Off unless the home page's
+  // "straight from the owner" rail sent somebody here. Declared with the rest
+  // of the module state because apply() reads it and apply() runs during init,
+  // long before the section of this file that uses it: a `let` down there is a
+  // temporal dead zone, not a definition.
+  let ownerOnly = false;
   let map       = null;
   let markers   = new Map();   // id -> marker
   const refMarkers = new Map();   // place name -> reference marker (declared here,
@@ -470,6 +476,11 @@ window.initHousesPage = async () => {
     // module-level `let`s the modal reads (alertPicked etc.) are initialized, so
     // opening synchronously here would hit a temporal-dead-zone error.
     const dl = new URLSearchParams(location.search);
+    //   houses.html?owner=1   -> only listings posted by the owner themselves
+    // Not a modal and not a search term: it is a property of the row, so it is
+    // a filter of its own rather than a word typed into the search box. The
+    // chip above the list is how somebody gets back out of it.
+    if (dl.get("owner") === "1") setOwnerOnly(true);
     if (dl.get("alert") === "1") setTimeout(() => openAlertModal(), 0);
     else if (dl.get("request") === "1" && window.pawaRequestPlace) setTimeout(() => window.pawaRequestPlace.open(), 0);
     // Safe from here even though setupMyPlaces() runs AFTER this function: the
@@ -2440,6 +2451,36 @@ window.initHousesPage = async () => {
   // ====================================================================
   //  Apply filters → re-render list and map markers
   // ====================================================================
+  function setOwnerOnly(on) {
+    ownerOnly = !!on;
+    renderOwnerChip();
+    apply();
+  }
+
+  /**
+   * The way back out of the owner view.
+   *
+   * A filter arriving from a URL with nothing on screen to say so is a
+   * directory that has silently lost most of its rooms, and the reader has no
+   * word for what happened. The chip names it and removes it.
+   */
+  function renderOwnerChip() {
+    let chip = document.getElementById("hpOwnerChip");
+    if (!ownerOnly) { if (chip) chip.remove(); return; }
+    if (chip) return;
+    const host = document.getElementById("housesStage") || document.getElementById("housesList");
+    if (!host || !host.parentNode) return;
+    chip = document.createElement("div");
+    chip.id = "hpOwnerChip";
+    chip.className = "hp-owner-chip";
+    chip.innerHTML =
+      (window.OwnerAccount ? window.OwnerAccount.chip({}) : "") +
+      `<span>${esc(tr("own_only_on", "Showing only listings from owners, with no agent fee."))}</span>` +
+      `<button type="button" id="hpOwnerChipX">${esc(tr("own_only_off", "Show all"))}</button>`;
+    host.parentNode.insertBefore(chip, host);
+    chip.querySelector("#hpOwnerChipX").addEventListener("click", () => setOwnerOnly(false));
+  }
+
   function apply() {
     const listing = fListing.value;
     const type    = fType.value;
@@ -2454,6 +2495,7 @@ window.initHousesPage = async () => {
 
     visible = houses.filter(h => {
       if (h.available === false) return false;   // deal completed → off the public list
+      if (ownerOnly && !(window.OwnerAccount && window.OwnerAccount.isOwnerListing(h))) return false;
       if (!passesSegment(h)) return false;       // Rent / Sale / Business world
       if (listing && h.listing !== listing) return false;
       if (type    && h.type    !== type)    return false;
@@ -2732,6 +2774,12 @@ window.initHousesPage = async () => {
         ? tr("ah_for_sale", "For sale") : tr("ah_for_rent", "For rent");
       const verified = h.verified
         ? `<span class="verified">${esc(tr("home_verified", "Verified"))}</span>` : "";
+      // Posted by the person who owns it, so there is no agent commission on
+      // this one. The mark is drawn by js/lib/owner-account.js, the same
+      // renderer the home feed and the listing page use, because a reader
+      // learns a badge once.
+      const ownerTag = (window.OwnerAccount && window.OwnerAccount.isOwnerListing(h))
+        ? window.OwnerAccount.chip({ size: "sm" }) : "";
       // Straight from the shape's owner. houses.html bundles house-spec.js but
       // not house-rooms.js, and pulling a whole display module into the
       // catalogue to read two fields would be the wrong trade.
@@ -2831,6 +2879,7 @@ window.initHousesPage = async () => {
             <div class="house-card-tags">
               <span class="badge">${listing}</span>
               ${verified}
+              ${ownerTag}
             </div>
             ${matchBadge}
           </div>

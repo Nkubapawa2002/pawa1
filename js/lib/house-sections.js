@@ -173,6 +173,11 @@ function moveInHtml(mi) {
 
   const total = mi.total != null ? window.HouseRooms.money(mi.total) : "—";
   const assumed = mi.lines.some(l => l.src === "assumed");
+  // No commission line at all means nobody is taking one: an owner's listing.
+  // The label under "To move in" is a list of what the total is made of, so it
+  // must not go on naming a cost that is not in it.
+  const hasFee = mi.lines.some(l => l.k === (window.HouseSpec && window.HouseSpec.t
+    ? window.HouseSpec.t("m_fee") : "") && !l.free);
 
   const caveats = [];
   if (mi.open.length) {
@@ -208,7 +213,7 @@ function moveInHtml(mi) {
       <button type="button" class="hx-movein__toggle" id="hxMoveinBtn"
               aria-expanded="false" aria-controls="hxMoveinBody">
         <span class="hx-movein__label">To move in
-          <small>rent upfront + deposit + commission</small>
+          <small>${hasFee ? "rent upfront + deposit + commission" : "rent upfront + deposit"}</small>
         </span>
         <span class="hx-movein__total">${esc(total)}</span>
         <span class="hx-movein__chev">${ico(ICO.chevron, 16)}</span>
@@ -427,15 +432,46 @@ function nearbySectionHtml(h) {
   </section>`;
 }
 
+/**
+ * Who is on the other end of this listing.
+ *
+ * Two different cards, because they are two different situations for the
+ * person reading. An agent's card says "agent". An OWNER's card says so, and
+ * says the thing that follows from it: nobody is taking a commission on this
+ * room, so there is no agent fee to find on top of the rent, and the number
+ * belongs to the person who owns the place.
+ *
+ * posted_by_owner is set by a database trigger at insert and pinned on update
+ * (supabase/features/house/house_owner_accounts.sql). It is never inferred
+ * here from a missing agent name or a zero fee, because both of those happen
+ * for other reasons.
+ */
 function agentSectionHtml(h, ctx) {
   const { agentName, agentPhone, agentPhoneClean, waHref, meetCode, initials } = ctx;
+  const T = (k, en) => { const v = window.t ? window.t(k) : null; return (v && v !== k) ? v : en; };
+  const byOwner = !!(window.OwnerAccount && window.OwnerAccount.isOwnerListing(h));
+  const head = byOwner ? T("own_note_t", "Listed by the owner") : "Listing agent";
+  const role = byOwner
+    ? T("own_note_role", "The person who owns it, not an agent.")
+    : "Verified by Pawa · responds within 1 day";
+  const note = byOwner
+    ? `<div class="owner-note">
+         <span class="owner-note-ic">${window.OwnerAccount.KEY_SVG}</span>
+         <span class="owner-note-tx">
+           <span class="owner-note-t">${esc(T("own_note_fee", "No agent fee"))}</span>
+           <span class="owner-note-d">${esc(T("own_note_d",
+             "There is no agent on this listing, so there is no commission to pay on top of the rent. You are talking to the person who owns it."))}</span>
+         </span>
+       </div>`
+    : "";
   return `<section class="hx-card" id="sec-agent">
-    <div class="hx-card__head">${ico(ICO.user)}<h3>Listing agent</h3></div>
+    <div class="hx-card__head">${ico(ICO.user)}<h3>${esc(head)}</h3></div>
+    ${note}
     <div class="hd-agent">
       <div class="hd-agent-avatar">${esc(initials || "?")}</div>
       <div class="hd-agent-meta">
         <div class="hd-agent-name">${esc(agentName)}</div>
-        <div class="hd-agent-role">Verified by Pawa · responds within 1 day</div>
+        <div class="hd-agent-role">${esc(role)}</div>
       </div>
     </div>
     <div class="hd-cta-row hd-cta-row-mobile-hide">

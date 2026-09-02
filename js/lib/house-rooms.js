@@ -76,6 +76,7 @@
     m_upfront: "months' rent, upfront", m_deposit: "Deposit", m_none: "None",
     m_fee: "Agent commission",
     m_fee_sub: "usually one month's rent, not quoted by this agent",
+    m_fee_owner: "no agent on this listing",
     m_ask: "Ask the agent", m_oneoff: "one-off",
   };
   function t(key) {
@@ -264,8 +265,19 @@
     }
 
     // 3. The agent's commission. Stated, or the market's one month.
+    //
+    //    ...unless there is no agent. On a listing the owner posted themselves
+    //    there is nobody to pay a commission to, and assuming the market's
+    //    month here would invent the single largest cost on the page and put
+    //    it directly under a card that says there is no agent fee. Said as a
+    //    LINE rather than left out, because "no commission" is the best news
+    //    on the page and a reader comparing two rooms has to be able to see
+    //    it. Same reasoning as the zero one-off charges below.
     var feeStated = Number(row.agent_fee_tzs);
-    if (Number.isFinite(feeStated) && feeStated > 0) {
+    var byOwner = !!(window.OwnerAccount && window.OwnerAccount.isOwnerListing(row));
+    if (byOwner) {
+      lines.push({ k: t("m_fee"), v: freeWord(), sub: t("m_fee_owner"), src: "stated", free: true });
+    } else if (Number.isFinite(feeStated) && feeStated > 0) {
       lines.push({ k: t("m_fee"), v: money(feeStated), src: "stated" });
       total += feeStated;
     } else if (rent != null) {

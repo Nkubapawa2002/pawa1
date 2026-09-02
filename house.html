@@ -30,6 +30,8 @@
        palette of raw hexes that used to sit in this <head> are gone; the file
        header says why that mattered. -->
   <link rel="stylesheet" href="css/house-detail.css" />
+  <!-- "From the owner": one badge, four pages. css/owner-badge.css -->
+  <link rel="stylesheet" href="css/owner-badge.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
        and the app/web shell switch. Loads last so it can correct the sheets
        above it. Pairs with js/core/viewport.js. -->
@@ -153,6 +155,7 @@
        house.js comes last because the inline script below calls into it. -->
   <!-- Reads the money house-rooms.js works out and draws where it goes. -->
   <script src="js/lib/house-cost-chart.js"></script>
+  <script src="js/lib/owner-account.js"></script>
   <script src="js/lib/house-ui.js"></script>
   <script src="js/lib/house-sections.js"></script>
   <script src="js/lib/house-area.js"></script>

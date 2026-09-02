@@ -308,6 +308,9 @@
     m_fee:       { en: "Agent commission",          sw: "Kamisheni ya dalali" },
     m_fee_sub:   { en: "usually one month's rent, not quoted by this agent",
                    sw: "kwa kawaida kodi ya mwezi mmoja, haijatajwa na dalali huyu" },
+    // An owner's listing has nobody to pay a commission to, so the line says
+    // so instead of the market assumption above it.
+    m_fee_owner: { en: "no agent on this listing",  sw: "hakuna dalali kwenye tangazo hili" },
     m_ask:       { en: "Ask the agent",             sw: "Muulize dalali" },
     m_oneoff:    { en: "one-off",                   sw: "mara moja" },
   };

@@ -1,0 +1,204 @@
+/* ============================================================================
+   owner-badge.css — "from the owner", wherever a listing is drawn.
+
+   Four pages show the same fact: index.html's home feed, houses.html's
+   directory, house.html's listing, and agent-houses.html where the owner
+   themselves is looking at their allowance. One stylesheet, because a badge
+   that means "no agent fee" must not be gold on one page and green on the
+   next: a reader learns a mark once.
+
+   GOLD, not green. Green in this app means verified, and the two chips sit
+   side by side on the same photograph. They are different claims: verified is
+   about the listing being checked, this is about who is on the other end of
+   it, and a reader who has to work out which green means which has been told
+   nothing.
+
+   Every value is a design token (css/ds/tokens). The pages this is linked from
+   define their own palettes in their own <style> blocks, so the chip carries
+   its own colours rather than inheriting a surface that changes per page.
+   ============================================================================ */
+
+.owner-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs, .72rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+.owner-chip svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
+/* On a photo card, beside the Verified chip, on a 390px screen. Smaller, and
+   opaque enough to stay legible over whatever the photograph happens to be. */
+.owner-chip.is-sm {
+  padding: 3px 7px;
+  font-size: 10.5px;
+  gap: 4px;
+  background: rgba(7, 12, 10, .62);
+  border-color: var(--gold-line);
+  color: var(--gold-bright);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.owner-chip.is-sm svg { width: 11px; height: 11px; }
+
+/* ---- the panel on a listing page -----------------------------------------
+   A chip says which kind of listing this is. This says what that means for
+   the person reading it, which is the only reason the distinction is on the
+   page at all: there is no commission on this room, and the number they are
+   about to call is the owner's. */
+.owner-note {
+  display: flex;
+  gap: var(--space-3, 12px);
+  align-items: flex-start;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+}
+.owner-note-ic {
+  flex: 0 0 auto;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-md, 10px);
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+.owner-note-ic svg { width: 18px; height: 18px; }
+.owner-note-tx { min-width: 0; }
+.owner-note-t {
+  display: block;
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: .92rem;
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+.owner-note-d {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: .82rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ---- the allowance, on the owner's own account page -----------------------
+   Three posts every 180 days is a rule people meet once, at the worst moment,
+   unless the screen says it early. This is drawn above the form, not after
+   it. */
+.owner-quota {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  flex-wrap: wrap;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+  margin-bottom: var(--space-3, 12px);
+}
+.owner-quota-tx { flex: 1 1 220px; min-width: 0; }
+.owner-quota-t {
+  display: block;
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: .95rem;
+  color: var(--gold);
+}
+.owner-quota-d {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: .82rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+/* The count itself is a number, so it is set in the money font like every
+   other number in this app. */
+.owner-quota-n {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--gold);
+}
+.owner-quota-n small {
+  font-size: .8rem;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.owner-quota.is-full {
+  background: rgba(239, 68, 68, .08);
+  border-color: rgba(239, 68, 68, .28);
+}
+.owner-quota.is-full .owner-quota-t,
+.owner-quota.is-full .owner-quota-n { color: var(--danger); }
+
+/* Light theme: the gold tints above are mixed for a dark surface and go muddy
+   on cream, so the ink darkens rather than the fill lightening. */
+:root[data-theme="light"] .owner-chip,
+:root[data-theme="light"] .owner-note-t,
+:root[data-theme="light"] .owner-quota-t,
+:root[data-theme="light"] .owner-quota-n { color: var(--gold-dark); }
+:root[data-theme="light"] .owner-chip.is-sm {
+  background: rgba(255, 255, 255, .86);
+  color: var(--gold-dark);
+}
+
+/* ---- the way out of the owner-only view (houses.html) ---------------------
+   A filter that arrives from a URL with nothing on screen to say so is a
+   directory that has quietly lost most of its rooms. This names it and takes
+   it off again. */
+.hp-owner-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+  margin: 0 0 var(--space-3, 12px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border-radius: var(--radius-md, 10px);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+  font-family: var(--font-ui);
+  font-size: .84rem;
+  color: var(--text-muted);
+}
+.hp-owner-chip button {
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 var(--space-3, 12px);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--gold-line);
+  background: transparent;
+  color: var(--gold);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hp-owner-chip button:hover { background: var(--gold-soft); }
+:root[data-theme="light"] .hp-owner-chip button { color: var(--gold-dark); }
+
+/* ---- the rail on the home page -------------------------------------------
+   Drawn only when there is something in it (js/pages/home-app.js hides the
+   whole section otherwise): a heading over an empty rail promises a kind of
+   listing the marketplace does not have yet. */
+.ha-owner-sub {
+  margin: -2px 0 10px;
+  font-family: var(--font-app, var(--font-ui));
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}

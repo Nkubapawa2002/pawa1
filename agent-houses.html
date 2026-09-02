@@ -29,6 +29,8 @@
        written entirely in design tokens, so it follows the brand and both
        themes without a page-level palette of its own. -->
   <link rel="stylesheet" href="css/agent-portal.css" />
+  <!-- "From the owner": one badge, four pages. css/owner-badge.css -->
+  <link rel="stylesheet" href="css/owner-badge.css" />
 
   <style>
     /* =====================================================================
@@ -771,6 +773,10 @@
          ================================================================== -->
     <section id="ahDashboard" hidden>
       <div id="ahWarn"></div>
+      <!-- An owner account's allowance: three posts every 180 days, no monthly
+           fee. Filled by js/pages/agent-houses.js from owner_post_quota(), and
+           left empty for an agent, who is on a subscription instead. -->
+      <div id="ahOwnerQuota"></div>
 
       <div class="ap-toolbar">
         <div class="ap-who">
@@ -1363,6 +1369,7 @@
   <script src="js/lib/pm-places.js"></script>
   <!-- The section rail: where you are in the form, and what you have answered. -->
   <script src="js/lib/agent-portal.js"></script>
+  <script src="js/lib/owner-account.js"></script>
   <script src="js/pages/agent-houses.js"></script>
   <script>
     // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js), Profile

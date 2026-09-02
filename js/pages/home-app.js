@@ -48,6 +48,11 @@
       unit: h.listing === "sale" ? "" : "/" + (h.period || "mo"),
       specs: [h.bedrooms && h.bedrooms + " bd", h.bathrooms && h.bathrooms + " ba", h.size_sqm && h.size_sqm + " m²"].filter(Boolean).join(" · "),
       verified: !!h.verified, href: "house.html?id=" + encodeURIComponent(h.id),
+      // Posted by the person who owns the place, with no agent on it and no
+      // agent fee to pay. The flag is set by a database trigger at insert
+      // (supabase/features/house/house_owner_accounts.sql) and is never
+      // inferred here from a missing agent name or a zero fee.
+      owner: !!(window.OwnerAccount && window.OwnerAccount.isOwnerListing(h)),
       favable: true, saved: getFavs().has(h.id),
     };
   }
@@ -93,12 +98,39 @@
   }
 
   // ---- card renderers ----------------------------------------------------
+  /**
+   * The owner badge, drawn by js/lib/owner-account.js so that this page, the
+   * directory and the listing itself cannot drift into three different marks
+   * for one fact. Empty string when the module is not on the page, which is
+   * the honest failure: no badge is better than a badge nobody styled.
+   */
+  function ownerChip(m) {
+    if (!m.owner || !window.OwnerAccount) return "";
+    return window.OwnerAccount.chip({ size: "sm", className: "ha-chip-owner" });
+  }
+
+  /**
+   * The chips over a card photo, in one row.
+   *
+   * Verified used to be positioned absolutely on its own, which is fine for
+   * one chip and wrong the moment there are two: the second lands underneath
+   * the first. The row is the positioned thing now and the chips inside it are
+   * ordinary content, so a third one later costs nothing.
+   */
+  function chipRow(m) {
+    const chips = [
+      m.verified ? `<span class="ha-chip-verified">${SVG.verified}<span>${t("home_verified", "Verified")}</span></span>` : "",
+      ownerChip(m),
+    ].filter(Boolean).join("");
+    return chips ? `<span class="ha-chips">${chips}</span>` : "";
+  }
+
   function featuredCard(m) {
     const img = m.img || placeholderImg(m.kind);
     return `<a class="ha-feat" href="${m.href}">
       <img src="${esc(img)}" alt="" loading="lazy" onerror="this.style.opacity=0" />
       <span class="ha-scrim"></span>
-      ${m.verified ? `<span class="ha-chip-verified">${SVG.verified}<span>${t("home_verified", "Verified")}</span></span>` : ""}
+      ${chipRow(m)}
       ${m.favable ? `<button class="ha-heart" data-fav="${esc(m.id)}" aria-label="Save">${SVG.heart(m.saved)}</button>` : ""}
       <span class="ha-feat-body">
         <span class="ha-feat-title">${esc(m.title)}</span>
@@ -114,7 +146,7 @@
       <span class="ha-card-photo">
         <img src="${esc(img)}" alt="" loading="lazy" onerror="this.style.opacity=0" />
         <span class="ha-scrim"></span>
-        ${m.verified ? `<span class="ha-chip-verified">${SVG.verified}<span>${t("home_verified", "Verified")}</span></span>` : ""}
+        ${chipRow(m)}
         ${m.favable ? `<button class="ha-heart" data-fav="${esc(m.id)}" aria-label="Save">${SVG.heart(m.saved)}</button>` : ""}
       </span>
       <span class="ha-card-body">
@@ -188,6 +220,32 @@
     const featured = [...rows].sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0)).slice(0, 6);
     if (!featured.length) { el.closest(".ha-featured-wrap")?.style.setProperty("display", "none"); return; }
     el.innerHTML = featured.map(featuredCard).join("");
+    wireHearts(el);
+  }
+
+  // ---- straight from the owner -------------------------------------------
+  /**
+   * The rail of listings a landlord posted themselves.
+   *
+   * Same card as the featured rail, because it IS the same kind of thing: a
+   * room, with a photograph and a price. What makes it a section of its own is
+   * the one fact a renter cannot see from a photograph, and the strap line
+   * above it says that fact once rather than repeating it on every card.
+   *
+   * The whole section stays hidden when there is nothing in it. A heading over
+   * an empty rail is a promise about the marketplace that the marketplace is
+   * not keeping yet, and this app has made that mistake before (the trust
+   * strip that counted to "100+ verified providers" with no rows behind it).
+   */
+  async function renderOwnerRail() {
+    const wrap = document.getElementById("haOwnerWrap");
+    const el = document.getElementById("haOwner");
+    if (!wrap || !el) return;
+    const rows = (await loadCat("houses")).filter((m) => m.owner);
+    if (!rows.length) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    el.setAttribute("aria-busy", "false");
+    el.innerHTML = rows.slice(0, 6).map(featuredCard).join("");
     wireHearts(el);
   }
 
@@ -272,6 +330,7 @@
     wireLang();
     hydrateUser();
     renderFeatured();
+    renderOwnerRail();
     renderFeed("houses");
   });
 })();
