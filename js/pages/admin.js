@@ -104,6 +104,14 @@ window.initAdminPage = async () => {
       showCorrectView();
     });
 
+    // The two sections that live in their own files: the owner accounts
+    // (js/pages/admin-owners.js) and the notice desk (js/pages/admin-notices.js).
+    // Booted HERE, inside bootAdmin, rather than on page load: everything they
+    // read is admin-only, and a browser that has not passed the gate has no
+    // business asking for any of it, refused or not.
+    window.initAdminOwners?.();
+    window.initAdminNotices?.();
+
     // Tabs
     document.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", () => {

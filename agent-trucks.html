@@ -349,6 +349,13 @@
   <script src="js/lib/auth-ui.js"></script>
   <script src="js/lib/agent-profile.js"></script>
   <script src="js/lib/agent-demand-board.js"></script>
+  <!-- The bell. It carries what an admin has done to this account and how
+       long the subscription has left, which is exactly the news an agent
+       out working needs and will never see by opening a dashboard.
+       js/lib/notices.js is the shared reader behind both. -->
+  <script src="js/lib/notices.js"></script>
+  <script src="js/core/notify.js"></script>
+  <script src="js/lib/notify-ui.js"></script>
   <script src="js/pages/agent-trucks.js"></script>
   <script>
     // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js) — Profile area.

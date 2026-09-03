@@ -125,6 +125,68 @@
     return out;
   }
 
+  /**
+   * What the platform has to say to this account about itself.
+   *
+   * Two different things arrive in one call (supabase/features/agent/
+   * agent_notices.sql):
+   *
+   *   notices   what an admin did, or wrote. Approved, deactivated, a payment
+   *             recorded, or a message they typed. Rows, with an unread count.
+   *   billing   the state of the subscription right now, whether or not any
+   *             row has been written about it yet. days_left is computed on
+   *             the SERVER: a phone with the wrong date must not be able to
+   *             tell somebody their cover ends next week when it ended
+   *             yesterday.
+   *
+   * Everything degrades to "nothing to say" — signed out, no client, an RPC
+   * that is not deployed. A bell that breaks the page it rides on would be
+   * worse than a bell that is quiet.
+   */
+  async function notices() {
+    var out = { unread: 0, items: [], billing: null };
+    var D = window.DataStore;
+    if (!D || !D.sb) return out;
+    try {
+      var sess = window.Auth && await window.Auth.getSession();
+      if (!sess || (sess.user && sess.user.is_anonymous === true)) return out;
+    } catch (_) { return out; }
+    try {
+      var res = await D.sb.rpc("my_notices");
+      if (res.error || !res.data) return out;
+      out.unread = Number(res.data.unread) || 0;
+      out.items = Array.isArray(res.data.notices) ? res.data.notices : [];
+      out.billing = res.data.billing || null;
+    } catch (_) {}
+    return out;
+  }
+
+  /**
+   * Is the subscription worth interrupting somebody about?
+   *
+   * Only ever ONE row, never a count: an account has one subscription and the
+   * question is what state it is in. RENEW_DAYS is the point at which "later"
+   * becomes "this week", and it is deliberately the same number the sweep in
+   * agent_notices_remind() defaults to, so the bell and the written reminder
+   * appear together rather than a week apart.
+   */
+  var RENEW_DAYS = 7;
+  function billingAlert(b) {
+    if (!b) return null;
+    var left = (b.days_left === null || b.days_left === undefined) ? null : Number(b.days_left);
+    // Off the board already. The three reasons differ in why, and the panel
+    // says which, because "pay" and "talk to the admin" are different actions.
+    if (b.reason === "deactivated" || b.reason === "cancelled" || b.reason === "overdue"
+        || b.reason === "expired" || b.reason === "approval_expired") {
+      return { state: b.reason, days: left, urgent: true };
+    }
+    if (b.reason === "preview") return null;   // the seven-day window, not news
+    if (left !== null && left <= RENEW_DAYS) {
+      return { state: "ending", days: Math.max(0, left), urgent: left <= 2 };
+    }
+    return null;
+  }
+
   // ---- putting it together -------------------------------------------------
   var GROUPS = [
     // Trust is FIRST, and it is the only row here that is not news about the
@@ -133,6 +195,13 @@
     // until now the only way to find out was to open the conversation. A
     // warning nobody is shown is not a warning.
     { key: "trust",    href: "p-message.html",  icon: "shield", alarm: true },
+    // The two rows that are about THIS ACCOUNT rather than about the
+    // catalogue, and they come second only to a changed safety number. An
+    // agent whose subscription runs out on Friday needs to know on Monday, and
+    // until now the only place either of these appeared was a banner on a
+    // dashboard that somebody out working never opens.
+    { key: "renew",    href: "profile.html#notices", icon: "clock",  alarm: true },
+    { key: "admin",    href: "profile.html#notices", icon: "stamp" },
     { key: "houses",   href: "houses.html",     icon: "room" },
     { key: "services", href: "services.html",   icon: "service" },
     { key: "trucks",   href: "trucks.html",     icon: "truck" },
@@ -197,12 +266,15 @@
       catalogue(function () { return D.getTrucks ? D.getTrucks() : []; }, m.trucks),
       catalogue(function () { return D.getDayJobs ? D.getDayJobs() : []; }, m.jobs),
       inbox(m.threads),
+      notices(),
     ]);
     var homes = narrowToAlerts(results[0]);
     var byKey = {
       houses: homes.rows, services: results[1], trucks: results[2], jobs: results[3],
     };
     var pm = results[4];
+    var acct = results[5];
+    var bill = billingAlert(acct.billing);
 
     // The same reasoning that seeds the catalogue timestamps applies to the
     // inbox: on the run that creates the mark, the groups a person is already
@@ -229,6 +301,25 @@
       }
       if (g.key === "messages") {
         return Object.assign({}, g, { count: pm.unread, items: [] });
+      }
+      // One row, never a count: an account has one subscription, and what the
+      // reader needs is which state it is in and how long is left.
+      if (g.key === "renew") {
+        return Object.assign({}, g, {
+          count: bill ? 1 : 0,
+          state: bill && bill.state,
+          days: bill && bill.days,
+          alarm: !!(bill && bill.urgent),
+          items: [],
+        });
+      }
+      if (g.key === "admin") {
+        return Object.assign({}, g, {
+          count: acct.unread,
+          items: acct.items.slice(0, MAX_LIST).map(function (r) {
+            return { id: r.id, title: r.title || "", at: r.created_at, severity: r.severity };
+          }),
+        });
       }
       if (g.key === "groups") {
         return Object.assign({}, g, {
@@ -295,8 +386,15 @@
    * would hand somebody the "do nothing" exit that pm-trust.js exists to
    * close. It clears by comparing the number or by saying the change was
    * expected, both of which happen in the conversation.
+   *
+   * `admin` and `renew` are not dismissible either, for the same reason as
+   * messages: they clear by being DEALT WITH. A notice clears when it is read
+   * on the Profile tab, and a subscription warning clears when the
+   * subscription is renewed. A badge that could be tapped away would let
+   * somebody dismiss the reminder that their listings come off the board on
+   * Friday, which is the one this whole feature exists to deliver.
    */
-  var UNDISMISSABLE = { messages: true, trust: true };
+  var UNDISMISSABLE = { messages: true, trust: true, admin: true, renew: true };
 
   function markSeen(key) {
     var m = mark();

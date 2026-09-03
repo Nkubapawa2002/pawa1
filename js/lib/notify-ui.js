@@ -39,6 +39,8 @@
     message: '<path d="M21 14a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/>',
     group:   '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5M17 5.2a3 3 0 0 1 0 6M18.5 20c0-2.6-1-4.2-2.7-5"/>',
     shield:  '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.6-7 9.5-4.1-1.9-7-5.2-7-9.5V6z"/><path d="M12 9v4M12 16h.01"/>',
+    clock:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.4l3.4 2"/>',
+    stamp:   '<path d="M5 20h14M7 16h10v1.5H7z"/><path d="M9 16c0-2-2.5-3-2.5-6a5.5 5.5 0 0 1 11 0c0 3-2.5 4-2.5 6"/>',
     close:   '<path d="M6 6l12 12M18 6L6 18"/>',
     check:   '<path d="M4 12.5l5 5L20 6.5"/>',
     empty:   '<circle cx="12" cy="12" r="9"/><path d="M8.5 13.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/>',
@@ -62,6 +64,39 @@
     jobs:     { one: ["nt_job_1", "1 new day job"],     many: ["nt_jobs", "{n} new day jobs"] },
     messages: { one: ["nt_msg_1", "1 unread message"],  many: ["nt_msgs", "{n} unread messages"] },
     groups:   { one: ["nt_group_1", "1 new group chat"],many: ["nt_groups", "{n} new group chats"] },
+    // Not "1 new message from the admin" for one and "{n} new" for two: what
+    // the admin sent is the same kind of thing either way, and the word that
+    // matters is who it is from.
+    admin:    { one: ["nt_admin_1", "1 message about your account"],
+                many: ["nt_admins", "{n} messages about your account"] },
+  };
+
+  /**
+   * The subscription row, which is the one row here that is not a count.
+   *
+   * Six states, and they are not the same sentence with a different number in
+   * it: "ends in 5 days" is a reminder, "paused" is a listing that has already
+   * left the board, and "not approved yet" is a seven-day window that closed.
+   * Telling somebody the wrong one of those is worse than telling them
+   * nothing, so each has its own line rather than a shared template.
+   */
+  var RENEW = {
+    ending_0:  ["nt_renew_0",  "Your subscription ends today"],
+    ending_1:  ["nt_renew_1",  "Your subscription ends tomorrow"],
+    ending_n:  ["nt_renew_n",  "Your subscription ends in {n} days"],
+    expired:   ["nt_renew_x",  "Your subscription has run out"],
+    overdue:   ["nt_renew_o",  "Your subscription is overdue"],
+    cancelled: ["nt_renew_c",  "Your subscription is cancelled"],
+    deactivated: ["nt_renew_d", "Your listings are paused"],
+    approval_expired: ["nt_renew_a", "Your account is waiting for approval"],
+  };
+  var RENEW_SUB = {
+    ending:    ["nt_renew_ends_d", "Pay the admin before then and they will extend it."],
+    expired:   ["nt_renew_off_d", "Your listings are off the public board until it is settled. Pay the admin to put them back."],
+    overdue:   ["nt_renew_off_d", "Your listings are off the public board until it is settled. Pay the admin to put them back."],
+    cancelled: ["nt_renew_off_d", "Your listings are off the public board until it is settled. Pay the admin to put them back."],
+    deactivated: ["nt_renew_dead_d", "An admin has paused this account. Contact them to sort it out."],
+    approval_expired: ["nt_renew_app_d", "An admin has to approve this account before your listings go back on the board."],
   };
   var SUBS = {
     trust:    ["nt_trust_d", "Check it before you send anything private. Sending is blocked until you do."],
@@ -71,6 +106,7 @@
     jobs:     ["nt_job_d", "Day jobs you can claim a slot on."],
     messages: ["nt_msg_d", "Encrypted, waiting in P-Message."],
     groups:   ["nt_group_d", "Somebody added you to a conversation."],
+    admin:    ["nt_admin_d", "From the Pawa admin, about your listings or your subscription."],
   };
 
   // When the rooms row has been narrowed to this device's own area alerts, it
@@ -83,7 +119,18 @@
     sub:  ["nt_room_wd", "Matching the areas and the budget you asked to be told about."],
   };
 
+  function renewWords(g) {
+    if (g.state === "ending") {
+      var d = Number(g.days);
+      var k = d <= 0 ? RENEW.ending_0 : d === 1 ? RENEW.ending_1 : RENEW.ending_n;
+      return tx(k[0], k[1], { n: d });
+    }
+    var w = RENEW[g.state];
+    return w ? tx(w[0], w[1]) : "";
+  }
+
   function headline(g) {
+    if (g.key === "renew") return renewWords(g);
     var w = (g.watched && g.key === "houses") ? WATCHED : WORDS[g.key];
     if (!w) return "";
     return g.count === 1 ? tx(w.one[0], w.one[1]) : tx(w.many[0], w.many[1], { n: g.count });
@@ -91,7 +138,11 @@
 
   function subline(g) {
     if (g.watched && g.key === "houses") return tx(WATCHED.sub[0], WATCHED.sub[1]);
-    return tx(SUBS[g.key][0], SUBS[g.key][1]);
+    if (g.key === "renew") {
+      var s = RENEW_SUB[g.state === "ending" ? "ending" : g.state];
+      return s ? tx(s[0], s[1]) : "";
+    }
+    return SUBS[g.key] ? tx(SUBS[g.key][0], SUBS[g.key][1]) : "";
   }
 
   // ---- the bell -------------------------------------------------------------
@@ -154,7 +205,11 @@
           '<span class="nt-row-d">' + esc(subline(g)) + "</span>" +
           preview +
         "</span>" +
-        '<span class="nt-row-n">' + (g.count > 99 ? "99+" : g.count) + "</span>" +
+        // The subscription row is a STATE, not a tally, and a "1" beside it
+        // reads as one more thing to get through rather than the one thing to
+        // act on. Every other row is a count and keeps its number.
+        (g.key === "renew" ? "" :
+          '<span class="nt-row-n">' + (g.count > 99 ? "99+" : g.count) + "</span>") +
       "</a>";
     }).join("");
   }

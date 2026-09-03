@@ -1,0 +1,337 @@
+/* ============================================================================
+   admin.css — the console, laid out for the screen it is actually used on.
+
+   The admin panel was a phone page stretched to 1440px: one column down the
+   middle, a 250px photographic hero above it saying "Admin Panel", and four
+   tabs in a light bar that rendered white-on-white in the dark theme, so three
+   of them were invisible. Everything below is about the two facts that layout
+   ignored.
+
+   IT IS USED ON A DESKTOP. Recording a payment, approving an agent and writing
+   to eighty people are keyboard-and-mouse jobs done sitting down. So the shell
+   is a sidebar and a work area: every section one click away and always
+   visible, no scrolling back up to change tab, and tables that get the width
+   they need.
+
+   AND IT IS STILL USED ON A PHONE, standing in front of an agent who is asking
+   why their listing is off. Under 900px the sidebar becomes a scrolling strip
+   of the same buttons and the work area takes the whole width. Same markup,
+   same ids, one breakpoint.
+
+   Colours are design tokens throughout (css/ds/tokens). The old panel mixed
+   --c-* from the older Claude Design sheet with hardcoded hexes, which is how
+   a tab bar ends up painting light-theme ink onto a dark-theme surface.
+   ============================================================================ */
+
+.adm {
+  --adm-rail: 236px;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: var(--space-4, 16px);
+}
+
+/* ---- the top strip --------------------------------------------------------
+   What replaced a 250px photograph: who is signed in, and the way out. An
+   admin console does not need to be told what it is. */
+.adm-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  flex-wrap: wrap;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  margin-bottom: var(--space-4, 16px);
+  border-radius: var(--radius-lg, 18px);
+  background: var(--surface);
+  border: 1px solid var(--border, rgba(255, 255, 255, .08));
+}
+.adm-top-t {
+  font-family: var(--font-display, var(--font-ui));
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: .01em;
+}
+.adm-top-who {
+  font-family: var(--font-ui);
+  font-size: .84rem;
+  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adm-top-who strong { color: var(--text); font-weight: 700; }
+.adm-top-acts { margin-left: auto; display: flex; gap: var(--space-2, 8px); flex-wrap: wrap; }
+
+/* ---- shell ---------------------------------------------------------------- */
+.adm-shell {
+  display: grid;
+  grid-template-columns: var(--adm-rail) minmax(0, 1fr);
+  gap: var(--space-5, 20px);
+  align-items: start;
+}
+
+/* The rail. Sticky, because the whole point of a sidebar over a tab bar is
+   that changing section does not require scrolling back to the top of a table
+   of two hundred agents. */
+.adm-rail {
+  position: sticky;
+  top: var(--space-4, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2, 8px);
+  border-radius: var(--radius-lg, 18px);
+  background: var(--surface);
+  border: 1px solid var(--border, rgba(255, 255, 255, .08));
+}
+.adm-rail-h {
+  font-family: var(--font-ui);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: var(--space-2, 8px) var(--space-3, 12px) 4px;
+}
+
+/* One section button. `.tab-btn` is kept because js/pages/admin.js binds to it
+   and switches `.tab-panel` by data-tab: this is a new skin on a switcher that
+   already works, not a new switcher. */
+.adm-rail .tab-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  width: 100%;
+  min-height: 42px;
+  padding: 0 var(--space-3, 12px);
+  border: 0;
+  border-radius: var(--radius-md, 12px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: .9rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast, .12s) var(--ease, ease), color var(--dur-fast, .12s) var(--ease, ease);
+}
+.adm-rail .tab-btn:hover { background: var(--surface-2); color: var(--text); }
+.adm-rail .tab-btn.active {
+  background: var(--green-soft, rgba(16, 185, 129, .12));
+  color: var(--green-neon);
+}
+.adm-rail .tab-btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+/* The count beside a section, so the rail says where the work is. */
+.adm-rail .tab-btn .badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  font-size: .7rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.adm-rail .tab-btn.active .badge { background: var(--green-neon); color: var(--text-on-brand); }
+.adm-rail .tab-btn .badge:empty { display: none; }
+
+/* ---- the work area -------------------------------------------------------- */
+.adm-work { min-width: 0; }
+.adm-work .tab-panel { min-width: 0; }
+
+/* A card in the work area. The old panels each carried their own inline
+   background, which is why half of them stopped matching the theme. */
+.adm-card {
+  background: var(--surface);
+  border: 1px solid var(--border, rgba(255, 255, 255, .08));
+  border-radius: var(--radius-lg, 18px);
+  padding: var(--space-5, 20px);
+  margin-bottom: var(--space-4, 16px);
+}
+/* A card heading is a label on a section, not a page title. Left to the
+   global h2 it came out at 2rem, which on a console of six sections reads as
+   six page titles stacked. */
+.adm-card h2, .adm-card h3 {
+  font-family: var(--font-display, var(--font-ui));
+  font-size: 1.12rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.adm-card .hint, .adm-card .adm-sub {
+  font-family: var(--font-ui);
+  font-size: .84rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-3, 12px);
+}
+
+/* ---- numbers -------------------------------------------------------------
+   Every figure in this console is money or a count, so every figure is in the
+   money font with tabular figures. A column of totals that does not line up is
+   a column somebody has to read twice. */
+.adm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3, 12px);
+  margin-bottom: var(--space-4, 16px);
+}
+.adm-stat {
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-radius: var(--radius-md, 12px);
+  background: var(--surface-2);
+  border: 1px solid var(--border, rgba(255, 255, 255, .06));
+}
+.adm-stat-n {
+  display: block;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+}
+.adm-stat-k {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.adm-stat.is-warn .adm-stat-n { color: var(--gold); }
+.adm-stat.is-bad  .adm-stat-n { color: var(--danger); }
+.adm-stat.is-good .adm-stat-n { color: var(--green-neon); }
+
+/* ---- tables ---------------------------------------------------------------
+   The header row used to be painted with a light-theme surface and light-theme
+   ink at the same time, so in the dark theme it was white on white. Tokens
+   only, and the head takes the raised surface rather than a colour of its
+   own. */
+.adm-table-wrap { overflow-x: auto; border-radius: var(--radius-md, 12px); }
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: .86rem;
+  background: var(--surface);
+}
+.adm-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, .08));
+  white-space: nowrap;
+}
+.adm-table td {
+  padding: 11px 12px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, .06));
+  vertical-align: middle;
+}
+.adm-table tbody tr:hover td { background: var(--surface-2); }
+.adm-table td.num, .adm-table th.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+}
+.adm-empty {
+  padding: var(--space-6, 24px) var(--space-4, 16px);
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: .88rem;
+  color: var(--text-muted);
+}
+
+/* ---- notices: the compose box and what has been sent ---------------------- */
+.adm-compose { display: grid; gap: var(--space-3, 12px); }
+.adm-compose textarea,
+.adm-compose input[type="text"],
+.adm-compose select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-ui);
+}
+.adm-compose textarea { min-height: 110px; resize: vertical; line-height: 1.5; }
+.adm-compose label {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.adm-row { display: flex; gap: var(--space-2, 8px); flex-wrap: wrap; align-items: center; }
+.adm-out {
+  font-family: var(--font-ui);
+  font-size: .84rem;
+  min-height: 1.2em;
+  color: var(--text-muted);
+}
+.adm-out.ok  { color: var(--green-neon); }
+.adm-out.bad { color: var(--danger); }
+
+/* Severity, the same three words the database stores. */
+.adm-sev {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.adm-sev.info   { background: var(--surface-2); color: var(--text-muted); }
+.adm-sev.warn   { background: var(--gold-soft); color: var(--gold); }
+.adm-sev.urgent { background: rgba(220, 38, 38, .14); color: var(--danger); }
+
+/* ---- phones ---------------------------------------------------------------
+   One column, and the rail becomes a strip of the same buttons that scrolls
+   sideways. Nothing is hidden and nothing moves anywhere else. */
+@media (max-width: 900px) {
+  .adm-shell { grid-template-columns: minmax(0, 1fr); }
+  .adm-rail {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 6px;
+  }
+  .adm-rail::-webkit-scrollbar { display: none; }
+  .adm-rail-h { display: none; }
+  .adm-rail .tab-btn { width: auto; flex: 0 0 auto; white-space: nowrap; }
+  .adm-card { padding: var(--space-4, 16px); }
+}
+
+/* Light theme: the tokens above already flip, but the panel's older rules
+   carried hardcoded surfaces. These three keep the new shell honest when the
+   page is set to light. */
+:root[data-theme="light"] .adm-top,
+:root[data-theme="light"] .adm-rail,
+:root[data-theme="light"] .adm-card { border-color: rgba(20, 30, 25, .12); }

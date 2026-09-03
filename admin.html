@@ -95,32 +95,48 @@
     .aa-help-list strong { color: var(--c-brand-deep, #064a33); }
     .aa-help-note { margin: 10px 0 0; padding: 9px 12px; background: var(--c-brand-faint, #f0f7f2); border: 1px solid var(--c-brand-soft, #d9ecdf); border-radius: 9px; font-size: .84rem; color: var(--c-text-soft, #3f3d36); }
 
-    /* Header, tab bar and panels sit directly on the page photo — give each a
-       frosted white surface so every word stays readable on ANY photo. */
-    #adminPanel .admin-header {
-      background: rgba(255,255,255,.93);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      border-radius: 14px; padding: 12px 18px; margin-bottom: 14px;
-      box-shadow: 0 3px 12px rgba(0,0,0,.08);
+    /* ---- the console follows the theme ---------------------------------
+       Every rule above reads --c-* from css/claude-design.css, whose values
+       are a light-theme cream. That was true enough when this page was
+       light-only, and it is why its tables render white ink on a white slab in
+       the dark theme: the surface came from one system and the text colour
+       from another.
+
+       Rather than rewrite a hundred declarations, the seven names they
+       actually use are REPOINTED at the design tokens, inside the console
+       only. Every existing rule then follows whichever theme the reader has
+       chosen, and css/claude-design.css is left alone for the pages that still
+       want it.
+
+       The frosted-white header and tab bar that used to sit here are gone with
+       the photographic hero they were compensating for. The rail and the cards
+       are css/admin.css now. */
+    #adminPanel {
+      --c-surface:    var(--surface);
+      --c-bg-elev:    var(--surface-2);
+      --c-border:     var(--border);
+      --c-text:       var(--text);
+      --c-muted:      var(--text-muted);
+      --c-brand:      var(--green-neon);
+      --c-brand-deep: var(--green-bright);
+      --c-success:    var(--green-neon);
+      --c-accent:     var(--gold);
     }
-    #adminPanel .admin-header .page-subtitle { margin: 0; }
-    #adminPanel .tabs {
-      background: rgba(255,255,255,.93);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      border-radius: 12px; padding: 8px; margin-bottom: 14px;
-      box-shadow: 0 3px 12px rgba(0,0,0,.08);
+    #adminPanel .tab-panel { min-width: 0; }
+    /* The panels that predate css/admin.css keep their card, drawn from the
+       same tokens as .adm-card so the two cannot drift apart. */
+    #tab-allagents, #tab-tenants, #tab-dayjobs, #tab-videospace {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg, 18px);
+      padding: var(--space-5, 20px);
     }
-    #adminPanel .tab-btn { color: var(--c-text, #1a1915) !important; }
-    #adminPanel .tab-btn.active { color: #fff !important; }
-    /* --c-surface, not a near-opaque white. The page block below repaints the
-       ink to the dark theme's near-white, so this panel was a white slab
-       carrying pale text: the All-agents heading and its filter inputs both
-       measured 1.10:1. */
-    #adminPanel .tab-panel {
-      background: var(--c-surface, rgba(255,255,255,.95));
-      border-radius: 14px; padding: 16px 18px;
-      box-shadow: 0 4px 16px rgba(0,0,0,.08);
-    }
+    /* Filters read as a row on a desktop and wrap on a phone, instead of one
+       full-width control per line at every width. */
+    /* width:auto beats the 100% a mobile sheet sets on every input, which is
+       what made a desktop filter bar four stacked full-width controls. */
+    .aa-controls > input, .aa-controls > select { width: auto; flex: 0 1 auto; min-width: 150px; }
+    .aa-controls > input[type="text"], .aa-controls > #aaSearch { flex: 1 1 240px; }
 
     /* Tenants tab — days-left badges */
     .ten-dleft { display: inline-block; font-size: .72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
@@ -174,6 +190,9 @@
     body[data-page="admin"] .auth-input:focus { background: rgba(255,255,255,.07); }
     body[data-page="admin"] #nav-slot, body[data-page="admin"] #footer-slot { display: none !important; }
   </style>
+  <!-- The console's own shell: a sidebar and a work area, tokens only.
+       See the header of css/admin.css for what it replaced. -->
+  <link rel="stylesheet" href="css/admin.css" />
   <link rel="stylesheet" href="css/theme-light.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
        and the app/web shell switch. Loads last so it can correct the sheets
@@ -183,13 +202,12 @@
 <body data-page="admin" data-app-shell="admin.html">
   <div id="nav-slot"></div>
 
-  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
-    <div class="page-hero-inner">
-      <h1 class="page-title">Admin Panel</h1>
-      <p class="page-subtitle">Maisha na Lifeza — Authorized access only.</p>
-    </div>
-  </section>
-
+  <!-- The photographic hero that used to sit here is gone. On the screen this
+       page is actually used on it cost 250px to say the page's own name back
+       to the one person who had to type the URL and pass two gates to see it.
+       The strip inside #adminPanel says who is signed in instead, which is the
+       fact an admin does check. The sign-in gate below keeps its own framing:
+       somebody who lands there IS being told where they are. -->
   <main class="container">
     <!-- Login gate -->
     <section id="loginGate" class="auth-scene" hidden>
@@ -255,20 +273,32 @@
 
     <!-- Admin panel -->
     <section id="adminPanel" hidden>
-      <!-- (The page hero above already says "Admin Panel" — no duplicate title.) -->
-      <div class="admin-header">
-        <p class="page-subtitle">Signed in as <strong id="adminEmail"></strong></p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button id="logoutBtn" class="btn btn-outline btn-sm">Sign out</button>
+      <div class="adm">
+        <div class="adm-top">
+          <span class="adm-top-t" data-i18n="adm_title">Console</span>
+          <span class="adm-top-who"><span data-i18n="ap_signed_in_as">Signed in as</span>
+            <strong id="adminEmail"></strong></span>
+          <div class="adm-top-acts">
+            <a class="btn btn-outline btn-sm" href="super-admin.html" data-i18n="nav_super_admin">Super Admin</a>
+            <button id="logoutBtn" class="btn btn-outline btn-sm" data-i18n="ap_sign_out">Sign out</button>
+          </div>
         </div>
-      </div>
 
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="allagents">All Agents <span id="allAgentsBadge" class="badge"></span></button>
-        <button class="tab-btn" data-tab="tenants">Tenants <span id="tenantsBadge" class="badge"></span></button>
-        <button class="tab-btn" data-tab="dayjobs">Day Jobs <span id="djBadge" class="badge"></span></button>
-        <button class="tab-btn" data-tab="videospace">Video space <span id="vsAdminBadge" class="badge"></span></button>
-      </div>
+        <div class="adm-shell">
+          <!-- The rail. Same .tab-btn / data-tab contract js/pages/admin.js has
+               always switched on, so this is a new skin on a switcher that
+               works rather than a second switcher to keep in step. -->
+          <nav class="adm-rail" aria-label="Admin sections">
+            <span class="adm-rail-h" data-i18n="adm_sections">Sections</span>
+            <button class="tab-btn active" data-tab="allagents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5M17 5.2a3 3 0 0 1 0 6M18.5 20c0-2.6-1-4.2-2.7-5"/></svg><span data-i18n="adm_tab_agents">Agents</span><span id="allAgentsBadge" class="badge"></span></button>
+            <button class="tab-btn" data-tab="owners"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg><span data-i18n="adm_tab_owners">House owners</span><span id="ownersBadge" class="badge"></span></button>
+            <button class="tab-btn" data-tab="notices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v13H4z"/><path d="m4 7 8 6 8-6"/></svg><span data-i18n="adm_tab_notices">Notices</span><span id="noticesBadge" class="badge"></span></button>
+            <button class="tab-btn" data-tab="tenants"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-6h6v6"/><path d="M4 13h16"/></svg><span data-i18n="adm_tab_tenants">Tenants</span><span id="tenantsBadge" class="badge"></span></button>
+            <button class="tab-btn" data-tab="dayjobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12h18"/></svg><span data-i18n="adm_tab_jobs">Day jobs</span><span id="djBadge" class="badge"></span></button>
+            <button class="tab-btn" data-tab="videospace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="m15 10 6-3v10l-6-3z"/></svg><span data-i18n="adm_tab_video">Video space</span><span id="vsAdminBadge" class="badge"></span></button>
+          </nav>
+
+          <div class="adm-work">
 
 
       <!-- All Agents tab — unified monetization tracker (default) -->
@@ -436,6 +466,91 @@
         <div id="vsAdminList"></div>
       </div>
 
+      <!-- House owners. The account kind the catalogue gained in
+           house_owner_accounts.sql: no monthly fee, three posts every 180
+           days. Until now the console could see agents and could not see
+           these people at all, so the one question an admin gets asked about
+           them ("why can I not post a fourth?") had no screen to answer it. -->
+      <div class="tab-panel" id="tab-owners" hidden>
+        <div class="adm-card">
+          <h2 data-i18n="adm_own_t">House owners</h2>
+          <p class="adm-sub" data-i18n="adm_own_d">Accounts listing their own property. No monthly fee, and an allowance of posts instead. This is where to see who is near it.</p>
+          <div class="adm-stats" id="ownStats"></div>
+          <div class="adm-row" style="margin-bottom:12px">
+            <input type="text" id="ownSearch" class="adm-input" data-i18n-placeholder="adm_own_search" placeholder="Search an account id" style="flex:1 1 240px;padding:9px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:inherit" />
+            <button id="ownRefresh" class="btn btn-outline btn-sm" type="button" data-i18n="adm_refresh">Refresh</button>
+          </div>
+          <div class="adm-table-wrap"><table class="adm-table" id="ownTable"></table></div>
+        </div>
+      </div>
+
+      <!-- Notices. Writing to agents, and the renewal sweep. Everything the
+           tracker does already writes one of these by trigger; this is the
+           half a person types, plus the log of what has gone out. -->
+      <div class="tab-panel" id="tab-notices" hidden>
+        <div class="adm-card">
+          <h2 data-i18n="adm_not_t">Write to an agent</h2>
+          <p class="adm-sub" data-i18n="adm_not_d">It lands in their notifications, on whatever page they have open, and on the Profile tab until they read it.</p>
+          <div class="adm-compose">
+            <div>
+              <label for="ntWho" data-i18n="adm_not_who">Who</label>
+              <select id="ntWho">
+                <option value="one" data-i18n="adm_not_one">One account</option>
+                <option value="unpaid" data-i18n="adm_not_unpaid">Everyone whose subscription has lapsed</option>
+                <option value="deactivated" data-i18n="adm_not_dead">Everyone deactivated</option>
+                <option value="expiring" data-i18n="adm_not_expiring">Everyone whose subscription ends soon</option>
+              </select>
+            </div>
+            <div id="ntOneRow">
+              <label for="ntUid" data-i18n="adm_not_uid">Account id</label>
+              <input type="text" id="ntUid" placeholder="uid" />
+            </div>
+            <div>
+              <label for="ntTitle" data-i18n="adm_not_title">Title</label>
+              <input type="text" id="ntTitle" maxlength="120" data-i18n-placeholder="adm_not_title_ph" placeholder="One line they will see in the bell" />
+            </div>
+            <div>
+              <label for="ntBody" data-i18n="adm_not_body">Message</label>
+              <textarea id="ntBody" maxlength="1200" data-i18n-placeholder="adm_not_body_ph" placeholder="What you want them to know."></textarea>
+            </div>
+            <div class="adm-row">
+              <select id="ntSeverity" style="flex:0 0 auto;width:auto">
+                <option value="info" data-i18n="adm_sev_info">Ordinary</option>
+                <option value="warn" data-i18n="adm_sev_warn">Worth acting on</option>
+                <option value="urgent" data-i18n="adm_sev_urgent">Urgent</option>
+              </select>
+              <button id="ntSend" class="btn btn-primary btn-sm" type="button" data-i18n="adm_not_send">Send</button>
+              <span id="ntOut" class="adm-out" role="status" aria-live="polite"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="adm-card">
+          <h2 data-i18n="adm_rem_t">Renewal reminders</h2>
+          <p class="adm-sub" data-i18n="adm_rem_d">Writes to every agent whose subscription ends inside the window, telling them the date and to pay you. Safe to run every day: each agent is told once per expiry date.</p>
+          <div class="adm-row">
+            <select id="ntRemDays" style="flex:0 0 auto;width:auto">
+              <option value="3">3</option>
+              <option value="7" selected>7</option>
+              <option value="14">14</option>
+              <option value="30">30</option>
+            </select>
+            <span class="adm-sub" style="margin:0" data-i18n="adm_rem_days">days ahead</span>
+            <button id="ntRemind" class="btn btn-primary btn-sm" type="button" data-i18n="adm_rem_go">Send reminders</button>
+            <span id="ntRemOut" class="adm-out" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+
+        <div class="adm-card">
+          <h2 data-i18n="adm_sent_t">What has gone out</h2>
+          <p class="adm-sub" data-i18n="adm_sent_d">Everything this console and the tracker have sent, newest first, and whether it has been read.</p>
+          <div class="adm-table-wrap"><table class="adm-table" id="ntSentTable"></table></div>
+        </div>
+      </div>
+
+          </div><!-- /.adm-work -->
+        </div><!-- /.adm-shell -->
+      </div><!-- /.adm -->
     </section>
   </main>
 
@@ -453,6 +568,10 @@
   <script src="js/lib/auth-ui.js"></script>
   <script src="js/lib/video-space.js"></script>
   <script src="js/pages/admin.js"></script>
+  <!-- Two sections in their own files, booted from bootAdmin() once the
+       gate has passed. See the header of each for what it answers. -->
+  <script src="js/pages/admin-owners.js"></script>
+  <script src="js/pages/admin-notices.js"></script>
   <script src="js/pages/admin-video-space.js" defer></script>
   <script>
     // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js). Admin keeps its

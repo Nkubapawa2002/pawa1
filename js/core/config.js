@@ -701,11 +701,15 @@ window.renderAgentMessages = async (opts) => {
   el.innerHTML = rows.map((m) => {
     let when = "";
     try { when = " · " + new Date(m.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch (_) {}
-    const body = esc(m.body).replace(/\n/g, "<br>");
-    return `<div class="agent-msg" data-id="${esc(m.id)}" style="position:relative;border:1px solid #bfdbfe;background:linear-gradient(180deg,#eff6ff,#fff);border-radius:13px;padding:13px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+    const body = esc(m.body || "").replace(/\n/g, "<br>");
+    // Three severities, three edges. `urgent` is a deactivation or an overdue
+    // subscription: things that have already taken listings off the board.
+    const sev = m.severity === "urgent" ? "#b91c1c" : m.severity === "warn" ? "#b45309" : "#1e40af";
+    const head = esc(m.title || "Message from Pawa admin");
+    return `<div class="agent-msg" data-id="${esc(m.id)}" style="position:relative;border:1px solid #bfdbfe;border-left:4px solid ${sev};background:linear-gradient(180deg,#eff6ff,#fff);border-radius:13px;padding:13px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
       <button type="button" class="agent-msg-x" aria-label="Dismiss" style="position:absolute;top:8px;right:11px;border:0;background:none;font-size:19px;line-height:1;color:#1e40af;cursor:pointer;opacity:.6">×</button>
-      <div style="font-weight:800;color:#1e40af;font-size:.86rem;margin:0 18px 4px 0">Message from Pawa admin${when}</div>
-      <div style="font-size:.9rem;line-height:1.5;color:#1e293b">${body}</div>
+      <div style="font-weight:800;color:${sev};font-size:.86rem;margin:0 18px 4px 0">${head}${when}</div>
+      ${body ? `<div style="font-size:.9rem;line-height:1.5;color:#1e293b">${body}</div>` : ""}
     </div>`;
   }).join("");
   mount.insertBefore(el, mount.firstChild);

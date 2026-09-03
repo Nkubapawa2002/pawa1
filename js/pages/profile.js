@@ -35,6 +35,10 @@
   // makes when a customer opens their page. Null until it lands, and null
   // forever for a guest, so everything that reads it must cope with that.
   var storeCard = null;
+  // What the platform has to say to this account about itself: what an admin
+  // did or wrote, and where the subscription stands. Arrives after the first
+  // paint, like the storefront, so everything below reads correctly at null.
+  var notices = null;
 
   function t(key, fallback, vars) {
     var s = window.t ? window.t(key) : key;
@@ -178,11 +182,74 @@
     lang: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#5EB7FF" stroke-width="1.7"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18" stroke="#5EB7FF" stroke-width="1.5"/></svg>',
     theme: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.5 6.5 0 0 0 10.2 10.2z" stroke="#5EB7FF" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     shield: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z" stroke="#C594FF" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    // A stamped envelope: this is the platform writing to you, not a person.
+    // currentColor rather than a fixed stroke, because these rows change
+    // colour with the severity of what they are carrying.
+    notice: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v13H4z"/><path d="m4 7 8 6 8-6"/></svg>',
+    clock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.4l3.4 2"/></svg>',
     out: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M15 4h4v16h-4M11 16l4-4-4-4M15 12H4" stroke="#FF8AA8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     chat: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     // Two panes, one tall and one wide: the choice this row is offering.
     layout: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="7" height="16" rx="1.6" stroke="#5EB7FF" stroke-width="1.7"/><rect x="13" y="4" width="8" height="9" rx="1.6" stroke="#5EB7FF" stroke-width="1.7"/><path d="M13 16.5h8M13 19.5h5" stroke="#5EB7FF" stroke-width="1.7" stroke-linecap="round"/></svg>',
   };
+
+  /**
+   * The notices, and where the subscription stands.
+   *
+   * Everything here comes from js/lib/notices.js, which is also what the bell
+   * reads, so the two can never disagree about how many days are left. Nothing
+   * is computed on this page.
+   *
+   * A guest gets none of it: they have no subscription and no admin has ever
+   * written to a browser tab.
+   */
+  function noticesHtml() {
+    if (!me.userId || me.isGuest || !notices) return "";
+    var N = window.Notices;
+    var rows = [];
+
+    // The subscription, first, and only when it is worth saying something
+    // about. An account in good standing with a month left does not need a row
+    // on its Profile tab telling it so every time it opens.
+    var b = notices.billing;
+    if (b && N) {
+      var attention = N.needsAttention(b);
+      if (attention) {
+        rows.push(row({
+          act: "billing",
+          icon: ICON.clock,
+          tint: b.reason === "active" ? "ic-gold" : "ic-rose",
+          title: t("pf_sub", "Your subscription"),
+          desc: N.billingLine(b),
+          value: b.paid_until ? N.dateWord(b.paid_until) : "",
+        }));
+      }
+    }
+
+    (notices.notices || []).forEach(function (n) {
+      rows.push(row({
+        act: "notice:" + n.id,
+        icon: ICON.notice,
+        tint: N ? N.severityTint(n.severity) : "ic-sky",
+        title: n.title || t("pf_notice", "A message about your account"),
+        desc: snip(n.body || ""),
+        value: N ? N.dateWord(n.created_at) : "",
+      }));
+    });
+
+    if (!rows.length) return "";
+    var head = group(t("pf_g_notices", "From the admin"), rows);
+    // The anchor the bell links to. On the group, not on a row, because the
+    // notice that was tapped may already have been read by the time the page
+    // opens and the reader still has to land somewhere that makes sense.
+    return head.replace('<section class="pf-group">', '<section class="pf-group" id="notices">');
+  }
+
+  /** A first line of a message, for a row that has one line to give it. */
+  function snip(s) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    return s.length > 120 ? s.slice(0, 119) + "…" : s;
+  }
 
   // ---- render --------------------------------------------------------------
   async function render() {
@@ -223,6 +290,20 @@
           esc(t("pf_make_account", "Sign in to keep them")) + "</a></div>";
       }
     }
+
+    // ---- what the admin has said -------------------------------------------
+    //
+    //  This is the account's own post. It sits ABOVE the encryption key and the
+    //  listings because it is the only part of this screen that can be
+    //  time-critical: a subscription that ends on Friday is worth reading
+    //  before a safety number that has not changed since March.
+    //
+    //  The bell links here (js/core/notify.js sends both of its account rows to
+    //  profile.html#notices), so the anchor is on the group and the group is
+    //  drawn even when there is nothing unread, as long as there is a
+    //  subscription to report on. A person who taps a notification and lands on
+    //  a screen with no trace of it has been told they imagined it.
+    html += noticesHtml();
 
     // ---- encryption --------------------------------------------------------
     // The key is the account, so it sits above the listings rather than under
@@ -325,6 +406,27 @@
       if (!btn) return;
       var act = btn.dataset.act;
 
+      // A notice, opened. Reading it IS marking it read: there is no second
+      // "mark as read" to forget, and the row it came from goes with it.
+      if (act.indexOf("notice:") === 0) {
+        var nid = act.slice(7);
+        var one = (notices && notices.notices || []).filter(function (n) { return n.id === nid; })[0];
+        if (!one) return;
+        showNotice(one);
+        if (window.Notices) {
+          window.Notices.markRead(nid).then(function () {
+            notices = { unread: Math.max(0, (notices.unread || 1) - 1),
+                        notices: (notices.notices || []).filter(function (n) { return n.id !== nid; }),
+                        billing: notices.billing };
+            render();
+            // The bell is showing the same number and has to lose it too.
+            if (window.Notify && window.Notify.refresh) window.Notify.refresh();
+          });
+        }
+        return;
+      }
+      if (act === "billing") { showBilling(); return; }
+
       if (act === "fingerprint") return window.PMIdentityUI.safetyNumbers();
       if (act === "backup") return window.PMIdentityUI.backup();
       if (act === "restore") return window.PMIdentityUI.restore();
@@ -361,6 +463,49 @@
         location.href = "profile.html";
       }
     });
+  }
+
+  /**
+   * One notice, in full.
+   *
+   * The row can only carry a first line, and these are sentences worth reading
+   * to the end: what an admin actually said, or which date a subscription runs
+   * to. The dialog is the same one the key flows use, so this page has one
+   * vocabulary for "here is something to read".
+   */
+  function showNotice(n) {
+    var when = window.Notices ? window.Notices.dateWord(n.created_at) : "";
+    window.PMIdentityUI.open("<h2>" + esc(n.title || t("pf_notice", "A message about your account")) + "</h2>" +
+      (when ? '<p class="pf-modal-at">' + esc(when) + "</p>" : "") +
+      "<p>" + esc(n.body || "") + "</p>" +
+      '<div class="pm-modal-acts"><button class="pm-btn" id="pfNoticeX">' +
+      esc(t("pm_close", "Close")) + "</button></div>");
+    document.getElementById("pfNoticeX").addEventListener("click", window.PMIdentityUI.close);
+  }
+
+  /**
+   * Where the subscription stands, and the one thing to do about it.
+   *
+   * Renewals are not self-serve in this app: an agent pays the admin and the
+   * admin records it. So the useful half of this dialog is not a button, it is
+   * the admin's phone number, which is why it carries the same contact block
+   * every other paywall on the site uses rather than its own.
+   */
+  function showBilling() {
+    var b = notices && notices.billing;
+    if (!b) return;
+    var N = window.Notices;
+    var contact = window.adminContactHtml ? window.adminContactHtml() : "";
+    window.PMIdentityUI.open("<h2>" + esc(t("pf_sub", "Your subscription")) + "</h2>" +
+      "<p>" + esc(N ? N.billingLine(b) : "") + "</p>" +
+      (b.paid_until
+        ? '<p class="pf-modal-at">' + esc(t("pf_sub_until", "Runs to {date}", { date: N.dateWord(b.paid_until) })) + "</p>"
+        : "") +
+      "<p>" + esc(t("pf_sub_how", "Renewals go through the admin: pay them and they extend it from their panel.")) + "</p>" +
+      (contact ? '<div class="pf-contact">' + contact + "</div>" : "") +
+      '<div class="pm-modal-acts"><button class="pm-btn" id="pfSubX">' +
+      esc(t("pm_close", "Close")) + "</button></div>");
+    document.getElementById("pfSubX").addEventListener("click", window.PMIdentityUI.close);
   }
 
   /**
@@ -482,6 +627,15 @@
     //
     // Only for an account. pm_agent_card refuses a guest, and a guest has no
     // storefront to preview.
+    // The notices, in the same after-paint pass as the storefront and for the
+    // same reason. Both are one round trip, neither is needed to draw the rest
+    // of the screen, and the bell has usually asked for them already, so this
+    // is a cache read as often as it is a request.
+    if (me.userId && !me.isGuest && window.Notices) {
+      try { notices = await window.Notices.load(); } catch (_) { notices = null; }
+      if (notices && (notices.unread || notices.billing)) await render();
+    }
+
     if (me.userId && !me.isGuest && window.PMStore.agentCard) {
       try {
         storeCard = await window.PMStore.agentCard(me.userId);
