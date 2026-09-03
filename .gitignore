@@ -39,6 +39,8 @@ response.json
 # Test screenshots — large binary noise, regenerated on each run
 test-screenshots/
 tests/_nm.png
+# Where .claude/skills/run-pawa2/driver.mjs writes its shots.
+shots/
 
 # Scratch Puppeteer smoke script (needs a live server; not part of the suite)
 _nmtest.mjs
