@@ -489,6 +489,9 @@ supabase/features/message/p_message_delete.sql   unsend, close a room, leave one
     carry deleted_at, so re-running the replies file would revert that.
 supabase/features/message/p_message_guest_end.sql pm_guest_forget, ending a guest (APPLIED)
 supabase/features/message/p_message_purge.sql    pm_direct_delete + my_role (APPLIED)
+supabase/features/message/p_message_announce.sql pm_can_announce; only the owner
+    of a broadcast may add to it, and a broadcast can finally be deleted (APPLIED)
+    Run it AFTER p_message_delete.sql: it redefines pm_group_delete.
     Run it AFTER p_message_guests.sql: it redefines pm_inbox to carry my_role,
     so re-running the guests file would revert that.
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile

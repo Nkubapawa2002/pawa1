@@ -491,7 +491,11 @@
       var menu = rowMenuKind(r, orphan);
       return (menu ? '<div class="pm-chat-wrap">' : "") +
         '<button class="pm-row" data-thread="' + esc(r.thread_id) + '" data-kind="' + esc(r.kind) +
-        '" data-name="' + esc(name) + '" data-sub="' + esc(sub) + '" data-other="' + esc(r.other_id || "") + '">' +
+        '" data-name="' + esc(name) + '" data-sub="' + esc(sub) + '" data-other="' + esc(r.other_id || "") +
+        // Carried on the ROW as well as on the dots, because opening an
+        // announcement has to know whether this reader may add to it before it
+        // decides to hand them a composer.
+        '" data-role="' + esc(r.my_role || "member") + '">' +
         '<span class="pm-av' + (broadcast ? " is-cast" : group ? " is-room" : "") + '">' +
           (broadcast ? CAST_SVG : group ? ROOM_SVG : esc(initials(name))) + "</span>" +
         '<span class="pm-rtx"><span class="pm-name">' + esc(name) + guestTag + goneTag +
@@ -536,6 +540,14 @@
   function rowMenuKind(r, orphan) {
     if (me && me.isGuest) return "";
     if (r.kind === "group") return "room";
+    // An announcement, to the person who sent it. Until p_message_announce.sql
+    // a broadcast could not be deleted by anyone at all, so it was permanent
+    // for every one of the hundreds of people it reached. It reuses the room
+    // menu because the two questions are the same, and the copy inside is
+    // chosen off this kind so it never calls an announcement a room.
+    if (r.kind === "broadcast") {
+      return (r.my_role === "owner" || (me && me.isAdmin)) ? "cast" : "";
+    }
     if (r.kind !== "direct") return "";
     if (orphan) return "gone";
     if (r.other_guest) return "guest";
@@ -1156,6 +1168,15 @@
   //  are two ways out and both require a person: compare the number, or say
   //  the change was expected.
   async function checkTrust(info) {
+    // An announcement is one voice. The server refuses anybody else through
+    // pm_can_announce(), so offering them a composer would be handing over a
+    // box whose only possible outcome is an error.
+    if (info && info.kind === "broadcast" &&
+        !(info.myRole === "owner" || (me && me.isAdmin))) {
+      setComposerBlocked(true, "cast");
+      if (el.pmTrustBar) el.pmTrustBar.hidden = true;
+      return;
+    }
     setComposerBlocked(false);
     if (el.pmTrustBar) el.pmTrustBar.hidden = true;
     if (!info || info.kind !== "direct" || !info.otherId || !me) return;
@@ -1206,12 +1227,19 @@
     if (go) go.addEventListener("click", openVerify);
   }
 
-  function setComposerBlocked(on) {
+  /**
+   * `why` names the reason, because there is more than one now and they need
+   * different sentences. Blocking the box without saying why reads as the app
+   * being broken rather than as a rule.
+   */
+  function setComposerBlocked(on, why) {
     if (el.pmInput) {
       el.pmInput.disabled = !!on;
-      el.pmInput.placeholder = on
-        ? t("pm_trust_blocked_ph", "Check their safety number first")
-        : t("pm_write_ph", "Write a message");
+      el.pmInput.placeholder = !on
+        ? t("pm_write_ph", "Write a message")
+        : why === "cast"
+        ? t("pm_cast_read_ph", "Only the sender can add to an announcement")
+        : t("pm_trust_blocked_ph", "Check their safety number first");
     }
     if (el.pmSendBtn) el.pmSendBtn.disabled = !!on;
     if (el.pmComposeForm) el.pmComposeForm.classList.toggle("is-blocked", !!on);
@@ -1395,7 +1423,8 @@
     var kind = btn.dataset.menuKind;
     var name = btn.dataset.name || t("pm_someone", "Someone");
     var role = btn.dataset.role || "member";
-    var room = kind === "room";
+    var cast = kind === "cast";
+    var room = kind === "room" || cast;
     // The owner of the room, or an admin: the same test pm_group_delete makes,
     // asked here so the button is not offered to somebody the database will
     // turn away. my_role comes down with the row from pm_inbox.
@@ -1408,13 +1437,17 @@
         esc(t("pm_chat_open_d", "Read what is there and answer.")) + "</span></button>" +
       (room
         ? '<button class="pm-sheet-b is-danger" type="button" id="pmCmLeave">' +
-            "<b>" + esc(t("pm_mem_leave", "Leave room")) + "</b><span>" +
+            "<b>" + esc(cast ? t("pm_cast_leave", "Leave this announcement")
+                              : t("pm_mem_leave", "Leave room")) + "</b><span>" +
             esc(t("pm_chat_leave_d", "You stop receiving what is said in it. It stays open for everyone else.")) +
             "</span></button>" +
           (canDelete
             ? '<button class="pm-sheet-b is-danger" type="button" id="pmCmDelRoom">' +
-              "<b>" + esc(t("pm_room_del", "Delete room")) + "</b><span>" +
-              esc(t("pm_chat_delroom_d", "Closes it for everyone in it and deletes every message from the server.")) +
+              "<b>" + esc(cast ? t("pm_cast_del", "Delete this announcement")
+                                : t("pm_room_del", "Delete room")) + "</b><span>" +
+              esc(cast
+                ? t("pm_cast_del_d", "It goes from the list of everybody it was sent to, and every message in it is deleted from the server.")
+                : t("pm_chat_delroom_d", "Closes it for everyone in it and deletes every message from the server.")) +
               "</span></button>"
             : "")
         : '<button class="pm-sheet-b is-danger" type="button" id="pmCmDelChat">' +
@@ -3388,6 +3421,7 @@
       openThread({
         threadId: row.dataset.thread, kind: row.dataset.kind,
         name: row.dataset.name, sub: row.dataset.sub, otherId: row.dataset.other || null,
+        myRole: row.dataset.role || "member",
       });
     });
 
