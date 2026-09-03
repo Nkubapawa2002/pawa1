@@ -147,16 +147,20 @@
 .owner-quota.is-full .owner-quota-t,
 .owner-quota.is-full .owner-quota-n { color: var(--danger); }
 
-/* Light theme: the gold tints above are mixed for a dark surface and go muddy
-   on cream, so the ink darkens rather than the fill lightening. */
+/* Light theme: gold ink on cream is the one combination this palette cannot
+   make readable. Even --gold-dark lands near 1.7:1 against the page, which is
+   not a heading, it is a rumour of one. So on cream the WORDS take the page's
+   own ink and the gold stays where it still works: the fill and the hairline.
+   The badge is still recognisably the gold one, and it can still be read.
+
+   The exception is .is-sm, which sits over a photograph rather than over the
+   page, on its own dark scrim, and keeps its bright gold in both themes. */
 :root[data-theme="light"] .owner-chip,
 :root[data-theme="light"] .owner-note-t,
 :root[data-theme="light"] .owner-quota-t,
-:root[data-theme="light"] .owner-quota-n { color: var(--gold-dark); }
-:root[data-theme="light"] .owner-chip.is-sm {
-  background: rgba(255, 255, 255, .86);
-  color: var(--gold-dark);
-}
+:root[data-theme="light"] .owner-quota-n,
+:root[data-theme="light"] .hp-owner-chip button { color: var(--text); }
+:root[data-theme="light"] .owner-note-ic { color: var(--gold-dark); }
 
 /* ---- the way out of the owner-only view (houses.html) ---------------------
    A filter that arrives from a URL with nothing on screen to say so is a
@@ -189,7 +193,6 @@
   cursor: pointer;
 }
 .hp-owner-chip button:hover { background: var(--gold-soft); }
-:root[data-theme="light"] .hp-owner-chip button { color: var(--gold-dark); }
 
 /* ---- the rail on the home page -------------------------------------------
    Drawn only when there is something in it (js/pages/home-app.js hides the

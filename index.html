@@ -168,7 +168,10 @@
        an ellipsis in the middle of the city you are standing in is not a fit.
        So it drops below the toggle instead and gets the column to itself,
        which costs about 20px at the top of the page and nothing else. */
-    .ha-greet { padding-left: 46px; }
+    /* margin, not padding: the greeting's BOX has to start clear of the
+       toggle, not just its text, or an overlap test cannot tell the two
+       apart and neither can a stray tap. */
+    .ha-greet { margin-left: 46px; }
     .ha-greet { font-size: 12.5px; color: rgba(231,241,236,.55); font-weight: 600;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ha-greet #haGreetName { color: #EAF1EE; }
