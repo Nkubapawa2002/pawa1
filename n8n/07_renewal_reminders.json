@@ -1,0 +1,99 @@
+{
+  "name": "07 — Renewal reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "41 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b1a0f3d2-0001-4a10-9c11-2f9b7a5c1001",
+      "name": "Every morning (06:41 UTC)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300],
+      "notes": "09:41 in Tanzania. A working morning on purpose: the message it sends ends with 'pay the admin', and an admin who is awake can answer the phone call it causes."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/agent_notices_remind",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"p_days\": 7}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "b1a0f3d2-0002-4a10-9c11-2f9b7a5c1002",
+      "name": "Remind everyone expiring in 7 days",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300],
+      "notes": "The service-role key arrives as the role claim 'service_role', which is one of the two identities agent_notices_remind() accepts besides an admin. Returns the NUMBER of agents newly reminded; a run that returns 0 is a normal morning, not a failure."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "count",
+              "name": "reminded",
+              "value": "={{ $json.data ?? $json }}",
+              "type": "number"
+            },
+            {
+              "id": "ranAt",
+              "name": "ran_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b1a0f3d2-0003-4a10-9c11-2f9b7a5c1003",
+      "name": "How many were told",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [780, 300],
+      "notes": "Kept so the execution list shows the number at a glance rather than a raw body. Nothing downstream reads it."
+    }
+  ],
+  "connections": {
+    "Every morning (06:41 UTC)": {
+      "main": [[{ "node": "Remind everyone expiring in 7 days", "type": "main", "index": 0 }]]
+    },
+    "Remind everyone expiring in 7 days": {
+      "main": [[{ "node": "How many were told", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "description": "Writes a renewal reminder to every agent whose subscription ends inside seven days. See supabase/features/agent/agent_notices.sql and n8n/README.md. Safe to run daily: the database keys each reminder by the expiry date it is warning about, so a week of runs writes one row per agent."
+  }
+}

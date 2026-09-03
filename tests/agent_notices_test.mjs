@@ -183,7 +183,34 @@ try {
      "while the subscription state stays, because it is a fact and not a message",
      JSON.stringify(after.billing));
 
-  section("5. What is not on offer");
+  section("5. On a clock");
+
+  // The button is the right thing to have and the wrong thing to depend on:
+  // the point of a reminder is that it arrives on the Tuesday nobody was
+  // thinking about renewals. agent_notices_cron.sql schedules it.
+  const job = await runSql(
+    `select jobname, schedule, active, username, command from cron.job where jobname = 'remind-expiring-agents';`);
+  ok(job.length === 1 && job[0].active === true,
+     "the sweep is scheduled and active, so nobody has to remember to press anything",
+     JSON.stringify(job[0] || null));
+  ok(job.length === 1 && /agent_notices_remind\(7\)/.test(job[0].command),
+     "with the same seven days the console offers and the bell uses",
+     job[0] && job[0].command);
+
+  // pg_cron runs its jobs as `postgres`. If the function refused that identity
+  // the schedule above would fail silently every morning at 06:41, which is
+  // the worst possible way for this to be broken: everything looks wired.
+  await runSql(`delete from public.agent_messages where to_user_id = ${literal(AGENT)};
+                update public.agent_billing set paid_until = current_date + 4, active = true, status = 'paid'
+                 where agent_key = ${literal(KEY)}; select 1 as done;`);
+  const asCron = await runSql(`select public.agent_notices_remind(7) as n;`);
+  ok(Number(asCron[0].n) >= 1,
+     "and running it exactly as the job does, as postgres, reaches the agent",
+     JSON.stringify(asCron[0]));
+  ok((await titles(AGENT)).some((t) => /ends in 4 days/i.test(t)),
+     "with the reminder they will actually read", JSON.stringify(await titles(AGENT)));
+
+  section("6. What is not on offer");
 
   const forge = await threw(() => asUser(OTHER,
     `select public.agent_notice_send(${literal(AGENT)}, 'You owe us money', 'Pay this number', 'billing', 'urgent', null);`));

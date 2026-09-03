@@ -34,9 +34,11 @@ was about to happen.
      js/core/notify.js + notify-ui         js/pages/profile.js
 ```
 
-`supabase/features/agent/agent_notices.sql` — **APPLIED to production.**
-Proof: `node tests/agent_notices_test.mjs` (26 assertions, RLS on),
-`node tests/notices_ui_test.mjs` (15, browser).
+`supabase/features/agent/agent_notices.sql` and `agent_notices_cron.sql` —
+**both APPLIED to production.** Proof: `node tests/agent_notices_test.mjs`
+(30 assertions, RLS on, including that the schedule exists and that running it
+exactly as pg_cron does reaches the agent), `node tests/notices_ui_test.mjs`
+(15, browser).
 
 ---
 
@@ -58,6 +60,22 @@ to, so they are skipped rather than guessed at.
 `agent_notices_remind(days)` writes to everybody whose cover runs out inside
 the window. It cannot be a trigger, because nothing changes on the day a
 subscription starts running out.
+
+It runs **daily at 06:41 UTC** (09:41 in Tanzania, a working morning, because
+the message ends with "pay the admin" and an admin who is awake can answer the
+phone call it causes). `supabase/features/agent/agent_notices_cron.sql`
+schedules it with pg_cron, which this project already uses for three other
+jobs. `n8n/07_renewal_reminders.json` is the same job as an importable
+workflow, for an instance that wants it there instead; `n8n/README.md` says
+which one to turn off if you use it.
+
+**Who may run a sweep** is read from the JWT **role claim**, not from
+`current_user`, and that distinction is the whole correctness of the check:
+inside a `SECURITY DEFINER` function `current_user` is the function's owner, so
+testing it would return `postgres` for every caller alive and let any signed-in
+agent write to eighty accounts. No claim at all means the database itself
+(pg_cron, a migration, the SQL editor); `service_role` is a key only servers
+hold; an admin is an admin. Everything else is refused.
 
 **`dedupe_key` is what makes the sweep safe to run daily.** Each reminder is
 keyed by the expiry date it is warning about, so a week of runs writes one row

@@ -230,8 +230,26 @@ declare
   v_n    int := 0;
   r      record;
   v_id   uuid;
+  -- Parsed defensively: the setting is absent for a database-internal caller
+  -- and can be an empty string, and neither must raise inside a sweep.
+  v_role text := (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role');
 begin
-  if not (public.is_admin() or current_user = 'service_role') then
+  -- Who may run a sweep: an admin, or the SERVER itself.
+  --
+  -- The second half is what lets this be scheduled. It is read from the JWT
+  -- ROLE CLAIM and not from current_user, and that distinction is the whole
+  -- correctness of this check: inside a SECURITY DEFINER function current_user
+  -- is the function's OWNER, so testing it would return 'postgres' for every
+  -- caller alive and let any signed-in agent write to eighty accounts.
+  --
+  -- No claim at all means the caller is the database itself: pg_cron (which is
+  -- how this runs every morning, see agent_notices_cron.sql), a migration, or
+  -- the SQL editor. 'service_role' is a key held only by servers. Neither is an
+  -- end user and both already have the run of this database.
+  --
+  -- What stays refused is the case that matters: an `authenticated` or `anon`
+  -- session that is not an admin.
+  if not (public.is_admin() or v_role is null or v_role = 'service_role') then
     raise exception 'Admins only';
   end if;
 
