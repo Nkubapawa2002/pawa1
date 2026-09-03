@@ -472,6 +472,11 @@
     }
     .ah-sg:hover { border-color: var(--c-brand); color: var(--c-brand); border-style: solid; }
     .ah-sg small { display: block; font-weight: var(--fw-normal); font-size: var(--text-xs); opacity: .75; }
+    /* Room kinds carry a hint line, which makes each chip as wide as its
+       sentence and stacks seven of them down the page. Two to a row instead:
+       the hint is what tells a single from a self-contained, so it stays, and
+       the column keeps the list to something a thumb can take in at once. */
+    #ahRoomSuggest .ah-sg { flex: 1 1 calc(50% - var(--space-2)); min-width: 148px; }
 
     /* ---- Rooms ---- */
     .ah-rooms { display: flex; flex-direction: column; gap: var(--space-3); }
@@ -503,6 +508,13 @@
     .ah-band__q {
       font-size: var(--text-xs); font-weight: var(--fw-bold); color: var(--c-text-muted);
       text-transform: uppercase; letter-spacing: .4px;
+    }
+    /* "What is this room like?" is not a field label among field labels: it is
+       the question clients decide on, and it is the reason this card is worth
+       filling in at all. It gets a heading rather than a caption. */
+    .ah-band__q--lead {
+      font-size: var(--text-base); font-weight: var(--fw-bold);
+      color: var(--c-text); text-transform: none; letter-spacing: 0;
     }
     .ah-band__row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
     .ah-band__b {
@@ -566,11 +578,33 @@
       cursor: pointer; font: inherit; font-size: var(--text-md); font-weight: var(--fw-bold);
       border: 1px solid var(--c-brand); background: var(--c-brand); color: var(--c-brand-on);
     }
-    .ah-room-check {
-      display: flex; flex-direction: row !important; align-items: center; gap: var(--space-2);
-      font-size: var(--text-sm); cursor: pointer; align-self: end; padding-bottom: 9px;
+    /* ---- "There is more, if you want it" -----------------------------
+       Every long catalogue on this page now shows the handful that answer
+       most listings and folds the remainder behind one line. The fold is a
+       <details>, so it is keyboard-reachable and searchable by the browser
+       without a line of script. Used by the room-kind chips and by the room
+       characteristics; the same look in both places, on purpose. */
+    .ah-more { margin-top: var(--space-1); }
+    .ah-more > summary {
+      display: flex; align-items: center; gap: var(--space-2);
+      cursor: pointer; list-style: none; width: fit-content;
+      padding: var(--space-2) var(--space-3);
+      border: 1px dashed var(--c-border); border-radius: var(--radius-pill);
+      font-size: var(--text-xs); font-weight: var(--fw-bold);
+      text-transform: uppercase; letter-spacing: .4px; color: var(--c-text-muted);
     }
-    .ah-room-check input { width: 18px !important; height: 18px; flex: 0 0 auto; accent-color: var(--c-brand); }
+    .ah-more > summary::-webkit-details-marker { display: none; }
+    .ah-more > summary:hover { border-style: solid; border-color: var(--c-brand); color: var(--c-brand); }
+    .ah-more > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .ah-more__chev svg { width: 14px; height: 14px; display: block; transition: transform var(--dur-fast) var(--ease); }
+    .ah-more[open] > summary { color: var(--c-brand); border-color: var(--c-brand); border-style: solid; }
+    .ah-more[open] .ah-more__chev svg { transform: rotate(180deg); }
+    .ah-more__body { padding-top: var(--space-3); }
+    /* Inside the room-kind row, which is a flex line, the fold takes a row of
+       its own rather than sitting in the middle of the chips. */
+    .ah-more--inline { flex: 1 1 100%; margin: 0; }
+    .ah-more--inline .ah-more__body { margin-bottom: 0; }
+
     .ah-x {
       border: 0; background: transparent; cursor: pointer; color: var(--c-text-muted);
       font-size: var(--text-md); line-height: 1; padding: 2px var(--space-2);
@@ -1014,6 +1048,7 @@
 
             <div class="ap-sub">
               <h4 data-i18n="ah_section_size_sub">The property as a whole</h4>
+              <p class="ap-hint" style="margin-bottom:var(--space-3)" data-i18n="ah_section_size_hint">Only if the whole property is the thing being let or sold. A plot you are letting room by room can leave these at zero.</p>
               <div class="ap-grid-3">
                 <div class="ap-field">
                   <label for="ahBedrooms" data-i18n="ah_field_bedrooms">Bedrooms</label>

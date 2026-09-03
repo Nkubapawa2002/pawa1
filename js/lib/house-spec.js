@@ -57,7 +57,7 @@
     { key: "single",          en: "Single room",            sw: "Chumba kimoja",
       hint: { en: "Shared bathroom and kitchen", sw: "Bafu na jiko la kushirikiana" } },
     { key: "master",          en: "Master room",            sw: "Chumba cha master",
-      hint: { en: "Self-contained — its own bathroom", sw: "Self — bafu lake ndani" } },
+      hint: { en: "Self-contained, its own bathroom", sw: "Self, bafu lake ndani" } },
     { key: "self_contained",  en: "Self-contained room",    sw: "Chumba self-contained",
       hint: { en: "Own bathroom and cooking space", sw: "Bafu na sehemu ya kupikia" } },
     { key: "bedsitter",       en: "Bedsitter",              sw: "Bedsita",
@@ -69,7 +69,7 @@
     { key: "three_bedroom",   en: "Three-bedroom house",    sw: "Nyumba ya vyumba vitatu" },
     { key: "whole_house",     en: "Whole house",            sw: "Nyumba nzima" },
     { key: "servant_quarter", en: "Servant quarter",        sw: "Chumba cha mfanyakazi",
-      hint: { en: "The outside room — \"boy's quarter\"", sw: "Chumba cha nje" } },
+      hint: { en: "The outside room, the \"boy's quarter\"", sw: "Chumba cha nje" } },
     { key: "shop_frame",      en: "Shop / frame",           sw: "Frem / duka" },
     { key: "kiosk",           en: "Kiosk / stall",          sw: "Kibanda / genge" },
     { key: "office_suite",    en: "Office suite",           sw: "Ofisi" },
@@ -83,6 +83,16 @@
 
   var ROOM_BY_KEY = {};
   ROOM_KINDS.forEach(function (r) { ROOM_BY_KEY[r.key] = r; });
+
+  // Nineteen kinds offered at once is a wall, and a wall is read as a form to
+  // be completed rather than a shortcut to be taken. These seven cover the
+  // overwhelming majority of what is actually posted, residential and
+  // business; the other twelve are one tap behind "More kinds", and the
+  // free-text box has never refused anything either way.
+  var TOP_ROOM_KINDS = [
+    "single", "master", "self_contained", "bedsitter",
+    "one_bedroom", "whole_house", "shop_frame",
+  ];
 
   // How often the money changes hands. `total` is a sale or a one-off.
   var PERIODS = [
@@ -205,6 +215,20 @@
     g.items.forEach(function (it) { FEATURE_BY_KEY[it.key] = it; });
   });
 
+  // The eight that settle a viewing over the phone. Thirty-three chips under
+  // five headings is the whole catalogue laid out flat, and an agent meeting
+  // that on every room they add stops reading it and taps nothing. These eight
+  // are offered first, unheaded; the full catalogue is one tap behind them and
+  // nothing has been taken away.
+  //
+  // Chosen for what a Tanzanian renter asks before they agree to travel: where
+  // the bathroom is, whether the floor and ceiling are finished, whether water
+  // and power arrive at the room itself, and whether the door is their own.
+  var TOP_FEATURES = [
+    "bath_inside", "bath_shared", "tiles", "ceiling",
+    "tap_inside", "own_meter", "own_entrance", "kitchen_inside",
+  ];
+
   /**
    * A stored characteristic is either a catalogue key or free text the agent
    * typed. Both are returned as a plain label, so nothing downstream has to
@@ -274,11 +298,13 @@
     size_q:      { en: "How big is it?",            sw: "Ni kubwa kiasi gani?" },
     size_help:   { en: "Pick the bracket. The photos show the rest.",
                    sw: "Chagua kadirio. Picha zinaonyesha mengine." },
-    feats_q:     { en: "What does it have?",        sw: "Ina nini?" },
-    feats_help:  { en: "Tap what fits. Anything not here, type it. Your words are kept as written.",
-                   sw: "Gusa vinavyofaa. Kisichopo, kiandike. Maneno yako yanahifadhiwa." },
+    feats_q:     { en: "What is this room like?",    sw: "Chumba hiki kikoje?" },
+    feats_help:  { en: "This is what clients decide on. Tap what fits, then add anything of your own.",
+                   sw: "Hiki ndicho wateja huamulia. Gusa kinachofaa, kisha ongeza chako." },
     feats_add:   { en: "Add your own…",           sw: "Ongeza chako…" },
     feats_none:  { en: "Nothing chosen yet",        sw: "Hakuna kilichochaguliwa" },
+    feats_more:  { en: "More characteristics",      sw: "Sifa zaidi" },
+    kinds_more:  { en: "More kinds",                sw: "Aina zaidi" },
     remove:      { en: "Remove",                    sw: "Ondoa" },
 
     // The cost chart's own words. Here rather than in js/core/i18n.js for the
@@ -366,7 +392,7 @@
           { en: "Charcoal not allowed", sw: "Mkaa hauruhusiwi" }] },
         { label: { en: "Gate closes", sw: "Lango hufungwa" }, values: [
           { en: "22:00", sw: "Saa 4 usiku" }, { en: "23:00", sw: "Saa 5 usiku" },
-          { en: "Never — 24-hour guard", sw: "Halifungwi — mlinzi saa 24" }] },
+          { en: "Never, a 24-hour guard", sw: "Halifungwi, mlinzi saa 24" }] },
         { label: { en: "Sub-letting", sw: "Kupangisha tena" }, values: [
           { en: "Not allowed", sw: "Hairuhusiwi" },
           { en: "Allowed with consent", sw: "Kwa ruhusa ya mwenye nyumba" }] },
@@ -388,8 +414,8 @@
       icon: "M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z",
       title: { en: "In this area", sw: "Katika eneo hili" },
       blurb: {
-        en: "What the neighbourhood gives you — water, power, the road, transport. The map cannot say these. You can.",
-        sw: "Eneo linatoa nini — maji, umeme, barabara, usafiri. Ramani haiwezi kusema haya; wewe unaweza.",
+        en: "What the neighbourhood gives you: water, power, the road, transport. The map cannot say these. You can.",
+        sw: "Eneo linatoa nini: maji, umeme, barabara, usafiri. Ramani haiwezi kusema haya; wewe unaweza.",
       },
       items: [
         { label: { en: "Water", sw: "Maji" }, values: [
@@ -403,7 +429,7 @@
           { en: "Solar backup", sw: "Sola ya akiba" }] },
         { label: { en: "Road to the gate", sw: "Barabara hadi langoni" }, values: [
           { en: "Tarmac", sw: "Lami" }, { en: "Graded murram", sw: "Changarawe" },
-          { en: "Sandy — hard in the rain", sw: "Mchanga — ngumu mvua ikinyesha" }] },
+          { en: "Sandy, hard in the rain", sw: "Mchanga, ngumu mvua ikinyesha" }] },
         { label: { en: "Flooding", sw: "Mafuriko" }, values: [
           { en: "Never floods", sw: "Hayajawahi kutokea" },
           { en: "Floods in heavy rain", sw: "Hutokea mvua kubwa ikinyesha" }] },
@@ -455,7 +481,7 @@
           { en: "Common areas, twice a week", sw: "Maeneo ya pamoja, mara mbili kwa wiki" }] },
         { label: { en: "Internet", sw: "Intaneti" }, values: [
           { en: "WiFi included", sw: "WiFi imejumuishwa" },
-          { en: "Fibre available — you pay the provider", sw: "Fiber ipo — unalipa mwenyewe" }] },
+          { en: "Fibre available, you pay the provider", sw: "Fiber ipo, unalipa mwenyewe" }] },
         { label: { en: "Water pumping", sw: "Kusukuma maji" }, values: [
           { en: "Tank filled by the landlord", sw: "Tangi hujazwa na mwenye nyumba" }] },
         { label: { en: "Caretaker", sw: "Mtunzaji" }, values: [
@@ -463,7 +489,7 @@
         { label: { en: "Parking", sw: "Kuegesha" }, values: [
           { en: "One car, included", sw: "Gari moja, imejumuishwa" }] },
         { label: { en: "Generator", sw: "Jenereta" }, values: [
-          { en: "Shared — tenants buy the fuel", sw: "Ya pamoja — wapangaji hununua mafuta" }] },
+          { en: "Shared, tenants buy the fuel", sw: "Ya pamoja, wapangaji hununua mafuta" }] },
         { label: { en: "Laundry", sw: "Kufua" }, values: [
           { en: "Drying lines on the roof", sw: "Kamba za kuanika juu ya paa" }] },
       ],
@@ -796,11 +822,14 @@
 
   window.HouseSpec = {
     ROOM_KINDS: ROOM_KINDS,
+    TOP_ROOM_KINDS: TOP_ROOM_KINDS,
     PERIODS: PERIODS,
     GROUPS: GROUPS,
     SIZE_BANDS: SIZE_BANDS,
     SIZE_PHOTO_NOTE: SIZE_PHOTO_NOTE,
     FEATURE_GROUPS: FEATURE_GROUPS,
+    TOP_FEATURES: TOP_FEATURES,
+    feature: function (key) { return FEATURE_BY_KEY[key] || null; },
     featureLabel: featureLabel,
     featureLabels: function (list) {
       return normalizeFeatures(list).map(featureLabel).filter(Boolean);

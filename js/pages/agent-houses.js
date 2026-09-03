@@ -2174,30 +2174,39 @@ create policy "house-photos upload" on storage.objects for insert
   // Each row is a self-contained DOM node (label + amount + billing + remove);
   // we scrape the rows at save time, so there's no separate state to keep in
   // sync on every keystroke. `billing` covers the common Tanzanian cases.
+  // The four ways a bill is charged. The VALUE is what is stored and must not
+  // change; only the label in front of it is language.
   const COST_BILLING = [
-    { value: "month",    label: "per month" },
-    { value: "metered",  label: "metered (pay as you use)" },
-    { value: "included", label: "included in rent" },
-    { value: "oneoff",   label: "one-time" },
+    { value: "month",    i18n: "ah_cost_bill_month" },
+    { value: "metered",  i18n: "ah_cost_bill_metered" },
+    { value: "included", i18n: "ah_cost_bill_included" },
+    { value: "oneoff",   i18n: "ah_cost_bill_oneoff" },
   ];
-  // Common bills offered as one-tap chips (label only — the agent fills amounts).
-  const COST_PRESETS = ["Electricity", "Water", "Garbage", "Security", "Internet", "Service charge"];
+  // Six common bills as one-tap chips; the agent fills in the amounts, and the
+  // "Add a cost" button below them takes anything these six do not cover.
+  //
+  // The chip writes the label in the language the agent is working in, because
+  // it becomes their own words on their own listing. js/lib/house-ui.js reads
+  // those words in both languages already, so "Umeme" gets the same icon and
+  // the same treatment as "Electricity".
+  const COST_PRESETS = [
+    "ah_cost_p_electricity", "ah_cost_p_water", "ah_cost_p_garbage",
+    "ah_cost_p_security", "ah_cost_p_internet", "ah_cost_p_service",
+  ];
 
   function addCostRow(cost) {
     const c = cost || {};
     const row = document.createElement("div");
     row.className = "ah-cost-row";
-    row.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;";
     const billingOpts = COST_BILLING.map(b =>
-      `<option value="${b.value}" ${c.billing === b.value ? "selected" : ""}>${b.label}</option>`).join("");
+      `<option value="${b.value}" ${c.billing === b.value ? "selected" : ""}>${esc(tr(b.i18n))}</option>`).join("");
     row.innerHTML = `
-      <input type="text" class="ah-cost-label" maxlength="40" placeholder="Bill name — e.g. Electricity"
-             value="${esc(c.label || "")}" style="flex:1 1 160px;min-width:0;padding:9px 12px;border:1px solid #d0d7de;border-radius:8px;font-size:.92rem;">
-      <input type="number" class="ah-cost-amount" min="0" step="1000" placeholder="TZS (optional)"
-             value="${c.amount != null && c.amount !== "" ? Number(c.amount) : ""}" style="flex:0 1 130px;min-width:0;padding:9px 12px;border:1px solid #d0d7de;border-radius:8px;font-size:.92rem;">
-      <select class="ah-cost-billing" style="flex:0 1 150px;min-width:0;padding:9px 10px;border:1px solid #d0d7de;border-radius:8px;font-size:.9rem;">${billingOpts}</select>
-      <button type="button" class="ah-cost-x" aria-label="Remove cost"
-              style="border:0;background:transparent;cursor:pointer;font-weight:700;font-size:1.2rem;color:#888;line-height:1;padding:4px 8px;">×</button>
+      <input type="text" class="ah-cost-label" maxlength="40" placeholder="${esc(tr("ah_cost_label_ph"))}"
+             value="${esc(c.label || "")}">
+      <input type="number" class="ah-cost-amount" min="0" step="1000" placeholder="${esc(tr("ah_cost_amount_ph"))}"
+             value="${c.amount != null && c.amount !== "" ? Number(c.amount) : ""}">
+      <select class="ah-cost-billing">${billingOpts}</select>
+      <button type="button" class="ah-cost-x ah-x" aria-label="${esc(tr("ah_cost_remove"))}">×</button>
     `;
     row.querySelector(".ah-cost-x").addEventListener("click", () => row.remove());
     fCostsList.appendChild(row);
@@ -2223,7 +2232,8 @@ create policy "house-photos upload" on storage.objects for insert
       Array.from(fCostsList.querySelectorAll(".ah-cost-label"))
         .map(i => i.value.trim().toLowerCase()).filter(Boolean));
     fCostQuick.innerHTML = "";
-    for (const name of COST_PRESETS) {
+    for (const key of COST_PRESETS) {
+      const name = tr(key);
       if (existing.has(name.toLowerCase())) continue;
       const chip = document.createElement("button");
       chip.type = "button";
@@ -2372,6 +2382,21 @@ create policy "house-photos upload" on storage.objects for insert
     return hit ? hit.key : low.slice(0, 40);
   }
 
+  /**
+   * The eight characteristics offered without a heading above them.
+   *
+   * The rest of the catalogue is behind "More characteristics" on the same
+   * card, and the free-text box beside these is the real answer to anything
+   * neither list has heard of. Nothing is gone; only the wall is.
+   */
+  function topFeatureChips() {
+    return HS.TOP_FEATURES.map(key => {
+      const it = HS.feature(key);
+      if (!it) return "";
+      return `<button type="button" class="ah-fg" data-feat="${esc(key)}">+ ${esc(HS.say(it))}</button>`;
+    }).join("");
+  }
+
   function addRoomRow(room) {
     if (!fRoomsList || !HS) return null;
     const r = room || {};
@@ -2404,10 +2429,6 @@ create policy "house-photos upload" on storage.objects for insert
           <input class="ah-r-vacant" type="number" min="0" max="99" step="1" placeholder="—"
                  value="${r.vacant == null ? "" : Number(r.vacant)}">
         </label>
-        <label class="ah-room-check">
-          <input class="ah-r-ensuite" type="checkbox"${r.ensuite ? " checked" : ""}>
-          <span>${esc(tr("ah_room_ensuite"))}</span>
-        </label>
         <div class="ah-wide ah-band">
           <span class="ah-band__q">${esc(HS.t("size_q"))}</span>
           <div class="ah-band__row" role="group">
@@ -2421,29 +2442,40 @@ create policy "house-photos upload" on storage.objects for insert
           <p class="ah-band__help">${esc(HS.t("size_help"))}</p>
         </div>
         <div class="ah-wide ah-feats">
-          <span class="ah-band__q">${esc(HS.t("feats_q"))}</span>
+          <span class="ah-band__q ah-band__q--lead">${esc(HS.t("feats_q"))}</span>
+          <p class="ah-band__help">${esc(HS.t("feats_help"))}</p>
           <ul class="ah-feats__on" data-empty="${esc(HS.t("feats_none"))}"></ul>
-          <div class="ah-feats__pick">
-            ${HS.FEATURE_GROUPS.map(g => `
-              <div class="ah-feats__grp">
-                <span class="ah-feats__gt">${esc(HS.say(g.title))}</span>
-                <div class="ah-feats__chips">
-                  ${g.items.map(it => `
-                    <button type="button" class="ah-fg" data-feat="${esc(it.key)}">+ ${esc(HS.say(it))}</button>`).join("")}
-                </div>
-              </div>`).join("")}
+          <div class="ah-feats__chips">
+            ${topFeatureChips()}
           </div>
           <div class="ah-feats__own">
             <input class="ah-r-featown" type="text" maxlength="60"
                    placeholder="${esc(HS.t("feats_add"))}">
-            <button type="button" class="ah-feats__addb">+</button>
+            <button type="button" class="ah-feats__addb" aria-label="${esc(HS.t("feats_add"))}">+</button>
           </div>
-          <p class="ah-band__help">${esc(HS.t("feats_help"))}</p>
+          <details class="ah-more">
+            <summary>
+              <span>${esc(HS.t("feats_more"))}</span>
+              <span class="ah-more__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </summary>
+            <div class="ah-more__body">
+              ${HS.FEATURE_GROUPS.map(g => {
+                const rest = g.items.filter(it => HS.TOP_FEATURES.indexOf(it.key) < 0);
+                if (!rest.length) return "";
+                return `
+                  <div class="ah-feats__grp">
+                    <span class="ah-feats__gt">${esc(HS.say(g.title))}</span>
+                    <div class="ah-feats__chips">
+                      ${rest.map(it => `
+                        <button type="button" class="ah-fg" data-feat="${esc(it.key)}">+ ${esc(HS.say(it))}</button>`).join("")}
+                    </div>
+                  </div>`;
+              }).join("")}
+            </div>
+          </details>
         </div>
-        <label class="ah-wide">${esc(tr("ah_room_traits"))}
-          <input class="ah-r-traits" type="text" maxlength="200"
-                 placeholder="${esc(tr("ah_room_traits_ph"))}" value="${esc(r.traits || "")}">
-        </label>
         <label class="ah-wide">${esc(tr("ah_room_note"))}
           <input class="ah-r-note" type="text" maxlength="200"
                  placeholder="${esc(tr("ah_room_note_ph"))}" value="${esc(r.note || "")}">
@@ -2476,11 +2508,31 @@ create policy "house-photos upload" on storage.objects for insert
         size:    n.dataset.sizeSqm === "" ? null : Number(n.dataset.sizeSqm),
         sizeBand: on ? on.dataset.band : null,
         features: readFeatures(n),
-        ensuite: n.querySelector(".ah-r-ensuite").checked,
-        traits:  val(".ah-r-traits").trim(),
+        // "Own bathroom" was a checkbox sitting one line above a chip that
+        // said the same thing, so the agent answered the same question twice
+        // and could answer it two different ways. The chip is the answer now
+        // and the boolean is read off it, which is also what the detail page
+        // has always drawn from.
+        ensuite: isEnsuite(n),
+        // The free-text "what is this room like?" box was a second, unstructured
+        // copy of the characteristics list. It is gone from the form, but a
+        // listing saved with one keeps it: the text is parked on the node at
+        // build time and written straight back out, the same way the old
+        // square-metre figure is.
+        traits:  n.dataset.traits || "",
         note:    val(".ah-r-note").trim(),
       };
-    }).filter(r => r.kind || r.price != null || r.traits || r.note);
+    }).filter(r => r.kind || r.price != null || r.features.length || r.traits || r.note);
+  }
+
+  /**
+   * A room is self-contained when it says so.
+   *
+   * `master` and `self_contained` mean it by definition, and both add the
+   * chip when they are added, so this reads one place rather than two.
+   */
+  function isEnsuite(node) {
+    return readFeatures(node).some(f => f === "bath_inside" || f === "toilet_inside");
   }
 
   // ---- the size bracket and the characteristics, per room row -------------
@@ -2525,8 +2577,11 @@ create policy "house-photos upload" on storage.objects for insert
   }
 
   function wireRoomExtras(node, r) {
-    // Park any existing square-metre figure; see collectRooms().
+    // Park the two facts that no longer have a box of their own; see
+    // collectRooms(). Both survive an edit untouched rather than being
+    // silently deleted by a form that stopped asking about them.
     node.dataset.sizeSqm = r && r.size != null ? String(Number(r.size)) : "";
+    node.dataset.traits  = r && r.traits ? String(r.traits) : "";
 
     node.querySelectorAll(".ah-band__b").forEach(b => {
       b.addEventListener("click", () => {
@@ -2552,16 +2607,30 @@ create policy "house-photos upload" on storage.objects for insert
     });
 
     (Array.isArray(r && r.features) ? r.features : []).forEach(f => addFeature(node, f));
+    // A listing saved before the checkbox became a chip carries `ensuite` and
+    // no characteristic to match it. Restoring it as the chip keeps the fact
+    // and puts it where the form now asks the question.
+    if (r && r.ensuite && !isEnsuite(node)) addFeature(node, "bath_inside");
     drawChosenFeatures(node);
   }
 
-  /** One-tap chips for every kind not already on the list. */
+  /**
+   * One-tap chips for the kinds not already on the list.
+   *
+   * Seven are offered; the other twelve sit behind "More kinds" on the same
+   * row. Nineteen at once read as a form to be worked through rather than a
+   * shortcut, which is the opposite of what a suggestion is for.
+   */
   function renderRoomSuggest() {
     if (!fRoomSuggest || !HS) return;
     const used = new Set(collectRooms().map(r => r.kind));
+    // The list is rebuilt whenever a room is added or removed. An agent who
+    // opened "More kinds" to reach a godown is usually about to add a second
+    // one, so the fold does not slam shut behind them.
+    const wasOpen = !!fRoomSuggest.querySelector("details[open]");
     fRoomSuggest.innerHTML = `<p class="ah-suggest-lead">${esc(tr("ah_room_suggest_lead"))}</p>`;
-    HS.ROOM_KINDS.forEach(k => {
-      if (used.has(k.key)) return;
+
+    const chip = (k) => {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "ah-sg";
@@ -2569,13 +2638,34 @@ create policy "house-photos upload" on storage.objects for insert
       b.addEventListener("click", () => addRoomRow({
         kind: k.key,
         // A master and a self-contained room have their own bathroom by
-        // definition — pre-ticking it saves the tap that says so.
-        ensuite: k.key === "master" || k.key === "self_contained",
+        // definition, so the chip that says so is already on the card.
+        features: (k.key === "master" || k.key === "self_contained") ? ["bath_inside"] : [],
         period: fListing && fListing.value === "sale" ? "total" : "month",
         count: 1,
       }));
-      fRoomSuggest.appendChild(b);
-    });
+      return b;
+    };
+
+    const isTop = (k) => HS.TOP_ROOM_KINDS.indexOf(k.key) >= 0;
+    const free = HS.ROOM_KINDS.filter(k => !used.has(k.key));
+    free.filter(isTop).forEach(k => fRoomSuggest.appendChild(chip(k)));
+
+    const rest = free.filter(k => !isTop(k));
+    if (!rest.length) return;
+    const more = document.createElement("details");
+    more.className = "ah-more ah-more--inline";
+    more.open = wasOpen;
+    more.innerHTML = `
+      <summary>
+        <span>${esc(HS.t("kinds_more"))}</span>
+        <span class="ah-more__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+      </summary>
+      <div class="ah-more__body ah-suggest"></div>`;
+    const body = more.querySelector(".ah-more__body");
+    rest.forEach(k => body.appendChild(chip(k)));
+    fRoomSuggest.appendChild(more);
   }
 
   fAddRoomBtn?.addEventListener("click", () => addRoomRow({
