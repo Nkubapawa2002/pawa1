@@ -345,7 +345,16 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
 .ap-note strong { color: var(--c-text); }
 .ap-note__ic { flex: 0 0 auto; display: flex; padding-top: 2px; color: var(--c-brand); }
 .ap-note__ic svg { width: 18px; height: 18px; }
-.ap-note--warn { border-left-color: var(--c-accent); }
+/* It was the loudest thing on the screen and the least important: a gold bar
+   above the first field, before an agent had done anything. It keeps the
+   accent as a hairline rather than a slab, because "this expires" is a fact
+   worth reading once, not a warning. */
+.ap-note--warn {
+  border-left-color: var(--c-accent);
+  border-left-width: 2px;
+  background: transparent;
+}
+.ap-note--warn .ap-note__ic { color: var(--c-accent); opacity: .8; }
 .ap-note--warn .ap-note__ic { color: var(--c-accent); }
 
 .ap-msg {
@@ -507,7 +516,22 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
   scrollbar-width: none;
 }
 .ap-rail__list::-webkit-scrollbar { display: none; }
+/* A chip cut in half at the right edge reads as a broken layout, not as "there
+   is more". The mask fades the last few millimetres so a half-visible chip is
+   obviously the next one rather than a mistake, and it is only applied while
+   the strip actually overflows: on a wide screen a fade over nothing looks
+   like a rendering fault of its own. */
+@supports (mask-image: linear-gradient(#000, #000)) {
+  .ap-rail__list {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+  }
+}
 .ap-rail__list li { flex: 0 0 auto; scroll-snap-align: start; }
+/* And the chip itself never breaks mid-word. Without this the third chip on a
+   390px screen renders as "Price and", which reads as a layout fault rather
+   than as a label that continues off-screen. */
+.ap-rail a { white-space: nowrap; }
 .ap-rail a {
   display: flex; align-items: center; gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
@@ -719,9 +743,14 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
 .ap-tile__x svg { width: 14px; height: 14px; }
 .ap-tile__x:hover { background: var(--c-danger); }
 
+/* A ROW, not a tower. Stacked icon over label over hint at space-5 padding,
+   twice over for photos and video, was the whole of the first screen on a
+   390px phone: two buttons and nothing else. Side by side it is a third of the
+   height and reads as the same control. */
 .ap-drop {
-  display: flex; flex-direction: column; align-items: center; gap: var(--space-1);
-  padding: var(--space-5);
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: var(--space-1) var(--space-3);
+  padding: var(--space-4) var(--space-3);
   border: 1px dashed var(--c-border);
   border-radius: var(--radius);
   background: var(--c-bg-elev);
@@ -731,9 +760,12 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .ap-drop:hover { border-color: var(--c-brand); background: var(--c-brand-faint); }
-.ap-drop svg { width: 26px; height: 26px; color: var(--c-brand); }
+.ap-drop svg { width: 22px; height: 22px; color: var(--c-brand); flex: 0 0 auto; }
 .ap-drop span { font-weight: var(--fw-semibold); font-size: var(--text-sm); }
-.ap-drop small { font-size: var(--text-xs); color: var(--c-text-muted); }
+/* The format line is a footnote, so it goes on its own line under the label
+   rather than widening the button, and it is never the reason this control is
+   two lines tall on its own. */
+.ap-drop small { flex-basis: 100%; text-align: center; font-size: var(--text-xs); color: var(--c-text-muted); }
 .ap-drop.is-full { opacity: .5; cursor: not-allowed; border-style: solid; }
 
 /* ---------------------------------------------------------------------------
