@@ -746,7 +746,16 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
   border-radius: var(--radius);
   overflow: hidden;
 }
-.ap-map > .ap-map__canvas { position: absolute; inset: 0; }
+/* NOT `.ap-map > .ap-map__canvas`. That child selector is why the pin map on
+   agent-houses.html was blank: its canvas sits inside `.ah-pin-picker`, which
+   is a taller wrapper of its own, so the rule never matched, the div got no
+   position and no inset, and MapLibre mounted into something 0px high and drew
+   nothing. Nothing threw and no tile was ever requested, which is why it looked
+   like a dead provider rather than a dead rule.
+   The class name already says what it is: the canvas that fills its map
+   wrapper. Every wrapper that uses it is position: relative with a real
+   height, so it does not need to know which one it is inside. */
+.ap-map__canvas { position: absolute; inset: 0; }
 .ap-map__bar {
   position: absolute; left: var(--space-3); right: var(--space-3); bottom: var(--space-3);
   z-index: 10;
