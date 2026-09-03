@@ -121,23 +121,29 @@ window.safeUrl = function (u) {
   const KCACHE_PREFIX = "pawa_cache:";
   const mem = new Map();
 
-  function kcacheGet(key) {
-    // Memory first
+  // Reads the ENTRY, expired or not, and lets the caller decide. kcacheGet()
+  // below keeps the old "expired is a miss" contract; the stale-while-
+  // revalidate path needs to see the expired value, which is why the eviction
+  // no longer happens inside the read. An entry that is merely expired is
+  // still an answer; it is only rubbish once it is past the hard limit.
+  function kcacheEntry(key) {
     const hit = mem.get(key);
-    if (hit && hit.exp > Date.now()) return hit.v;
-    if (hit) mem.delete(key);
-    // Then storage
+    if (hit) return hit;
     try {
       const raw = localStorage.getItem(KCACHE_PREFIX + key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!parsed || parsed.exp <= Date.now()) {
-        localStorage.removeItem(KCACHE_PREFIX + key);
-        return null;
-      }
+      if (!parsed || typeof parsed.exp !== "number") return null;
       mem.set(key, parsed);   // promote to memory
-      return parsed.v;
+      return parsed;
     } catch { return null; }
+  }
+
+  function kcacheGet(key) {
+    const e = kcacheEntry(key);
+    if (!e) return null;
+    if (e.exp > Date.now()) return e.v;
+    return null;
   }
 
   function kcacheSet(key, val, ttlMs) {
@@ -150,12 +156,17 @@ window.safeUrl = function (u) {
     const list = Array.isArray(keys) ? keys : [keys];
     for (const k of list) {
       mem.delete(k);
+      // A flight started BEFORE the write would otherwise land afterwards and
+      // put the pre-write value back. Dropping it here means the next reader
+      // starts a new request instead of joining a stale one.
+      inflight.delete(k);
       try { localStorage.removeItem(KCACHE_PREFIX + k); } catch {}
     }
   }
 
   function kcacheClear() {
     mem.clear();
+    inflight.clear();
     try {
       Object.keys(localStorage)
         .filter(k => k.startsWith(KCACHE_PREFIX))
@@ -163,16 +174,72 @@ window.safeUrl = function (u) {
     } catch {}
   }
 
-  // Wraps an async fetcher with cache. Pass {fresh: true} on the caller to
-  // force a network round-trip and refresh the cache.
+  // ---- the request layer --------------------------------------------------
+  //
+  // Three things sit between a caller and the network, and each exists because
+  // of a measured fault rather than a theory.
+  //
+  // 1. SINGLE FLIGHT. The old cached() read the cache, missed, and awaited the
+  //    fetcher. Nothing is written until that fetcher RESOLVES, so two
+  //    components asking the same question in the same tick both missed and
+  //    both went to the network. Measured on index.html: the identical houses
+  //    query, twice, plus four /rest/v1/houses calls on one page load. Every
+  //    caller now joins the promise that is already running, so N callers cost
+  //    one request. This is the whole fix for the stampede and it cannot serve
+  //    anything stale: everybody gets the same fresh answer.
+  //
+  // 2. STALE WHILE REVALIDATE. A miss used to block the UI on the network. An
+  //    entry that is past its TTL but inside HARD_STALE is returned at once and
+  //    refreshed in the background, so the second visit to a page paints
+  //    immediately and corrects itself. Past HARD_STALE it is not served: a
+  //    listing from yesterday is worse than a spinner.
+  //
+  // 3. FAILURES ARE NOT CACHED. A rejected fetch clears the flight and leaves
+  //    the old value alone, so the next caller retries rather than inheriting
+  //    an error for the length of a TTL. Every waiter on that flight rejects
+  //    together, which is what they would have done individually anyway.
+  //
+  // The map is keyed by the same string the cache is, so "the request that is
+  // running" and "the value that was stored" can never drift apart.
+  const inflight = new Map();
+
+  // How far past its TTL an entry may still be SERVED while the refresh runs.
+  // Deliberately a multiple of the TTL rather than a constant: a key that is
+  // allowed to be two minutes old can be served at four, and one that is
+  // allowed to be a day old is not suddenly served at a day plus two minutes.
+  const HARD_STALE = 2;
+
+  function flight(key, ttlMs, fetcher) {
+    const running = inflight.get(key);
+    if (running) return running;
+    const p = Promise.resolve()
+      .then(fetcher)
+      .then((val) => { kcacheSet(key, val, ttlMs); return val; })
+      .finally(() => { inflight.delete(key); });
+    inflight.set(key, p);
+    return p;
+  }
+
+  // Wraps an async fetcher with cache. {fresh: true} skips the READ but still
+  // joins the flight, so three components all asking for fresh data at once is
+  // still one request. {swr: false} opts out of being served a stale value.
   async function cached(key, ttlMs, fetcher, opts = {}) {
     if (!opts.fresh) {
       const hit = kcacheGet(key);
       if (hit !== null) return hit;
+
+      if (opts.swr !== false) {
+        const e = kcacheEntry(key);
+        if (e && Date.now() < e.exp + ttlMs * HARD_STALE) {
+          // Kick the refresh off and DO NOT await it. The catch is required:
+          // an unhandled rejection here would be a background refresh taking
+          // down a page that already had its answer.
+          flight(key, ttlMs, fetcher).catch(() => {});
+          return e.v;
+        }
+      }
     }
-    const val = await fetcher();
-    kcacheSet(key, val, ttlMs);
-    return val;
+    return flight(key, ttlMs, fetcher);
   }
 
   // TTLs — tune here, not at every call site.

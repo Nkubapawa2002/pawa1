@@ -131,7 +131,10 @@ async function openPage(browser, url, opts = {}) {
         const canned = opts.route(u, req);
         if (canned) return req.respond(canned);
       }
-      if (/supabase\.co|locationiq|maptiler|mapbox|tile|fonts\.(googleapis|gstatic)/i.test(u)) {
+      // explore-roads.js reaches Overpass, OSRM and Valhalla for real road
+      // geometry. Unstubbed they do not fail fast, they TIME OUT, which shows
+      // up as a console error on a page that is otherwise fine.
+      if (/supabase\.co|locationiq|maptiler|mapbox|tile|fonts\.(googleapis|gstatic)|overpass|osrm|valhalla|nominatim/i.test(u)) {
         return req.respond({
           status: 200,
           headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
