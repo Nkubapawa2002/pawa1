@@ -142,7 +142,10 @@ supabase/features/house/house_demand_place.sql   the columns, the normaliser,
                                                  the two-armed match  (APPLIED)
 supabase/features/agent/agent_multi_area.sql     wards[]/districts[], agent_area_set,
                                                  =any() matching       (APPLIED)
+supabase/features/agent/agent_area_directory.sql  pm_agent_finder + pm_directory
+                                                 return the sets       (APPLIED)
 js/lib/agent-card.js                             draws every area, labelled
+js/pages/p-message.js                            whereOf() lists every ward
 tests/house_demand_place_test.mjs                17 checks, against the real DB
 js/lib/request-place.js                          the anchor block and the rule
 js/pages/agent-houses.js                         passes the agent's ward

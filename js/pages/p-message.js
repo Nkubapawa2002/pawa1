@@ -745,13 +745,43 @@
    * marked-up version for a list, and the plain one for a header or a
    * data-attribute, so the two cannot say different things.
    */
+  /**
+   * Every ward, not the first one.
+   *
+   * An agent covering Mikocheni, Msasani and Kijitonyama used to read as
+   * covering Mikocheni, so the agent somebody was actually looking for looked
+   * like the wrong agent. agent_profiles carries the set now
+   * (agent_multi_area.sql) and the directory RPCs return it, so the list can
+   * say all of it. The singular column is folded in for any agent who has only
+   * ever set that one.
+   */
+  function areaSet(list, one) {
+    var seen = {};
+    return [].concat(list || [], one ? [one] : []).map(function (v) {
+      return String(v == null ? "" : v).trim();
+    }).filter(function (v) {
+      var k = v.toLowerCase();
+      if (!v || seen[k]) return false;
+      seen[k] = 1;
+      return true;
+    });
+  }
+
   function whereOf(p, opts) {
     var area = String((p && p.area) || "").trim();
     // The broader places, minus whatever already appears as the area — an
     // agent whose area IS "Nyamagana" should not read "Nyamagana · Nyamagana".
-    var rest = [p && p.ward, p && p.district, p && p.region].filter(function (v) {
+    // The wards are NOT sliced: dropping the third ward is dropping the reason
+    // somebody would pick this agent. The district and region are context and
+    // still yield to the area when they repeat it.
+    var wards = areaSet(p && p.wards, p && p.ward);
+    var wardTxt = wards.filter(function (v) {
+      return v.toLowerCase() !== area.toLowerCase();
+    }).join(" · ");
+    var rest = [p && p.district, p && p.region].filter(function (v) {
       return v && String(v).trim() && String(v).trim().toLowerCase() !== area.toLowerCase();
     }).slice(0, 2).join(" · ");
+    rest = [wardTxt, rest].filter(Boolean).join(" · ");
 
     // An AGENT who has not set one is SAID to have not set one: a blank line
     // reads as "operates nowhere in particular", which is a claim about them
