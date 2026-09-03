@@ -119,6 +119,31 @@ const old = EN.normalize({ rooms: [{ kind: "single", price: 1 }] });
 ok(old.rooms[0].sizeBand === null && Array.isArray(old.rooms[0].features) && !old.rooms[0].features.length,
    "a listing saved before any of this still normalizes", JSON.stringify(old.rooms[0]));
 
+// ---------------------------------------------------------------------------
+// The characteristics, as a field of their own
+// ---------------------------------------------------------------------------
+// `features` is the tap-a-chip list of what a room HAS. `traits` is what it is
+// LIKE, in the agent's own words, and a fixed set cannot describe a room
+// nobody here has seen. The normaliser is a whitelist, so a field it does not
+// name is dropped on save with nothing on screen to say so: that is what these
+// pin.
+const tr = EN.normalize({ rooms: [{
+  kind: "single", price: 60000,
+  traits: "self-contained, tiled, big windows",
+  note: "upstairs, own entrance",
+}] });
+ok(tr.rooms[0].traits === "self-contained, tiled, big windows",
+   "the characteristics survive normalisation", JSON.stringify(tr.rooms[0].traits));
+ok(tr.rooms[0].note === "upstairs, own entrance",
+   "and the general note stays a separate field beside them",
+   JSON.stringify(tr.rooms[0].note));
+ok(EN.normalize({ rooms: [{ kind: "x", traits: "a".repeat(500) }] }).rooms[0].traits.length <= 200,
+   "they are capped, so one listing cannot carry a phone book");
+const only = EN.normalize({ rooms: [{ traits: "quiet side, own gate" }] });
+ok(only.rooms.length === 1 && only.rooms[0].traits === "quiet side, own gate",
+   "a room DESCRIBED but not named or priced is still a room, rather than everything typed about it being thrown away on save",
+   JSON.stringify(only.rooms));
+
 process.stdout.write(`
 ${pass} passed, ${fail} failed
 `);

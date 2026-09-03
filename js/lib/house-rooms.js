@@ -149,6 +149,10 @@
         size: r.size,
         sizeBand: r.sizeBand || null,
         features: Array.isArray(r.features) ? r.features : [],
+        // What the room is LIKE, in the agent's words, beside the chips that
+        // say what it HAS. Captured on the form and never shown is the same as
+        // not captured.
+        traits: r.traits || "",
         note: r.note || "",
         synthetic: !!r.synthetic,
         // vacant === 0 is "every one of these is taken right now", which is a
@@ -475,6 +479,7 @@
       '<div class="hx-room__top">' +
         '<div>' +
           '<div class="hx-room__name">' + esc(room.label) + '</div>' +
+          (room.traits ? '<div class="hx-room__traits">' + esc(room.traits) + '</div>' : "") +
           (room.note ? '<div class="hx-room__note">' + esc(room.note) + '</div>' : "") +
         '</div>' +
         '<div class="hx-room__price' + (priced ? "" : " is-ask") + '">' +

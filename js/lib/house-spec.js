@@ -573,7 +573,11 @@
       if (!r || typeof r !== "object") return;
       var kind = str(r.kind, 40);
       var price = num(r.price);
-      if (!kind && price == null) return;
+      var said = str(r.traits, 200) || str(r.note, 200);
+      // A room the agent DESCRIBED but did not name or price is still a room.
+      // Requiring a kind or a price here threw away everything somebody had
+      // typed about it, on save, with nothing on screen to say so.
+      if (!kind && price == null && !said) return;
       out.rooms.push({
         kind: kind || "other",
         price: price,
@@ -590,6 +594,11 @@
         // de-duped against itself but never checked against the catalogue —
         // "forbid nothing" means an agent's own word stands as written.
         features: normalizeFeatures(r.features),
+        // What the room is LIKE, in the agent's own words. Deliberately not a
+        // second catalogue: `features` is the tap-a-chip list of things a room
+        // HAS, and a fixed set cannot describe a room nobody here has seen.
+        // Free text is the only honest shape for it.
+        traits: str(r.traits, 200),
         note: str(r.note, 200),
       });
     });

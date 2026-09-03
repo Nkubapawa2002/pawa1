@@ -2440,6 +2440,10 @@ create policy "house-photos upload" on storage.objects for insert
           </div>
           <p class="ah-band__help">${esc(HS.t("feats_help"))}</p>
         </div>
+        <label class="ah-wide">${esc(tr("ah_room_traits"))}
+          <input class="ah-r-traits" type="text" maxlength="200"
+                 placeholder="${esc(tr("ah_room_traits_ph"))}" value="${esc(r.traits || "")}">
+        </label>
         <label class="ah-wide">${esc(tr("ah_room_note"))}
           <input class="ah-r-note" type="text" maxlength="200"
                  placeholder="${esc(tr("ah_room_note_ph"))}" value="${esc(r.note || "")}">
@@ -2473,9 +2477,10 @@ create policy "house-photos upload" on storage.objects for insert
         sizeBand: on ? on.dataset.band : null,
         features: readFeatures(n),
         ensuite: n.querySelector(".ah-r-ensuite").checked,
+        traits:  val(".ah-r-traits").trim(),
         note:    val(".ah-r-note").trim(),
       };
-    }).filter(r => r.kind || r.price != null);
+    }).filter(r => r.kind || r.price != null || r.traits || r.note);
   }
 
   // ---- the size bracket and the characteristics, per room row -------------

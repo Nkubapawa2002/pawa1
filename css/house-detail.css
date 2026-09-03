@@ -609,6 +609,15 @@ body[data-page="house"] :focus-visible {
   flex-wrap: wrap;
 }
 .hx-room__name { font: var(--fw-bold) var(--text-md)/1.2 var(--font-app); color: var(--hx-ink); }
+/* What the room IS LIKE, in the agent's own words. Read before the note and
+   before the price, so it is set in the body colour rather than the muted
+   italic the note uses: it is the line a tenant decides on, not an aside. */
+.hx-room__traits {
+  margin-top: var(--space-1);
+  color: var(--hx-ink-soft, var(--hx-ink));
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
 .hx-room__note {
   margin-top: var(--space-1);
   color: var(--hx-ink-muted);
