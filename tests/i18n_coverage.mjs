@@ -69,6 +69,13 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
   // to be written in English from its <title> to its Save button while the
   // rest of the app was bilingual: no scan ever looked at it.
   "agent-trucks.html",
+  // The two public detail sheets. This scan can only reach their "not found"
+  // state, because a sheet with no listing on it shows none of the strings it
+  // is made of. tests/detail_sheet_i18n_test.mjs renders them with a fixture
+  // and is what actually covers the labels; these two rows cover the chrome
+  // and the empty state.
+  "service.html",
+  "truck.html",
 ];
 
 // Words that are the same in Swahili, or are not words at all. Kept small and

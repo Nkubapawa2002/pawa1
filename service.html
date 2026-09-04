@@ -5,7 +5,7 @@
   <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Service provider — Pawa</title>
+  <title>Service provider · Pawa</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.css" />
 
@@ -54,7 +54,7 @@
     .sd-cta a { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px; border-radius: 12px; font-weight: 700; text-decoration: none; }
     /* The encrypted door. Quieter than Call, above it, and carrying the one
        line that says why: no phone number changes hands. --c-surface-2 and
-       --c-brand are both set in the body[data-page="service"] palette below,
+       --c-brand are both set in the :root:not([data-theme="light"]) body[data-page="service"] palette below,
        which is what keeps this dark on the only skin this page has. */
     .sd-cta-msg {
       background: var(--c-surface-2, #f3f1ec);
@@ -81,7 +81,21 @@
   <style>
     /* Twilight dark re-skin (Claude design) — service provider detail.
        Pushed-detail view: no top nav / tab bar, just the back button + inline CTAs. */
-    body[data-page="service"] {
+    /* The palette below is DARK-ONLY.
+
+       The body ground was never the problem here: css/theme-light.css does win
+       that one. What leaked were the two ELEMENT rules further down, which
+       repaint the badge text and the gallery placeholder in dark colours. A
+       :root palette cannot reach back into a body[data-page] rule, so in light
+       mode the badges rendered white on white and an empty gallery was a solid
+       black block on a cream page.
+
+       So the guard goes on the paint and not on the layout: the wrap width and
+       the hidden nav are what make this a pushed-detail view in BOTH themes.
+       Same guard as css/agent-portal.css. Checked by
+       tests/detail_sheet_i18n_test.mjs, which renders a real sheet in light
+       mode and measures the badge contrast. */
+    :root:not([data-theme="light"]) body[data-page="service"] {
       --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
       --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-accent: #F6C45A; --c-success: #2EE6A6;
@@ -89,10 +103,10 @@
       color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
     }
     body[data-page="service"] .sd-wrap { max-width: 560px; padding-bottom: 48px; }
-    body[data-page="service"] .sd-back { color: #2EE6A6; }
-    body[data-page="service"] .sd-gallery-main, body[data-page="service"] .sd-thumb { background: #0f1714 center/cover no-repeat; }
-    body[data-page="service"] .sd-badge { color: rgba(233,243,238,.7); }
-    body[data-page="service"] .sd-cta-call, body[data-page="service"] .sd-cta-move, body[data-page="service"] .sd-badge.verified { color: #06170F; }
+    :root:not([data-theme="light"]) body[data-page="service"] .sd-back { color: #2EE6A6; }
+    :root:not([data-theme="light"]) body[data-page="service"] .sd-gallery-main, :root:not([data-theme="light"]) body[data-page="service"] .sd-thumb { background: #0f1714 center/cover no-repeat; }
+    :root:not([data-theme="light"]) body[data-page="service"] .sd-badge { color: rgba(233,243,238,.7); }
+    :root:not([data-theme="light"]) body[data-page="service"] .sd-cta-call, :root:not([data-theme="light"]) body[data-page="service"] .sd-cta-move, :root:not([data-theme="light"]) body[data-page="service"] .sd-badge.verified { color: #06170F; }
     body[data-page="service"] #nav-slot, body[data-page="service"] #footer-slot { display: none !important; }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
@@ -107,10 +121,10 @@
   <main class="sd-wrap">
     <a href="services.html" class="sd-back">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      <span>Back to services</span>
+      <span data-i18n="sd_back">Back to services</span>
     </a>
     <div id="sdBody" aria-live="polite" aria-busy="true">
-      <div class="sd-panel">Loading…</div>
+      <div class="sd-panel" data-i18n="of_loading">Loading…</div>
     </div>
   </main>
 
@@ -131,6 +145,9 @@
        decisions around it (the URL shape, the guard, the wording) live in
        one place so all four catalogues offer the same thing. -->
   <script src="js/lib/pm-reach.js"></script>
+  <!-- The one place a stored kind becomes a word a person reads.
+       Three page scripts used to carry their own copy of that map. -->
+  <script src="js/lib/listing-kinds.js"></script>
   <!-- The catalogue behind "what you get". -->
   <script src="js/lib/offer-spec.js"></script>
   <script src="js/pages/service.js"></script>

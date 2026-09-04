@@ -40,7 +40,14 @@ const PAGES = process.argv[2]
      // stops it drifting back. agent-trucks.html is here because it was the
      // last page still redefining the palette on body[data-page], which beats
      // css/theme-light.css on :root and left the whole screen dark.
-     "agent-houses.html", "agent-services.html", "agent-trucks.html"];
+     "agent-houses.html", "agent-services.html", "agent-trucks.html",
+     // The two public detail sheets, for the body ground. What actually broke
+     // on them was element-level: a dark re-skin repainted the badge text and
+     // the gallery placeholder without guarding either, so in light mode the
+     // badges went white on white. This file samples the body and would not
+     // have seen it; tests/detail_sheet_i18n_test.mjs does, on a rendered
+     // sheet, and is where that assertion lives.
+     "service.html", "truck.html"];
 
 // Only ever reached when something is genuinely wrong: the pass path resolves
 // as soon as the attribute lands, typically in tens of milliseconds.
