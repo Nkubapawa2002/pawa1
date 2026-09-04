@@ -65,6 +65,10 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
   // which is the screen a new agent actually meets.
   "agent-houses.html",
   "agent-services.html",
+  // The third portal. It was never on this list, which is exactly how it came
+  // to be written in English from its <title> to its Save button while the
+  // rest of the app was bilingual: no scan ever looked at it.
+  "agent-trucks.html",
 ];
 
 // Words that are the same in Swahili, or are not words at all. Kept small and

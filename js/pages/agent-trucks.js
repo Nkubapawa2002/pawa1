@@ -1,13 +1,41 @@
 // Register a moving truck — owner-authenticated CRUD over public.trucks, the
-// truck companion to agent-houses.js. Sign in, then add trucks with photos and
-// a base-location pin; users browse them on trucks.html and find the nearest.
+// truck companion to agent-houses.js and agent-services.js. Sign in, then add
+// trucks with photos and a base-location pin; users browse them on trucks.html
+// and find the nearest.
 //
-// Mirrors agent-houses.js: Supabase email auth, owner_user_id = auth.uid()
-// inserts (RLS-enforced), photo upload into the `truck-photos` bucket, and a
-// setup card with the SQL when the `trucks` table hasn't been applied yet.
+// Mirrors the other two portals: Supabase email auth, owner_user_id =
+// auth.uid() inserts (RLS-enforced), photo upload into the `truck-photos`
+// bucket, and a setup card with the SQL when the table has not been applied.
+//
+// Every visible string here goes through T(). It used to be written in English
+// in this file and nowhere else, so a Swahili owner met an entirely English
+// portal the moment they signed in, on the one screen in the app that asks
+// somebody to type for ten minutes. The page is also on the shared portal
+// shell now (css/agent-portal.css) rather than a hundred lines of raw hex with
+// a palette redefined on body[data-page], which beats css/theme-light.css on
+// :root and left the whole screen dark in light mode.
 
 window.initAgentTrucksPage = async () => {
   const sb = window.DataStore?.sb;
+
+  // t() with a hard fallback: a missing key must show the English word rather
+  // than the key name.
+  const T = (k, en) => {
+    const v = window.t ? window.t(k) : k;
+    return v === k && en ? en : v;
+  };
+  // "{email} already exists" -> the email. i18n.js keeps the braces so a
+  // translator can move the value inside the sentence.
+  const fill = (str, vars) => String(str).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+
+  // Icons. Lucide-style stroke SVGs, so they take currentColor and scale with
+  // the type beside them.
+  const IC = {
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+    empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg>',
+  };
 
   // The exact SQL from supabase/features/truck/trucks.sql — shown in the setup card so the
   // owner can create the table + bucket without leaving the page.
@@ -76,6 +104,7 @@ create policy "truck-photos upload" on storage.objects for insert
   const fRegion = $("atRegion");
   const pinSearch = $("atPinSearch"), pinResults = $("atPinResults");
   const pinMapEl = $("atPinMap"), pinCoords = $("atPinCoords"), pinGps = $("atPinGps");
+  const kitEl = $("atKit"), locDoorsEl = $("atLocDoors");
 
   let authMode = "signin";
   let editingId = null;
@@ -86,6 +115,9 @@ create policy "truck-photos upload" on storage.objects for insert
   // Admin hierarchy (region/district/ward) auto-derived from the pin so the
   // truck is searchable by those, mirroring the houses form.
   let pinAdmin = null, truckGeoTimer = null, truckGeoKey = null;
+  let rail = null;                    // the section rail down the side
+  let kit = null;                     // "what comes with the truck" pick list
+  let doors = null;                   // the three ways a location can arrive
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -94,10 +126,21 @@ create policy "truck-photos upload" on storage.objects for insert
   }
   function showFatal(msg) {
     if (!warnEl) { alert(msg); return; }
-    warnEl.innerHTML = `<div class="at-msg error"><strong>Error:</strong> ${esc(String(msg))}</div>`;
+    warnEl.innerHTML = `<div class="ap-msg is-error">${esc(String(msg))}</div>`;
   }
-  window.addEventListener("error", (e) => showFatal(e.message || "Unknown JS error"));
-  window.addEventListener("unhandledrejection", (e) => showFatal(e.reason?.message || e.reason || "Promise rejected"));
+  window.addEventListener("error", (e) => showFatal(e.message || T("ap_err_unknown")));
+  window.addEventListener("unhandledrejection", (e) => showFatal(e.reason?.message || e.reason || T("ap_err_unknown")));
+
+  // A button whose label lives in a <span> beside an icon; setting textContent
+  // on the button itself would throw the icon away.
+  function setBtnLabel(btn, text) {
+    const span = btn.querySelector("span");
+    if (span) span.textContent = text; else btn.textContent = text;
+  }
+  function btnLabel(btn) {
+    const span = btn.querySelector("span");
+    return span ? span.textContent : btn.textContent;
+  }
 
   // Bind critical buttons before any await.
   signOutBtn?.addEventListener("click", async () => {
@@ -112,13 +155,13 @@ create policy "truck-photos upload" on storage.objects for insert
   const KNOWN_TRUCK_TYPES = ["pickup", "canter", "3ton", "7ton", "10ton_plus", "other"];
   function syncTruckTypeOther() {
     const row = $("atTypeOtherRow");
-    if (row) row.style.display = $("atType").value === "other" ? "" : "none";
+    if (row) row.hidden = $("atType").value !== "other";
   }
   $("atType")?.addEventListener("change", syncTruckTypeOther);
 
   if (!sb) {
     authCard.hidden = false;
-    setAuthMsg("Supabase isn't configured, so sign-in is unavailable.", "error");
+    setAuthMsg(esc(T("ap_msg_supabase_missing")), "error");
     authForm.querySelectorAll("input,button").forEach((el) => (el.disabled = true));
     return;
   }
@@ -154,7 +197,7 @@ create policy "truck-photos upload" on storage.objects for insert
       : (s?.user && s.user.is_anonymous !== true ? "account" : "out");
     if (who === "account") {
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
-      userEmailEl.textContent = s.user.email || "—";
+      userEmailEl.textContent = s.user.email || T("ap_no_email");
       // Make sure the owner has declared the region they belong to + the area
       // they operate in before they list — so their trucks surface to searchers
       // in that area.
@@ -185,13 +228,13 @@ create policy "truck-photos upload" on storage.objects for insert
 
   tabSignIn.addEventListener("click", () => {
     authMode = "signin"; tabSignIn.classList.add("active"); tabSignUp.classList.remove("active");
-    authSubmit.textContent = "Sign in"; authPassword.autocomplete = "current-password";
+    authSubmit.textContent = T("at_tab_signin"); authPassword.autocomplete = "current-password";
     if (authPasswordConfirmRow) authPasswordConfirmRow.hidden = true;
     setAuthMsg("", "");
   });
   tabSignUp.addEventListener("click", () => {
     authMode = "signup"; tabSignUp.classList.add("active"); tabSignIn.classList.remove("active");
-    authSubmit.textContent = "Create account"; authPassword.autocomplete = "new-password";
+    authSubmit.textContent = T("at_tab_signup"); authPassword.autocomplete = "new-password";
     if (authPasswordConfirmRow) { authPasswordConfirmRow.hidden = false; authPasswordConfirm.value = ""; }
     setAuthMsg("", "");
   });
@@ -209,22 +252,22 @@ create policy "truck-photos upload" on storage.objects for insert
     try {
       const { error } = await sb.auth.resend({ type: "signup", email });
       if (error) throw error;
-      setAuthMsg(`Verification link re-sent to <strong>${esc(email)}</strong>. Check your inbox (and spam folder).`, "success");
+      setAuthMsg(fill(T("ap_verify_resent"), { email: `<strong>${esc(email)}</strong>` }), "success");
     } catch (err) {
       const m = err?.message || "";
       if (/rate limit|too many|over_email_send_rate_limit/i.test(m)) {
-        setAuthMsg("Please wait a minute before requesting another verification email.", "error");
+        setAuthMsg(esc(T("ap_verify_rate")), "error");
       } else {
-        setAuthMsg("Couldn't resend the link: " + esc(m || "please try again later."), "error");
+        setAuthMsg(esc(T("ap_verify_resend_fail")) + " " + esc(m), "error");
       }
     }
   }
 
   function showVerifyNotice(email, lead, kind) {
     setAuthMsg(
-      `${lead} We sent a verification link to <strong>${esc(email)}</strong>. ` +
-      `Open it to activate your account, then sign in. ` +
-      `<button type="button" id="atResendVerify" class="at-btn" style="margin-top:8px;">Resend verification email</button>`,
+      `${esc(lead)} ${fill(T("ap_verify_sent"), { email: `<strong>${esc(email)}</strong>` })} ` +
+      `<button type="button" id="atResendVerify" class="ap-btn ap-btn--sm" style="margin-top:var(--space-2)">` +
+      `${esc(T("ap_verify_resend"))}</button>`,
       kind || "success"
     );
     $("atResendVerify")?.addEventListener("click", () => resendVerification(email));
@@ -236,7 +279,7 @@ create policy "truck-photos upload" on storage.objects for insert
     const email = authEmail.value.trim(), password = authPassword.value;
 
     if (!isValidEmail(email)) {
-      setAuthMsg("Please enter a valid email address (e.g. name@example.com).", "error");
+      setAuthMsg(esc(T("ap_err_bad_email")), "error");
       authEmail.focus();
       return;
     }
@@ -248,7 +291,7 @@ create policy "truck-photos upload" on storage.objects for insert
         // account with a password the owner can never reproduce.
         const confirm = authPasswordConfirm ? authPasswordConfirm.value : password;
         if (password !== confirm) {
-          setAuthMsg("The two passwords don't match. Please re-enter them.", "error");
+          setAuthMsg(esc(T("ap_err_pw_mismatch")), "error");
           return;
         }
         const { data, error } = await sb.auth.signUp({ email, password });
@@ -257,7 +300,7 @@ create policy "truck-photos upload" on storage.objects for insert
           // password — send them to Sign in to use their real password.
           if (/already registered|already been registered|user already/i.test(error.message || "")) {
             authMode = "signin"; tabSignIn.click();
-            setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
+            setAuthMsg(fill(T("ap_err_email_exists"), { email: `<strong>${esc(email)}</strong>` }), "error");
             return;
           }
           throw error;
@@ -266,12 +309,12 @@ create policy "truck-photos upload" on storage.objects for insert
         // user row with an empty identities[] array. Treat that as "exists".
         if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           authMode = "signin"; tabSignIn.click();
-          setAuthMsg(`An account with <strong>${esc(email)}</strong> already exists. Switch to <strong>Sign in</strong> and enter your password.`, "error");
+          setAuthMsg(fill(T("ap_err_email_exists"), { email: `<strong>${esc(email)}</strong>` }), "error");
           return;
         }
         if (data?.session) return;                 // confirm-email OFF → signed in
         authMode = "signin"; tabSignIn.click();    // confirm-email ON → verify first
-        showVerifyNotice(email, "Account created.", "success");
+        showVerifyNotice(email, T("ap_msg_account_created"), "success");
       } else {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -279,15 +322,15 @@ create policy "truck-photos upload" on storage.objects for insert
     } catch (err) {
       const msg = err?.message || "";
       if (/invalid login|invalid_credentials|invalid_grant/i.test(msg)) {
-        setAuthMsg(`Wrong email or password. If you're new, tap <strong>Create account</strong>.`, "error");
+        setAuthMsg(T("ap_err_wrong_password"), "error");
       } else if (/email not confirmed|email_not_confirmed/i.test(msg)) {
-        showVerifyNotice(email, "Your email isn't verified yet.", "error");
+        showVerifyNotice(email, T("ap_err_not_verified"), "error");
       } else if (/rate limit|over_email_send_rate_limit|too many/i.test(msg)) {
-        setAuthMsg("Too many attempts. Please wait a minute, then try again.", "error");
+        setAuthMsg(esc(T("ap_err_too_many")), "error");
       } else if (/password.*should be at least|weak password|password is too short/i.test(msg)) {
-        setAuthMsg("Password must be at least 6 characters.", "error");
+        setAuthMsg(esc(T("ap_err_pw_short")), "error");
       } else {
-        setAuthMsg(esc(msg) || "Sign-in failed. Please try again.", "error");
+        setAuthMsg(esc(msg) || esc(T("ap_err_signin_failed")), "error");
       }
     } finally {
       authSubmit.disabled = false;
@@ -297,7 +340,7 @@ create policy "truck-photos upload" on storage.objects for insert
   // ---- list my trucks ------------------------------------------------------
   async function loadMyTrucks() {
     listEl.setAttribute("aria-busy", "true");
-    listEl.innerHTML = `<div class="at-hint">Loading your trucks…</div>`;
+    listEl.innerHTML = `<p class="ap-hint">${esc(T("at_loading"))}</p>`;
     const { data: { session } } = await sb.auth.getSession();
     const uid = session?.user?.id;
     if (!uid) return;
@@ -309,26 +352,32 @@ create policy "truck-photos upload" on storage.objects for insert
         renderSetupCard();
         return;
       }
-      listEl.innerHTML = `<div class="at-msg error">Couldn't load your trucks: ${esc(error.message)}</div>`;
+      listEl.innerHTML =
+        `<div class="ap-msg is-error">${esc(T("at_load_fail"))} ${esc(error.message)}</div>`;
       return;
     }
     newBtn.hidden = false;
     if (!data.length) {
-      listEl.innerHTML = `<div class="at-hint">No trucks yet. Tap <strong>+ New truck</strong> to add your first one.</div>`;
+      listEl.innerHTML =
+        `<div class="ap-empty">${IC.empty}<h3>${esc(T("at_empty_h"))}</h3>` +
+        `<p>${esc(T("at_empty_p"))}</p></div>`;
       return;
     }
     listEl.innerHTML = data.map((t) => {
       const img = t.photo ? window.DataStore.truckPhotoUrl(t.photo) : "";
-      return `<div class="at-tile">
-        <div class="at-tile-photo" style="${img ? `background-image:url('${esc(img)}')` : ""}">${img ? "" : ""}</div>
-        <div class="at-tile-body">
-          <h4>${esc(t.title || "Truck")}</h4>
-          <div class="at-hint" style="margin:0">${esc([t.area, t.region].filter(Boolean).join(", ") || "—")}</div>
-          <div class="at-tile-actions">
-            <button data-edit="${esc(t.id)}">Edit</button>
-            <button data-del="${esc(t.id)}" style="color:#b91c1c">Delete</button>
-          </div>
-        </div></div>`;
+      const where = [t.area, t.region].filter(Boolean).join(", ");
+      return `<article class="ap-card">
+        <div class="ap-card__photo" data-empty="${esc(T("ap_no_photo"))}"
+             style="${img ? `background-image:url('${esc(img)}')` : ""}"></div>
+        <div class="ap-card__body">
+          <h4 class="ap-card__title">${esc(t.title || T("at_untitled"))}</h4>
+          <span class="ap-card__meta">${esc(where || T("ap_no_area"))}</span>
+        </div>
+        <div class="ap-card__acts">
+          <button type="button" class="ap-btn ap-btn--sm" data-edit="${esc(t.id)}">${IC.edit}<span>${esc(T("ap_edit"))}</span></button>
+          <button type="button" class="ap-btn ap-btn--sm ap-btn--danger" data-del="${esc(t.id)}">${IC.trash}<span>${esc(T("ap_delete"))}</span></button>
+        </div>
+      </article>`;
     }).join("");
     listEl.querySelectorAll("[data-edit]").forEach((b) =>
       b.addEventListener("click", () => openForm(data.find((x) => x.id === b.dataset.edit))));
@@ -344,19 +393,28 @@ create policy "truck-photos upload" on storage.objects for insert
   function renderSetupCard() {
     newBtn.hidden = true;
     listEl.innerHTML = `
-      <div class="at-card at-setup" style="grid-column:1/-1">
-        <h3 style="margin-top:0"> One-time setup needed</h3>
-        <p class="at-hint">The <code>trucks</code> table doesn't exist yet. Run this SQL once in your Supabase SQL editor, then reload.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <a class="at-btn at-btn-brand" target="_blank" rel="noopener" href="${sqlEditorUrl()}">Open SQL editor</a>
-          <button id="atSetupCopy" class="at-btn" type="button">Copy SQL</button>
-          <button id="atSetupReload" class="at-btn" type="button">I've run it — reload</button>
+      <div class="ap-panel" style="grid-column:1/-1">
+        <div class="ap-panel__head">
+          <span class="ap-panel__n" aria-hidden="true">${IC.warn}</span>
+          <div class="ap-panel__tx">
+            <h3>${esc(T("ap_setup_h"))}</h3>
+            <p>${esc(T("at_setup_p"))}</p>
+          </div>
         </div>
-        <pre id="atSetupSql">${esc(SETUP_SQL)}</pre>
+        <div class="ap-inline" style="margin-bottom:var(--space-3)">
+          <a class="ap-btn ap-btn--brand" target="_blank" rel="noopener" href="${sqlEditorUrl()}">${esc(T("ap_setup_open"))}</a>
+          <button id="atSetupCopy" class="ap-btn" type="button"><span>${esc(T("ap_setup_copy"))}</span></button>
+          <button id="atSetupReload" class="ap-btn" type="button">${esc(T("ap_setup_reload"))}</button>
+        </div>
+        <pre class="ap-code" id="atSetupSql">${esc(SETUP_SQL)}</pre>
       </div>`;
     $("atSetupCopy")?.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(SETUP_SQL); const b = $("atSetupCopy"); b.textContent = "Copied!"; setTimeout(() => (b.textContent = "Copy SQL"), 1500); }
-      catch (_) { alert("Select the SQL below and copy it manually."); }
+      const b = $("atSetupCopy");
+      try {
+        await navigator.clipboard.writeText(SETUP_SQL);
+        setBtnLabel(b, T("ap_setup_copied"));
+        setTimeout(() => setBtnLabel(b, T("ap_setup_copy")), 1500);
+      } catch (_) { alert(T("ap_setup_copy_fail")); }
     });
     $("atSetupReload")?.addEventListener("click", () => { newBtn.hidden = false; loadMyTrucks(); });
   }
@@ -364,7 +422,7 @@ create policy "truck-photos upload" on storage.objects for insert
   // ---- form ----------------------------------------------------------------
   function openForm(t) {
     editingId = t?.id || null;
-    formTitle.textContent = t ? "Edit truck" : "Add a truck";
+    formTitle.textContent = T(t ? "at_form_title_edit" : "at_form_title_new");
     formMsg.hidden = true;
     dashboard.hidden = true; formSection.hidden = false;
 
@@ -384,8 +442,24 @@ create policy "truck-photos upload" on storage.objects for insert
     $("atPrice").value = t?.price_tzs ?? "";
     $("atService").value = t?.service_area || "region_wide";
     $("atNegotiable").checked = t ? !!t.negotiable : true;
-    $("atDriver").checked = t ? !!t.driver_included : true;
-    $("atLoaders").checked = t ? !!t.loaders_included : false;
+    // The spec sheet. `details` is the same shape houses.details has: a small
+    // jsonb bag beside the columns, so a fact with no column of its own is a
+    // field rather than a sentence buried in a paragraph.
+    //
+    // "Driver included" and "Loaders included" were two checkboxes above a list
+    // that says the same thing, which is how a listing ends up arguing with
+    // itself. The chips are the question now, and the two columns are read back
+    // off them at save time. A truck saved before this carries the booleans and
+    // no chips, so the chips are restored from them here and nothing is lost.
+    const det = (t && t.details && typeof t.details === "object") ? t.details : {};
+    let startKit = window.TruckSpec ? window.TruckSpec.normalize(det.kit) : [];
+    if (t && !startKit.length) {
+      if (t.driver_included) startKit = startKit.concat("driver");
+      if (t.loaders_included) startKit = startKit.concat("loaders");
+    } else if (!t) {
+      startKit = ["driver"];          // the ordinary case, and one less tap
+    }
+    mountKit(startKit);
     fRegion.value = t?.region || "";
     $("atArea").value = t?.area || "";
     $("atAddress").value = t?.address || "";
@@ -403,6 +477,11 @@ create policy "truck-photos upload" on storage.objects for insert
     renderPhotoGrid();
 
     initPinMap();
+    mountDoors();
+    // The rail is only useful once the form exists on screen, and it has to
+    // re-read the ticks after a listing is loaded into it.
+    rail = rail || window.AgentPortalRail?.mount({ rail: "#atRail", form: "#atForm" });
+    rail?.refresh();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeForm() {
@@ -422,16 +501,26 @@ create policy "truck-photos upload" on storage.objects for insert
   function renderPhotoGrid() {
     photoGrid.innerHTML = photoState.map((p, i) => {
       const url = p.preview || window.DataStore.truckPhotoUrl(p.path);
-      return `<div class="at-photo-cell" style="background-image:url('${esc(url)}')"><button type="button" data-rm="${i}">×</button></div>`;
+      return `<div class="ap-tile" style="background-image:url('${esc(url)}')">
+        <button type="button" class="ap-tile__x" data-rm="${i}"
+                aria-label="${esc(T("ap_remove_photo"))}">&times;</button>
+        ${i === 0 ? `<span class="ap-tile__flag">${esc(T("ap_cover"))}</span>` : ""}
+      </div>`;
     }).join("");
     photoGrid.querySelectorAll("[data-rm]").forEach((b) =>
       b.addEventListener("click", () => { photoState.splice(+b.dataset.rm, 1); renderPhotoGrid(); }));
+    $("atPhotoAdd")?.classList.toggle("is-full", photoState.length >= 8);
   }
 
   // ---- pin map -------------------------------------------------------------
   function updatePinCoords() {
-    pinCoords.textContent = (pin.lat != null && pin.lng != null)
-      ? `Pin: ${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}` : "No pin set";
+    const set = pin.lat != null && pin.lng != null;
+    pinCoords.textContent = set
+      ? `${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}`
+      : T("ap_pin_none");
+    // The rail counts a dropped pin as an answered section, and a pin has no
+    // input behind it to read.
+    pinCoords.dataset.hasPin = set ? "1" : "0";
   }
   function setPin(lat, lng, recenter) {
     pin = { lat, lng };
@@ -484,13 +573,60 @@ create policy "truck-photos upload" on storage.objects for insert
     if (pin.lat != null) setPin(pin.lat, pin.lng, true);
     setTimeout(() => pinMap.invalidateSize(), 120);
   }
+  // ==========================================================================
+  //  THE DOORS A LOCATION CAN ARRIVE THROUGH
+  //
+  //  The pin had three sources and every one of them needed the owner to be
+  //  standing beside the truck. A lorry that sleeps at a yard across town, or
+  //  an owner listing from home in the evening, had no way in at all. The
+  //  shared module opens the same three doors agent-houses.html has: a code
+  //  read down a phone, a pin already sitting in a P-Message thread, and a
+  //  link the person there taps once. It owns no map, which is why the same
+  //  file serves this Leaflet page and the MapLibre one.
+  // ==========================================================================
+  function mountDoors() {
+    if (doors || !locDoorsEl || !window.PlaceDoors) return;
+    doors = window.PlaceDoors.mount({
+      into: locDoorsEl,
+      sb: sb,
+      purpose: "truck_pin",
+      title: () => $("atTitle").value.trim(),
+      current: () => (pin.lat == null ? null : pin),
+      onPick: (place) => setPin(Number(place.lat), Number(place.lng), true),
+    });
+  }
+
+  // ==========================================================================
+  //  WHAT COMES WITH THE TRUCK
+  //
+  //  Three checkboxes and a free paragraph is what this used to be, and every
+  //  fact a customer rings to ask about (a tarpaulin, straps, whether you go
+  //  upcountry, whether the fuel is in the price) went into the paragraph,
+  //  where it is invisible to search and impossible to compare. The catalogue
+  //  is js/lib/offer-spec.js; the shape is js/lib/pick-list.js.
+  // ==========================================================================
+  function mountKit(values) {
+    const spec = window.TruckSpec;
+    if (!kitEl || !spec || !window.PickList) return;
+    kitEl.innerHTML = window.PickList.html({
+      question: T("at_kit_q"), help: T("at_kit_help"),
+      emptyLabel: T("pk_none"), ownLabel: T("pk_add"), moreLabel: T("pk_more"),
+      top: spec.top(), groups: spec.rest(),
+    });
+    kit = window.PickList.wire(kitEl.firstElementChild, {
+      label: spec.label, removeLabel: T("pk_remove"), values: values || [],
+    });
+  }
+
   pinGps.addEventListener("click", async () => {
-    pinGps.disabled = true; const old = pinGps.textContent; pinGps.textContent = "Locating…";
+    pinGps.disabled = true;
+    const old = btnLabel(pinGps);
+    setBtnLabel(pinGps, T("ap_locating"));
     try {
       const fix = await window.pawaLocate.best({ targetAccuracy: 50, hardTimeout: 12000 });
       setPin(fix.lat, fix.lng, true);
-    } catch (e) { alert((e && e.message) || "Couldn't get your location."); }
-    finally { pinGps.disabled = false; pinGps.textContent = old; }
+    } catch (e) { alert((e && e.message) || T("ap_err_geo")); }
+    finally { pinGps.disabled = false; setBtnLabel(pinGps, old); }
   });
 
   // AI-assisted pin: describe the location in plain words → AI resolves → drop pin.
@@ -498,19 +634,19 @@ create policy "truck-photos upload" on storage.objects for insert
   pinAi?.addEventListener("click", async () => {
     const q = (pinSearch.value || "").trim();
     if (!q) { pinSearch.focus(); return; }
-    if (!window.AI?.locate) { if (pinAiMsg) pinAiMsg.textContent = "AI unavailable — use the list or GPS."; return; }
-    const old = pinAi.textContent; pinAi.disabled = true; pinAi.textContent = "Locating…";
+    if (!window.AI?.locate) { if (pinAiMsg) pinAiMsg.textContent = T("ap_ai_unavailable"); return; }
+    const old = btnLabel(pinAi); pinAi.disabled = true; setBtnLabel(pinAi, T("ap_locating"));
     if (pinAiMsg) pinAiMsg.textContent = "";
     try {
       const loc = await window.AI.locate(q, { regions: window.APP_CONFIG?.REGIONS });
       if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
         setPin(loc.lat, loc.lng, true);
         if (pinResults) pinResults.hidden = true;
-        if (pinAiMsg) pinAiMsg.textContent = " " + (loc.label || "Pinned") + (loc.answer ? " — " + loc.answer : "") + " (drag to fine-tune)";
+        if (pinAiMsg) pinAiMsg.textContent = (loc.label || T("ap_ai_pinned")) + ". " + T("ap_ai_drag");
       } else if (pinAiMsg) {
-        pinAiMsg.textContent = "Couldn't locate that — try a nearby landmark or tap the map.";
+        pinAiMsg.textContent = T("ap_ai_no_match");
       }
-    } finally { pinAi.disabled = false; pinAi.textContent = old; }
+    } finally { pinAi.disabled = false; setBtnLabel(pinAi, old); }
   });
 
   // pin search (pawaGeo suggest)
@@ -556,12 +692,18 @@ create policy "truck-photos upload" on storage.objects for insert
     e.preventDefault();
     formMsg.hidden = true;
     const saveBtn = $("atSaveBtn");
-    saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+    saveBtn.disabled = true;
+    const oldSave = saveBtn.textContent;
+    saveBtn.textContent = T("ap_saving");
     try {
       const { data: { session } } = await sb.auth.getSession();
       const uid = session?.user?.id;
-      if (!uid) throw new Error("Your session expired — please sign in again.");
-      if (pin.lat == null || pin.lng == null) throw new Error("Please drop a pin for where the truck is based.");
+      if (!uid) throw new Error(T("ap_err_session_expired"));
+      if (pin.lat == null || pin.lng == null) {
+        // Send them to the section that is missing rather than only saying so.
+        document.getElementById("atSecPin")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        throw new Error(T("at_err_no_pin"));
+      }
 
       // Upload any new photos; keep existing storage paths.
       const paths = [];
@@ -582,8 +724,9 @@ create policy "truck-photos upload" on storage.objects for insert
         currency: "TZS",
         period: "trip",
         negotiable: $("atNegotiable").checked,
-        driver_included: $("atDriver").checked,
-        loaders_included: $("atLoaders").checked,
+        // Read off the chips rather than asked twice; see openForm().
+        driver_included: kitHas("driver"),
+        loaders_included: kitHas("loaders"),
         service_area: $("atService").value,
         region: fRegion.value || (pinAdmin && pinAdmin.region) || agentProfile?.region || null,
         area: $("atArea").value.trim() || (pinAdmin && pinAdmin.area) || agentProfile?.area_of_operations || null,
@@ -594,6 +737,12 @@ create policy "truck-photos upload" on storage.objects for insert
         photo: paths[0] || null,
         photos: paths,
         description: $("atDescription").value.trim() || null,
+        details: {
+          v: 1,
+          kit: window.TruckSpec
+            ? window.TruckSpec.normalize(kit ? kit.read() : [])
+            : [],
+        },
         owner: {
           name: $("atOwnerName").value.trim(),
           phone: $("atOwnerPhone").value.trim(),
@@ -607,30 +756,33 @@ create policy "truck-photos upload" on storage.objects for insert
         : sb.from("trucks").insert(row).select();
       const { data: saved, error } = await q;
       if (error) throw error;
-      if (!saved || !saved.length) {
-        throw new Error("Save returned no rows — check that the trucks table + RLS policies are applied (run the setup SQL).");
-      }
+      if (!saved || !saved.length) throw new Error(T("at_err_no_rows"));
 
       window.DataStore?.invalidateCache(["trucks"]);
-      formMsg.className = "at-msg success";
-      formMsg.textContent = editingId ? "Truck updated." : "Truck listed! People moving house can now find it.";
+      formMsg.className = "ap-msg is-ok";
+      formMsg.textContent = T(editingId ? "at_msg_updated" : "at_msg_listed");
       formMsg.hidden = false;
       setTimeout(() => { closeForm(); loadMyTrucks(); }, 700);
     } catch (err) {
-      formMsg.className = "at-msg error";
-      formMsg.textContent = err?.message || "Couldn't save the truck.";
+      formMsg.className = "ap-msg is-error";
+      formMsg.textContent = err?.message || T("at_err_save");
       formMsg.hidden = false;
     } finally {
-      saveBtn.disabled = false; saveBtn.textContent = "Save truck";
+      saveBtn.disabled = false; saveBtn.textContent = oldSave;
     }
   });
 
+  /** Does the kit list state this, whichever way it was added? */
+  function kitHas(key) {
+    return !!kit && kit.read().indexOf(key) >= 0;
+  }
+
   async function deleteTruck(t) {
-    if (!t || !confirm(`Delete "${t.title || "this truck"}"?`)) return;
+    if (!t || !confirm(fill(T("at_confirm_delete"), { title: t.title || T("at_untitled") }))) return;
     const { data: { session } } = await sb.auth.getSession();
     const uid = session?.user?.id;
     const { error } = await sb.from("trucks").delete().eq("id", t.id).eq("owner_user_id", uid);
-    if (error) { alert("Delete failed: " + error.message); return; }
+    if (error) { alert(T("at_err_delete") + " " + error.message); return; }
     // best-effort photo cleanup
     const paths = [t.photo, ...(t.photos || [])].filter((p) => p && !p.startsWith("http") && !p.startsWith("data/"));
     if (paths.length) sb.storage.from(bucket()).remove(paths).catch(() => {});

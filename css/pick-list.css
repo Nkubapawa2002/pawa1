@@ -1,0 +1,138 @@
+/* ============================================================================
+   pick-list.css — "offer a few, keep a box for their own words, fold the rest"
+
+   The one shape every catalogue in this app is allowed to take. A listing form
+   that lays its whole vocabulary out at once is read as a form to be worked
+   through rather than a set of shortcuts, and the agent taps nothing: the room
+   card on agent-houses.html used to open thirty-three chips under five
+   headings and was 3,267 px tall with one room in it.
+
+   So: a handful offered flat, a text box beside them that accepts anything,
+   and the remainder behind one <details>. Nothing leaves the catalogue.
+
+   Used by the room card (agent-houses), "what the job includes"
+   (agent-services) and "what comes with the truck" (agent-trucks), and drawn
+   by js/lib/pick-list.js. Every value is a token; there is no brand hex here.
+   ============================================================================ */
+
+.pk { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* The question is not a field label among field labels. It is the thing
+   customers decide on, and the reason the block is worth filling in. */
+.pk__q {
+  font-size: var(--text-base); font-weight: var(--fw-bold);
+  color: var(--c-text); line-height: var(--lh-snug);
+}
+.pk__help {
+  font-size: var(--text-xs); color: var(--c-text-muted);
+  margin: 0; line-height: var(--lh-normal);
+}
+
+/* ---- What has been chosen. First, because it is the answer. -------------- */
+.pk__on {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  list-style: none; margin: 0; padding: 0;
+}
+.pk__on.is-empty::before {
+  content: attr(data-empty);
+  font-size: var(--text-xs); color: var(--c-text-muted); font-style: italic;
+}
+.pk__on li {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 5px 6px 5px 11px; border-radius: var(--radius-pill);
+  background: var(--c-brand-faint); border: 1px solid var(--c-brand-soft);
+  color: var(--c-brand); font-size: var(--text-sm); font-weight: var(--fw-semibold);
+}
+.pk__on li button {
+  border: 0; background: none; cursor: pointer; font: inherit; line-height: 1;
+  color: inherit; opacity: .6; padding: 2px var(--space-1); border-radius: var(--radius-pill);
+}
+.pk__on li button:hover { opacity: 1; }
+.pk__on li button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ---- The bank of suggestions -------------------------------------------- */
+.pk__chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.pk-chip {
+  border: 1px dashed var(--c-border); background: transparent;
+  color: var(--c-text-soft); border-radius: var(--radius-pill);
+  padding: 5px 10px; font: inherit; font-size: var(--text-xs); font-weight: var(--fw-semibold);
+  cursor: pointer; line-height: 1.2; text-align: left;
+}
+.pk-chip:hover { border-color: var(--c-brand); color: var(--c-brand); border-style: solid; }
+.pk-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pk-chip small { display: block; font-weight: var(--fw-normal); opacity: .75; }
+/* Already on the list. Greyed rather than removed, so the bank does not
+   reshuffle under the agent's thumb every time they tap one. */
+.pk-chip.is-used { opacity: .38; pointer-events: none; text-decoration: line-through; }
+
+.pk__grp { margin-top: var(--space-2); }
+.pk__gt {
+  display: block; font-size: var(--text-xs); font-weight: var(--fw-bold); letter-spacing: .4px;
+  text-transform: uppercase; color: var(--c-text-muted); margin-bottom: var(--space-1);
+}
+
+/* ---- The box that accepts anything the catalogue never heard of ---------- */
+.pk__own { display: flex; gap: var(--space-2); }
+.pk__own input {
+  flex: 1; min-width: 0;
+  font: inherit; font-size: 16px; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--ap-field-line, var(--c-border)); border-radius: var(--radius-sm);
+  background: var(--ap-field-bg, var(--c-surface)); color: var(--c-text);
+}
+.pk__own input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pk__add {
+  flex: 0 0 auto; width: var(--hit-min); min-height: var(--hit-min);
+  border-radius: var(--radius-sm); cursor: pointer;
+  font: inherit; font-size: var(--text-md); font-weight: var(--fw-bold);
+  border: 1px solid var(--c-brand); background: var(--c-brand); color: var(--c-brand-on);
+}
+.pk__add:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ---- "There is more, if you want it" ------------------------------------
+   A <details>, so it is keyboard-reachable and findable by the browser's own
+   page search without a line of script. */
+.pk-more { margin-top: var(--space-1); }
+.pk-more > summary {
+  display: flex; align-items: center; gap: var(--space-2);
+  cursor: pointer; list-style: none; width: fit-content;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--c-border); border-radius: var(--radius-pill);
+  font-size: var(--text-xs); font-weight: var(--fw-bold);
+  text-transform: uppercase; letter-spacing: .4px; color: var(--c-text-muted);
+}
+.pk-more > summary::-webkit-details-marker { display: none; }
+.pk-more > summary:hover { border-style: solid; border-color: var(--c-brand); color: var(--c-brand); }
+.pk-more > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pk-more__chev svg { width: 14px; height: 14px; display: block; transition: transform var(--dur-fast) var(--ease); }
+.pk-more[open] > summary { color: var(--c-brand); border-color: var(--c-brand); border-style: solid; }
+.pk-more[open] .pk-more__chev svg { transform: rotate(180deg); }
+.pk-more__body { padding-top: var(--space-3); }
+
+/* Inside a flex row of chips, the fold takes a line of its own rather than
+   sitting in the middle of them. */
+.pk-more--inline { flex: 1 1 100%; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pk-more__chev svg { transition: none; }
+}
+
+/* ---- The read side ------------------------------------------------------
+   What the listing form collected, shown back on the public sheet
+   (service.html, truck.html). A plain ticked list rather than the chips: a
+   reader is scanning for one fact, not editing a set. */
+.of-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.of-list li {
+  display: flex; align-items: flex-start; gap: var(--space-2);
+  font-size: var(--text-sm); color: var(--c-text); line-height: var(--lh-normal);
+}
+.of-list li::before {
+  content: "";
+  flex: 0 0 auto; width: 15px; height: 15px; margin-top: 2px;
+  background: currentColor; color: var(--c-brand);
+  -webkit-mask: var(--of-tick) center / contain no-repeat;
+  mask: var(--of-tick) center / contain no-repeat;
+}
+:root {
+  --of-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+@media (min-width: 560px) { .of-list { grid-template-columns: 1fr 1fr; } }

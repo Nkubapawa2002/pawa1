@@ -96,6 +96,8 @@ create policy "service-photos upload" on storage.objects for insert
   const fRegion = $("asRegion");
   const pinSearch = $("asPinSearch"), pinResults = $("asPinResults");
   const pinMapEl = $("asPinMap"), pinCoords = $("asPinCoords"), pinGps = $("asPinGps");
+  const includesEl = $("asIncludes"), locDoorsEl = $("asLocDoors");
+  const fCategory = $("asCategory"), fCategoryOtherRow = $("asCategoryOtherRow");
 
   const MAX_PHOTOS = 8;
 
@@ -106,6 +108,8 @@ create policy "service-photos upload" on storage.objects for insert
   let pin = { lat: null, lng: null };
   let pinMap = null, pinMarker = null;
   let rail = null;
+  let includes = null;                // the "what the customer gets" pick list
+  let doors = null;                   // the three ways a location can arrive
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -407,6 +411,13 @@ create policy "service-photos upload" on storage.objects for insert
     $("asArea").value = t?.area || "";
     $("asAddress").value = t?.address || "";
     $("asDescription").value = t?.description || "";
+    // The spec sheet. `details` is the same shape houses.details has: a small
+    // jsonb bag beside the columns, so a fact that has no column of its own is
+    // still a field rather than a sentence in a paragraph.
+    const det = (t && t.details && typeof t.details === "object") ? t.details : {};
+    $("asCategoryOther").value = det.categoryOther || "";
+    syncCategoryOther();
+    mountIncludes(window.ServiceSpec ? window.ServiceSpec.normalize(det.includes) : []);
     $("asOwnerName").value = t?.owner?.name || "";
     $("asOwnerPhone").value = t?.owner?.phone || "";
     $("asOwnerWa").value = t?.owner?.whatsapp || "";
@@ -419,6 +430,7 @@ create policy "service-photos upload" on storage.objects for insert
     renderPhotoGrid();
 
     initPinMap();
+    mountDoors();
     // The rail is only useful once the form exists on screen, and it has to
     // re-read the ticks after a listing is loaded into it.
     rail = rail || window.AgentPortalRail?.mount({ rail: "#asRail", form: "#asForm" });
@@ -451,6 +463,38 @@ create policy "service-photos upload" on storage.objects for insert
       b.addEventListener("click", () => { photoState.splice(+b.dataset.rm, 1); renderPhotoGrid(); }));
     $("asPhotoAdd")?.classList.toggle("is-full", photoState.length >= MAX_PHOTOS);
   }
+
+  // ==========================================================================
+  //  WHAT THE CUSTOMER GETS
+  //
+  //  Every fact behind a booking used to land in the free paragraph: own
+  //  tools, a receipt, Sunday work, a guarantee. There it is invisible to
+  //  search, impossible to compare across providers, and gone the moment the
+  //  paragraph gets long. js/lib/offer-spec.js is the catalogue and
+  //  js/lib/pick-list.js is the one shape a catalogue is allowed to take here:
+  //  a few offered, a box for the provider's own words, the rest folded.
+  // ==========================================================================
+  function mountIncludes(values) {
+    const spec = window.ServiceSpec;
+    if (!includesEl || !spec || !window.PickList) return;
+    includesEl.innerHTML = window.PickList.html({
+      question: T("as_inc_q"), help: T("as_inc_help"),
+      emptyLabel: T("pk_none"), ownLabel: T("pk_add"), moreLabel: T("pk_more"),
+      top: spec.top(), groups: spec.rest(),
+    });
+    includes = window.PickList.wire(includesEl.firstElementChild, {
+      label: spec.label, removeLabel: T("pk_remove"), values: values || [],
+    });
+  }
+
+  // "Something else" saved as `other` and left the trade itself with nowhere
+  // to go. The category column has a CHECK behind it, so the words go on the
+  // spec sheet beside the characteristics rather than into the enum.
+  function syncCategoryOther() {
+    if (!fCategoryOtherRow || !fCategory) return;
+    fCategoryOtherRow.hidden = fCategory.value !== "other";
+  }
+  fCategory?.addEventListener("change", syncCategoryOther);
 
   // ---- pin map -------------------------------------------------------------
   function updatePinCoords() {
@@ -485,6 +529,29 @@ create policy "service-photos upload" on storage.objects for insert
     if (pin.lat != null) setPin(pin.lat, pin.lng, true);
     setTimeout(() => pinMap.invalidateSize(), 120);
   }
+  // ==========================================================================
+  //  THE DOORS A LOCATION CAN ARRIVE THROUGH
+  //
+  //  The pin had three sources and every one of them needed the provider to be
+  //  standing on it. A fundi whose phone never leaves the workshop, or whose
+  //  base is the yard his brother watches, had no way in at all. The shared
+  //  module opens the same three doors agent-houses.html has: a code read down
+  //  a phone, a pin already sitting in a P-Message thread, and a link the
+  //  person there taps once. It owns no map, which is why the same file serves
+  //  this Leaflet page and the MapLibre one.
+  // ==========================================================================
+  function mountDoors() {
+    if (doors || !locDoorsEl || !window.PlaceDoors) return;
+    doors = window.PlaceDoors.mount({
+      into: locDoorsEl,
+      sb: sb,
+      purpose: "service_pin",
+      title: () => $("asTitle").value.trim(),
+      current: () => (pin.lat == null ? null : pin),
+      onPick: (place) => setPin(Number(place.lat), Number(place.lng), true),
+    });
+  }
+
   pinGps.addEventListener("click", async () => {
     pinGps.disabled = true;
     const old = btnLabel(pinGps);
@@ -603,6 +670,15 @@ create policy "service-photos upload" on storage.objects for insert
         photo: paths[0] || null,
         photos: paths,
         description: $("asDescription").value.trim() || null,
+        details: {
+          v: 1,
+          includes: window.ServiceSpec
+            ? window.ServiceSpec.normalize(includes ? includes.read() : [])
+            : [],
+          // Only when the category is the one that cannot say what it is.
+          categoryOther: $("asCategory").value === "other"
+            ? ($("asCategoryOther").value.trim() || null) : null,
+        },
         owner: {
           name: $("asOwnerName").value.trim(),
           phone: $("asOwnerPhone").value.trim(),

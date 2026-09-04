@@ -23,6 +23,28 @@
     const arr = (Array.isArray(t.photos) && t.photos.length ? t.photos : [t.photo]).filter(Boolean);
     return arr.map((p) => window.DataStore.truckPhotoUrl(p)).filter(Boolean);
   }
+  /**
+   * What the owner said comes with the truck.
+   *
+   * The listing form (agent-trucks.html) writes these into trucks.details as a
+   * list of catalogue keys and free text, indistinguishable on purpose.
+   * js/lib/offer-spec.js turns both into the words a customer reads, in their
+   * own language for the catalogue half and exactly as typed for the rest.
+   *
+   * Nothing is drawn when nothing was said: an empty panel headed "what comes
+   * with it" reads as "nothing", which is not what a blank field means.
+   */
+  function kitPanel(t) {
+    const spec = window.TruckSpec;
+    const raw = t && t.details && Array.isArray(t.details.kit) ? t.details.kit : [];
+    if (!spec || !raw.length) return "";
+    const labels = spec.labels(raw);
+    if (!labels.length) return "";
+    const heading = window.t ? window.t("of_kit_h") : "What comes with it";
+    return `<div class="td-panel"><p class="td-h">${esc(heading)}</p>
+      <ul class="of-list">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`;
+  }
+
   function formatPrice(t) {
     const p = t.price_tzs || 0;
     let v;
@@ -80,6 +102,8 @@
               ${specs.map(([k, v]) => `<div class="td-spec"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join("")}
             </div>
           </div>
+
+          ${kitPanel(t)}
 
           ${t.description ? `<div class="td-panel"><p class="td-h">About this truck</p><div class="td-desc">${esc(t.description)}</div></div>` : ""}
         </div>

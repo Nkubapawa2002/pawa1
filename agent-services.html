@@ -29,6 +29,13 @@
        written entirely in design tokens, so it follows the brand and both
        themes without a page-level palette of its own. -->
   <link rel="stylesheet" href="css/agent-portal.css" />
+  <!-- "Offer a few, keep a box for their own words, fold the rest": the one
+       shape a catalogue is allowed to take in this app. Shared with the room
+       card on agent-houses.html and the kit list on agent-trucks.html. -->
+  <link rel="stylesheet" href="css/pick-list.css" />
+  <!-- The three doors a location can arrive through, so a fundi whose phone
+       never leaves the workshop can still be pinned at it. -->
+  <link rel="stylesheet" href="css/place-doors.css" />
   <link rel="stylesheet" href="css/theme-light.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
        and the app/web shell switch. Loads last so it can correct the sheets
@@ -185,10 +192,11 @@
         <nav class="ap-rail" id="asRail" aria-label="Form sections" data-i18n-aria-label="ap_rail_aria">
           <ul class="ap-rail__list">
             <li><a href="#asSecWhat"><span class="ap-rail__n">1</span><span data-i18n="as_sec_what">What you do</span></a></li>
-            <li><a href="#asSecPrice"><span class="ap-rail__n">2</span><span data-i18n="as_sec_price">Your price</span></a></li>
-            <li><a href="#asSecWhere"><span class="ap-rail__n">3</span><span data-i18n="as_sec_where">Where you work</span></a></li>
-            <li><a href="#asSecPin"><span class="ap-rail__n">4</span><span data-i18n="as_sec_pin">Your pin</span></a></li>
-            <li><a href="#asSecContact"><span class="ap-rail__n">5</span><span data-i18n="as_sec_contact">Contact</span></a></li>
+            <li><a href="#asSecIncludes"><span class="ap-rail__n">2</span><span data-i18n="as_sec_includes_short">What they get</span></a></li>
+            <li><a href="#asSecPrice"><span class="ap-rail__n">3</span><span data-i18n="as_sec_price">Your price</span></a></li>
+            <li><a href="#asSecWhere"><span class="ap-rail__n">4</span><span data-i18n="as_sec_where">Where you work</span></a></li>
+            <li><a href="#asSecPin"><span class="ap-rail__n">5</span><span data-i18n="as_sec_pin">Your pin</span></a></li>
+            <li><a href="#asSecContact"><span class="ap-rail__n">6</span><span data-i18n="as_sec_contact">Contact</span></a></li>
           </ul>
         </nav>
 
@@ -237,6 +245,13 @@
               </div>
             </div>
 
+            <!-- "Something else" was a dead end: the category saved as `other`
+                 and the trade itself had nowhere to go but the paragraph. -->
+            <div class="ap-field" id="asCategoryOtherRow" hidden>
+              <label for="asCategoryOther" data-i18n="as_f_category_other">Name the trade</label>
+              <input id="asCategoryOther" type="text" maxlength="40" placeholder="e.g. Welding, upholstery, borehole drilling" data-i18n-placeholder="as_f_category_other_ph" />
+            </div>
+
             <div class="ap-field">
               <label for="asDescription" data-i18n="as_f_desc">Describe the work</label>
               <textarea id="asDescription" rows="4" maxlength="800" placeholder="What you do, what is included, and the areas you serve." data-i18n-placeholder="as_f_desc_ph"></textarea>
@@ -254,10 +269,28 @@
             </div>
           </section>
 
-          <!-- 2 ------------------------------------------------------------ -->
-          <section class="ap-panel" id="asSecPrice">
+          <!-- 2 ------------------------------------------------------------
+               The facts a customer rings to ask before they agree to a price:
+               do you bring your own tools, do you work on Sunday, will you
+               give me a receipt. They used to go into the free paragraph,
+               where they are invisible to search and impossible to compare.
+               A few offered, the rest folded, and a box for anything the
+               catalogue has never heard of. See js/lib/offer-spec.js. -->
+          <section class="ap-panel" id="asSecIncludes">
             <div class="ap-panel__head">
               <span class="ap-panel__n" aria-hidden="true">2</span>
+              <div class="ap-panel__tx">
+                <h3 data-i18n="as_sec_includes">What the customer gets</h3>
+                <p data-i18n="as_sec_includes_sub">The questions people ask on the phone. Answer them here and the call books the job instead of only asking about it.</p>
+              </div>
+            </div>
+            <div id="asIncludes"></div>
+          </section>
+
+          <!-- 3 ------------------------------------------------------------ -->
+          <section class="ap-panel" id="asSecPrice">
+            <div class="ap-panel__head">
+              <span class="ap-panel__n" aria-hidden="true">3</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="as_sec_price">Your price</h3>
                 <p data-i18n="as_sec_price_sub">What you charge and how you charge it. Customers see this as a starting figure, so quote the lowest job you will take.</p>
@@ -294,10 +327,10 @@
             </label>
           </section>
 
-          <!-- 3 ------------------------------------------------------------ -->
+          <!-- 4 ------------------------------------------------------------ -->
           <section class="ap-panel" id="asSecWhere">
             <div class="ap-panel__head">
-              <span class="ap-panel__n" aria-hidden="true">3</span>
+              <span class="ap-panel__n" aria-hidden="true">4</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="as_sec_where">Where you work</h3>
                 <p data-i18n="as_sec_where_sub">How far you will travel, and the area you call home. This is what puts you in front of the right searches.</p>
@@ -330,10 +363,10 @@
             </div>
           </section>
 
-          <!-- 4 ------------------------------------------------------------ -->
+          <!-- 5 ------------------------------------------------------------ -->
           <section class="ap-panel" id="asSecPin">
             <div class="ap-panel__head">
-              <span class="ap-panel__n" aria-hidden="true">4</span>
+              <span class="ap-panel__n" aria-hidden="true">5</span>
               <div class="ap-panel__tx">
                 <h3><span data-i18n="as_sec_pin">Your pin on the map</span> <span class="ap-req" aria-hidden="true">*</span></h3>
                 <p data-i18n="as_sec_pin_sub">Customers find the provider nearest to them by this pin, so put it where you actually start your day.</p>
@@ -367,12 +400,21 @@
               </div>
             </div>
             <p class="ap-hint" data-i18n="as_pin_help">Search a place above, tap anywhere on the map, or use GPS while standing where you work. Drag the pin to fine-tune it.</p>
+
+            <!-- The doors a location can arrive through when you are not
+                 standing on it: a code somebody read down the phone, a pin
+                 already sitting in a P-Message thread, or a link the person
+                 there taps once. js/lib/place-doors.js draws all three. -->
+            <div class="ap-sub">
+              <h4 data-i18n="ap_loc_h2">Not standing there right now?</h4>
+              <div id="asLocDoors"></div>
+            </div>
           </section>
 
-          <!-- 5 ------------------------------------------------------------ -->
+          <!-- 6 ------------------------------------------------------------ -->
           <section class="ap-panel" id="asSecContact">
             <div class="ap-panel__head">
-              <span class="ap-panel__n" aria-hidden="true">5</span>
+              <span class="ap-panel__n" aria-hidden="true">6</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="as_sec_contact">How customers reach you</h3>
                 <p data-i18n="as_sec_contact_sub">This number sits on the listing. Every call comes straight to you.</p>
@@ -432,6 +474,22 @@
   <script src="js/lib/agent-demand-board.js"></script>
   <!-- The section rail: where you are in the form, and what you have answered. -->
   <script src="js/lib/agent-portal.js"></script>
+  <!-- The catalogue of what a job comes with, and the widget that offers a
+       few of it at a time. -->
+  <script src="js/lib/pick-list.js"></script>
+  <script src="js/lib/offer-spec.js"></script>
+  <!-- The location doors and everything behind them. pm-places.js reads the
+       pins already sitting in this device's encrypted threads, which needs the
+       crypto and the store; it reads and never writes. -->
+  <script src="js/lib/loc-code.js"></script>
+  <script src="js/lib/loc-share.js"></script>
+  <script src="js/lib/place-book.js"></script>
+  <script src="js/lib/p-crypto.js"></script>
+  <script src="js/lib/pm-device-lock.js"></script>
+  <script src="js/lib/pm-store.js"></script>
+  <script src="js/lib/pm-place.js"></script>
+  <script src="js/lib/pm-places.js"></script>
+  <script src="js/lib/place-doors.js"></script>
   <!-- The bell. It carries what an admin has done to this account and how
        long the subscription has left, which is exactly the news an agent
        out working needs and will never see by opening a dashboard.

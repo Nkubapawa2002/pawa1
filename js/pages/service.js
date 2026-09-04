@@ -30,6 +30,28 @@
     const arr = (Array.isArray(s.photos) && s.photos.length ? s.photos : [s.photo]).filter(Boolean);
     return arr.map((p) => window.DataStore.servicePhotoUrl(p)).filter(Boolean);
   }
+  /**
+   * What the provider said the job comes with.
+   *
+   * The listing form (agent-services.html) writes these into services.details
+   * as a list of catalogue keys and free text, indistinguishable on purpose.
+   * js/lib/offer-spec.js turns both into the words a customer reads, in their
+   * own language for the catalogue half and exactly as typed for the rest.
+   *
+   * Nothing is drawn when nothing was said: an empty panel headed "what you
+   * get" reads as "nothing", which is not what a blank field means.
+   */
+  function includesPanel(s) {
+    const spec = window.ServiceSpec;
+    const raw = s && s.details && Array.isArray(s.details.includes) ? s.details.includes : [];
+    if (!spec || !raw.length) return "";
+    const labels = spec.labels(raw);
+    if (!labels.length) return "";
+    const heading = window.t ? window.t("of_includes_h") : "What you get";
+    return `<div class="sd-panel"><p class="sd-h">${esc(heading)}</p>
+      <ul class="of-list">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`;
+  }
+
   function formatPrice(s) {
     const p = s.price_tzs || 0;
     let v;
@@ -89,6 +111,8 @@
               ${specs.map(([k, v]) => `<div class="sd-spec"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join("")}
             </div>
           </div>
+
+          ${includesPanel(s)}
 
           ${s.description ? `<div class="sd-panel"><p class="sd-h">About this service</p><div class="sd-desc">${esc(s.description)}</div></div>` : ""}
         </div>

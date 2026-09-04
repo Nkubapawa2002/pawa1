@@ -5,7 +5,8 @@
   <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>List your truck PNzaki</title>
+  <title>List your truck · Pawa</title>
+
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/auth.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.css" />
@@ -16,313 +17,393 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-maskable.svg" type="image/svg+xml" />
+
   <link rel="stylesheet" href="css/mobile.css" />
   <link rel="stylesheet" href="css/premium.css" />
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/houses-pro.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
+  <!-- The portal shell: header band, section rail, panels, fields, media
+       tiles, map picker, sticky actions. Shared with agent-houses.html and
+       agent-services.html.
 
-  <style>
-    .at-card { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-    /* Auth sign-in/up card now uses the shared css/auth.css system. */
-    .at-field { margin-bottom: 12px; }
-    .at-field label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: 5px; }
-    .at-field input, .at-field select, .at-field textarea {
-      width: 100%; padding: 11px 12px; border: 1px solid var(--c-border,#e7e4dd);
-      border-radius: 10px; font-size: 16px; font-family: inherit; background: #fff; color: var(--c-text,#1a1915);
-      transition: border-color .15s ease, box-shadow .15s ease;
-    }
-    .at-field input:hover, .at-field select:hover, .at-field textarea:hover { border-color: var(--c-brand,#0a6f4d); }
-    .at-field input:focus, .at-field select:focus, .at-field textarea:focus { outline: none; border-color: var(--c-brand,#0a6f4d); box-shadow: 0 0 0 3px rgba(10,111,77,.18); }
-    .at-btn:focus-visible { outline: 3px solid rgba(10,111,77,.4); outline-offset: 2px; }
-    .at-btn-brand:hover { background: var(--c-brand-deep,#064a33); }
-    .at-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .at-checks { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 12px; }
-    .at-checks label { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; font-weight: 600; }
-    .at-checks input { width: auto; }
-    .at-btn { padding: 11px 18px; border: 1px solid var(--c-border,#e7e4dd); background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-    .at-btn-brand { background: var(--c-brand,#0a6f4d); color: #fff; border-color: transparent; }
-    .at-btn-danger { background: #fce4e4; color: #b91c1c; border-color: #f5b3b3; }
-    .at-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-    .at-msg { padding: 10px 12px; border-radius: 10px; font-size: .88rem; margin-top: 10px; }
-    .at-msg.error { background: #fce4e4; color: #b91c1c; border: 1px solid #f0b8b8; }
-    .at-msg.success { background: #e6f6ec; color: #0d8050; border: 1px solid #a8d9b8; }
-    .at-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-    .at-tile { border: 1px solid var(--c-border,#e7e4dd); border-radius: 12px; overflow: hidden; background: #fff; }
-    .at-tile-photo { aspect-ratio: 4/3; background: #dfe7e2 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
-    .at-tile-body { padding: 10px 12px; }
-    .at-tile-body h4 { margin: 0 0 4px; font-size: .92rem; }
-    .at-tile-actions { display: flex; gap: 8px; margin-top: 8px; }
-    .at-tile-actions button { flex: 1; padding: 7px; font-size: .8rem; border-radius: 8px; cursor: pointer; border: 1px solid var(--c-border,#e7e4dd); background: #fff; color: var(--c-text,#1a1915); }
-    .at-photo-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-    .at-photo-cell { position: relative; width: 88px; height: 66px; border-radius: 8px; background: #dfe7e2 center/cover no-repeat; }
-    .at-photo-cell button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: none; background: #b91c1c; color: #fff; cursor: pointer; font-size: .8rem; line-height: 1; }
-    .at-photo-add { display: inline-flex; align-items: center; justify-content: center; width: 88px; height: 66px; border: 2px dashed var(--c-border,#bbb); border-radius: 8px; cursor: pointer; color: var(--c-muted,#888); font-size: 1.5rem; }
-    .at-pin-wrap { position: relative; }
-    .at-pin-map { height: 280px; border-radius: 12px; overflow: hidden; border: 1px solid var(--c-border,#e7e4dd); }
-    .at-pin-search { position: relative; margin-bottom: 8px; }
-    .at-pin-results { position: absolute; z-index: 1000; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid var(--c-border,#e7e4dd); border-radius: 10px; max-height: 240px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
-    .at-pin-results[hidden] { display: none; }
-    .at-pin-results button { display: block; width: 100%; text-align: left; padding: 9px 12px; border: none; background: #fff; cursor: pointer; border-bottom: 1px solid #f0eee8; font-size: .86rem; color: var(--c-text,#1a1915); }
-    .at-pin-results button:hover { background: #f6f5f0; }
-    .at-pin-coords { font-size: .82rem; color: var(--c-muted,#6b6960); margin-top: 6px; }
-    .at-setup pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 10px; overflow: auto; font-size: .76rem; max-height: 320px; }
-    .at-hint { font-size: .82rem; color: var(--c-muted,#6b6960); margin: 2px 0 10px; }
-  </style>
-
-  <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
-  <style>
-    /* Twilight dark re-skin (Claude design) — agent trucks dashboard. */
-    body[data-page="agent-trucks"] {
-      --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-surface-soft: #0b1510; --c-bg-elev: rgba(255,255,255,.04);
-      --c-border: rgba(255,255,255,.08);
-      --c-text: #E9F3EE; --c-text-soft: rgba(233,243,238,.80); --c-text-muted: rgba(233,243,238,.55); --c-muted: rgba(233,243,238,.55);
-      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-brand-on: #06170F; --c-brand-faint: rgba(46,230,166,.10); --c-brand-soft: rgba(46,230,166,.30);
-      --c-accent: #F6C45A; --c-success: #2EE6A6; --c-danger: #ff8a7a; --c-danger-soft: rgba(255,138,122,.14);
-      --auth-glass-bg: rgba(255,255,255,.04); --auth-glass-bg-2: rgba(255,255,255,.03); --auth-glass-border: rgba(255,255,255,.10); --auth-sheen: none;
-      --auth-field-bg: rgba(255,255,255,.05); --auth-field-border: rgba(255,255,255,.14); --auth-ring: #2EE6A6;
-      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
-    }
-    body[data-page="agent-trucks"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; min-height: auto !important; padding: 26px 16px 10px !important; }
-    body[data-page="agent-trucks"] .page-title { color: #fff; }
-    body[data-page="agent-trucks"] .page-subtitle { color: rgba(233,243,238,.7); }
-    body[data-page="agent-trucks"] .container { padding-bottom: 96px; }
-    body[data-page="agent-trucks"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
-    body[data-page="agent-trucks"] select, body[data-page="agent-trucks"] textarea {
-      background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14);
-    }
-    body[data-page="agent-trucks"] input::placeholder, body[data-page="agent-trucks"] textarea::placeholder { color: rgba(233,243,238,.4); }
-    body[data-page="agent-trucks"] .auth-card { background: rgba(255,255,255,.04); color: #E9F3EE; border: 1px solid rgba(255,255,255,.10); }
-    body[data-page="agent-trucks"] .auth-input:focus { background: rgba(255,255,255,.07); }
-    body[data-page="agent-trucks"] .at-btn-brand { color: #06170F; }
-    body[data-page="agent-trucks"] #nav-slot, body[data-page="agent-trucks"] #footer-slot { display: none !important; }
-  </style>
+       This page used to carry a hundred lines of its own instead: a .at-*
+       system in raw hex, and a palette redefined on body[data-page] which
+       beats css/theme-light.css on :root and left the whole portal dark in
+       light mode. Both are gone. Every value here is a token. -->
+  <link rel="stylesheet" href="css/agent-portal.css" />
+  <!-- "Offer a few, keep a box for their own words, fold the rest." -->
+  <link rel="stylesheet" href="css/pick-list.css" />
+  <!-- The three doors a location can arrive through, so a lorry parked at a
+       yard across town can still be pinned at it. -->
+  <link rel="stylesheet" href="css/place-doors.css" />
   <link rel="stylesheet" href="css/theme-light.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
        and the app/web shell switch. Loads last so it can correct the sheets
        above it. Pairs with js/core/viewport.js. -->
   <link rel="stylesheet" href="css/adaptive.css" />
 </head>
-<body data-houses-pro data-page="agent-trucks" data-app-shell="agent-trucks.html">
+<body data-houses-pro data-agent-portal data-page="agent-trucks" data-app-shell="agent-trucks.html">
+  <a href="#atMain" class="hp-skip-link" data-i18n="ap_skip">Skip to the form</a>
   <div id="nav-slot"></div>
 
-  <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
-    <div class="page-hero-inner">
-      <h1 class="page-title" data-i18n="at_title">List your moving truck</h1>
-      <p class="page-subtitle" data-i18n="at_sub">Register your truck so people moving house can find you and call you directly.</p>
+  <!-- ===================================================================
+       Header. It replaces a 40vh stock photograph of somebody else's lorry
+       sitting above a form about yours.
+       =================================================================== -->
+  <header class="ap-head">
+    <div class="ap-head__in">
+      <div class="ap-head__tx">
+        <span class="ap-kicker">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg>
+          <span data-i18n="at_kicker">Trucks and lorries</span>
+        </span>
+        <h1 data-i18n="at_title">List your moving truck</h1>
+        <p data-i18n="at_sub">Register your truck so people moving house can find you and call you directly.</p>
+      </div>
+      <ul class="ap-head__facts">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          <span data-i18n="at_fact_free">Free to list</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span data-i18n="at_fact_near">Customers find you by distance</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span data-i18n="at_fact_price">The price per trip is yours to set</span>
+        </li>
+      </ul>
     </div>
-  </section>
+  </header>
 
-  <main id="atMain" class="container" style="padding-top:18px; padding-bottom:60px; max-width:880px;">
+  <main id="atMain" class="container">
 
-    <!-- Auth -->
+    <!-- ==================================================================
+         A. Sign in / create an account
+         ================================================================== -->
     <section id="atAuthCard" class="auth-scene" hidden>
       <div class="login-split">
         <aside class="login-brand">
           <span class="login-brand__logo" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg>
           </span>
-          <h2 class="login-brand__name">List moving <em>trucks</em></h2>
-          <p class="login-brand__lead">Help people move home. Register your truck at its base and get found by customers nearby.</p>
+          <h2 class="login-brand__name" data-i18n-html="at_brand_name">List moving <em>trucks</em></h2>
+          <p class="login-brand__lead" data-i18n="at_brand_lead">Have these ready and a listing takes a few minutes.</p>
           <ul class="login-brand__list">
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Free to list — no setup fees</li>
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span> Customers find you by distance</li>
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Per-trip pricing you set</li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-4z"/><circle cx="12" cy="13" r="3.5"/></svg></span> <span data-i18n="at_brand_p1">A photo of the truck</span></li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg></span> <span data-i18n="at_brand_p2">What you charge for a trip</span></li>
+            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span> <span data-i18n="at_brand_p3">Where it is parked, pinned on the map</span></li>
           </ul>
         </aside>
+
         <div class="auth-shell">
-      <div class="auth-card">
-        <div class="auth-head">
-          <span class="auth-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg>
-          </span>
-          <h1 class="auth-title">Trucks portal sign in</h1>
-          <p class="auth-lead">List moving trucks &amp; lorries for hire. New here? Create an account in seconds.</p>
-        </div>
-        <div class="auth-tabs">
-          <button id="tabSignIn" class="active" type="button">Sign in</button>
-          <button id="tabSignUp" type="button">Create account</button>
-        </div>
-        <form id="atAuthForm" class="auth-form" autocomplete="on" novalidate>
-          <div class="auth-field">
-            <label for="atEmail">Email</label>
-            <div class="auth-input-wrap">
-              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
-              <input class="auth-input" id="atEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+          <div class="auth-card">
+            <div class="auth-head">
+              <span class="auth-logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v9H1z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="5.5" cy="18" r="1.7"/><circle cx="17.5" cy="18" r="1.7"/></svg>
+              </span>
+              <h1 class="auth-title" data-i18n="at_auth_title">Sign in to list a truck</h1>
+              <p class="auth-lead" data-i18n="at_auth_sub">New here? Creating an account takes a moment.</p>
             </div>
-          </div>
-          <div class="auth-field">
-            <label for="atPassword">Password</label>
-            <div class="auth-input-wrap">
-              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input class="auth-input auth-input--pw" id="atPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
-              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
+            <div class="auth-tabs">
+              <button id="tabSignIn" class="active" type="button" data-i18n="at_tab_signin">Sign in</button>
+              <button id="tabSignUp" type="button" data-i18n="at_tab_signup">Create account</button>
             </div>
+            <form id="atAuthForm" class="auth-form" autocomplete="on" novalidate>
+              <div class="auth-field">
+                <label for="atEmail" data-i18n="at_email">Email</label>
+                <div class="auth-input-wrap">
+                  <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+                  <input class="auth-input" id="atEmail" type="email" autocomplete="email" required placeholder="you@example.com" data-i18n-placeholder="at_email_ph" />
+                </div>
+              </div>
+              <div class="auth-field">
+                <label for="atPassword" data-i18n="at_password">Password</label>
+                <div class="auth-input-wrap">
+                  <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <input class="auth-input auth-input--pw" id="atPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
+                  <button type="button" class="auth-eye" aria-label="Show password" data-i18n-aria-label="ap_show_password" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="auth-field" id="atPasswordConfirmRow" hidden>
+                <label for="atPasswordConfirm" data-i18n="at_password_confirm">Re-enter password</label>
+                <div class="auth-input-wrap">
+                  <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <input class="auth-input auth-input--pw" id="atPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="••••••••" />
+                  <button type="button" class="auth-eye" aria-label="Show password" data-i18n-aria-label="ap_show_password" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+              </div>
+              <button id="atAuthSubmit" class="auth-submit" type="submit" data-i18n="at_tab_signin">Sign in</button>
+              <div id="atAuthMsg" class="auth-msg" role="alert" aria-live="polite"></div>
+            </form>
           </div>
-          <div class="auth-field" id="atPasswordConfirmRow" hidden>
-            <label for="atPasswordConfirm">Re-enter password</label>
-            <div class="auth-input-wrap">
-              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input class="auth-input auth-input--pw" id="atPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="••••••••" />
-              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </div>
-          </div>
-          <button id="atAuthSubmit" class="auth-submit" type="submit">Sign in</button>
-          <div id="atAuthMsg" class="auth-msg" role="alert" aria-live="polite"></div>
-        </form>
-      </div>
         </div>
       </div>
     </section>
 
-    <!-- Dashboard -->
+    <!-- ==================================================================
+         B. The trucks this owner already has
+         ================================================================== -->
     <section id="atDashboard" hidden>
       <div id="atWarn"></div>
-      <div class="at-card">
-        <div class="at-head">
-          <div>Signed in as <strong id="atUserEmail">—</strong></div>
-          <div style="display:flex;gap:8px;">
-            <button id="atNewBtn" class="at-btn at-btn-brand" type="button">+ New truck</button>
-            <button id="atSignOut" class="at-btn" type="button">Sign out</button>
-          </div>
-        </div>
-        <div id="atList" class="at-list" aria-busy="true"></div>
+      <div class="ap-bar">
+        <span class="ap-bar__who">
+          <span data-i18n="ap_signed_in_as">Signed in as</span>
+          <strong id="atUserEmail">&mdash;</strong>
+        </span>
+        <span class="ap-bar__acts">
+          <button id="atNewBtn" class="ap-btn ap-btn--brand" type="button" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <span data-i18n="at_new">New truck</span>
+          </button>
+          <button id="atSignOut" class="ap-btn" type="button" data-i18n="ap_sign_out">Sign out</button>
+        </span>
       </div>
+      <div id="atList" class="ap-cards" aria-busy="true"></div>
     </section>
 
-    <!-- Form -->
+    <!-- ==================================================================
+         C. The form
+         ================================================================== -->
     <section id="atFormSection" hidden>
-      <form id="atForm" class="at-card" autocomplete="off">
-        <h2 id="atFormTitle" style="margin-top:0;">Add a truck</h2>
+      <div class="ap-shell">
 
-        <div class="at-field">
-          <label>Photos <span class="at-hint" style="display:inline">(first photo is the cover)</span></label>
-          <div class="at-photo-grid" id="atPhotoGrid"></div>
-          <label class="at-photo-add" for="atPhotoInput" id="atPhotoAdd">+</label>
-          <input id="atPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
-        </div>
+        <nav class="ap-rail" id="atRail" aria-label="Form sections" data-i18n-aria-label="ap_rail_aria">
+          <ul class="ap-rail__list">
+            <li><a href="#atSecWhat"><span class="ap-rail__n">1</span><span data-i18n="at_sec_what">The truck</span></a></li>
+            <li><a href="#atSecKit"><span class="ap-rail__n">2</span><span data-i18n="at_sec_kit_short">What comes with it</span></a></li>
+            <li><a href="#atSecPrice"><span class="ap-rail__n">3</span><span data-i18n="at_sec_price">Price and trips</span></a></li>
+            <li><a href="#atSecWhere"><span class="ap-rail__n">4</span><span data-i18n="at_sec_where">Where it is based</span></a></li>
+            <li><a href="#atSecPin"><span class="ap-rail__n">5</span><span data-i18n="at_sec_pin_short">Its pin</span></a></li>
+            <li><a href="#atSecContact"><span class="ap-rail__n">6</span><span data-i18n="at_sec_contact_short">Contact</span></a></li>
+          </ul>
+        </nav>
 
-        <div class="at-field">
-          <label for="atTitle">Title *</label>
-          <input id="atTitle" type="text" required maxlength="120" placeholder="e.g. Toyota Dyna Canter — house moves in Dar" />
-        </div>
+        <form id="atForm" autocomplete="off">
+          <h2 id="atFormTitle" class="ap-title" data-i18n="at_form_title_new">Add a truck</h2>
 
-        <div class="at-row">
-          <div class="at-field">
-            <label for="atType">Truck type *</label>
-            <select id="atType" required>
-              <option value="pickup">Pickup</option>
-              <option value="canter" selected>Canter</option>
-              <option value="3ton">3-tonne</option>
-              <option value="7ton">7-tonne lorry</option>
-              <option value="10ton_plus">10-tonne+ lorry</option>
-              <option value="other">Other (any kind)…</option>
-            </select>
-          </div>
-          <div class="at-field">
-            <label for="atCapacity">Capacity (tonnes)</label>
-            <input id="atCapacity" type="number" min="0" step="0.5" placeholder="e.g. 3" />
-          </div>
-        </div>
-        <div class="at-row" id="atTypeOtherRow" style="display:none">
-          <div class="at-field">
-            <label for="atTypeOther">Specify the kind</label>
-            <input id="atTypeOther" type="text" maxlength="40" placeholder="e.g. Tipper, flatbed, refrigerated, fuso…" />
-          </div>
-        </div>
+          <!-- 1 ------------------------------------------------------------ -->
+          <section class="ap-panel" id="atSecWhat">
+            <div class="ap-panel__head">
+              <span class="ap-panel__n" aria-hidden="true">1</span>
+              <div class="ap-panel__tx">
+                <h3 data-i18n="at_sec_what">The truck</h3>
+                <p data-i18n="at_sec_what_sub">What it is, how much it carries, and a photograph of the actual vehicle.</p>
+              </div>
+            </div>
 
-        <div class="at-row">
-          <div class="at-field">
-            <label for="atPrice">Price from (TZS / trip) *</label>
-            <input id="atPrice" type="number" min="0" step="5000" required placeholder="e.g. 80000" />
-          </div>
-          <div class="at-field">
-            <label for="atService">Coverage *</label>
-            <select id="atService" required>
-              <option value="within_city">Within city</option>
-              <option value="region_wide" selected>Region-wide</option>
-              <option value="cross_region">Cross-region</option>
-            </select>
-          </div>
-        </div>
+            <div class="ap-field">
+              <label for="atTitle"><span data-i18n="at_f_title">Title</span> <span class="ap-req" aria-hidden="true">*</span></label>
+              <input id="atTitle" type="text" required maxlength="120" placeholder="e.g. Toyota Dyna Canter, house moves in Dar" data-i18n-placeholder="at_f_title_ph" />
+            </div>
 
-        <div class="at-checks">
-          <label><input id="atNegotiable" type="checkbox" checked /> Price negotiable</label>
-          <label><input id="atDriver" type="checkbox" checked /> Driver included</label>
-          <label><input id="atLoaders" type="checkbox" /> Loaders included</label>
-        </div>
+            <div class="ap-grid-2">
+              <div class="ap-field">
+                <label for="atType"><span data-i18n="at_f_type">Truck type</span> <span class="ap-req" aria-hidden="true">*</span></label>
+                <select id="atType" required>
+                  <option value="pickup" data-i18n="at_type_pickup">Pickup</option>
+                  <option value="canter" selected data-i18n="at_type_canter">Canter</option>
+                  <option value="3ton" data-i18n="at_type_3ton">3-tonne</option>
+                  <option value="7ton" data-i18n="at_type_7ton">7-tonne lorry</option>
+                  <option value="10ton_plus" data-i18n="at_type_10ton">10-tonne lorry or bigger</option>
+                  <option value="other" data-i18n="at_type_other">Something else</option>
+                </select>
+              </div>
+              <div class="ap-field">
+                <label for="atCapacity" data-i18n="at_f_capacity">Capacity in tonnes</label>
+                <input id="atCapacity" type="number" min="0" step="0.5" placeholder="3" />
+              </div>
+            </div>
 
-        <div class="at-row">
-          <div class="at-field">
-            <label for="atRegion">Region</label>
-            <select id="atRegion"><option value="">Select region</option></select>
-          </div>
-          <div class="at-field">
-            <label for="atArea">Area / ward</label>
-            <input id="atArea" type="text" placeholder="e.g. Mikocheni" />
-          </div>
-        </div>
+            <div class="ap-field" id="atTypeOtherRow" hidden>
+              <label for="atTypeOther" data-i18n="at_f_type_other">Name the kind</label>
+              <input id="atTypeOther" type="text" maxlength="40" placeholder="e.g. Tipper, flatbed, fuso, refrigerated" data-i18n-placeholder="at_f_type_other_ph" />
+            </div>
 
-        <div class="at-field">
-          <label for="atAddress">Base location (address)</label>
-          <input id="atAddress" type="text" placeholder="e.g. Mikocheni B, near Regent Estate" />
-        </div>
+            <div class="ap-sub">
+              <h4 data-i18n="at_f_photos">Photos of the truck</h4>
+              <div class="ap-media" id="atPhotoGrid" aria-label="Photos" data-i18n-aria-label="at_f_photos"></div>
+              <label class="ap-drop" for="atPhotoInput" id="atPhotoAdd">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span data-i18n="at_f_photos_cta">Add photos</span>
+                <small data-i18n="at_f_photos_hint">Up to 8. The first one becomes the cover customers see.</small>
+              </label>
+              <input id="atPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+            </div>
+          </section>
 
-        <!-- Location pin -->
-        <div class="at-field">
-          <label>Where the truck is based (drop a pin) *</label>
-          <p class="at-hint">Search a place, tap the map, or use GPS. Users find the truck nearest them by this pin.</p>
-          <div class="at-pin-search">
-            <input id="atPinSearch" type="search" autocomplete="off" placeholder="Search a place (e.g. Mikocheni, Sakina…)" />
-            <div id="atPinResults" class="at-pin-results" hidden></div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
-            <button type="button" id="atPinAi" style="padding:9px 14px;border:1px solid #0a6f4d;background:#0a6f4d;color:#fff;border-radius:9px;font-weight:600;cursor:pointer;white-space:nowrap;"> Describe it — let AI pin it</button>
-            <small id="atPinAiMsg" style="flex:1;min-width:160px;color:#6b7a73;"></small>
-          </div>
-          <div class="at-pin-wrap">
-            <div id="atPinMap" class="at-pin-map"></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
-            <button type="button" id="atPinGps" class="at-btn"> Use my GPS</button>
-            <span id="atPinCoords" class="at-pin-coords">No pin set</span>
-          </div>
-        </div>
+          <!-- 2 ------------------------------------------------------------
+               The facts somebody moving house rings to ask about: is the
+               driver in the price, is there a tarpaulin, are there straps,
+               will you go upcountry. They used to be three checkboxes and a
+               free paragraph. A few offered, the rest folded, and a box for
+               anything the catalogue has never heard of.
+               See js/lib/offer-spec.js. -->
+          <section class="ap-panel" id="atSecKit">
+            <div class="ap-panel__head">
+              <span class="ap-panel__n" aria-hidden="true">2</span>
+              <div class="ap-panel__tx">
+                <h3 data-i18n="at_sec_kit">What comes with the truck</h3>
+                <p data-i18n="at_sec_kit_sub">The questions people ask before they book. Answer them here and the call is about the date, not about the truck.</p>
+              </div>
+            </div>
+            <div id="atKit"></div>
+          </section>
 
-        <div class="at-field">
-          <label for="atDescription">Description</label>
-          <textarea id="atDescription" rows="4" maxlength="800" placeholder="What can you move, what's included (driver, loaders, cover), areas you serve…"></textarea>
-        </div>
+          <!-- 3 ------------------------------------------------------------ -->
+          <section class="ap-panel" id="atSecPrice">
+            <div class="ap-panel__head">
+              <span class="ap-panel__n" aria-hidden="true">3</span>
+              <div class="ap-panel__tx">
+                <h3 data-i18n="at_sec_price">Price and trips</h3>
+                <p data-i18n="at_sec_price_sub">What you charge for one trip, and how far you will take it. Quote the smallest job you will accept, because customers read it as a starting figure.</p>
+              </div>
+            </div>
 
-        <h3 style="margin:14px 0 8px;">Owner contact</h3>
-        <div class="at-row">
-          <div class="at-field">
-            <label for="atOwnerName">Name / business *</label>
-            <input id="atOwnerName" type="text" required placeholder="e.g. p nzaki" />
-          </div>
-          <div class="at-field">
-            <label for="atOwnerPhone">Phone *</label>
-            <input id="atOwnerPhone" type="tel" required placeholder="+255 7XX XXX XXX" />
-          </div>
-        </div>
-        <div class="at-field">
-          <label for="atOwnerWa">WhatsApp (if different)</label>
-          <input id="atOwnerWa" type="tel" placeholder="+255 7XX XXX XXX" />
-        </div>
+            <div class="ap-grid-2">
+              <div class="ap-field">
+                <label for="atPrice"><span data-i18n="at_f_price">Price from, TZS per trip</span> <span class="ap-req" aria-hidden="true">*</span></label>
+                <input id="atPrice" type="number" min="0" step="5000" required placeholder="80000" />
+              </div>
+              <div class="ap-field">
+                <label for="atService"><span data-i18n="at_f_coverage">How far you go</span> <span class="ap-req" aria-hidden="true">*</span></label>
+                <select id="atService" required>
+                  <option value="within_city" data-i18n="at_cov_city">Within my city or town</option>
+                  <option value="region_wide" selected data-i18n="at_cov_region">Anywhere in my region</option>
+                  <option value="cross_region" data-i18n="at_cov_cross">Any region in Tanzania</option>
+                </select>
+              </div>
+            </div>
 
-        <p id="atFormMsg" class="at-msg" hidden></p>
-        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;">
-          <button type="button" id="atCancelBtn" class="at-btn">Cancel</button>
-          <button type="submit" id="atSaveBtn" class="at-btn at-btn-brand">Save truck</button>
-        </div>
-      </form>
+            <label class="ap-check" for="atNegotiable">
+              <input id="atNegotiable" type="checkbox" checked />
+              <span class="ap-check__tx">
+                <span data-i18n="at_f_negotiable">The price is negotiable</span>
+                <small data-i18n="at_f_negotiable_hint">Customers see a "negotiable" mark and know they can talk to you about the figure.</small>
+              </span>
+            </label>
+
+            <div class="ap-field">
+              <label for="atDescription" data-i18n="at_f_desc">Anything else worth saying</label>
+              <textarea id="atDescription" rows="4" maxlength="800" placeholder="What you will and will not carry, how long a move usually takes, the routes you know." data-i18n-placeholder="at_f_desc_ph"></textarea>
+            </div>
+          </section>
+
+          <!-- 4 ------------------------------------------------------------ -->
+          <section class="ap-panel" id="atSecWhere">
+            <div class="ap-panel__head">
+              <span class="ap-panel__n" aria-hidden="true">4</span>
+              <div class="ap-panel__tx">
+                <h3 data-i18n="at_sec_where">Where it is based</h3>
+                <p data-i18n="at_sec_where_sub">The area the truck starts its day in. This is what puts you in front of the right searches.</p>
+              </div>
+            </div>
+
+            <div class="ap-grid-2">
+              <div class="ap-field">
+                <label for="atRegion" data-i18n="at_f_region">Region</label>
+                <select id="atRegion"><option value="" data-i18n="at_f_region_none">Choose a region</option></select>
+              </div>
+              <div class="ap-field">
+                <label for="atArea" data-i18n="at_f_area">Area or ward</label>
+                <input id="atArea" type="text" placeholder="e.g. Mikocheni" data-i18n-placeholder="at_f_area_ph" />
+              </div>
+            </div>
+
+            <div class="ap-field">
+              <label for="atAddress" data-i18n="at_f_address">The address it parks at</label>
+              <input id="atAddress" type="text" placeholder="e.g. Mikocheni B, near Regent Estate" data-i18n-placeholder="at_f_address_ph" />
+            </div>
+          </section>
+
+          <!-- 5 ------------------------------------------------------------ -->
+          <section class="ap-panel" id="atSecPin">
+            <div class="ap-panel__head">
+              <span class="ap-panel__n" aria-hidden="true">5</span>
+              <div class="ap-panel__tx">
+                <h3><span data-i18n="at_sec_pin">Its pin on the map</span> <span class="ap-req" aria-hidden="true">*</span></h3>
+                <p data-i18n="at_sec_pin_sub">Customers find the truck nearest to them by this pin, so put it where the truck actually sleeps.</p>
+              </div>
+            </div>
+
+            <div class="ap-search">
+              <input id="atPinSearch" type="search" autocomplete="off" spellcheck="false"
+                     placeholder="Search a place, for example Mikocheni or Sakina"
+                     data-i18n-placeholder="at_pin_search_ph"
+                     aria-label="Search a place" data-i18n-aria-label="at_pin_search_aria" />
+              <div id="atPinResults" class="ap-results" hidden></div>
+            </div>
+
+            <div class="ap-inline" style="margin-bottom:var(--space-3)">
+              <button type="button" id="atPinAi" class="ap-btn ap-btn--brand">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+                <span data-i18n="ap_pin_ai">Describe it and let AI pin it</span>
+              </button>
+              <small id="atPinAiMsg" class="ap-hint" role="status" aria-live="polite"></small>
+            </div>
+
+            <div class="ap-map">
+              <div id="atPinMap" class="ap-map__canvas"></div>
+              <div class="ap-map__bar">
+                <span id="atPinCoords" class="ap-coords" data-i18n="ap_pin_none">No pin set</span>
+                <button type="button" id="atPinGps" class="ap-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/></svg>
+                  <span data-i18n="ap_pin_gps">Use my GPS</span>
+                </button>
+              </div>
+            </div>
+            <p class="ap-hint" data-i18n="at_pin_help">Search a place above, tap anywhere on the map, or use GPS while standing beside the truck. Drag the pin to fine-tune it.</p>
+
+            <!-- The doors a location can arrive through when you are not
+                 standing on it. js/lib/place-doors.js draws all three. -->
+            <div class="ap-sub">
+              <h4 data-i18n="ap_loc_h2">Not standing there right now?</h4>
+              <div id="atLocDoors"></div>
+            </div>
+          </section>
+
+          <!-- 6 ------------------------------------------------------------ -->
+          <section class="ap-panel" id="atSecContact">
+            <div class="ap-panel__head">
+              <span class="ap-panel__n" aria-hidden="true">6</span>
+              <div class="ap-panel__tx">
+                <h3 data-i18n="at_sec_contact">How customers reach you</h3>
+                <p data-i18n="at_sec_contact_sub">This number sits on the listing. Every call comes straight to you.</p>
+              </div>
+            </div>
+
+            <div class="ap-grid-2">
+              <div class="ap-field">
+                <label for="atOwnerName"><span data-i18n="at_f_owner_name">Your name or business</span> <span class="ap-req" aria-hidden="true">*</span></label>
+                <input id="atOwnerName" type="text" required maxlength="80" placeholder="e.g. Mwanga Movers" data-i18n-placeholder="at_f_owner_name_ph" />
+              </div>
+              <div class="ap-field">
+                <label for="atOwnerPhone"><span data-i18n="at_f_owner_phone">Phone</span> <span class="ap-req" aria-hidden="true">*</span></label>
+                <input id="atOwnerPhone" type="tel" required placeholder="+255 7XX XXX XXX" data-i18n-placeholder="ap_phone_ph" />
+              </div>
+            </div>
+            <div class="ap-field">
+              <label for="atOwnerWa" data-i18n="at_f_owner_wa">WhatsApp, if it is a different number</label>
+              <input id="atOwnerWa" type="tel" placeholder="+255 7XX XXX XXX" data-i18n-placeholder="ap_phone_ph" />
+            </div>
+          </section>
+
+          <p id="atFormMsg" class="ap-msg" role="alert" aria-live="polite" hidden></p>
+
+          <div class="ap-actions">
+            <span class="ap-actions__note" data-i18n="at_actions_note">You can edit or remove this listing at any time.</span>
+            <button type="button" id="atCancelBtn" class="ap-btn" data-i18n="ap_cancel">Cancel</button>
+            <button type="submit" id="atSaveBtn" class="ap-btn ap-btn--brand" data-i18n="at_save">Save truck</button>
+          </div>
+        </form>
+      </div>
     </section>
 
   </main>
@@ -349,8 +430,26 @@
   <script src="js/lib/auth-ui.js"></script>
   <script src="js/lib/agent-profile.js"></script>
   <script src="js/lib/agent-demand-board.js"></script>
+  <!-- The section rail: where you are in the form, and what you have answered. -->
+  <script src="js/lib/agent-portal.js"></script>
+  <!-- The catalogue of what a truck comes with, and the widget that offers a
+       few of it at a time. -->
+  <script src="js/lib/pick-list.js"></script>
+  <script src="js/lib/offer-spec.js"></script>
+  <!-- The location doors and everything behind them. pm-places.js reads the
+       pins already sitting in this device's encrypted threads, which needs the
+       crypto and the store; it reads and never writes. -->
+  <script src="js/lib/loc-code.js"></script>
+  <script src="js/lib/loc-share.js"></script>
+  <script src="js/lib/place-book.js"></script>
+  <script src="js/lib/p-crypto.js"></script>
+  <script src="js/lib/pm-device-lock.js"></script>
+  <script src="js/lib/pm-store.js"></script>
+  <script src="js/lib/pm-place.js"></script>
+  <script src="js/lib/pm-places.js"></script>
+  <script src="js/lib/place-doors.js"></script>
   <!-- The bell. It carries what an admin has done to this account and how
-       long the subscription has left, which is exactly the news an agent
+       long the subscription has left, which is exactly the news an owner
        out working needs and will never see by opening a dashboard.
        js/lib/notices.js is the shared reader behind both. -->
   <script src="js/lib/notices.js"></script>
@@ -358,7 +457,7 @@
   <script src="js/lib/notify-ui.js"></script>
   <script src="js/pages/agent-trucks.js"></script>
   <script>
-    // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js) — Profile area.
+    // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js), Profile area.
     window.applyTranslations();
     window.initAgentTrucksPage();
   </script>
