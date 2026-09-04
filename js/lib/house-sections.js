@@ -18,7 +18,12 @@
 
 // The sections this page can draw, in reading order, with the rail label each
 // one gets. Built into the rail only when the section actually rendered.
-const SECTION_LABELS = {
+// T() and fillT() come from js/lib/house-ui.js, which loads first and is where
+// this page keeps the helpers more than one of its files needs.
+
+// The tab strip down the sheet. Read through T() at call time rather than
+// frozen here, because the reader can change language without a reload.
+const SECTION_EN = {
   "sec-money":     "Price",
   "sec-rooms":     "Rooms",
   "sec-about":     "About",
@@ -29,6 +34,24 @@ const SECTION_LABELS = {
   "sec-nearby":    "Nearby",
   "sec-agent":     "Agent",
 };
+const SECTION_KEY = {
+  "sec-money":     "hs_tab_money",
+  "sec-rooms":     "hs_tab_rooms",
+  "sec-about":     "hs_tab_about",
+  "sec-rules":     "hs_tab_rules",
+  "sec-costs":     "hs_tab_costs",
+  "sec-amenities": "hs_tab_amenities",
+  "sec-place":     "hs_tab_place",
+  "sec-nearby":    "hs_tab_nearby",
+  "sec-agent":     "hs_tab_agent",
+};
+const SECTION_LABELS = new Proxy({}, {
+  get: (_, id) => (SECTION_EN[id] === undefined
+    ? undefined : T(SECTION_KEY[id], SECTION_EN[id])),
+  has: (_, id) => id in SECTION_EN,
+  ownKeys: () => Reflect.ownKeys(SECTION_EN),
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+});
 const SECTION_ORDER = [
   "sec-money", "sec-rooms", "sec-about", "sec-rules", "sec-costs",
   "sec-amenities", "sec-place", "sec-nearby", "sec-agent",
@@ -135,17 +158,21 @@ function moneyInnerHtml(h, list, i) {
   const many = list.length > 1;
 
   const lead = many ? room.label
-             : (h.listing === "sale" ? "Asking price" : "Rent for this place");
+             : T(h.listing === "sale" ? "hs_asking" : "hs_rent_here",
+                 h.listing === "sale" ? "Asking price" : "Rent for this place");
 
   const head = priced
     ? `<div class="hd-price">${esc(HR.money(room.price))} <small>${esc(room.periodLabel || "")}</small></div>`
-    : `<div class="hx-money__ask">Price on request — the agent has not named one for this space.</div>`;
+    : `<div class="hx-money__ask">${esc(T("hs_on_request",
+        "Price on request. The agent has not named one for this space."))}</div>`;
 
   // What the headline does NOT say, said once, here.
   const notes = [];
-  if (many) notes.push(`One of <strong>${list.length}</strong> kinds of space in this listing.`);
+  if (many) notes.push(fillT(T("hs_one_of", "One of <strong>{n}</strong> kinds of space in this listing."),
+                             { n: list.length }));
   if ((h.listing || "rent") === "rent" && Number(h.min_months) > 1)
-    notes.push(`Minimum <strong>${esc(String(h.min_months))} months</strong> paid upfront.`);
+    notes.push(fillT(T("hs_min_months", "Minimum <strong>{n} months</strong> paid upfront."),
+                     { n: esc(String(h.min_months)) }));
 
   return `
     <div class="hx-card__head">
@@ -181,10 +208,15 @@ function moveInHtml(mi) {
 
   const caveats = [];
   if (mi.open.length) {
-    caveats.push(`This total leaves out ${esc(joinList(mi.open))} — the agent has not put a number on ${mi.open.length === 1 ? "it" : "them"}.`);
+    caveats.push(fillT(T(mi.open.length === 1 ? "hs_leaves_out_1" : "hs_leaves_out_n",
+                         mi.open.length === 1
+                           ? "This total leaves out {what}: the agent has not put a number on it."
+                           : "This total leaves out {what}: the agent has not put a number on them."),
+                       { what: esc(joinList(mi.open)) }));
   }
   if (assumed) {
-    caveats.push(`The commission here is the market standard of one month's rent, not a quote from this agent. Confirm it before you sign.`);
+    caveats.push(esc(T("hs_assumed_fee",
+      "The commission here is the market standard of one month's rent, not a quote from this agent. Confirm it before you sign.")));
   }
 
   // The chart carries the same figures in its legend and again in its table
@@ -195,15 +227,15 @@ function moveInHtml(mi) {
 
   const m = mi.monthly;
   const monthlyBlock = !m ? "" : `
-    <div class="hx-specs-split__label" style="margin-top:16px">Then, every month</div>
+    <div class="hx-specs-split__label" style="margin-top:16px">${esc(T("hs_then_monthly", "Then, every month"))}</div>
     <ul class="hx-lines">
-      <li><span class="hx-line-k">Rent</span><span class="hx-line-v">${esc(window.HouseRooms.money(m.rent))}</span></li>
+      <li><span class="hx-line-k">${esc(T("hs_rent", "Rent"))}</span><span class="hx-line-v">${esc(window.HouseRooms.money(m.rent))}</span></li>
       ${m.bills.map(b => `<li${b.amount == null && !b.free ? ' class="is-muted"' : ""}${b.free ? ' class="is-free"' : ""}>
         <span class="hx-line-k">${esc(b.label)}</span>
         <span class="hx-line-v">${esc(billValue(b))}</span>
       </li>`).join("")}
       ${m.hasUnknownBills ? "" : `<li class="is-total">
-        <span class="hx-line-k">Every month</span>
+        <span class="hx-line-k">${esc(T("hs_every_month", "Every month"))}</span>
         <span class="hx-line-v">${esc(window.HouseRooms.money(m.total))}</span>
       </li>`}
     </ul>`;
@@ -212,7 +244,7 @@ function moveInHtml(mi) {
     <div class="hx-movein">
       <button type="button" class="hx-movein__toggle" id="hxMoveinBtn"
               aria-expanded="false" aria-controls="hxMoveinBody">
-        <span class="hx-movein__label">To move in
+        <span class="hx-movein__label">${esc(T("hs_to_move_in", "To move in"))}
           <small>${hasFee ? "rent upfront + deposit + commission" : "rent upfront + deposit"}</small>
         </span>
         <span class="hx-movein__total">${esc(total)}</span>
@@ -223,7 +255,8 @@ function moveInHtml(mi) {
         <ul class="hx-lines">
           ${mi.lines.map(lineHtml).join("")}
           ${mi.total != null ? `<li class="is-total">
-            <span class="hx-line-k">${mi.complete ? "Total to move in" : "Total of the priced items"}</span>
+            <span class="hx-line-k">${esc(T(mi.complete ? "hs_total_all" : "hs_total_priced",
+              mi.complete ? "Total to move in" : "Total of the priced items"))}</span>
             <span class="hx-line-v">${esc(total)}</span>
           </li>` : ""}
         </ul>
@@ -241,15 +274,16 @@ function lineHtml(l) {
 }
 
 function billValue(b) {
-  if (b.billing === "included") return "Included";
-  if (b.billing === "metered")  return "Pay as you use";
+  if (b.billing === "included") return T("hs_bill_included", "Included");
+  if (b.billing === "metered")  return T("hs_bill_metered", "Pay as you use");
   // Stated as costing nothing. This is a fact worth reading, and it must not
   // render as "TZS 0" (which looks like a data error) or fall through to
   // "Ask the agent" (which is what it used to do).
   if (b.free)                   return window.HouseSpec && window.HouseSpec.freeLabel
-                                  ? window.HouseSpec.freeLabel() : "Free";
+                                  ? window.HouseSpec.freeLabel() : T("hs_free", "Free");
   if (b.amount != null)         return window.HouseRooms.money(b.amount);
-  return (window.HouseSpec && window.HouseSpec.t && window.HouseSpec.t("m_ask")) || "Ask the agent";
+  return (window.HouseSpec && window.HouseSpec.t && window.HouseSpec.t("m_ask"))
+    || T("hs_ask", "Ask the agent");
 }
 
 function joinList(a) {
@@ -270,26 +304,26 @@ function roomsSectionHtml(h, list, i) {
 
   const many = list.length > 1;
   const sub = many
-    ? `This place is let space by space. Pick one — its price, its specification and the move-in total above all follow your choice.`
+    ? T("hs_rooms_many", "This place is let space by space. Pick one: its price, its specification and the move-in total above all follow your choice.")
     : (list[0].synthetic
-        ? `This listing predates the room-by-room sheet, so what follows is the one space its original entry described.`
-        : `This listing offers one kind of space.`);
+        ? T("hs_rooms_legacy", "This listing predates the room-by-room sheet, so what follows is the one space its original entry described.")
+        : T("hs_rooms_one", "This listing offers one kind of space."));
 
   return `<section class="hx-card" id="sec-rooms">
     <div class="hx-card__head">
       ${ico(ICO.door)}
-      <h3>Rooms &amp; specifications</h3>
+      <h3>${esc(T("hs_h_rooms", "Rooms and specifications"))}</h3>
       ${many ? `<span class="hx-card__count">${list.length}</span>` : ""}
     </div>
     <p class="hx-sub">${esc(sub)}</p>
-    ${many ? `<div class="hx-rooms__picker" role="tablist" aria-label="Spaces in this listing">
+    ${many ? `<div class="hx-rooms__picker" role="tablist" aria-label="${esc(T("hs_spaces_aria", "Spaces in this listing"))}">
       ${list.map(r => HR.tab(r, r.i === i)).join("")}
     </div>` : ""}
     <div id="hxRoomPanel" role="tabpanel" aria-labelledby="hxRoomTab${i}">
       ${HR.roomPanel(list[i])}
     </div>
     <div class="hx-specs-split">
-      <div class="hx-specs-split__label">The whole property</div>
+      <div class="hx-specs-split__label">${esc(T("hs_whole", "The whole property"))}</div>
       <div class="hx-specs">${HR.buildingTiles(h, labelType, formatDate)}</div>
     </div>
   </section>`;
@@ -298,7 +332,7 @@ function roomsSectionHtml(h, list, i) {
 function aboutSectionHtml(h) {
   if (!h.description) return "";
   return `<section class="hx-card" id="sec-about">
-    <div class="hx-card__head">${ico(ICO.text)}<h3>About this property</h3></div>
+    <div class="hx-card__head">${ico(ICO.text)}<h3>${esc(T("hs_h_about", "About this property"))}</h3></div>
     <p>${esc(h.description)}</p>
   </section>`;
 }
@@ -342,10 +376,10 @@ function groupsSectionHtml(h) {
   return `<section class="hx-card" id="sec-rules">
     <div class="hx-card__head">
       ${ico(ICO.shield)}
-      <h3>What the agent commits to</h3>
+      <h3>${esc(T("hs_h_rules", "What the agent commits to"))}</h3>
       <span class="hx-card__count">${groups.length}</span>
     </div>
-    <p class="hx-sub">The rules, the neighbourhood, the services and the paperwork — written by the agent, in their own words.</p>
+    <p class="hx-sub">${esc(T("hs_rules_sub", "The rules, the neighbourhood, the services and the paperwork, written by the agent in their own words."))}</p>
     <div class="hx-acc">${items}</div>
   </section>`;
 }
@@ -360,11 +394,11 @@ function billsSectionHtml(h) {
     const has = Number.isFinite(amt) && amt > 0;
     const b = c.billing || "month";
     let right;
-    if (b === "included")     right = `<span class="hx-tag hx-tag--ok">Included in rent</span>`;
-    else if (b === "metered") right = `<span class="hx-tag hx-tag--info">Pay as you use</span>`;
+    if (b === "included")     right = `<span class="hx-tag hx-tag--ok">${esc(T("hs_incl_rent", "Included in the rent"))}</span>`;
+    else if (b === "metered") right = `<span class="hx-tag hx-tag--info">${esc(T("hs_bill_metered", "Pay as you use"))}</span>`;
     else if (has)             right = `<span class="hx-line-v">${esc(window.HouseRooms.money(amt))}${
                                         b === "month" ? " / month" : b === "oneoff" ? " once" : ""}</span>`;
-    else                      right = `<span class="hx-tag hx-tag--ask">Ask the agent</span>`;
+    else                      right = `<span class="hx-tag hx-tag--ask">${esc(T("hs_ask", "Ask the agent"))}</span>`;
     return `<li class="hx-bill">
       <span class="hx-bill__k">${costIcon(c.label)}${esc(c.label)}</span>
       ${right}
@@ -374,10 +408,10 @@ function billsSectionHtml(h) {
   return `<section class="hx-card" id="sec-costs">
     <div class="hx-card__head">
       ${ico(ICO.bolt)}
-      <h3>Bills &amp; extra costs</h3>
+      <h3>${esc(T("hs_h_costs", "Bills and extra costs"))}</h3>
       <span class="hx-card__count">${costs.length}</span>
     </div>
-    <p class="hx-sub">What the tenant pays on top of the rent above.</p>
+    <p class="hx-sub">${esc(T("hs_costs_sub", "What the tenant pays on top of the rent above."))}</p>
     <ul class="hx-lines">${rows}</ul>
   </section>`;
 }
@@ -389,7 +423,7 @@ function amenitiesSectionHtml(h) {
   return `<section class="hx-card" id="sec-amenities">
     <div class="hx-card__head">
       ${ico(ICO.sparkle)}
-      <h3>Amenities</h3>
+      <h3>${esc(T("hs_h_amenities", "Amenities"))}</h3>
       <span class="hx-card__count">${list.length}</span>
     </div>
     <div class="hd-chips">
@@ -400,7 +434,7 @@ function amenitiesSectionHtml(h) {
 
 function placeSectionHtml(h, mapsUrl, meetCode, pinLine) {
   return `<section class="hx-card" id="sec-place">
-    <div class="hx-card__head">${ico(ICO.map)}<h3>Where it is</h3></div>
+    <div class="hx-card__head">${ico(ICO.map)}<h3>${esc(T("hs_h_place", "Where it is"))}</h3></div>
     <div class="hd-map" id="hdMap"></div>
     <div class="hd-map-actions">
       <a href="#" id="hdRouteBtn" role="button">${ico(ICO.route, 15)} Route from my location</a>
@@ -426,7 +460,7 @@ function placeSectionHtml(h, mapsUrl, meetCode, pinLine) {
 
 function nearbySectionHtml(h) {
   return `<section class="hx-card hd-nearby-card" id="sec-nearby">
-    <div class="hx-card__head">${ico(ICO.compass)}<h3>What's nearby</h3></div>
+    <div class="hx-card__head">${ico(ICO.compass)}<h3>${esc(T("hs_h_nearby", "What is nearby"))}</h3></div>
     <p class="hd-nearby-sub">Schools, hospitals, markets, transport and worship around this home.</p>
     <div id="hdNearbyList" class="hd-nearby-list"></div>
   </section>`;
@@ -448,12 +482,12 @@ function nearbySectionHtml(h) {
  */
 function agentSectionHtml(h, ctx) {
   const { agentName, agentPhone, agentPhoneClean, waHref, meetCode, initials } = ctx;
-  const T = (k, en) => { const v = window.t ? window.t(k) : null; return (v && v !== k) ? v : en; };
   const byOwner = !!(window.OwnerAccount && window.OwnerAccount.isOwnerListing(h));
-  const head = byOwner ? T("own_note_t", "Listed by the owner") : "Listing agent";
+  const head = byOwner ? T("own_note_t", "Listed by the owner")
+                       : T("hd_agent", "Listing agent");
   const role = byOwner
     ? T("own_note_role", "The person who owns it, not an agent.")
-    : "Verified by Pawa · responds within 1 day";
+    : T("hs_agent_verified", "Verified by Pawa, replies within a day");
   const note = byOwner
     ? `<div class="owner-note">
          <span class="owner-note-ic">${window.OwnerAccount.KEY_SVG}</span>

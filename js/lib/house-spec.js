@@ -339,6 +339,40 @@
     m_fee_owner: { en: "no agent on this listing",  sw: "hakuna dalali kwenye tangazo hili" },
     m_ask:       { en: "Ask the agent",             sw: "Muulize dalali" },
     m_oneoff:    { en: "one-off",                   sw: "mara moja" },
+
+    // What the chart could not work out, listed under it as questions to ask
+    // rather than as blanks. A blank reads as "nothing to pay".
+    o_price:     { en: "The price of this space",   sw: "Bei ya nafasi hii" },
+    o_rent:      { en: "The rent for this space",   sw: "Kodi ya nafasi hii" },
+    o_deposit:   { en: "The deposit",               sw: "Dhamana" },
+
+    // The specification tiles. They label a FACT, not a field, which is why
+    // "Bathroom: Own" rather than "Ensuite: yes".
+    s_space:     { en: "This space",                sw: "Nafasi hii" },
+    s_size:      { en: "Size",                      sw: "Ukubwa" },
+    s_floor:     { en: "Floor area",                sw: "Eneo la sakafu" },
+    s_bathroom:  { en: "Bathroom",                  sw: "Bafu" },
+    s_own:       { en: "Own",                       sw: "Lake lenyewe" },
+    s_shared:    { en: "Shared",                    sw: "La kushirikiana" },
+    s_ofkind:    { en: "Of this kind",              sw: "Za aina hii" },
+    s_billed:    { en: "Billed per",                sw: "Hulipwa kwa" },
+    s_property:  { en: "Property",                  sw: "Aina ya jengo" },
+    s_bedroom:   { en: "Bedroom",                   sw: "Chumba cha kulala" },
+    s_bedrooms:  { en: "Bedrooms",                  sw: "Vyumba vya kulala" },
+    s_bathrooms: { en: "Bathrooms",                 sw: "Bafu" },
+    s_total:     { en: "Total size",                sw: "Ukubwa wote" },
+    s_furnishing: { en: "Furnishing",               sw: "Samani" },
+    s_furnished: { en: "Furnished",                 sw: "Ina samani" },
+    s_semi:      { en: "Semi",                      sw: "Nusu" },
+    s_upfront:   { en: "Pay upfront",               sw: "Lipa kabla" },
+    s_available: { en: "Available",                 sw: "Inapatikana" },
+
+    // How many of this kind are free right now. "{n}" and "{of}" stay as
+    // braces so a translator can put the numbers where the sentence wants
+    // them rather than where English wanted them.
+    v_none:      { en: "All taken right now",       sw: "Zote zimechukuliwa kwa sasa" },
+    v_one:       { en: "Free now",                  sw: "Ipo wazi sasa" },
+    v_some:      { en: "{n} of {of} free now",      sw: "{n} kati ya {of} zipo wazi sasa" },
   };
 
   // ------------------------------------------------------------ group presets

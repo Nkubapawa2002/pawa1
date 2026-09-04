@@ -41,6 +41,9 @@
 //  Favourites stay in localStorage["pawa_house_favs"] (no auth needed).
 // ============================================================================
 
+// T() and fillT() come from js/lib/house-ui.js, which loads first. They are not
+// redeclared here: this file and house-sections.js share one global scope.
+
 window.initHousePage = async () => {
   const bodyEl   = document.getElementById("hdBody");
   const params   = new URLSearchParams(location.search);
@@ -49,10 +52,10 @@ window.initHousePage = async () => {
   if (!id) {
     bodyEl.setAttribute("aria-busy", "false");
     bodyEl.innerHTML = emptyState({
-      title: "No listing selected",
-      sub: "Open a property from the houses directory to see its details.",
+      title: T("hd_none_h", "No listing selected"),
+      sub: T("hd_none_p", "Open a property from the houses directory to see its details."),
       ctaHref: "houses.html",
-      ctaLabel: "Browse listings"
+      ctaLabel: T("hd_none_cta", "Browse listings")
     });
     return;
   }
@@ -65,10 +68,10 @@ window.initHousePage = async () => {
   } catch (e) {
     bodyEl.setAttribute("aria-busy", "false");
     bodyEl.innerHTML = emptyState({
-      title: "Couldn't load this listing",
+      title: T("hd_fail_h", "Could not load this listing"),
       sub: esc(e.message || String(e)),
       ctaHref: "javascript:location.reload()",
-      ctaLabel: "Try again",
+      ctaLabel: T("hd_fail_cta", "Try again"),
       danger: true
     });
     return;
@@ -77,17 +80,18 @@ window.initHousePage = async () => {
   if (!h) {
     bodyEl.setAttribute("aria-busy", "false");
     bodyEl.innerHTML = emptyState({
-      title: "Listing not found",
-      sub: `No property with id "${esc(id)}" is currently listed. It may have been removed.`,
+      title: T("hd_missing_h", "Listing not found"),
+      sub: fillT(T("hd_missing_p", "No property with id \"{id}\" is listed. It may have been taken down."),
+                 { id: esc(id) }),
       ctaHref: "houses.html",
-      ctaLabel: "Back to listings"
+      ctaLabel: T("hd_missing_cta", "Back to listings")
     });
     return;
   }
   bodyEl.setAttribute("aria-busy", "false");
 
   // Set the page title so browser tabs / WhatsApp previews look right.
-  document.title = `${h.title} — Pawa Houses`;
+  document.title = `${h.title} · Pawa`;
 
   render(h);
 };
@@ -121,12 +125,13 @@ function render(h) {
   const roomList = HR ? HR.rooms(h) : [];
   let picked = HR && roomList.length ? HR.defaultRoom(roomList) : 0;
 
-  const listing  = h.listing === "sale" ? "For sale" : "For rent";
+  const listing  = T(h.listing === "sale" ? "hd_for_sale" : "hd_for_rent",
+                     h.listing === "sale" ? "For sale" : "For rent");
   const price    = formatPrice(h);
   const pinLine  = pinProvenance(h);
 
   // ---- agent + links -----------------------------------------------------
-  const agentName  = h.agent?.name  || "Listing agent";
+  const agentName  = h.agent?.name  || T("hd_agent", "Listing agent");
   const agentPhone = h.agent?.phone || "";
   const agentPhoneClean = agentPhone.replace(/\s+/g, "");
   const waNumber   = agentPhone.replace(/^\+/, "").replace(/\s+/g, "");
@@ -138,10 +143,14 @@ function render(h) {
   // pinned on the live map and shown in the room's side panel.
   const meetQuery = `code=${meetCode}&house=${encodeURIComponent(h.id)}`;
   const meetUrl   = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}meet.html?${meetQuery}`;
+  // One message, three lines, assembled from keys rather than pasted English:
+  // who they are, what it is about, and the viewing invitation with its code.
   const waText    = encodeURIComponent(
-    `Hi ${agentName}, I'm interested in your listing on Pawa Houses:\n` +
+    fillT(T("hd_wa_1", "Hello {agent}, I am interested in your listing on Pawa:"),
+          { agent: agentName }) + "\n" +
     `"${h.title}" (${listing}, ${price.value} ${price.unit}).\n` +
-    `Could we do a live viewing? Join me on Pawa Live Meet — code ${meetCode}: ${meetUrl}`);
+    fillT(T("hd_wa_2", "Could we do a live viewing? Join me on Pawa Live Meet, code {code}: {url}"),
+          { code: meetCode, url: meetUrl }));
   const waHref    = waNumber ? `https://wa.me/${waNumber}?text=${waText}` : "";
 
   // ---- sections ----------------------------------------------------------
@@ -344,7 +353,7 @@ function wireFavShare(h, price) {
     // least be selected out of.
     try {
       await navigator.clipboard.writeText(url);
-      alert("Link copied to clipboard");
+      alert(T("hd_copied", "Link copied to clipboard"));
     } catch (_) {
       try {
         const tmp = document.createElement("input");
@@ -354,10 +363,10 @@ function wireFavShare(h, price) {
         tmp.select();
         const ok = document.execCommand("copy");
         tmp.remove();
-        if (ok) alert("Link copied to clipboard");
-        else window.prompt("Copy this link:", url);
+        if (ok) alert(T("hd_copied", "Link copied to clipboard"));
+        else window.prompt(T("hd_copy_prompt", "Copy this link:"), url);
       } catch (_2) {
-        window.prompt("Copy this link:", url);
+        window.prompt(T("hd_copy_prompt", "Copy this link:"), url);
       }
     }
   });

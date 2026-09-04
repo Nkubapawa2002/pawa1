@@ -76,6 +76,9 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
   // and the empty state.
   "service.html",
   "truck.html",
+  // The houses detail sheet, the third of the three and the same blind spot:
+  // without an ?id= it renders "no listing selected" and nothing else.
+  "house.html",
 ];
 
 // Words that are the same in Swahili, or are not words at all. Kept small and

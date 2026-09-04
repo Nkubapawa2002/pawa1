@@ -47,7 +47,10 @@ const PAGES = process.argv[2]
      // badges went white on white. This file samples the body and would not
      // have seen it; tests/detail_sheet_i18n_test.mjs does, on a rendered
      // sheet, and is where that assertion lives.
-     "service.html", "truck.html"];
+     "service.html", "truck.html",
+     // The houses detail sheet. css/house-detail.css already scopes its light
+     // palette properly; this row is what keeps it that way.
+     "house.html"];
 
 // Only ever reached when something is genuinely wrong: the pass path resolves
 // as soon as the attribute lands, typically in tens of milliseconds.

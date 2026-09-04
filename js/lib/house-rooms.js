@@ -78,6 +78,15 @@
     m_fee_sub: "usually one month's rent, not quoted by this agent",
     m_fee_owner: "no agent on this listing",
     m_ask: "Ask the agent", m_oneoff: "one-off",
+    o_price: "The price of this space", o_rent: "The rent for this space",
+    o_deposit: "The deposit",
+    s_space: "This space", s_size: "Size", s_floor: "Floor area",
+    s_bathroom: "Bathroom", s_own: "Own", s_shared: "Shared",
+    s_ofkind: "Of this kind", s_billed: "Billed per", s_property: "Property",
+    s_bedroom: "Bedroom", s_bedrooms: "Bedrooms", s_bathrooms: "Bathrooms",
+    s_total: "Total size", s_furnishing: "Furnishing", s_furnished: "Furnished",
+    s_semi: "Semi", s_upfront: "Pay upfront", s_available: "Available",
+    v_none: "All taken right now", v_one: "Free now", v_some: "{n} of {of} free now",
   };
   function t(key) {
     var S = window.HouseSpec;
@@ -230,7 +239,7 @@
         lines.push({ k: isRent ? t("m_rent") : t("m_price"), v: money(rent), sub: room.periodLabel, src: "stated" });
         total = rent;
       } else {
-        open.push("The price of this space");
+        open.push(t("o_price"));
       }
       return { lines: lines, open: open, total: rent, complete: rent != null, monthly: null, simple: true };
     }
@@ -247,7 +256,7 @@
       });
       total += upfront;
     } else {
-      open.push("The rent for this space");
+      open.push(t("o_rent"));
     }
 
     // 2. The deposit the agent named in their own rules.
@@ -265,7 +274,7 @@
       total += depAmt;
     } else if (dep) {
       lines.push({ k: t("m_deposit"), v: dep.text, src: "open", muted: true });
-      open.push("The deposit (" + dep.text + ")");
+      open.push(t("o_deposit") + " (" + dep.text + ")");
     }
 
     // 3. The agent's commission. Stated, or the market's one month.
@@ -379,17 +388,17 @@
   function roomTiles(room) {
     var S = window.HouseSpec;
     var out = [];
-    out.push(tile(ICONS.tag, room.label, "This space", { feature: true }));
+    out.push(tile(ICONS.tag, room.label, t("s_space"), { feature: true }));
     // A bracket the agent chose beats a square-metre figure they estimated to
     // fill a box. Both are shown when both exist — a real measurement is worth
     // keeping — but the bracket leads, because it is the one that was meant.
     if (room.sizeBand && S && S.sizeLabel) {
-      out.push(tile(ICONS.size, S.sizeLabel(room.sizeBand), "Size"));
+      out.push(tile(ICONS.size, S.sizeLabel(room.sizeBand), t("s_size")));
     }
-    if (room.size) out.push(tile(ICONS.size, room.size + ' <small>m&sup2;</small>', "Floor area", { raw: true }));
-    out.push(tile(ICONS.bath, room.ensuite ? "Own" : "Shared", "Bathroom"));
-    if (room.count > 1) out.push(tile(ICONS.count, room.count, "Of this kind"));
-    if (room.periodLabel) out.push(tile(ICONS.clock, room.periodLabel.replace(/^per\s+/i, ""), "Billed per"));
+    if (room.size) out.push(tile(ICONS.size, room.size + ' <small>m&sup2;</small>', t("s_floor"), { raw: true }));
+    out.push(tile(ICONS.bath, t(room.ensuite ? "s_own" : "s_shared"), t("s_bathroom")));
+    if (room.count > 1) out.push(tile(ICONS.count, room.count, t("s_ofkind")));
+    if (room.periodLabel) out.push(tile(ICONS.clock, room.periodLabel.replace(/^per\s+/i, ""), t("s_billed")));
     return out.join("");
   }
 
@@ -431,15 +440,15 @@
    */
   function buildingTiles(row, labelType, formatDate) {
     var out = [];
-    out.push(tile(ICONS.type, labelType(row.type), "Property"));
-    if (row.bedrooms)  out.push(tile(ICONS.bed,  row.bedrooms,  row.bedrooms === 1 ? "Bedroom" : "Bedrooms"));
-    if (row.bathrooms) out.push(tile(ICONS.bath, row.bathrooms, row.bathrooms === 1 ? "Bathroom" : "Bathrooms"));
-    if (row.size_sqm)  out.push(tile(ICONS.size, row.size_sqm + ' <small>m&sup2;</small>', "Total size", { raw: true }));
+    out.push(tile(ICONS.type, labelType(row.type), t("s_property")));
+    if (row.bedrooms)  out.push(tile(ICONS.bed,  row.bedrooms,  t(row.bedrooms === 1 ? "s_bedroom" : "s_bedrooms")));
+    if (row.bathrooms) out.push(tile(ICONS.bath, row.bathrooms, t(row.bathrooms === 1 ? "s_bathroom" : "s_bathrooms")));
+    if (row.size_sqm)  out.push(tile(ICONS.size, row.size_sqm + ' <small>m&sup2;</small>', t("s_total"), { raw: true }));
     if (row.furnished && row.furnished !== "n/a" && row.furnished !== "no")
-      out.push(tile(ICONS.chair, row.furnished === "yes" ? "Furnished" : "Semi", "Furnishing"));
+      out.push(tile(ICONS.chair, t(row.furnished === "yes" ? "s_furnished" : "s_semi"), t("s_furnishing")));
     if ((row.listing || "rent") === "rent" && Number(row.min_months) > 1)
-      out.push(tile(ICONS.clock, row.min_months + ' <small>mo</small>', "Pay upfront", { raw: true }));
-    if (row.available_from) out.push(tile(ICONS.date, formatDate(row.available_from), "Available"));
+      out.push(tile(ICONS.clock, row.min_months + ' <small>mo</small>', t("s_upfront"), { raw: true }));
+    if (row.available_from) out.push(tile(ICONS.date, formatDate(row.available_from), t("s_available")));
     return out.join("");
   }
 
@@ -464,8 +473,10 @@
       pips += '<span class="hx-vacancy__pip ' + (i < free ? "is-free" : "is-taken") + '"></span>';
     }
     var word = free === 0
-      ? "All taken right now"
-      : (room.count > 1 ? free + " of " + room.count + " free now" : "Free now");
+      ? t("v_none")
+      : (room.count > 1
+          ? t("v_some").replace("{n}", free).replace("{of}", room.count)
+          : t("v_one"));
     return '<div class="hx-vacancy' + (free === 0 ? " hx-vacancy--none" : "") + '">' +
       '<div class="hx-vacancy__row"><span>' + esc(word) + '</span></div>' +
       '<div class="hx-vacancy__pips">' + pips + '</div>' +
@@ -485,7 +496,7 @@
         '<div class="hx-room__price' + (priced ? "" : " is-ask") + '">' +
           (priced
             ? esc(money(room.price)) + '<small>' + esc(room.periodLabel) + '</small>'
-            : "Ask the agent") +
+            : esc(t("m_ask"))) +
         '</div>' +
       '</div>' +
       vacancy(room) +

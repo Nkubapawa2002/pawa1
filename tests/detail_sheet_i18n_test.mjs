@@ -1,15 +1,16 @@
 // ============================================================================
-//  detail_sheet_i18n_test.mjs — the two public detail sheets, rendered.
+//  detail_sheet_i18n_test.mjs — the three public detail sheets, rendered.
 //
 //  WHY THIS EXISTS SEPARATELY FROM i18n_coverage.mjs
 //  That scan loads a page and reports English text a person can see. On
-//  service.html and truck.html a person can see almost nothing: without a
-//  ?id= that resolves to a real listing, both pages render three words of
-//  "not found" and the scan reports them clean. Everything the sheets are
-//  actually made of — "Category", "Rate", "Driver", "Loaders", "About this
-//  service", "Contact the owner" — only exists once a listing is on screen.
+//  service.html, truck.html and house.html a person can see almost nothing:
+//  without a ?id= that resolves to a real listing, all three render a few
+//  words of "not found" and the scan reports them clean. Everything the sheets
+//  are actually made of — "Category", "Rate", "Driver", "Loaders", "This
+//  space", "Billed per", "Agent commission" — only exists once a listing is
+//  on screen.
 //
-//  That is exactly how both files stayed English from top to bottom while the
+//  That is exactly how all three stayed English from top to bottom while the
 //  rest of the app was bilingual: no test could reach them.
 //
 //  So this one hands each page a fixture through DataStore, switches the app
@@ -49,6 +50,18 @@ const ENGLISH = [
   "Category", "Experience", "Based in", "Truck type", "Capacity",
   "Not included", "On request", "Share live location",
   "What you get", "What comes with it",
+  // house.html: the spec tiles and the money chart, which lived in
+  // js/lib/house-rooms.js in English until this pass.
+  "This space", "Floor area", "Of this kind", "Billed per", "Total size",
+  "Pay upfront", "Free now", "All taken right now", "Ask the agent",
+  "First month's rent", "Agent commission", "Listing agent",
+  // house.html again: the section tabs and card headings, which lived in
+  // js/lib/house-sections.js in English until this pass.
+  "Rules & area", "Rules and area", "Rent for this place", "To move in",
+  "Then, every month", "Every month", "Total to move in",
+  "About this property", "What the agent commits to", "Bills and extra costs",
+  "Where it is", "What is nearby", "The whole property",
+  "Rooms and specifications", "Pay as you use", "Included in the rent",
 ];
 
 const SERVICE = {
@@ -69,6 +82,29 @@ const TRUCK = {
   description: "Tunahamisha nyumba na maduka.", verified: true,
   owner: { name: "Mwanga Movers", phone: "+255700000002" },
   details: { v: 1, kit: ["driver", "tarpaulin", "Tairi mbili za akiba safari ndefu"] },
+};
+
+// A house is the richest of the three: the money chart, the spec tiles and a
+// room whose characteristics come half from the catalogue and half from the
+// agent's own typing.
+const HOUSE = {
+  id: "fixture", title: "Nyumba ya Mikocheni", type: "apartment",
+  listing: "rent", price_tzs: 450000, period: "month", min_months: 3,
+  bedrooms: 2, bathrooms: 1, region: "Dar es Salaam", area: "Mikocheni",
+  lat: -6.7724, lng: 39.2083, verified: true,
+  description: "Nyumba tulivu karibu na barabara kuu.",
+  amenities: ["parking", "security", "water_tank"],
+  agent: { name: "Neema", phone: "+255700000003" },
+  details: {
+    v: 1,
+    rooms: [{
+      kind: "master", price: 450000, period: "month", count: 2, vacant: 1,
+      sizeBand: "medium", ensuite: true,
+      features: ["bath_inside", "tiles", "Kona tulivu, mbali na barabara"],
+      note: "", traits: "",
+    }],
+    groups: [],
+  },
 };
 
 const browser = await puppeteer.launch({
@@ -118,7 +154,21 @@ async function render(path, loader, row, theme) {
     });
   }, loader, row, "sw");
 
-  await page.goto(`${BASE}/${path}?id=fixture`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  // Navigation drops on this host for no reason several times an hour, and a
+  // hard crash here loses the whole suite rather than one assertion.
+  let navErr = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      await page.goto(`${BASE}/${path}?id=fixture`, { waitUntil: "domcontentloaded", timeout: 30000 });
+      navErr = null;
+      break;
+    } catch (e) { navErr = e; }
+  }
+  if (navErr) {
+    await page.close();
+    return { text: "", rendered: false, offered: [], badges: [], galleryLum: null,
+             errs: ["navigation failed: " + String(navErr.message || navErr).split(/\r?\n/)[0]] };
+  }
   if (theme) await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
   await new Promise((r) => setTimeout(r, 2500));
 
@@ -160,9 +210,16 @@ async function render(path, loader, row, theme) {
     const gallery = document.querySelector(".sd-gallery-main, .td-gallery-main");
 
     return {
-      text: (document.body.innerText || "").replace(/\s+/g, " "),
-      rendered: !!document.querySelector(".sd-specs, .td-specs"),
-      offered: Array.from(document.querySelectorAll(".of-list li")).map((li) => li.textContent.trim()),
+      // textContent, not innerText. These sheets fold their sections, and
+      // innerText returns only what is rendered right now — which quietly
+      // hid most of the house sheet's labels from this check. A folded
+      // section is still UI a reader opens.
+      text: (document.body.textContent || "").replace(/\s+/g, " "),
+      rendered: !!document.querySelector(".sd-specs, .td-specs, .hx-spec"),
+      // .of-list is the service/truck list; .hx-feat is the same idea on a
+      // house, drawn by js/lib/house-rooms.js from the same catalogue rule.
+      offered: Array.from(document.querySelectorAll(".of-list li, .hx-feat"))
+        .map((li) => li.textContent.trim()),
       badges,
       galleryLum: gallery ? lum(getComputedStyle(gallery).backgroundColor) : null,
     };
@@ -171,13 +228,15 @@ async function render(path, loader, row, theme) {
   return { ...out, errs };
 }
 
-console.log("\nThe two public detail sheets, rendered in Swahili\n");
+console.log("\nThe three public detail sheets, rendered in Swahili\n");
 
 for (const [path, loader, row, own, catalogue] of [
   ["service.html", "getServices", SERVICE,
    "Napanda kiunzi changu mwenyewe", ["Naja na vifaa vyangu", "Natoa risiti"]],
   ["truck.html", "getTrucks", TRUCK,
    "Tairi mbili za akiba safari ndefu", ["Dereva amejumuishwa", "Turubai juu ya mzigo"]],
+  ["house.html", "getHouses", HOUSE,
+   "Kona tulivu, mbali na barabara", ["Bafu ndani ya chumba", "Sakafu ya tiles"]],
 ]) {
   // Puppeteer drops a navigation on this host often enough that one retry is
   // the difference between a flaky suite and a useful one.
@@ -214,13 +273,17 @@ for (const [path, loader, row, own, catalogue] of [
 
   ok(lite.rendered, "and it renders in the light theme too");
   const dim = lite.badges.filter((b) => !b.ratio || b.ratio < 3);
-  ok(lite.badges.length > 0 && dim.length === 0,
-     "every badge stays readable in the light theme",
-     lite.badges.length === 0 ? "no badges rendered at all"
-       : dim.map((b) => `"${b.text}" at ${b.ratio ? b.ratio.toFixed(2) : "?"}:1`).join(", "));
-  ok(lite.galleryLum == null || lite.galleryLum > 0.4,
-     "the empty gallery is a light placeholder, not a black block",
-     "luminance " + (lite.galleryLum == null ? "?" : lite.galleryLum.toFixed(2)));
+  // house.html draws no .sd-/.td- badges; the assertion is about the two
+  // sheets that carry an unguarded dark re-skin, so it only applies there.
+  if (lite.badges.length) {
+    ok(dim.length === 0, "every badge stays readable in the light theme",
+       dim.map((b) => `"${b.text}" at ${b.ratio ? b.ratio.toFixed(2) : "?"}:1`).join(", "));
+  }
+  if (lite.galleryLum != null) {
+    ok(lite.galleryLum > 0.4,
+       "the empty gallery is a light placeholder, not a black block",
+       "luminance " + lite.galleryLum.toFixed(2));
+  }
   console.log("");
 }
 

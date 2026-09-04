@@ -114,25 +114,82 @@ function formatDate(iso) {
   } catch { return iso; }
 }
 
-function labelType(t) {
-  return ({ apartment: "Apartment", house: "House", plot: "Plot", office: "Office", shop: "Shop / business", warehouse: "Warehouse" })[t] || (t || "Property");
+// t() with the English word as its own last resort, because t() hands back the
+// KEY when there is no entry and a screen reading "ah_am_parking" is worse than
+// one reading "Parking".
+//
+// Published under T as well, because js/pages/house.js and
+// js/lib/house-sections.js both need it and both are plain scripts sharing one
+// global scope: two `const fillT` there is a SyntaxError that takes the whole
+// page down, and two `function T` is worse, because it is legal and the second
+// one silently wins. house-ui.js loads before both, which is why it lives here.
+function tr(key, en) {
+  if (window.t) {
+    var got = window.t(key);
+    if (got && got !== key) return got;
+  }
+  return en;
+}
+var T = tr;
+/** "{n} months" with the numbers put where the sentence wants them. */
+function fillT(str, vars) {
+  return String(str).replace(/\{(\w+)\}/g, function (m, k) {
+    return (k in vars) ? vars[k] : m;
+  });
 }
 
+/**
+ * The kind of property, as a word.
+ *
+ * This used to be a fourth private copy of the map in js/lib/listing-kinds.js,
+ * whose whole reason for existing is that three page scripts each carrying
+ * their own is how one screen says "Shop / business" while another says "shop".
+ * It also means houses.type gets its Swahili here for the first time, and that
+ * a kind an agent typed themselves is title-cased and shown AS TYPED rather
+ * than flattened to "Property".
+ */
+function labelType(t) {
+  if (window.ListingKinds) {
+    var w = window.ListingKinds.label("houses", t);
+    if (w) return w;
+  }
+  return t || tr("hd_property", "Property");
+}
+
+/**
+ * An amenity, as a word.
+ *
+ * The keys are the ones agent-houses.html writes, and the strings it offers
+ * them under are already in js/core/i18n.js as ah_am_*. Reading those means the
+ * chip a landlord ticked and the chip a tenant reads are the same string in
+ * both languages, rather than two lists that drift.
+ */
+var AMENITY_I18N = {
+  parking: "ah_am_parking",
+  security: "ah_am_security",
+  water_tank: "ah_am_water_tank",
+  borehole: "ah_am_borehole",
+  generator: "ah_am_generator",
+  wifi: "ah_am_wifi",
+  pool: "ah_am_pool",
+  gym: "ah_am_gym",
+  garden: "ah_am_garden",
+  elevator: "ah_am_elevator",
+  water_connection: "ah_am_water_conn",
+  electricity_connection: "ah_am_elec_conn",
+};
+var AMENITY_EN = {
+  parking: "Parking", security: "Security", water_tank: "Water tank",
+  borehole: "Borehole", generator: "Generator", wifi: "Wi-Fi",
+  pool: "Swimming pool", gym: "Gym", garden: "Garden", elevator: "Elevator",
+  water_connection: "Water (utility)", electricity_connection: "Electricity (utility)",
+};
+
 function labelAmenity(k) {
-  return ({
-    parking: "Parking",
-    security: "24h security",
-    water_tank: "Water tank",
-    borehole: "Borehole",
-    generator: "Generator",
-    wifi: "Wi-Fi",
-    pool: "Swimming pool",
-    gym: "Gym",
-    garden: "Garden",
-    elevator: "Elevator",
-    water_connection: "Water (utility)",
-    electricity_connection: "Electricity (utility)"
-  })[k] || k.replace(/_/g, " ");
+  // An agent can add any amenity they like on the listing form, and a custom
+  // one arrives here as the words they typed. Those are shown as written.
+  if (!AMENITY_I18N[k]) return String(k || "").replace(/_/g, " ");
+  return tr(AMENITY_I18N[k], AMENITY_EN[k]);
 }
 
 // Line icons for the amenity chips. The map used to hold emoji, which had all
