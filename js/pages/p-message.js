@@ -72,6 +72,8 @@
   var pendingPlace = null;   // { lat, lng, acc, label, source } or null
 
   var AI_THREAD = "assistant";
+  // Kept only so the log older builds left on the device can be deleted. The
+  // assistant thread is memory-only now; see aiLog() near the bottom.
   var AI_STORE = "pm-assistant-log-v1";
 
   // What the person said they need. "" is a real value meaning "anyone" — with
@@ -2850,21 +2852,40 @@
   //  what any of it looks like is in js/lib/pn-zaki-ui.js. This page owns
   //  exactly two things: WHERE PN-Zaki is drawn, and the log.
   //
-  //  The log is localStorage, on this device, on purpose. Every other thread
-  //  on this screen is on the server because it has to reach somebody else;
-  //  this one has nowhere to go, and the single thread here that is NOT
-  //  end-to-end encrypted is also the one there is no reason to keep a server
-  //  copy of. Clearing the browser loses it, which is the honest trade.
+  //  The log lives in memory, for exactly as long as this page does. A reload
+  //  takes it, and that is the point.
   //
-  //  A spoken line and a typed line land in the SAME log, in order. That is
-  //  the whole point of folding the old "Voice AI" tab into this thread: ask
-  //  by voice, scroll back to the answer an hour later, then type a follow-up
-  //  that the model still has the context for.
+  //  It used to be localStorage, which meant the transcript outlived the
+  //  conversation it was a transcript of: js/lib/pn-zaki.js keeps the model's
+  //  own `conversation` in a plain array, so a refresh already emptied it.
+  //  What came back after a reload was a thread the assistant could not
+  //  remember a word of. It read like something being continued and answered
+  //  like a stranger, and the fix is not to persist the model's side as well:
+  //  this is the single thread on this screen that is NOT end-to-end
+  //  encrypted, so the less of it that is written down anywhere, the better.
+  //  Every other thread here is on the server because it has to reach
+  //  somebody else. This one has nowhere to go.
+  //
+  //  A spoken line and a typed line land in the SAME log, in order, which is
+  //  the whole point of folding the old "Voice AI" tab into this thread, and
+  //  every writer re-reads the log before appending: a line spoken while a
+  //  typed question is still in flight must not be lost under that question's
+  //  stale copy of the rows. So aiLog() hands out a COPY and saveAiLog()
+  //  replaces the array outright. Nothing mutates it in place.
+  var aiRows = [];
+  // Earlier versions wrote this log to the device. Delete what they left
+  // behind rather than abandoning it there for good. This sits at the top
+  // level of the file on purpose, so it runs on every load of this page and
+  // not only when somebody opens the assistant. It is still the only thing
+  // that deletes the key, so a person who never opens p-message.html again
+  // keeps their old log; there is nowhere better to put it, since this page
+  // is the only reason the key ever existed.
+  try { localStorage.removeItem(AI_STORE); } catch (_) {}
   function aiLog() {
-    try { return JSON.parse(localStorage.getItem(AI_STORE) || "[]"); } catch (_) { return []; }
+    return aiRows.slice();
   }
   function saveAiLog(rows) {
-    try { localStorage.setItem(AI_STORE, JSON.stringify(rows.slice(-40))); } catch (_) {}
+    aiRows = rows.slice(-40);
   }
 
   function renderAiPane() {
@@ -2895,9 +2916,9 @@
       dock: el.pmVoiceDock,
       t: t,
       // A transcript is a message. It is appended to the same log a typed
-      // message goes to, and the log is RE-READ from storage first: a line
-      // spoken while a typed question was still in flight would otherwise be
-      // overwritten by that question's stale copy of the rows.
+      // message goes to, and the log is RE-READ first: a line spoken while a
+      // typed question was still in flight would otherwise be overwritten by
+      // that question's stale copy of the rows.
       onLine: function (role, text) {
         var rows = aiLog();
         rows.push({ role: role === "user" ? "user" : "assistant", text: text, voice: true });

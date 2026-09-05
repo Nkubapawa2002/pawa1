@@ -3,7 +3,10 @@
 //      warning, and the one row that leads to a person
 //   2. a real conversation, answered by a stubbed gemini-chat, showing the
 //      list/link/money formatting an answer is allowed to carry
-//   3. the same conversation with the voice dock open
+//   3. the same conversation with the voice dock open, and then the thing
+//      that thread has to do when the page reloads: forget all of it. The log
+//      is memory-only, so a refresh has to leave the hero preview, the thread
+//      and localStorage with nothing in them.
 //   4. chat.html, which is now support and nothing else
 //
 // Usage: node server.js   then:  node tests/_shot_pn_zaki.mjs [light|dark]
@@ -43,7 +46,9 @@ storage:{from:function(){return{getPublicUrl:function(){return{data:{publicUrl:"
 
 const b = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"], protocolTimeout: 120000 });
 
-async function open(path, seedLog) {
+// No way to seed a conversation, on purpose: the log is memory-only, so the
+// only way to have one is to hold one, which is what section 2 does.
+async function open(path) {
   const p = await b.newPage();
   await p.setViewport({ width: 390, height: 900, deviceScaleFactor: 2, isMobile: true });
   await p.setRequestInterception(true);
@@ -64,12 +69,8 @@ async function open(path, seedLog) {
     return r.abort();
   });
 
-  await p.evaluateOnNewDocument((t, log, reply) => {
-    try {
-      localStorage.setItem("pawa-theme", t);
-      if (log) localStorage.setItem("pm-assistant-log-v1", log);
-      else localStorage.removeItem("pm-assistant-log-v1");
-    } catch (e) {}
+  await p.evaluateOnNewDocument((t, reply) => {
+    try { localStorage.setItem("pawa-theme", t); } catch (e) {}
     // The brain, stubbed where it leaves the browser. Answering gemini-chat
     // means the Anthropic fallback is never reached, which is the path a real
     // deployment takes too — and it keeps this a test of PN-Zaki rather than
@@ -87,7 +88,7 @@ async function open(path, seedLog) {
       if (url.includes("/functions/v1/")) return json({});
       return real(input, init);
     };
-  }, theme, seedLog || "", REPLY);
+  }, theme, REPLY);
 
   await p.goto("http://localhost:8080/" + path, { waitUntil: "domcontentloaded" });
   await wait(2400);
@@ -151,8 +152,10 @@ function must(cond, msg) {
     bold: document.querySelectorAll("#pmLog strong").length,
     micShown: !document.getElementById("pmVoiceBtn").hidden,
     pinShown: !document.getElementById("pmPlaceBtn").hidden,
-    // The log survives a reload: it is this device's, in localStorage.
-    stored: JSON.parse(localStorage.getItem("pm-assistant-log-v1") || "[]").length,
+    // Nothing about this thread is written to the device. It used to be kept
+    // in localStorage under this key; the key is read here so the day it comes
+    // back, this says so.
+    stored: localStorage.getItem("pm-assistant-log-v1"),
   }));
 
   must(conv.open, "the conversation opened");
@@ -166,7 +169,7 @@ function must(cond, msg) {
   must(conv.bold === 1, "the bold run rendered (got " + conv.bold + ")");
   must(conv.micShown, "the voice button is offered on this thread");
   must(!conv.pinShown, "and the send-a-place button is not — PN-Zaki cannot travel");
-  must(conv.stored === 2, "and the turn was kept on this device (got " + conv.stored + ")");
+  must(conv.stored === null, "and none of it was written to the device (got " + conv.stored + ")");
 
   await p.screenshot({ path: `tests/shot_pz_thread_${theme}.png` });
 
@@ -210,13 +213,21 @@ function must(cond, msg) {
     msgs: document.querySelectorAll("#pmLog .pm-msg").length,
     voiceMarks: document.querySelectorAll("#pmLog .pz-msg.is-voice").length,
     order: [...document.querySelectorAll("#pmLog .pm-msg")].map((m) => m.className.includes("mine") ? "u" : "a").join(""),
-    stored: JSON.parse(localStorage.getItem("pm-assistant-log-v1") || "[]").map((r) => r.role + (r.voice ? "!" : "")).join(","),
+    // Read off the screen, not out of storage. The log is memory-only now, so
+    // what is drawn IS the log, and this is the shape of it: who said each
+    // line, and which two of them were spoken.
+    rows: [...document.querySelectorAll("#pmLog .pm-msg")]
+      .map((m) => (m.className.includes("mine") ? "user" : "assistant") +
+                  (m.className.includes("is-voice") ? "!" : "")).join(","),
+    stored: localStorage.getItem("pm-assistant-log-v1"),
   }));
   must(spoken.msgs === 4, "the spoken turn joined the typed one in one log (got " + spoken.msgs + ")");
   must(spoken.order === "uaua", "in order, question then answer, twice (got " + spoken.order + ")");
   must(spoken.voiceMarks === 2, "with the two spoken lines marked as spoken (got " + spoken.voiceMarks + ")");
-  must(spoken.stored === "user,assistant,user!,assistant!",
-       "and all four kept on this device (got " + spoken.stored + ")");
+  must(spoken.rows === "user,assistant,user!,assistant!",
+       "all four in one log, typed and spoken interleaved (got " + spoken.rows + ")");
+  must(spoken.stored === null,
+       "and still nothing written to the device (got " + spoken.stored + ")");
   await p.screenshot({ path: `tests/shot_pz_voice_${theme}.png` });
 
   // Turning the mic off must not take away what was said through it.
@@ -247,6 +258,50 @@ function must(cond, msg) {
     live: !!(window.PNZaki && window.PNZaki.voiceActive()),
   }));
   must(!after.dock && !after.mic && !after.live, "leaving the thread closes the dock and hangs up");
+
+  // ── 3e. a refresh takes every word of it ─────────────────────────────────
+  // The point of the memory-only log. js/lib/pn-zaki.js keeps the model's own
+  // `conversation` in a plain array, so a reload has always emptied that; a
+  // transcript that came back was one the assistant could not remember a word
+  // of, and it read like a thread being continued and answered like a
+  // stranger. Three places have to forget: the hero's preview line, the
+  // thread itself, and the device.
+  //
+  // Every wait below is on a condition, never a duration, and that matters
+  // more here than anywhere else in this file: "the thread is empty" is the
+  // one assertion that passes for the wrong reason if the page has simply not
+  // finished building yet. A reload on this host has measured anywhere from 8
+  // to 25 seconds to DOMContentLoaded. So each step waits for the thing it is
+  // about to read to EXIST, and only then reads it.
+  await p.reload({ waitUntil: "domcontentloaded", timeout: 90000 });
+  await p.waitForFunction(() => !!document.getElementById("segAi") && !!window.PNZakiUI,
+                          { timeout: 60000 });
+  await p.evaluate(() => { const m = document.getElementById("pmModalBack"); if (m) m.classList.remove("is-on"); });
+  await p.evaluate(() => document.getElementById("segAi").click());
+  await p.waitForFunction(() => !!document.querySelector(".pz-hero-sub"), { timeout: 60000 });
+  const heroAfter = await p.evaluate(() => ({
+    sub: document.querySelector(".pz-hero-sub").textContent,
+    stored: localStorage.getItem("pm-assistant-log-v1"),
+  }));
+  must(!/lori|truck|Asante|malori/i.test(heroAfter.sub),
+       "after a refresh the hero has forgotten the last answer (got \"" + heroAfter.sub + "\")");
+  must(heroAfter.stored === null, "and the device is holding nothing");
+
+  await p.evaluate(() => document.querySelector('[data-pz="open"]').click());
+  // Wait for the log to have DRAWN something, either the empty state or a
+  // message, then ask which it drew. Waiting for "no messages" would be
+  // satisfied by a log that has not been rendered at all.
+  await p.waitForFunction(() => {
+    const log = document.getElementById("pmLog");
+    return !!log && !!log.querySelector(".pz-empty, .pm-msg");
+  }, { timeout: 60000 });
+  const logAfter = await p.evaluate(() => ({
+    msgs: document.querySelectorAll("#pmLog .pm-msg").length,
+    empty: !!document.querySelector("#pmLog .pz-empty"),
+  }));
+  must(logAfter.msgs === 0, "the thread reopens with no message in it (got " + logAfter.msgs + ")");
+  must(logAfter.empty, "on the same empty state a first-time visitor sees");
+
   await p.close();
 }
 
