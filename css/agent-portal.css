@@ -994,6 +994,81 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
    where it was ever readable.
    --------------------------------------------------------------------------- */
 @media (max-width: 560px) {
-  body[data-agent-portal] .login-brand { display: none; }
-  body[data-agent-portal] .auth-scene { margin-top: 0; }
+  /* The panel's own heading and logo are the duplicated part, and they go.
+     What it CARRIED, the three things to have ready before you start, is the
+     most useful thing on a screen whose only other content is two fields, so
+     it moves below the card instead of above it. Nothing is repeated, the
+     checklist is read after the reason to care about it, and the empty ground
+     under the card stops being empty. auth.css hides the lead and the list on
+     phones, which is right where the panel opens the page and wrong here. */
+  body[data-agent-portal] .login-brand__logo,
+  body[data-agent-portal] .login-brand__name { display: none; }
+  body[data-agent-portal] .login-brand {
+    order: 2;
+    margin: var(--space-8) 0 0;
+    text-align: left;
+  }
+  body[data-agent-portal] .auth-scene .auth-shell { order: 1; }
+  body[data-agent-portal] .login-brand__lead {
+    display: block;
+    margin: 0 0 var(--space-4);
+    font-size: .92rem;
+    font-weight: 600;
+    color: rgba(234, 255, 246, .82);
+  }
+  body[data-agent-portal] .login-brand__list { display: grid; gap: var(--space-3); }
+  body[data-agent-portal] .login-brand__list li {
+    font-size: .93rem;
+    color: rgba(234, 255, 246, .9);
+  }
+
+  /* With that panel gone the aurora framed exactly one thing: the sign-in
+     card. A rounded green box holding a rounded green box, inset from both
+     edges, with 40px of its own air between the two, and then the page ground
+     showing again underneath. Three nested surfaces to ask for an email.
+
+     The aurora cannot simply go: it is what makes the white type on the card
+     readable, in BOTH themes (see section 2). So it stops being a card
+     instead. Full-bleed and unrounded, it reads as the ground the card is
+     standing on, continuous with the header band above it, and the card is
+     the only card on the screen.
+
+     The negative inline margin is exactly `.container`'s 16px padding, which
+     is `--space-4`; the two must stay equal or the scene will not reach the
+     edge (short) or push the page sideways (long). */
+  body[data-agent-portal] .auth-scene {
+    margin: var(--space-5) calc(var(--space-4) * -1) 0;
+    padding: var(--space-8) var(--space-4) var(--space-16);
+    border-radius: 0;
+    box-shadow: none;
+    /* Unrounded and edge to edge, the aurora ended in two hard horizontal
+       lines across the phone, which read as a band cut off rather than as
+       ground. It dissolves at both ends instead. This matters most in light
+       mode, where the page around it is cream and the cut was stark.
+
+       Both fades are shorter than the padding they sit in (32px inside 32px
+       at the top, 48px inside 64px at the bottom), so they only ever eat
+       empty air. Lengthen either past its padding and it starts dissolving
+       the card. */
+    -webkit-mask-image: linear-gradient(to bottom,
+      transparent, #000 var(--space-8),
+      #000 calc(100% - var(--space-12)), transparent);
+            mask-image: linear-gradient(to bottom,
+      transparent, #000 var(--space-8),
+      #000 calc(100% - var(--space-12)), transparent);
+  }
+  /* The scene already provides the gutter and the air. These three each added
+     their own on top of it, and .login-split centred the card in a box taller
+     than the card, which is where the gap above it came from. */
+  body[data-agent-portal] .auth-scene .login-split {
+    padding: 0;
+    min-height: 0;
+    align-items: start;
+  }
+  body[data-agent-portal] .auth-scene .auth-shell {
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
+  body[data-agent-portal] .auth-scene .auth-card { margin: 0; }
 }
