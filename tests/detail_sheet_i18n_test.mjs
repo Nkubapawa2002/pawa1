@@ -34,6 +34,38 @@ import puppeteer from "puppeteer";
 
 const BASE = process.env.PAWA_BASE || "http://localhost:8080";
 
+// A 1x1 transparent PNG, served for every image the sheets ask for.
+const PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64");
+
+// house.html calls `new maplibregl.Map(...)` in js/lib/house-place.js:33 with
+// no check that the library loaded, so with maplibre-gl served empty the sheet
+// throws ReferenceError: maplibregl is not defined. That throw is NOT created
+// by this file - it happens on HEAD too, where the CDN is unreachable and the
+// global is equally absent. It was simply invisible, because the assertion
+// prints only errs.slice(0, 3) and two loader errors stood in front of it.
+// This stub answers any property, call or construction with another stub, so
+// the map code runs to completion without drawing anything.
+const MAPLIBRE_STUB = `(function () {
+  var noop = function () {};
+  function make() {
+    return new Proxy(noop, {
+      get: function (t, k) {
+        // Never look like a promise: an await on a thenable that never
+        // resolves would hang the whole run.
+        if (k === "then") return undefined;
+        if (typeof k === "symbol") return undefined;
+        if (k === "toString" || k === "valueOf") return function () { return ""; };
+        return make();
+      },
+      apply: function () { return make(); },
+      construct: function () { return make(); }
+    });
+  }
+  window.maplibregl = make();
+})();`;
+
 let pass = 0;
 const fails = [];
 const ok = (cond, msg, detail) => {
@@ -133,7 +165,44 @@ async function render(path, loader, row, theme) {
         "access-control-allow-origin": "*", "access-control-allow-headers": "*",
         "access-control-allow-methods": "*" } });
     }
-    if (/supabase\.co|locationiq|maptiler|mapbox|tile|openstreetmap|arcgisonline|cartocdn|fonts\.(googleapis|gstatic)/i.test(u)) {
+    // Anything that is not this server is answered here, rather than from a
+    // list of hostnames. The list way let three hosts through: all three
+    // sheets load @supabase/supabase-js, and maplibre (house) or leaflet
+    // (service, truck), from cdn.jsdelivr.net, which was never named. With no
+    // DNS in a test run each became ERR_NAME_NOT_RESOLVED, and that is a
+    // console error, which is what "no console errors" kept failing on.
+    // localhost still falls through to req.continue() below: the page has to
+    // load its own scripts.
+    if (!u.startsWith(BASE) && !/^(data|blob|about):/i.test(u)) {
+      const kind = req.resourceType();
+      // An <img> answered with JSON is "The source image could not be
+      // decoded". The listing photos live on supabase.co, which the old rule
+      // matched and then served "[]" to.
+      if (kind === "image") {
+        return req.respond({ status: 200, headers: {
+          "content-type": "image/png", "access-control-allow-origin": "*" }, body: PIXEL });
+      }
+      // Empty, not real: supabase-js, maplibre and leaflet are already absent
+      // in this environment and the sheets render without them, so an empty
+      // body preserves exactly the state all 20 Swahili assertions pass in,
+      // at no network cost. This is deliberately the opposite of
+      // tests/home_bands_test.mjs, which serves the real supabase-js off disk
+      // from node_modules because that test needs the client to work.
+      if (kind === "script") {
+        // Leaflet deliberately stays empty: service.html and truck.html guard
+        // on window.L (js/core/config.js:1206) and already pass without it.
+        // Defining it would push them down a code path they do not take here.
+        if (/maplibre/i.test(u)) {
+          return req.respond({ status: 200, headers: {
+            "content-type": "application/javascript", "access-control-allow-origin": "*" }, body: MAPLIBRE_STUB });
+        }
+        return req.respond({ status: 200, headers: {
+          "content-type": "application/javascript", "access-control-allow-origin": "*" }, body: "" });
+      }
+      if (kind === "stylesheet") {
+        return req.respond({ status: 200, headers: {
+          "content-type": "text/css", "access-control-allow-origin": "*" }, body: "" });
+      }
       return req.respond({ status: 200, headers: {
         "content-type": "application/json", "access-control-allow-origin": "*" }, body: "[]" });
     }
