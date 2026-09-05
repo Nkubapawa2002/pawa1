@@ -14,10 +14,7 @@
 //       before you could type a single letter. The field, the matches and the
 //       areas you opened before are all here; area.html is still one tap on.
 //
-//    3. The Frame takes a swipe. Four lenses that could only be tapped, one
-//       at a time, with no sign that there were four.
-//
-//    4. Everything presses back, and arrives rather than being already there.
+//    3. Everything presses back, and arrives rather than being already there.
 //
 //  THE RULE THIS FILE INHERITS from home-bands.js: a number is never invented.
 //  No fix, or no rows carrying coordinates, and the radar keeps its invitation
@@ -167,7 +164,7 @@
   };
 
   function wireArea() {
-    const card = document.querySelector('a.ha-near[href="area.html"]');
+    const card = document.querySelector("a.ha-door--area");
     const wrap = $("haAreaOpen"), input = $("haAreaInput");
     const chips = $("haAreaChips"), lbl = $("haAreaLbl");
     if (!card || !wrap || !input || !chips) return;
@@ -177,10 +174,21 @@
 
     const paint = (list, isRecent) => {
       chips.innerHTML = "";
+      // A heading with nothing under it is what the region list looked like
+      // every time it failed to load. Say so instead, and keep the field,
+      // which works on its own: area.html resolves a typed name.
+      if (!list.length) {
+        if (lbl) lbl.hidden = true;
+        const note = document.createElement("p");
+        note.className = "ha-area-note";
+        note.textContent = t("area_none", "Type a place and press enter.");
+        chips.appendChild(note);
+        return;
+      }
       list.slice(0, 8).forEach((name) => {
         const b = document.createElement("button");
         b.type = "button";
-        b.className = "ha-chip";
+        b.className = "ha-area-chip";
         b.textContent = name;
         b.addEventListener("click", () => {
           if (NF.haptic) NF.haptic("select");
@@ -193,7 +201,7 @@
         lbl.textContent = isRecent
           ? t("area_recent", "Recently opened")
           : t("area_suggest", "Start with a region");
-        lbl.hidden = !list.length;
+        lbl.hidden = false;
       }
     };
 
@@ -214,14 +222,35 @@
     const setOpen = async (v) => {
       open = v;
       wrap.classList.toggle("is-open", v);
+      // The card squares off its bottom corners so it and the panel read as
+      // one object rather than two boxes overlapping.
+      card.classList.toggle("is-open", v);
       card.setAttribute("aria-expanded", v ? "true" : "false");
       if (!v) return;
       const rec = recentAreas();
-      paint(rec.length ? rec : await loadRegions(), rec.length > 0);
+      if (rec.length) { paint(rec, true); }
+      else {
+        // PAINT FIRST, then correct. The regions come off the network, and
+        // awaiting them before painting anything meant the panel spent that
+        // whole round-trip as an empty box under a heading, which is exactly
+        // the bare heading this file exists to avoid. The fallback line goes
+        // in immediately and the chips replace it when they land.
+        paint([], false);
+        const list = await loadRegions();
+        // Still open, and the reader has not started typing: anything else and
+        // a late answer would overwrite what they are looking at now.
+        if (open && !input.value.trim()) paint(list, false);
+      }
       // Focus after the row has height, or the keyboard opens against a
       // collapsed panel and the page jumps.
       setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (_) {} }, 280);
     };
+
+    // Warm the list now rather than on the first tap. It is one cached read
+    // the page already makes for the trust strip, and DataStore single-flights
+    // it, so this costs no extra request and buys the panel its chips before
+    // anybody has opened it.
+    loadRegions().catch(() => {});
 
     card.setAttribute("role", "button");
     card.setAttribute("aria-expanded", "false");
@@ -253,71 +282,18 @@
   }
 
   // ==========================================================================
-  //  3. The Frame, as something you move through
-  // ==========================================================================
-  function wireFrameSwipe() {
-    const root = $("haFrame");
-    const dots = $("haFrameDots");
-    if (!root) return;
-    const tabs = [...root.querySelectorAll("[data-lens]")];
-    if (tabs.length < 2) return;
-
-    const current = () => Math.max(0, tabs.findIndex((x) => x.classList.contains("is-on")));
-    // Driving the existing tab click keeps ONE owner of lens state:
-    // home-bands.js already stops its rotation when a lens is tapped, and
-    // duplicating that here is how the two would drift apart.
-    const go = (i) => {
-      const n = (i + tabs.length) % tabs.length;
-      tabs[n].click();
-      if (NF.haptic) NF.haptic("tick");
-    };
-
-    if (NF.swipeable) {
-      NF.swipeable(root, {
-        onNext: () => go(current() + 1),
-        onPrev: () => go(current() - 1),
-      });
-    }
-
-    if (dots) {
-      const paint = () => {
-        const n = current();
-        [...dots.children].forEach((d, i) => d.classList.toggle("is-on", i === n));
-      };
-      paint();
-      // The band advances itself, so the dots have to follow the class rather
-      // than only the taps this file makes.
-      try {
-        const mo = new MutationObserver(paint);
-        tabs.forEach((tab) => mo.observe(tab, { attributes: true, attributeFilter: ["class"] }));
-      } catch (_) {}
-      [...dots.children].forEach((d, i) => {
-        d.style.cursor = "pointer";
-        d.addEventListener("click", () => go(i));
-      });
-    }
-  }
-
-  // ==========================================================================
-  //  4. The physical layer
+  //  3. The physical layer
   // ==========================================================================
   function wireFeel() {
-    if (NF.pressableAll) {
-      NF.pressableAll(".ha-near");
-      NF.pressableAll(".ha-frame-pt");
-      NF.pressableAll(".ha-earn-btns a");
-      NF.pressableAll(".ha-frame-btns a");
-    }
-    if (NF.reveal) {
-      NF.reveal([$("haFrame"), $("haEarn")].filter(Boolean), { stagger: 90 });
-      NF.reveal(".ha-find-card", { stagger: 70 });
-    }
+    // One card class now, so one call. The doors, the "can't find it" pair,
+    // the Frame and the two earn doors are all .ha-find-card.
+    if (NF.pressableAll) NF.pressableAll(".ha-find-card");
+    if (NF.reveal) NF.reveal(".ha-find-card", { stagger: 70 });
   }
 
   function boot() {
     try { wireFeel(); } catch (e) { console.warn("[home-live] feel", e); }
     try { wireArea(); } catch (e) { console.warn("[home-live] area", e); }
-    try { wireFrameSwipe(); } catch (e) { console.warn("[home-live] frame", e); }
     // Last, and allowed to fail: it is the only part that touches the network,
     // and the card reads correctly without it. It is NOT allowed to fail
     // silently, though. An empty catch here hid a real bug for three runs: the

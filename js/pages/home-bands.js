@@ -1,24 +1,18 @@
 // ============================================================================
 //  Home bands  (index.html)
-//  The three self-advancing bands under the helper cards:
+//  The trust strip: three counters, each read from real data.
 //
-//    1. The Frame   — four lenses on an area, rotating one at a time
-//    2. Earn        — the listing pitch, with a rotating proof line
-//    3. Trust strip — three counters, each read from real data
+//  This file used to drive two more bands, the Frame and the Earn pitch, each
+//  rotating a line of copy every six seconds behind a progress bar. Both are
+//  now plain cards that say one thing and hold still (css/action-cards.css),
+//  so the rotator and its clock went with them.
 //
-//  Two rules hold this file together.
-//
-//  A counter never invents a number. Every figure below is derived from
-//  something the app can point at: the category catalogue it ships, the rows
-//  in public.regions, the verified listings actually posted. A stat that
-//  resolves to zero is not padded and not floored, it is REMOVED, because an
-//  empty claim is worse than a missing one. As the marketplace fills, the tile
-//  comes back on its own.
-//
-//  A rotation never steals the reader. Advancement is driven by the progress
-//  bar's own animationend, so pausing the bar pauses the band and the two can
-//  never drift apart. Hover, focus, a hidden tab or a tap on any lens all stop
-//  it, and prefers-reduced-motion means it never starts.
+//  The rule that is left is the important one: a counter never invents a
+//  number. Every figure below is derived from something the app can point at,
+//  the category catalogue it ships, the rows in public.regions, the verified
+//  listings actually posted. A stat that resolves to zero is not padded and
+//  not floored, it is REMOVED, because an empty claim is worse than a missing
+//  one. As the marketplace fills, the tile comes back on its own.
 // ============================================================================
 
 (function () {
@@ -139,16 +133,29 @@
 
     // First paint waits for the strip to be on screen, so the count-up is
     // something the reader actually sees happen.
+    //
+    // What is watched is the 1px marker above the strip, NOT the strip. The
+    // strip ships `hidden` and stays display:none until it has a figure, and
+    // an element that is not laid out never intersects anything: observing it
+    // was a deadlock that left the strip blank for the whole session. The
+    // marker is always in flow, and sitting immediately above, it enters the
+    // viewport a moment before the strip does, which is when the count should
+    // start anyway.
     let armed = false;
+    const arm = () => {
+      if (armed) return;
+      armed = true;
+      refresh(true);
+    };
+    const mark = document.querySelector(".ha-trust-mark") || root;
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
-        if (!e.isIntersecting || armed) return;
-        armed = true;
+        if (!e.isIntersecting) return;
         io.disconnect();
-        refresh(true);
+        arm();
       });
-    }, { threshold: 0.4 });
-    io.observe(root);
+    }, { threshold: 0 });
+    io.observe(mark);
 
     // Auto-advancement: the figures re-read themselves while the page is open,
     // so a strip left on a phone all afternoon is not quoting the morning.
@@ -162,144 +169,5 @@
     }, REFRESH_MS);
   }
 
-  // ==========================================================================
-  //  2. Rotator, shared by the Frame and the Earn band
-  // ==========================================================================
-  //  The progress bar IS the clock. Its CSS animation runs for the dwell time
-  //  and its animationend advances the rotation, so "paused bar" and "paused
-  //  rotation" are the same state and cannot disagree.
-  // ==========================================================================
-
-  //  `bar` is the track; the span inside it is the fill that actually animates.
-  //  Both matter: the fill carries the clock, and the track is what a reader
-  //  sees, so a rotation that has stopped for good hides the whole thing
-  //  rather than leaving an empty groove that will never fill again.
-  function makeRotator({ root, bar, count, show }) {
-    const fill = bar && bar.querySelector("span");
-    let index = 0;
-    let pinned = false;
-
-    const restart = () => {
-      if (!fill || REDUCED || pinned) return;
-      fill.style.animation = "none";
-      void fill.offsetWidth;         // force reflow so the animation re-runs
-      fill.style.animation = "";
-      fill.style.animationPlayState = "running";
-    };
-
-    const go = (next, byHand) => {
-      index = ((next % count) + count) % count;
-      show(index);
-      if (byHand) {
-        // A tap is a decision. Stop moving under the reader's finger, and take
-        // the clock away with it.
-        pinned = true;
-        if (fill) fill.style.animationPlayState = "paused";
-        if (bar) bar.hidden = true;
-      } else {
-        restart();
-      }
-    };
-
-    show(0);
-
-    if (REDUCED || count < 2 || !fill) {
-      if (bar) bar.hidden = true;
-      return { go };
-    }
-
-    fill.addEventListener("animationend", () => go(index + 1, false));
-
-    // Reading, hovering or tabbing through the band holds it still.
-    const hold = () => { if (!pinned) fill.style.animationPlayState = "paused"; };
-    const release = () => { if (!pinned) fill.style.animationPlayState = "running"; };
-    root.addEventListener("pointerenter", hold);
-    root.addEventListener("pointerleave", release);
-    root.addEventListener("focusin", hold);
-    root.addEventListener("focusout", release);
-    document.addEventListener("visibilitychange", () => (document.hidden ? hold() : release()));
-
-    restart();
-    return { go };
-  }
-
-  // ==========================================================================
-  //  3. The Frame band
-  // ==========================================================================
-
-  function wireFrame() {
-    const root = document.getElementById("haFrame");
-    if (!root) return;
-    const tabs = [...root.querySelectorAll("[data-lens]")];
-    const copy = document.getElementById("haFrameCopy");
-    const bar = root.querySelector(".ha-frame-bar");
-    if (!tabs.length || !copy) return;
-
-    const show = (i) => {
-      tabs.forEach((tab, n) => {
-        const on = n === i;
-        tab.classList.toggle("is-on", on);
-        tab.setAttribute("aria-selected", on ? "true" : "false");
-        tab.tabIndex = on ? 0 : -1;
-      });
-      // Swapping data-i18n as well as the text keeps the language toggle
-      // honest: applyTranslations() re-reads whichever lens is showing.
-      const key = tabs[i].dataset.copy;
-      copy.dataset.i18n = key;
-      copy.textContent = t(key, "");
-      if (REDUCED) return;
-      copy.classList.remove("is-in");
-      void copy.offsetWidth;
-      copy.classList.add("is-in");
-    };
-
-    const rot = makeRotator({ root, bar, count: tabs.length, show });
-
-    tabs.forEach((tab, i) => {
-      tab.addEventListener("click", () => rot.go(i, true));
-      tab.addEventListener("keydown", (e) => {
-        const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
-                   : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
-        if (!step) return;
-        e.preventDefault();
-        const next = (i + step + tabs.length) % tabs.length;
-        rot.go(next, true);
-        tabs[next].focus();
-      });
-    });
-  }
-
-  // ==========================================================================
-  //  4. The Earn band
-  // ==========================================================================
-
-  function wireEarn() {
-    const root = document.getElementById("haEarn");
-    if (!root) return;
-    const line = document.getElementById("haEarnProof");
-    const bar = root.querySelector(".ha-earn-bar");
-    if (!line) return;
-
-    const keys = (line.dataset.keys || "").split(",").map((s) => s.trim()).filter(Boolean);
-    if (!keys.length) return;
-
-    const show = (i) => {
-      line.dataset.i18n = keys[i];
-      line.textContent = t(keys[i], "");
-      if (REDUCED) return;
-      line.classList.remove("is-in");
-      void line.offsetWidth;
-      line.classList.add("is-in");
-    };
-
-    makeRotator({ root, bar, count: keys.length, show });
-  }
-
-  // ==========================================================================
-
-  document.addEventListener("DOMContentLoaded", () => {
-    wireFrame();
-    wireEarn();
-    wireTrust();
-  });
+  document.addEventListener("DOMContentLoaded", wireTrust);
 })();

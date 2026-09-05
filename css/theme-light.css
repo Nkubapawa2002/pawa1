@@ -218,12 +218,39 @@
 :root[data-theme="light"] .ha-search-box input { color: var(--c-text); }
 :root[data-theme="light"] .ha-search-box input::placeholder { color: var(--c-text-faint); }
 
-:root[data-theme="light"] .ha-chip {
+:root[data-theme="light"] .ha-area-chip {
   background: #ffffff; border-color: var(--c-border); color: var(--c-text-muted);
 }
-:root[data-theme="light"] .ha-chip.active {
-  background: #2EE6A6; color: #06170F; border-color: transparent;
+
+/* ---------------------------------------------------------------------------
+   Home: the area panel that hangs off the "Explore an area by name" door.
+
+   The panel is drawn to look like a continuation of the card above it, which
+   means it has to be the SAME surface in both themes. In dark that is the
+   card's own #141A18; here it is white with the same hairline .ha-find-card
+   already gets above, and the seam between the two has to stay invisible.
+   --------------------------------------------------------------------------- */
+:root[data-theme="light"] .ha-area-box {
+  background: #ffffff;
+  border-color: var(--c-border);
+  box-shadow: 0 10px 26px rgba(20, 30, 25, 0.08);
 }
+:root[data-theme="light"] .ha-area-field input.ha-area-in {
+  color: var(--c-text) !important;
+  background: #ffffff !important;
+  border-color: var(--c-border) !important;
+}
+:root[data-theme="light"] .ha-area-field input.ha-area-in::placeholder { color: var(--c-text-faint); }
+:root[data-theme="light"] .ha-chip-lbl,
+:root[data-theme="light"] .ha-area-note { color: var(--c-text-muted); }
+
+/* The radar's live reading was written for a dark blue card and is now inside
+   a white one: #fff on white for the count, and a pale blue for the distance
+   beside it. Both become ink. The "Live" pill keeps its blue, which is the
+   one thing on the card that is meant to read as an instrument. */
+:root[data-theme="light"] .ha-near-live b { color: var(--c-text); }
+:root[data-theme="light"] .ha-near-live span { color: var(--c-text-muted); }
+:root[data-theme="light"] .ha-near-pill { background: rgba(37, 99, 235, .12); color: #1d4ed8; }
 
 :root[data-theme="light"] .ha-sec-head h2 { color: var(--c-text); }
 :root[data-theme="light"] .ha-sec-head a { color: #0a6647; }
@@ -235,8 +262,32 @@
 }
 :root[data-theme="light"] .ha-card-title,
 :root[data-theme="light"] .ha-find-t { color: var(--c-text); }
+
 :root[data-theme="light"] .ha-find-sub,
 :root[data-theme="light"] .ha-find-d { color: var(--c-text-muted); }
+
+/* The icon tints are 12 to 14 per cent washes of their own accent. Over a
+   white card that leaves the accent itself far too pale to read as a drawn
+   line, worst of all the gold. Same hue, taken down to an ink that holds.
+   Only icons drawing with currentColor follow this. */
+:root[data-theme="light"] .ha-find-ic.ic-emerald { color: #0a6647; }
+:root[data-theme="light"] .ha-find-ic.ic-gold    { color: #8a6000; }
+:root[data-theme="light"] .ha-find-ic.ic-violet  { color: #6b21a8; }
+:root[data-theme="light"] .ha-find-ic.ic-sky     { color: #1d4ed8; }
+:root[data-theme="light"] .ha-find-ic.ic-rose    { color: #9f1239; }
+
+/* The radar inside the sky tile is drawn in CSS rather than in the SVG, so
+   currentColor cannot reach it: its rings, sweep and dot are three separate
+   alphas of the dark card's pale blue and all three vanish on white. Same
+   blue as the tile's ink, at the same three weights. */
+:root[data-theme="light"] .ha-near-radar i { border-color: rgba(29, 78, 216, .38); }
+:root[data-theme="light"] .ha-near-sweep {
+  background: conic-gradient(from 0deg, rgba(29, 78, 216, 0) 0deg,
+    rgba(29, 78, 216, .3) 55deg, rgba(29, 78, 216, 0) 90deg);
+}
+:root[data-theme="light"] .ha-near-dot {
+  background: #1d4ed8; box-shadow: 0 0 10px 2px rgba(29, 78, 216, .45);
+}
 :root[data-theme="light"] .ha-card .ha-muted,
 :root[data-theme="light"] .ha-specs,
 :root[data-theme="light"] .ha-card .ha-price small,

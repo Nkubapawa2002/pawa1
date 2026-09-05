@@ -341,10 +341,6 @@
     @media (prefers-reduced-motion: reduce) {
       .ha-search-box, .hs-row { transition: none; }
     }
-    .ha-chips { display: flex; gap: 9px; overflow-x: auto; margin: 18px -16px 0; padding: 0 16px 2px; scrollbar-width: none; }
-    .ha-chips::-webkit-scrollbar { display: none; }
-    .ha-chip { padding: 10px 17px; border-radius: 999px; font-weight: 700; font-size: 13px; border: 1px solid rgba(255,255,255,.08); cursor: pointer; white-space: nowrap; flex: none; background: rgba(255,255,255,.05); color: rgba(231,241,236,.72); font-family: inherit; }
-    .ha-chip.active { background: #2EE6A6; color: #06170F; border-color: transparent; }
 
     /* ── Category nav tabs — link straight to each section's full page.
          These are the primary "take me there" tabs (Houses / Trucks /
@@ -385,28 +381,31 @@
       .ha-tab-ic { width: 26px; height: 26px; }
     }
 
-    /* ── "Near you" radar card — fills the band under the tabs with a live,
-         sweeping radar that pulls the eye toward near-me.html. ── */
-    .ha-near { position: relative; overflow: hidden; display: flex; align-items: center; gap: 15px; margin-top: 16px; padding: 16px 16px; border-radius: 24px; text-decoration: none; background: linear-gradient(135deg, #0E3A4E 0%, #0B2030 100%); border: 1px solid rgba(110,200,255,.22); box-shadow: 0 14px 34px rgba(0,0,0,.32); }
-    .ha-near::after { content: ""; position: absolute; right: -36px; bottom: -46px; width: 150px; height: 150px; border-radius: 50%; background: rgba(110,200,255,.12); pointer-events: none; }
-    .ha-near-radar { position: relative; width: 72px; height: 72px; flex: none; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 50%, rgba(110,200,255,.16), rgba(110,200,255,0) 70%); }
+    /* ── The two doors ─────────────────────────────────────────────────────
+       Both doors are a .ha-find-card (css/action-cards.css) and take their
+       surface, border, hover and light-mode ink from there. Everything below
+       is only what a door has that a helper card does not: the radar that
+       goes in the icon well, and the chevron on the right.
+
+       The radar is sized off .ha-find-ic rather than a number of its own, so
+       it can never outgrow the well it sits in. js/pages/home-live.js reads
+       radar.offsetWidth to place its blips, so it follows automatically. */
+    .ha-door { margin-top: 12px; }
+    .ha-door .ha-find-ic { position: relative; overflow: hidden; }
+    .ha-near-radar { position: relative; width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; }
     .ha-near-radar i { position: absolute; inset: 0; margin: auto; width: 100%; height: 100%; border-radius: 50%; border: 1px solid rgba(110,200,255,.45); opacity: 0; animation: ha-ping 2.8s ease-out infinite; }
     .ha-near-radar i:nth-child(2) { animation-delay: .9s; }
     .ha-near-radar i:nth-child(3) { animation-delay: 1.8s; }
     @keyframes ha-ping { 0% { transform: scale(.22); opacity: .85; } 75% { opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
     .ha-near-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(110,200,255,0) 0deg, rgba(110,200,255,.38) 55deg, rgba(110,200,255,0) 90deg); animation: ha-spin 3.4s linear infinite; }
     @keyframes ha-spin { to { transform: rotate(360deg); } }
-    .ha-near-dot { position: relative; z-index: 1; width: 13px; height: 13px; border-radius: 50%; background: #7FD0FF; box-shadow: 0 0 14px 3px rgba(110,200,255,.7); }
-    .ha-near-text { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; }
-    .ha-near-k { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(174,221,255,.85); }
-    .ha-near-t { font-size: 16.5px; font-weight: 800; color: #fff; margin-top: 4px; line-height: 1.25; }
-    .ha-near-s { font-size: 12.5px; color: rgba(220,236,248,.78); margin-top: 4px; line-height: 1.4; }
-    .ha-near-go { flex: none; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.12); display: grid; place-items: center; }
+    .ha-near-dot { position: relative; z-index: 1; width: 9px; height: 9px; border-radius: 50%; background: #7FD0FF; box-shadow: 0 0 10px 2px rgba(110,200,255,.7); }
+    .ha-door-go { flex: none; margin-left: auto; color: var(--text-faint); display: grid; place-items: center; }
+    .ha-door:hover .ha-door-go { color: var(--green-emerald); }
     @media (prefers-reduced-motion: reduce) {
       .ha-near-radar i, .ha-near-sweep { animation: none; }
       .ha-near-radar i { opacity: .3; }
     }
-
     .ha-sec-head { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 13px; }
     .ha-sec-head h2 { font-size: 17px; font-weight: 800; color: #EAF1EE; margin: 0; }
     .ha-sec-head a { font-size: 13px; font-weight: 700; color: #2EE6A6; text-decoration: none; }
@@ -446,116 +445,31 @@
     .ha-card .ha-price small { color: rgba(231,241,236,.45); }
     .ha-empty { text-align: center; padding: 44px 20px; color: rgba(231,241,236,.55); display: flex; flex-direction: column; gap: 4px; }
     .ha-empty b { color: rgba(231,241,236,.8); font-size: 15px; }
-    /* ═══════════════════════════════════════════════════════════════════════
-       The three self-advancing bands. Driven by js/pages/home-bands.js.
-
-       One shared motion vocabulary across all three: a band that changes what
-       it is saying fades the new line up (ha-band-in), and a band that is
-       counting down to its next change sweeps a hairline (ha-band-sweep).
-       The sweep is not decoration, it is the rotation's clock: the script
-       advances on its animationend, so what you see is what is running.
-       ═══════════════════════════════════════════════════════════════════════ */
-    @keyframes ha-band-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
-    @keyframes ha-band-sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-
-    .ha-band-bar { position: relative; height: 2px; border-radius: var(--radius-pill); overflow: hidden; background: rgba(255,255,255,.16); }
-    .ha-band-bar > span { display: block; height: 100%; width: 100%; transform-origin: 0 50%; background: rgba(255,255,255,.8); animation: ha-band-sweep 6s linear; }
-
     /* ── Trust strip ───────────────────────────────────────────────────────
        Every figure here is read from real data at run time, so the markup
        ships no number at all. A stat that resolves to zero is removed rather
        than shown: the divider is a border on the tile, not a spacer element,
        so a hidden tile takes its divider with it and the row stays even. */
-    .ha-trust { display: flex; background: var(--surface-app); border: 1px solid var(--border-strong); border-radius: var(--radius-xl); padding: var(--space-4) var(--space-2); margin-top: 26px; }
+    .ha-trust { display: flex; background: var(--surface-app); border: 1px solid var(--border-strong); border-radius: var(--radius-xl); padding: var(--space-4) var(--space-2); }
     .ha-trust > .ha-stat { flex: 1; min-width: 0; text-align: center; padding: 0 var(--space-2); }
     .ha-trust > .ha-stat + .ha-stat { border-left: 1px solid var(--border-strong); }
+    /* `hidden` is how the strip and a zero tile are taken off the page, and an
+       author rule carrying `display` beats the UA's [hidden] rule whatever its
+       specificity. .ha-trust declares `display: flex`, so its `hidden` did
+       nothing and the empty strip stood there before the first count landed.
+       .ha-stat declares no display and was always fine; it is named here so
+       that stays true if one is ever added. */
+    .ha-trust[hidden], .ha-trust > .ha-stat[hidden] { display: none; }
+    /* The strip is display:none until it has a figure, and an IntersectionObserver
+       cannot watch a box that is not being laid out, so the "it is about to be
+       on screen" signal is this marker instead. One pixel, immediately above,
+       never hidden. */
+    .ha-trust-mark { height: 1px; margin-top: 25px; }
     /* Tabular mono: the count-up changes every frame, and proportional digits
        make the number jiggle while it climbs. */
     .ha-stat-num { font-family: var(--font-mono); font-feature-settings: "tnum","zero"; font-size: 21px; font-weight: 700; color: var(--green-emerald); }
     .ha-stat-num.gold { color: var(--gold-warm); }
     .ha-stat-lbl { font-size: 11px; color: rgba(231,241,236,.55); margin-top: 3px; font-weight: 600; line-height: 1.3; }
-
-    /* ── Earn band ─────────────────────────────────────────────────────────
-       --ha-earn-ink is the gradient's own dark end, reused as the button ink.
-       It is page-local rather than a brand token because nothing outside this
-       band needs it. */
-    .ha-earn { --ha-earn-ink: #0E5C45;
-      position: relative; overflow: hidden; border-radius: var(--radius-xl);
-      padding: var(--space-6); margin-top: 14px; background: var(--grad-earn); }
-    .ha-earn::after { content: ""; position: absolute; right: -30px; top: -30px; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,201,75,.18); }
-    .ha-earn > * { position: relative; }
-    .ha-earn-k { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.72); }
-    .ha-earn-t { font-size: 19px; font-weight: 800; color: #fff; margin-top: 7px; max-width: 260px; line-height: 1.3; }
-    .ha-earn-s { font-size: 13px; color: rgba(255,255,255,.82); margin-top: 6px; max-width: 300px; line-height: 1.45; }
-    /* min-height holds two lines open. The three proof lines are different
-       lengths, and without it the buttons below would hop on every rotation. */
-    .ha-earn-proof { display: flex; align-items: flex-start; gap: 9px; margin-top: 14px; max-width: 320px; min-height: 36px; }
-    .ha-earn-proof > svg { flex: none; margin-top: 1px; color: var(--gold-warm); }
-    .ha-earn-pf { font-size: 12.5px; font-weight: 600; color: #fff; line-height: 1.45; }
-    .ha-earn-pf.is-in { animation: ha-band-in var(--dur-slow) var(--ease) both; }
-    .ha-earn .ha-band-bar { margin-top: 13px; max-width: 320px; }
-    .ha-earn-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-    .ha-earn-btns a { background: #fff; color: var(--ha-earn-ink); border: 0; padding: 11px 19px; border-radius: var(--radius); font-weight: 800; font-size: 13.5px; text-decoration: none; min-height: var(--hit-min); display: inline-flex; align-items: center; }
-    /* Was rgba(255,255,255,.16): white-on-that measured 4.06:1, under AA. A
-       dark translucent fill reads the same way, quiet and secondary, at ~7:1. */
-    .ha-earn-btns a.ghost { background: rgba(4,32,23,.30); color: #fff; border: 1px solid rgba(255,255,255,.55); }
-
-    /* ── Frame band ────────────────────────────────────────────────────────
-       Four lenses on an area, one at a time. The violet ground and two of the
-       four lens accents have no equivalent in the design system (the brand is
-       green and gold), so they are declared once here as page-local names
-       instead of being scattered through the rules as literals. */
-    .ha-frame {
-      --ha-frame-violet: #C594FF;
-      --ha-frame-amber:  #FF9B5C;
-      --ha-frame-ink:    #3320A0;
-      position: relative; overflow: hidden; border-radius: var(--radius-xl);
-      padding: var(--space-6); margin-top: 22px;
-      background: linear-gradient(135deg, #2A1E5C 0%, #4326A6 55%, #6D3BD6 100%); }
-    .ha-frame::after { content: ""; position: absolute; right: -40px; top: -40px; width: 170px; height: 170px; border-radius: 50%; background: rgba(252,209,22,.14); }
-    .ha-frame > * { position: relative; }
-    .ha-frame-k { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.74); }
-    .ha-frame-t { font-size: 20px; font-weight: 800; color: #fff; margin-top: 7px; max-width: 300px; line-height: 1.28; }
-    .ha-frame-s { font-size: 13px; color: rgba(255,255,255,.84); margin-top: 7px; max-width: 330px; line-height: 1.5; }
-
-    .ha-frame-pts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
-    .ha-frame-pt {
-      display: flex; align-items: center; gap: 9px; text-align: left;
-      font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.3;
-      /* .66 measured 4.13:1 on the violet ground, under AA for 12.5px text.
-         An unselected lens is still a label somebody has to read to choose it,
-         so it is dimmed by its background and its dot, not by its ink. */
-      color: rgba(234,231,251,.86); background: rgba(255,255,255,.05);
-      border: 1px solid transparent; border-radius: var(--radius);
-      padding: 9px 11px; min-height: var(--hit-min); cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease); }
-    .ha-frame-pt .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ha-lens); opacity: .45; transition: opacity var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
-    .ha-frame-pt.l1 { --ha-lens: var(--green-emerald); }
-    .ha-frame-pt.l2 { --ha-lens: var(--gold-warm); }
-    .ha-frame-pt.l3 { --ha-lens: var(--ha-frame-violet); }
-    .ha-frame-pt.l4 { --ha-lens: var(--ha-frame-amber); }
-    .ha-frame-pt:hover { color: #fff; background: rgba(255,255,255,.10); }
-    .ha-frame-pt:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-    .ha-frame-pt.is-on { color: #fff; background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.30); }
-    .ha-frame-pt.is-on .dot { opacity: 1; box-shadow: 0 0 0 3px var(--border-strong); }
-
-    /* Same trick as the earn proof line: hold three lines open so swapping
-       lenses never moves the "Open the Frame" button out from under a thumb. */
-    .ha-frame-d { margin: 13px 0 0; max-width: 340px; min-height: 54px; font-size: 12.5px; line-height: 1.5; color: rgba(234,231,251,.94); }
-    .ha-frame-d.is-in { animation: ha-band-in var(--dur-slow) var(--ease) both; }
-    .ha-frame .ha-band-bar { margin-top: 12px; max-width: 340px; }
-    .ha-frame-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-    .ha-frame-btns a { background: #fff; color: var(--ha-frame-ink); border: 0; padding: 11px 20px; border-radius: var(--radius); font-weight: 800; font-size: 13.5px; text-decoration: none; min-height: var(--hit-min); display: inline-flex; align-items: center; }
-
-    /* Nothing moves on its own for a reader who asked for that. The script
-       also stops advancing, so the bands sit on their first lens and line. */
-    @media (prefers-reduced-motion: reduce) {
-      .ha-band-bar { display: none; }
-      .ha-frame-d.is-in, .ha-earn-pf.is-in { animation: none; }
-      .ha-frame-pt { transition: none; }
-    }
-
 
     /* ====================================================================
        NATIVE FEEL  (js/lib/native-feel.js)
@@ -566,16 +480,15 @@
        .is-pressed is set on pointerdown and removed if the finger slides
        off, which :active cannot express. That second half is the one that
        makes a card feel like a button rather than a link. */
-    .ha-near, .ha-frame-pt, .ha-earn-btns a, .ha-frame-btns a, .ha-chip {
+    .ha-find-card, .ha-area-chip {
       transition: transform var(--dur-fast, .14s) var(--ease, cubic-bezier(.2,.7,.3,1)),
                   box-shadow var(--dur-fast, .14s) var(--ease, cubic-bezier(.2,.7,.3,1)),
                   background var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1)),
                   border-color var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1));
       -webkit-tap-highlight-color: transparent;
     }
-    .ha-near.is-pressed { transform: scale(.975); box-shadow: 0 6px 16px rgba(0,0,0,.34); }
-    .ha-frame-pt.is-pressed, .ha-chip.is-pressed { transform: scale(.955); }
-    .ha-earn-btns a.is-pressed, .ha-frame-btns a.is-pressed { transform: scale(.955); }
+    .ha-find-card.is-pressed { transform: scale(.985); box-shadow: 0 6px 16px rgba(0,0,0,.34); }
+    .ha-area-chip.is-pressed { transform: scale(.955); }
 
     /* Arrival. Only ever plays once; see reveal() for why. */
     .will-reveal {
@@ -629,36 +542,47 @@
     /* ---- the area card, opened in place -------------------------------
        Tapping it used to cost a page load before you could type a single
        letter. The field is here, the recent areas are here, and area.html
-       is still one tap away for anybody who wants the full screen. */
-    .ha-find-inline { margin-top: 11px; }
+       is still one tap away for anybody who wants the full screen.
+
+       The panel is the SAME surface and the SAME border as the card it hangs
+       from, tucked up under it by the card's own corner radius, and the card
+       squares off its bottom corners while it is open. Before this the two
+       were separately rounded boxes in two different greens overlapping by
+       14px, and the seam ran visibly across the panel. */
     .ha-area-open { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .34s var(--ease, cubic-bezier(.2,.7,.3,1)); }
     .ha-area-open.is-open { grid-template-rows: 1fr; }
     .ha-area-open > div { overflow: hidden; min-height: 0; }
-    .ha-area-box { padding: 12px 13px 13px; border-radius: 0 0 24px 24px;
-      background: linear-gradient(180deg, rgba(18,58,44,.96), rgba(11,36,27,.96));
-      border: 1px solid rgba(46,230,166,.22); border-top: 0; margin-top: -14px; }
+    .ha-door--area.is-open { border-radius: 18px 18px 0 0; border-bottom-color: transparent; }
+    .ha-area-box {
+      margin-top: -18px; padding: 22px 14px 14px;
+      background: #141A18; border: 1px solid rgba(255,255,255,.07); border-top: 0;
+      border-radius: 0 0 18px 18px;
+    }
     .ha-area-field { position: relative; display: flex; align-items: center; }
     .ha-area-field svg { position: absolute; left: 12px; pointer-events: none; opacity: .8; color: var(--green-emerald); }
     /* The class is doubled for the same reason it is doubled on .auth-input:
        premium.css paints every typed input `padding: 11px 14px !important` and
        loads after this page's own style block, and `input[type="text"]`
        (0,1,1) out-specifies a single class (0,1,0). Without the second class
-       the search icon sits on top of the first two characters somebody types.
-       See css/auth.css for the same fight and the same answer. */
+       the search icon sits on top of the first two characters somebody types. */
     .ha-area-field input.ha-area-in {
       width: 100%; box-sizing: border-box; height: 44px;
       padding: 0 12px 0 38px !important; font-size: 16px; font-family: inherit;
       color: #EAF1EE !important;
-      background: rgba(255,255,255,.07) !important;
-      border: 1px solid rgba(46,230,166,.28) !important;
+      background: rgba(255,255,255,.05) !important;
+      border: 1px solid rgba(255,255,255,.12) !important;
       border-radius: 13px !important;
     }
     .ha-area-field input.ha-area-in::placeholder { color: rgba(220,240,232,.5); }
     .ha-area-field input.ha-area-in:focus { outline: none;
       border-color: var(--green-emerald) !important;
       box-shadow: 0 0 0 3px rgba(46,230,166,.18); }
-    .ha-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
-    .ha-chip {
+    /* Named .ha-area-chip, not .ha-chip. This page already used .ha-chips for
+       the badge row over a listing photo, which is `position: absolute` and is
+       declared further up the sheet, so every region suggestion painted over
+       the page header instead of inside the panel. One name, one meaning. */
+    .ha-area-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .ha-area-chip {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 8px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
       color: #DCEFE7; background: rgba(255,255,255,.07);
@@ -666,42 +590,25 @@
       text-decoration: none; cursor: pointer; font-family: inherit;
       min-height: 36px;
     }
-    .ha-chip:hover { background: rgba(46,230,166,.14); border-color: rgba(46,230,166,.34); color: #fff; }
-    .ha-chip:focus-visible { outline: 2px solid var(--green-emerald); outline-offset: 2px; }
+    .ha-area-chip:hover { background: rgba(46,230,166,.14); border-color: rgba(46,230,166,.34); color: #fff; }
+    .ha-area-chip:focus-visible { outline: 2px solid var(--green-emerald); outline-offset: 2px; }
     .ha-chip-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: .1em;
       text-transform: uppercase; color: rgba(220,240,232,.45); margin: 12px 0 0; display: block; }
-
-    /* ---- the Frame, as something you can move through -----------------
-       Four lenses that could only be tapped one at a time now take a swipe,
-       and the edge fade says there is more to the side without a scrollbar
-       drawn over the design. */
-    .ha-frame-pts { touch-action: pan-y; }
-    .ha-frame-pt { position: relative; }
-    .ha-frame-swipe { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 11px; }
-    .ha-frame-swipe b {
-      width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.22);
-      transition: width var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1)),
-                  background var(--dur, .22s) var(--ease, cubic-bezier(.2,.7,.3,1));
-    }
-    .ha-frame-swipe b.is-on { width: 18px; background: #fff; }
-    .ha-frame-hint { font-size: 11px; color: rgba(234,231,251,.55); text-align: center; margin: 8px 0 0; }
-
+    /* `display: block` on a class beats the user agent's [hidden] rule, so
+       hiding this label did nothing and "Start with a region" stood over an
+       empty row every time the region list failed to load. */
+    .ha-chip-lbl[hidden] { display: none; }
+    .ha-area-note { font-size: 12.5px; line-height: 1.45; color: rgba(220,240,232,.55); margin: 10px 0 0; }
     @media (prefers-reduced-motion: reduce) {
       /* The press keeps its colour change and loses only the movement. */
-      .ha-near.is-pressed, .ha-frame-pt.is-pressed, .ha-chip.is-pressed,
-      .ha-earn-btns a.is-pressed, .ha-frame-btns a.is-pressed { transform: none; }
+      .ha-find-card.is-pressed, .ha-area-chip.is-pressed { transform: none; }
       .will-reveal { opacity: 1; transform: none; transition: none; }
       .ha-near-blip { animation: none; transform: translate(-50%, -50%); }
       .ha-near-live { animation: none; }
       .ha-near-pill i { animation: none; }
       .ha-area-open { transition: none; }
-      .ha-frame-swipe b { transition: none; }
     }
 
-    @media (max-width: 360px) {
-      .ha-frame-pts { grid-template-columns: 1fr; }
-      .ha-frame-d { min-height: 40px; }
-    }
   </style>
   <link rel="stylesheet" href="css/theme-light.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
@@ -775,48 +682,58 @@
       </a>
     </nav>
 
-    <!-- live "near you" radar — taps straight into near-me.html -->
-    <a class="ha-near" href="near-me.html">
-      <span class="ha-near-radar" id="haRadar" aria-hidden="true">
-        <span class="ha-near-sweep"></span>
-        <i></i><i></i><i></i>
-        <span class="ha-near-dot"></span>
+    <!-- ── The two doors ───────────────────────────────────────────────────
+         Near me answers "what is around me" with GPS; Explore an area answers
+         the same question by name, for a phone with location off or a person
+         asking about somewhere they are not. They are one question asked two
+         ways, so they are built as one card, twice, in the same shape every
+         other card on this page uses (css/action-cards.css). They used to be
+         two full-bleed gradient slabs, one blue and one green, above a violet
+         one and a green one: four unrelated products stacked on a home page.
+         The only thing that changes between cards now is the icon. -->
+    <a class="ha-find-card ha-door" href="near-me.html">
+      <span class="ha-find-ic ic-sky" aria-hidden="true">
+        <span class="ha-near-radar" id="haRadar">
+          <span class="ha-near-sweep"></span>
+          <i></i><i></i><i></i>
+          <span class="ha-near-dot"></span>
+        </span>
       </span>
-      <span class="ha-near-text">
-        <span class="ha-near-k" data-i18n="near_card_kicker">Around you</span>
-        <span class="ha-near-t" data-i18n="near_card_title">Rooms and trucks near you</span>
-        <span class="ha-near-s" id="haNearSub" data-i18n="near_card_sub">Turn on location and the closest comes first.</span>
+      <span class="ha-find-tx">
+        <span class="ha-find-t" data-i18n="near_card_title">Rooms and trucks near you</span>
+        <span class="ha-find-d" id="haNearSub" data-i18n="near_card_sub">Turn on location and the closest comes first.</span>
         <!-- Filled by js/pages/home-live.js only when a real fix and real rows
              exist. Until then it stays hidden and the invitation above stands,
              because a radar that reports a number it does not have is worse
              than one that admits it is switched off. -->
         <span class="ha-near-live" id="haNearLive" hidden></span>
       </span>
-      <span class="ha-near-go" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="ha-door-go" aria-hidden="true">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       </span>
     </a>
 
-    <!-- explore-by-name — the GPS-free companion to the radar: type any region,
-         district, ward or village and see its homes + services (area.html) -->
-    <a class="ha-near" href="area.html" style="margin-top:11px; background:linear-gradient(135deg,#123A2C 0%,#0B241B 100%); border-color:rgba(46,230,166,.22)">
-      <span class="ha-near-radar" aria-hidden="true" style="background:radial-gradient(circle at 50% 50%, rgba(46,230,166,.18), rgba(46,230,166,0) 70%)">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#2EE6A6" stroke-width="1.8"/><path d="M21 21l-3.5-3.5" stroke="#2EE6A6" stroke-width="1.8" stroke-linecap="round"/><circle cx="11" cy="11" r="2.3" fill="#2EE6A6"/></svg>
+    <a class="ha-find-card ha-door ha-door--area" href="area.html">
+      <span class="ha-find-ic ic-emerald" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.5-3.5"/><circle cx="11" cy="11" r="2.3" fill="currentColor" stroke="none"/></svg>
       </span>
-      <span class="ha-near-text">
-        <span class="ha-near-k" data-i18n="area_card_kicker">Anywhere in Tanzania</span>
-        <span class="ha-near-t" data-i18n="area_card_title">Explore an area by name</span>
-        <span class="ha-near-s" data-i18n="area_card_sub">Name a region, district, ward or village. See the homes and services there.</span>
+      <span class="ha-find-tx">
+        <span class="ha-find-t" data-i18n="area_card_title">Explore an area by name</span>
+        <span class="ha-find-d" data-i18n="area_card_sub">Any region, district, ward or village.</span>
       </span>
-      <span class="ha-near-go" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="ha-door-go" aria-hidden="true">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       </span>
     </a>
 
     <!-- The area card opens HERE rather than costing a page load before you
          can type a letter. The card above keeps its href, so with no script
          it still goes to area.html: this panel is an enhancement, never the
-         only way in. -->
+         only way in.
+
+         The card takes .is-open while this is showing and drops its own
+         bottom radius, so the two read as one object. Before that they were
+         two rounded boxes overlapped by 14px and the seam showed. -->
     <div class="ha-area-open" id="haAreaOpen"><div>
       <div class="ha-area-box">
         <div class="ha-area-field">
@@ -825,8 +742,10 @@
                  data-i18n-placeholder="area_ph" placeholder="Region, district, ward or village"
                  data-i18n-aria-label="area_card_title" aria-label="Explore an area by name" />
         </div>
-        <span class="ha-chip-lbl" id="haAreaLbl" data-i18n="area_recent">Recently opened</span>
-        <div class="ha-chips" id="haAreaChips"></div>
+        <!-- Ships hidden: which heading this is depends on what gets painted
+             under it, so it is written by home-live.js or not shown at all. -->
+        <span class="ha-chip-lbl" id="haAreaLbl" data-i18n="area_recent" hidden>Recently opened</span>
+        <div class="ha-area-chips" id="haAreaChips"></div>
       </div>
     </div></div>
 
@@ -866,14 +785,14 @@
     <p class="ha-find-sub" data-i18n="home_find_sub">Then make it come to you.</p>
     <div class="ha-find">
       <button type="button" class="ha-find-card" id="haRequestBtn">
-        <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+        <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
         <span class="ha-find-tx">
           <span class="ha-find-t" data-i18n="home_find_request">Tell us what you want</span>
           <span class="ha-find-d" data-i18n="home_find_request_d">Pin your area on the map and say your budget and when. Every agent working there sees it and calls you.</span>
         </span>
       </button>
       <a class="ha-find-card" href="houses.html?alert=1">
-        <span class="ha-find-ic ic-violet" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#C594FF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#C594FF" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+        <span class="ha-find-ic ic-violet" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
         <span class="ha-find-tx">
           <span class="ha-find-t" data-i18n="home_find_alert">Alert me about an area</span>
           <span class="ha-find-d" data-i18n="home_find_alert_d">Draw or pick an area and get a ping the moment a room is listed there.</span>
@@ -881,62 +800,66 @@
       </a>
     </div>
 
-    <!-- Frame band — the strategic lens: read any area as a "room for business"
-         BEFORE listing. Placed just above the earn/list band so the funnel reads
-         "understand the area -> then list in it".
+    <!-- ── The Frame ───────────────────────────────────────────────────────
+         The strategic lens: understand an area before you rent in it or list
+         in it. Placed just above the earn block so the funnel reads
+         "understand the area, then list in it".
 
-         The four lenses are a tablist that advances itself, one every six
-         seconds, each with a line of its own underneath. Tapping one pins it
-         and stops the rotation for good: a reader who chose a lens is reading
-         it, not waiting for the next. js/pages/home-bands.js. -->
-    <div class="ha-frame" id="haFrame">
-      <div class="ha-frame-k" data-i18n="home_frame_kicker">The Frame</div>
-      <div class="ha-frame-t" data-i18n="home_frame_title">Read any area as a room for business</div>
-      <div class="ha-frame-s" data-i18n="home_frame_sub">Before you rent, list or open a shop, see what makes a place work.</div>
-      <div class="ha-frame-pts" role="tablist" data-i18n-aria-label="home_frame_lenses" aria-label="The four lenses on an area">
-        <button type="button" role="tab" class="ha-frame-pt l1" data-lens="0" data-copy="home_frame_p1_d" aria-controls="haFrameCopy" aria-selected="true">
-          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p1">Magnets that gather people</span>
-        </button>
-        <button type="button" role="tab" class="ha-frame-pt l2" data-lens="1" data-copy="home_frame_p2_d" aria-controls="haFrameCopy" aria-selected="false" tabindex="-1">
-          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p2">Roads and nodes that carry them</span>
-        </button>
-        <button type="button" role="tab" class="ha-frame-pt l3" data-lens="2" data-copy="home_frame_p3_d" aria-controls="haFrameCopy" aria-selected="false" tabindex="-1">
-          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p3">The daily life of the place</span>
-        </button>
-        <button type="button" role="tab" class="ha-frame-pt l4" data-lens="3" data-copy="home_frame_p4_d" aria-controls="haFrameCopy" aria-selected="false" tabindex="-1">
-          <span class="dot" aria-hidden="true"></span><span data-i18n="home_frame_p4">Where demand beats supply</span>
-        </button>
-      </div>
-      <p class="ha-frame-d" id="haFrameCopy" role="tabpanel" aria-live="polite" data-i18n="home_frame_p1_d">Schools, markets, offices, bus stands. The reason anybody is on that street at all.</p>
-      <div class="ha-band-bar ha-frame-bar" aria-hidden="true"><span></span></div>
-      <!-- Position, and the fact that there IS a position. The tablist is
-           keyboard-reachable on its own; these dots are for the thumb. -->
-      <div class="ha-frame-swipe" id="haFrameDots" aria-hidden="true"><b class="is-on"></b><b></b><b></b><b></b></div>
-      <p class="ha-frame-hint" id="haFrameHint" data-i18n="home_frame_swipe">Swipe to change the lens</p>
-      <div class="ha-frame-btns">
-        <a href="frame.html" data-i18n="home_frame_cta">Open the Frame</a>
-      </div>
+         This used to be a violet slab carrying a kicker, a two-line heading,
+         a sub, four tabs on coloured dots that advanced themselves every six
+         seconds, a rotating paragraph, a progress bar, four position dots, a
+         swipe hint and a button. Eleven things to read, in a colour the brand
+         does not own, to say one thing: the Frame is over here. It says that
+         once now, and the four lenses are named rather than performed. The
+         paragraphs they used to rotate through live on frame.html, which is
+         where somebody who tapped this is standing. -->
+    <div class="ha-sec-head ha-find-head">
+      <h2 data-i18n="home_frame_title">Know the area first</h2>
+    </div>
+    <p class="ha-find-sub" data-i18n="home_frame_sub">Before you rent or list, see what makes a place work.</p>
+    <div class="ha-find">
+      <a class="ha-find-card" href="frame.html">
+        <span class="ha-find-ic ic-gold" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg></span>
+        <span class="ha-find-tx">
+          <span class="ha-find-t" data-i18n="home_frame_cta">Open the Frame</span>
+          <span class="ha-find-d">
+            <span data-i18n="home_frame_p1">People magnets</span> ·
+            <span data-i18n="home_frame_p2">Roads and stops</span> ·
+            <span data-i18n="home_frame_p3">Daily rhythm</span> ·
+            <span data-i18n="home_frame_p4">Unmet demand</span>
+          </span>
+        </span>
+      </a>
     </div>
 
-    <!-- earn band — surfaced high (above the long feed) so agents can list
-         their house/service without scrolling past every nearby listing.
-         The proof line under the pitch rotates through three facts about how
-         listing actually works. Facts, not money promises. -->
-    <div class="ha-earn" id="haEarn">
-      <div class="ha-earn-k" data-i18n="home_earn_kicker">List and earn</div>
-      <div class="ha-earn-t" data-i18n="home_list_title">Earn with PN-Zaki</div>
-      <div class="ha-earn-s" data-i18n="home_list_sub">Put your room or your trade in front of people already searching near you.</div>
-      <div class="ha-earn-proof">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 12l2.2 2.2 4.8-4.7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="ha-earn-pf" id="haEarnProof" aria-live="polite"
-              data-keys="home_earn_pf1,home_earn_pf2,home_earn_pf3"
-              data-i18n="home_earn_pf1">You set the price, and your number is on the listing, so customers ring you.</span>
-      </div>
-      <div class="ha-band-bar ha-earn-bar" aria-hidden="true"><span></span></div>
-      <div class="ha-earn-btns">
-        <a href="agent-houses.html" data-i18n="home_list_house">List your house</a>
-        <a href="agent-services.html" class="ghost" data-i18n="home_list_service">Offer a service</a>
-      </div>
+    <!-- ── Earn ────────────────────────────────────────────────────────────
+         Surfaced above the long feed so somebody with a room to let does not
+         have to scroll past every listing in Dar to post their own.
+
+         The two ways in are peers and are finally drawn as peers. They were a
+         white button and a ghost button on a green slab, which said one of
+         them was the real one; a landlord and a fundi are worth the same to
+         this marketplace. Same card, same size, one line each saying what it
+         actually is. -->
+    <div class="ha-sec-head ha-find-head">
+      <h2 data-i18n="home_list_title">Earn with PN-Zaki</h2>
+    </div>
+    <p class="ha-find-sub" data-i18n="home_list_sub">People are already searching near you.</p>
+    <div class="ha-find" id="haEarn">
+      <a class="ha-find-card" href="agent-houses.html">
+        <span class="ha-find-ic ic-emerald" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></span>
+        <span class="ha-find-tx">
+          <span class="ha-find-t" data-i18n="home_list_house">List your house</span>
+          <span class="ha-find-d" data-i18n="home_list_house_d">A room, a whole house or a plot. You set the price.</span>
+        </span>
+      </a>
+      <a class="ha-find-card" href="agent-services.html">
+        <span class="ha-find-ic ic-gold" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 015.4-5.4l-2.7 2.7-2-2 2.7-2.7z"/></svg></span>
+        <span class="ha-find-tx">
+          <span class="ha-find-t" data-i18n="home_list_service">Offer a service</span>
+          <span class="ha-find-d" data-i18n="home_list_service_d">Any trade, from cleaning to welding. Your number is on it.</span>
+        </span>
+      </a>
     </div>
 
     <!-- trust strip — no numbers in the markup on purpose. Each figure is read
@@ -945,6 +868,7 @@
          figure comes back zero is dropped rather than shown as a 0. Hidden
          until the first read lands, so the page never claims anything it has
          not counted. -->
+    <div class="ha-trust-mark" aria-hidden="true"></div>
     <div class="ha-trust" hidden>
       <div class="ha-stat" data-stat="categories">
         <div class="ha-stat-num"></div>

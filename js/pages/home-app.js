@@ -217,6 +217,11 @@
     const el = document.getElementById("haFeatured");
     if (!el) return;
     const rows = await loadCat("houses");
+    // The read is done, whatever it found. The rail ships aria-busy="true" and
+    // this was the one loader that never turned it off, so a screen reader was
+    // told the featured rail was still loading for the whole session, and
+    // anything waiting on "the page has finished" waited forever.
+    el.setAttribute("aria-busy", "false");
     const featured = [...rows].sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0)).slice(0, 6);
     if (!featured.length) { el.closest(".ha-featured-wrap")?.style.setProperty("display", "none"); return; }
     el.innerHTML = featured.map(featuredCard).join("");

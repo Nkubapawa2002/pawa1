@@ -24,12 +24,16 @@
 .ha-find-card:hover { border-color: rgba(46,230,166,.32); }
 .ha-find-card:active { transform: scale(.99); }
 
+/* Each tint carries its own ink as well as its wash, so the icon inside can
+   draw with `currentColor` and be one colour, in one place, per variant.
+   css/theme-light.css takes each of these down to a readable ink on white;
+   an icon that hardcodes its own stroke opts out of both. */
 .ha-find-ic { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; }
-.ha-find-ic.ic-emerald { background: rgba(46,230,166,.12); }
-.ha-find-ic.ic-violet  { background: rgba(197,148,255,.14); }
-.ha-find-ic.ic-gold    { background: rgba(246,196,90,.14); }
-.ha-find-ic.ic-sky     { background: rgba(94,183,255,.14); }
-.ha-find-ic.ic-rose    { background: rgba(255,138,168,.14); }
+.ha-find-ic.ic-emerald { background: rgba(46,230,166,.12); color: var(--green-emerald); }
+.ha-find-ic.ic-violet  { background: rgba(197,148,255,.14); color: #C594FF; }
+.ha-find-ic.ic-gold    { background: rgba(246,196,90,.14); color: #F6C45A; }
+.ha-find-ic.ic-sky     { background: rgba(94,183,255,.14); color: #7FD0FF; }
+.ha-find-ic.ic-rose    { background: rgba(255,138,168,.14); color: #FF8AA8; }
 
 .ha-find-tx { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ha-find-t { font-size: 14.5px; font-weight: 800; color: #EAF1EE; }
