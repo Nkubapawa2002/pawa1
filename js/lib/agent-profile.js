@@ -20,10 +20,15 @@
   const esc = (s) => (window.escHtml ? window.escHtml(s) : String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"));
 
-  // This file predates the i18n rule and its copy is still hardcoded English.
-  // Rewriting all of it is not this change's job, but NEW copy is not going in
-  // untranslated: window.t() takes a key and returns the key itself when the
-  // string is missing, so the fallback is checked for explicitly.
+  // This file predated the i18n rule and its copy was hardcoded English long
+  // after the rest of the app was bilingual, because the sheet is injected by
+  // JavaScript for signed-in agents only and tests/i18n_coverage.mjs can see
+  // neither. Every visible string here is a key now, and
+  // tests/agent_profile_sheet_test.mjs opens the sheet in Swahili and reads it
+  // back so it stays that way.
+  //
+  // window.t() returns the key itself when a string is missing, so the English
+  // fallback is checked for explicitly rather than shown as "ap_title".
   const t = (k, en) => {
     const v = window.t ? window.t(k) : null;
     return (v && v !== k) ? v : en;
@@ -230,6 +235,16 @@
       .apf-save:disabled{ opacity:.6; cursor:not-allowed; transform:none; box-shadow:none; }
       .apf-save:focus-visible{ outline:3px solid rgba(52,211,153,.5); outline-offset:3px; }
 
+      /* The way out. This sheet used to have exactly one exit, a save that
+         succeeded, so a refused answer or a failed write left the caller's
+         promise pending under a backdrop nothing could dismiss. */
+      .apf-later{ display:block; width:100%; margin:10px 0 0; padding:12px; border:0;
+        border-radius:14px; background:none; cursor:pointer; font-family:inherit;
+        font-size:.92rem; font-weight:600; color:var(--n-text-dim,#9fb3ab);
+        -webkit-tap-highlight-color:transparent; }
+      .apf-later:hover{ color:var(--n-text,#e7f2ed); }
+      .apf-later:focus-visible{ outline:3px solid rgba(52,211,153,.5); outline-offset:2px; }
+
       @media (prefers-reduced-motion: reduce){
         .apf-modal, .apf-card, .apf-save, .apf-row, .apf-input{ transition:opacity .15s linear !important; }
         .apf-card{ transform:none !important; }
@@ -251,33 +266,32 @@
     wrap.innerHTML = `
       <div class="apf-card" role="document">
         <div class="apf-grab" aria-hidden="true"></div>
-        <p class="apf-eyebrow">Your operating area</p>
-        <h2 id="apfTitle" class="apf-title">Where do you operate?</h2>
-        <p class="apf-sub">
-          Tell us the region you belong to and the area you work in — a <strong>ward</strong>,
-          <strong>district</strong> or <strong>street</strong>.</p>
+        <p class="apf-eyebrow">${esc(t("ap_eyebrow", "Your operating area"))}</p>
+        <h2 id="apfTitle" class="apf-title">${esc(t("ap_title", "Where do you operate?"))}</h2>
+        <p class="apf-sub">${t("ap_sub",
+          "Tell us the region you belong to and the area you work in: a <strong>ward</strong>, <strong>district</strong> or <strong>street</strong>.")}</p>
         <p class="apf-note">
           ${PIN_SVG}
-          <span><strong>This is how customers find you.</strong> Every listing you post is shown to
-          people searching <em>your</em> region and area — set it right and the right people see you.</span></p>
+          <span>${t("ap_note",
+            "<strong>This is how customers find you.</strong> Every listing you post is shown to people searching <em>your</em> region and area. Set it right and the right people see you.")}</span></p>
 
-        <label class="apf-label" for="apfRegion">Region</label>
+        <label class="apf-label" for="apfRegion">${esc(t("ap_region_label", "Region"))}</label>
         <div class="apf-field">
           <input id="apfRegion" class="apf-input" type="text" autocomplete="off" role="combobox" aria-expanded="false"
-            placeholder="Type your region (e.g. Dar es Salaam…)"
+            placeholder="${esc(t("ap_region_ph", "Type your region (e.g. Dar es Salaam…)"))}"
             value="${esc(existing && existing.region || "")}">
           <div id="apfRegionSuggest" class="apf-suggest"></div>
         </div>
 
-        <label class="apf-label" for="apfArea">Area of operations</label>
+        <label class="apf-label" for="apfArea">${esc(t("ap_area_label", "Area of operations"))}</label>
         <div class="apf-field">
           <input id="apfArea" class="apf-input" type="text" autocomplete="off"
-            placeholder="e.g. Mikocheni (ward), Kinondoni (district), a street"
+            placeholder="${esc(t("ap_area_ph", "e.g. Mikocheni (ward), Kinondoni (district), a street"))}"
             value="${esc(existing && existing.area_of_operations || "")}">
           <div id="apfSuggest" class="apf-suggest"></div>
         </div>
-        <p id="apfAreaHint" class="apf-hint">
-          Start typing and pick from the list to place it precisely — or just type the name.</p>
+        <p id="apfAreaHint" class="apf-hint">${esc(t("ap_area_hint",
+          "Start typing and pick from the list to place it precisely, or just type the name."))}</p>
 
         <!-- THE WARD, typed rather than guessed.
              Until now this column was only ever filled when the geocoder
@@ -315,11 +329,11 @@
           "Also separated by commas. Not everybody knows their ward, and somebody who only knows the district still reaches you through these."))}</p>
 
         <details class="apf-details">
-          <summary class="apf-summary">Your contact (optional)</summary>
+          <summary class="apf-summary">${esc(t("ap_contact_summary", "Your contact (optional)"))}</summary>
           <div class="apf-details__body">
-            <input id="apfName" class="apf-input" type="text" placeholder="Your name" autocomplete="name"
+            <input id="apfName" class="apf-input" type="text" placeholder="${esc(t("ap_name_ph", "Your name"))}" autocomplete="name"
               value="${esc(existing && existing.name || "")}">
-            <input id="apfPhone" class="apf-input" type="tel" placeholder="Phone (e.g. +255…)" autocomplete="tel"
+            <input id="apfPhone" class="apf-input" type="tel" placeholder="${esc(t("ap_phone_intl_ph", "Phone (e.g. +255…)"))}" autocomplete="tel"
               value="${esc(existing && existing.phone || "")}">
           </div>
         </details>
@@ -330,16 +344,18 @@
              escaped at render: a link typed in here stays visible text rather
              than becoming a destination the app appears to vouch for. -->
         <details class="apf-details">
-          <summary class="apf-summary">About your work (optional)</summary>
+          <summary class="apf-summary">${esc(t("ap_bio_summary", "About your work (optional)"))}</summary>
           <div class="apf-details__body">
             <textarea id="apfBio" class="apf-input" rows="3" maxlength="400"
-              placeholder="What you do, how long you have done it, what you are good at. Customers see this on your page."
+              placeholder="${esc(t("ap_bio_ph",
+                "What you do, how long you have done it, what you are good at. Customers see this on your page."))}"
               >${esc(existing && existing.bio || "")}</textarea>
           </div>
         </details>
 
         <div id="apfMsg" class="apf-msg" role="alert" aria-live="polite"></div>
-        <button id="apfSave" class="apf-save" type="button">Save &amp; continue</button>
+        <button id="apfSave" class="apf-save" type="button">${esc(t("ap_save_continue", "Save & continue"))}</button>
+        <button id="apfLater" class="apf-later" type="button">${esc(t("ap_ask_later", "Not now, take me to my listings"))}</button>
       </div>`;
     return wrap;
   }
@@ -353,13 +369,35 @@
       // Lock the page behind the sheet so only the sheet scrolls (native feel).
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      const closeModal = () => { document.body.style.overflow = prevOverflow; modal.remove(); };
+      const closeModal = () => {
+        document.body.style.overflow = prevOverflow;
+        document.removeEventListener("keydown", onKey, true);
+        modal.remove();
+      };
+      // Every exit settles the promise exactly once. The caller awaits this to
+      // decide what to do next, so an exit that resolved nothing left the
+      // dashboard behind it half-built. Dismissing resolves whatever profile
+      // already existed (usually null), which every caller already handles:
+      // the listing form asks for the region itself.
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        closeModal();
+        resolve(value);
+      };
+      const dismiss = () => finish(existing || null);
+      function onKey(e) { if (e.key === "Escape") { e.preventDefault(); dismiss(); } }
+      document.addEventListener("keydown", onKey, true);
+      // Backdrop only: a click that started inside the card must not close it.
+      modal.addEventListener("mousedown", (e) => { if (e.target === modal) dismiss(); });
       // Next frame: flip to .is-in so the backdrop fades and the sheet springs up.
       requestAnimationFrame(() => modal.classList.add("is-in"));
       const $ = (id) => modal.querySelector("#" + id);
       const regionEl = $("apfRegion"), areaEl = $("apfArea"), sugEl = $("apfSuggest");
       const regSugEl = $("apfRegionSuggest");
       const msgEl = $("apfMsg"), saveBtn = $("apfSave");
+      $("apfLater")?.addEventListener("click", dismiss);
       let picked = null;          // the chosen place suggestion, if any
       let sugTimer = null;
 
@@ -435,10 +473,11 @@
       saveBtn.addEventListener("click", async () => {
         const region = regionEl.value.trim();
         const area = areaEl.value.trim();
-        if (!region) { setMsg("Please choose your region."); regionEl.focus(); return; }
-        if (!area)   { setMsg("Please enter the area you operate in (ward, district or street)."); areaEl.focus(); return; }
+        if (!region) { setMsg(t("ap_err_need_region", "Please choose your region.")); regionEl.focus(); return; }
+        if (!area)   { setMsg(t("ap_err_need_area",
+          "Please enter the area you operate in (ward, district or street).")); areaEl.focus(); return; }
 
-        saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+        saveBtn.disabled = true; saveBtn.textContent = t("ap_saving", "Saving…");
         const cls = classify(picked);
         const wList = parseAreas($("apfWard") && $("apfWard").value);
         const dList = parseAreas($("apfDistrict") && $("apfDistrict").value);
@@ -473,11 +512,11 @@
           const { data, error } = await sb.from("agent_profiles")
             .upsert(row, { onConflict: "user_id" }).select().maybeSingle();
           if (error) throw error;
-          closeModal();
-          resolve(data || row);
+          finish(data || row);
         } catch (err) {
-          saveBtn.disabled = false; saveBtn.textContent = "Save & continue";
-          setMsg("Couldn't save: " + (err?.message || "please try again."));
+          saveBtn.disabled = false; saveBtn.textContent = t("ap_save_continue", "Save & continue");
+          setMsg(t("ap_err_save_failed", "Couldn't save: {why}")
+            .replace("{why}", err?.message || t("ap_err_try_again", "please try again.")));
         }
       });
 

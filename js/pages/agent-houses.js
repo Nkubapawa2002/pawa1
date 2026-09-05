@@ -420,7 +420,15 @@ create policy "house-photos upload" on storage.objects for insert
   } catch (_) { /* non-fatal — agent can type a region by hand below */ }
 
   // ---- Auth state ----------------------------------------------------------
-  await routeOnAuth();
+  // NOT awaited, deliberately. Everything below this line down to
+  // `pageReady = true` is the page wiring itself up, and openForm() refuses to
+  // run until that flag is set. routeOnAuth() waits on the network (the
+  // session, the listing list) and, for an agent, on a MODAL the person has to
+  // fill in. Awaiting it here put the whole wiring behind all three: while the
+  // "where do you operate?" sheet was up, or if any of those awaits rejected,
+  // pageReady never became true and "New listing" queued the form forever and
+  // opened nothing, with no error to explain it.
+  routeOnAuth().catch((err) => showFatal(err?.message || String(err)));
   // Only react to genuine sign-in / sign-out. Supabase also fires this event on
   // TOKEN_REFRESHED, USER_UPDATED and tab-refocus — re-routing on those would
   // hide an open registration form and reload the list mid-entry (it looks like
