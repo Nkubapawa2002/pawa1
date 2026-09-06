@@ -200,10 +200,10 @@
       ready = true;
       gate(null);
       lock(true);
-      if (el.pmFpBtn) {
-        el.pmFpBtn.hidden = false;
-        el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
-      }
+      // A door, not a display. The chip says what is behind it and the digits
+      // are drawn inside, where there is room for the grid both people have to
+      // compare.
+      if (el.pmFpBtn) el.pmFpBtn.hidden = false;
       if (me.isAdmin && el.pmBroadcastBtn) el.pmBroadcastBtn.hidden = false;
       // Rooms are the admin's to open. Invites belong to anyone with a real
       // account -- an agent inviting a customer is the whole point -- but not
@@ -406,10 +406,7 @@
         me = await window.PMStore.me(true);
         gate(null);
         lock(true);
-        if (el.pmFpBtn) {
-          el.pmFpBtn.hidden = false;
-          el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
-        }
+        if (el.pmFpBtn) el.pmFpBtn.hidden = false;
         await refreshInbox();
         watchInbox();
         showSeg("people");           // a guest came here to find an agent
@@ -2326,8 +2323,61 @@
 
   function showPlacePicker() {
     if (!open) return;
-    pickTab = window.PlaceBook && window.PlaceBook.list().length ? "saved" : "here";
+    // Always the first tab, which is also what nearly everybody came for:
+    // where I am, now. This used to open on "Saved places" the moment the book
+    // had a single row in it, so a returning person was greeted on the THIRD
+    // tab by a list of old pins, and the common case went from zero taps to
+    // two. Saved places is still one tap away. A picker that opens the same
+    // way every time is one less thing to work out.
+    pickTab = "here";
     drawPicker();
+  }
+
+  /**
+   * Who a pin sent right now would actually reach.
+   *
+   * The picker used to say "whoever you send it to", which is true and no help
+   * at all: this screen already knows the answer, and it is the one fact a
+   * person hesitates over before sending their exact position. Sending it into
+   * a room of thirty is a different decision from sending it to one person,
+   * and the copy has to be able to tell those apart before the tap, not after.
+   */
+  function recipientLine() {
+    if (!open) return t("pmp_to_none", "Choose a conversation first.");
+    var who = String(open.name || "").trim();
+    if (open.kind === "group") {
+      return open.size
+        ? t("pmp_to_room_n", "Everyone in {room} will see it, {n} people.", { room: who, n: open.size })
+        : t("pmp_to_room", "Everyone in {room} will see it.", { room: who });
+    }
+    if (open.kind === "broadcast") {
+      return t("pmp_to_cast", "Everyone you are broadcasting to will see it.");
+    }
+    return who
+      ? t("pmp_to_one", "Only {name} can open it.", { name: who })
+      : t("pmp_to_one_x", "Only the person in this conversation can open it.");
+  }
+
+  /**
+   * How exact the pin is, in words, BEFORE it is sent.
+   *
+   * compose() has always written "(~25 m)" into the body, so the reader got
+   * this. The sender did not: the strip showed a label or six decimal places,
+   * both of which look equally precise whether the fix was five metres or five
+   * hundred. A person sending their location to somebody who is going to
+   * travel to it should see which of those they are about to promise.
+   *
+   * COARSE is 100m, which is roughly the difference between a doorway and a
+   * block. Under it the number is stated plainly; over it the strip says so
+   * and offers another go, because a second fix a few seconds later is very
+   * often much better and costs one tap.
+   */
+  var COARSE_M = 100;
+
+  function accuracyNote(place) {
+    if (!place || place.acc == null || !(place.acc > 0)) return null;
+    var n = Math.round(place.acc);
+    return { n: n, coarse: n > COARSE_M };
   }
 
   function drawPicker() {
@@ -2338,6 +2388,9 @@
       ["code", t("pmp_tab_code", "A code")],
     ];
     modal("<h2>" + esc(t("pmp_send_place", "Send a place")) + "</h2>" +
+      // Who first, then how it travels. The order is the order somebody
+      // actually asks the questions in.
+      '<p class="pm-pick-to">' + esc(recipientLine()) + "</p>" +
       "<p>" + esc(t("pmp_send_d",
         "The pin travels inside the message, so it is encrypted exactly as the words are. Whoever you send it to can open it on a map and use it without coming here.")) + "</p>" +
       '<div class="pm-pick-tabs" role="tablist">' +
@@ -2437,7 +2490,7 @@
       '<button class="pm-btn" id="pmPickCodeGo" type="button" style="width:100%;margin-top:9px">' +
         esc(t("pmp_open_code", "Open the code")) + "</button>" +
       '<p style="margin-top:9px">' + esc(t("pmp_code_d",
-        "Nine characters somebody read out to you. It opens once and the pin is theirs, not ours — we cannot read it either.")) + "</p>";
+        "Nine characters somebody read out to you. It opens once and the pin is theirs, not ours. We cannot read it either.")) + "</p>";
     var input = document.getElementById("pmPickCode");
     input.addEventListener("input", function () {
       if (!window.LocCode) return;
@@ -2483,18 +2536,28 @@
     setTimeout(function () { try { pickMap.invalidateSize(); } catch (_) {} }, 120);
   }
 
+  /**
+   * The device's best fix, or a throw. One path, two callers: the picker's
+   * "use where I am now" and the attach strip's "try for a closer fix". They
+   * had drifted into two copies of this once already.
+   */
+  function getFix() {
+    if (window.pawaLocate && window.pawaLocate.supported()) {
+      return window.pawaLocate.best({ targetAccuracy: 50, hardTimeout: 15000 });
+    }
+    return new Promise(function (res, rej) {
+      if (!navigator.geolocation) return rej(new Error("no gps"));
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        res({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+      }, rej, { enableHighAccuracy: true, timeout: 15000 });
+    });
+  }
+
   async function useGps() {
     var btn = document.getElementById("pmPickGps");
     if (btn) { btn.disabled = true; btn.textContent = t("pmp_locating", "Finding you…"); }
     try {
-      var fix = window.pawaLocate && window.pawaLocate.supported()
-        ? await window.pawaLocate.best({ targetAccuracy: 50, hardTimeout: 15000 })
-        : await new Promise(function (res, rej) {
-            if (!navigator.geolocation) return rej(new Error("no gps"));
-            navigator.geolocation.getCurrentPosition(function (pos) {
-              res({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
-            }, rej, { enableHighAccuracy: true, timeout: 15000 });
-          });
+      var fix = await getFix();
       attachPlace({
         lat: fix.lat, lng: fix.lng,
         acc: fix.accuracy == null ? null : Math.round(fix.accuracy),
@@ -2504,6 +2567,39 @@
     } catch (err) {
       pickMsg((err && err.message) || t("pmp_gps_failed", "Could not get your location."), "err");
       if (btn) { btn.disabled = false; btn.textContent = t("pmp_use_gps", "Use where I am now"); }
+    }
+  }
+
+  /**
+   * Another go at the fix, from the strip, with the picker already gone.
+   *
+   * KEEPS THE BETTER OF THE TWO. A second reading is usually tighter but not
+   * always, and quietly replacing a 20m pin with an 80m one because the person
+   * asked for an improvement would be a strange way to answer them. If it is
+   * worse, the pin does not move and the strip says the old one is still the
+   * one being sent.
+   */
+  async function retryGps() {
+    if (!pendingPlace || pendingPlace.source !== "gps") return;
+    var btn = document.getElementById("pmAttachRetry");
+    if (btn) { btn.disabled = true; btn.textContent = t("pmp_locating", "Finding you…"); }
+    var had = pendingPlace.acc;
+    try {
+      var fix = await getFix();
+      var got = fix.accuracy == null ? null : Math.round(fix.accuracy);
+      if (had != null && got != null && got >= had) {
+        // Redraw first: drawAttach() rebuilds the strip, so a message written
+        // before it would be wiped by the very next paint.
+        drawAttach();
+        var still = document.getElementById("pmAttachRetry");
+        if (still) still.textContent = t("pmp_acc_kept", "Still the closest");
+        return;
+      }
+      attachPlace({ lat: fix.lat, lng: fix.lng, acc: got, label: pendingPlace.label, source: "gps" });
+    } catch (_) {
+      drawAttach();
+      var back = document.getElementById("pmAttachRetry");
+      if (back) back.textContent = t("pmp_acc_failed", "Could not get a closer one");
     }
   }
 
@@ -2535,8 +2631,8 @@
   // gets a sentence rather than a code.
   function codeReason(reason) {
     return {
-      short: t("pmp_r_short", "That is too short — a code is nine characters."),
-      long: t("pmp_r_long", "That is too long — a code is nine characters."),
+      short: t("pmp_r_short", "That is too short. A code is nine characters."),
+      long: t("pmp_r_long", "That is too long. A code is nine characters."),
       chars: t("pmp_r_chars", "A code has no I, L, O or U in it. Check the letters."),
       check: t("pmp_r_check", "That code has a typo in it."),
       expired: t("pmp_r_expired", "That code has expired. Ask for a new one."),
@@ -2589,11 +2685,30 @@
     drawPlaceHint();
     if (!el.pmAttach) return;
     if (!pendingPlace) { el.pmAttach.hidden = true; el.pmAttach.innerHTML = ""; return; }
+    // The heading names the destination rather than the action. "Sending a
+    // place" described what the strip was; it did not say where the place was
+    // about to go, which is the thing worth a second look before tapping send.
+    var acc = accuracyNote(pendingPlace);
     el.pmAttach.innerHTML =
-      '<span class="pm-at-tx"><b>' + esc(t("pmp_attached", "Sending a place")) + "</b>" +
+      '<span class="pm-at-tx"><b>' + esc(recipientLine()) + "</b>" +
       '<span class="pm-at-body">' +
         esc(pendingPlace.label || window.PlaceBook.coords(pendingPlace.lat, pendingPlace.lng)) +
-      "</span></span>" +
+      "</span>" +
+      (acc
+        ? '<span class="pm-at-acc' + (acc.coarse ? " is-coarse" : "") + '">' +
+            esc(acc.coarse
+              ? t("pmp_acc_coarse", "Roughly this area, within {n} m.", { n: acc.n })
+              : t("pmp_acc_fine", "Exact to {n} m.", { n: acc.n })) +
+            // Offered only when the phone is what produced the fix. Retrying a
+            // pin somebody dragged on a map would silently move it off the
+            // spot they chose, which is the opposite of helpful.
+            (pendingPlace.source === "gps"
+              ? ' <button class="pm-place-b" type="button" id="pmAttachRetry">' +
+                  esc(t("pmp_acc_retry", "Try for a closer fix")) + "</button>"
+              : "") +
+          "</span>"
+        : "") +
+      "</span>" +
       // The way out of this conversation. Everything else on this strip sends
       // the pin down the thread that is open; this turns it into nine
       // characters that work for somebody who is not in it, and who may not be
@@ -2607,6 +2722,8 @@
     if (x) x.addEventListener("click", clearAttach);
     var mk = document.getElementById("pmAttachCode");
     if (mk) mk.addEventListener("click", function () { mintPlaceCode(pendingPlace); });
+    var again = document.getElementById("pmAttachRetry");
+    if (again) again.addEventListener("click", retryGps);
   }
 
   /**
@@ -2765,8 +2882,26 @@
     // circle the size of the block is the same fact in a form somebody can
     // act on.
     if (place.acc && place.acc > 0) {
+      // The ring takes the page's own brand green rather than a literal, so it
+      // follows the theme. It used to be the dark theme's neon green written
+      // out, and the palette block at the top of p-message.html says why that
+      // is wrong in as many words: that green on white measures 1.5:1, a
+      // decoration rather than a mark. The light theme moves --pm-brand to a
+      // dark green for exactly that reason, and a colour set from JavaScript
+      // was the one place the cascade could not follow it, so the accuracy
+      // ring stayed neon on a white map.
+      //
+      // Read off document.body, NOT :root: this page declares its palette on
+      // body[data-page="p-message"], and getPropertyValue on the wrong element
+      // returns "" and falls back without saying so.
+      // The fallback is currentColor rather than a written-out green: if the
+      // token ever fails to resolve, inheriting the page's ink is wrong-looking
+      // but always legible, whereas a hardcoded neon is invisible in exactly
+      // the theme this change exists to fix.
+      var ring = getComputedStyle(document.body)
+        .getPropertyValue("--pm-brand").trim() || "currentColor";
       window.L.circle([place.lat, place.lng], {
-        radius: place.acc, color: "#2EE6A6", weight: 1, fillOpacity: 0.1,
+        radius: place.acc, color: ring, weight: 1, fillOpacity: 0.1,
       }).addTo(sheetMap);
     }
     setTimeout(function () { try { sheetMap.invalidateSize(); } catch (_) {} }, 120);
@@ -2989,7 +3124,9 @@
     userId: function () { return me && me.userId; },
     onChange: async function (res) {
       fingerprint = res.fingerprint;
-      if (el.pmFpBtn) el.pmFpBtn.textContent = t("pm_your_number", "Your safety number {n}", { n: fingerprint });
+      // The chip's label does not carry the number, so a new key changes
+      // nothing about it. The dialog behind it reads `fingerprint` when it
+      // opens, which is what has just moved.
       await refreshInbox();
     },
   });
@@ -3206,16 +3343,55 @@
   }
 
   // ---- invite a customer ---------------------------------------------------
-  // The token is shown ONCE. It is not recoverable, by design — the server
-  // holds only its hash — so the copy button matters more than it looks.
+  //
+  //  An agent met somebody at a viewing and has a phone number and nothing
+  //  else. There is no key to encrypt to, because that person has never opened
+  //  the site, so no thread can exist yet. An invite is the missing direction:
+  //  a link that mints a session, a key and a thread the moment it is opened.
+  //
+  //  THE HARD PART IS THE HAND-OFF, AND IT WAS THE PART THAT WAS MISSING.
+  //  Making the link was one button and one field; delivering it was "here is
+  //  the URL in a text box, good luck". So the flow is two steps now, and the
+  //  second step is the one that matters:
+  //
+  //    1. make    a note for yourself, and optionally their phone number.
+  //    2. send    WhatsApp or SMS straight at that number, the phone's own
+  //               share sheet, the clipboard, or a QR code they scan off this
+  //               screen while standing in front of you.
+  //
+  //  The code is the only one of those five that involves nobody else at all:
+  //  the link goes from this screen into that camera and touches no network,
+  //  no carrier and no messaging company. For a link that is a bearer
+  //  credential, handed over in person, that is the right default and it is
+  //  why it is offered rather than merely possible.
+  //
+  //  THE TOKEN IS SHOWN ONCE. It is not recoverable, by design: the server
+  //  holds only its sha256, so a link nobody kept is a link nobody can send.
+  //  That is what step 2 exists to protect against, and why a tap on the
+  //  backdrop while step 2 is open is caught in wire() rather than closing it.
+
+  /** The state of the link currently being handed over, or null on step 1. */
+  var invMade = null;
+
   function showInvite() {
+    invMade = null;
     modal("<h2>" + esc(t("pm_inv_t", "Invite a customer")) + "</h2>" +
-      "<p>" + esc(t("pm_inv_d", "Make a link and send it however you already talk to them. They can reply encrypted without making an account.")) + "</p>" +
-      "<label>" + esc(t("pm_inv_label", "Your note (only you see this)")) + '</label><input id="pmInvLabel" maxlength="60" />' +
+      '<p class="pm-role">' + esc(t("pm_inv_role",
+        "A link that gives one person an encrypted conversation with you, without an account and without giving them your number.")) + "</p>" +
+      "<p>" + esc(t("pm_inv_d2",
+        "Write yourself a note so you know who it went to. Add their number and the next screen can send it straight to them.")) + "</p>" +
+      "<label>" + esc(t("pm_inv_label", "Your note (only you see this)")) +
+        '</label><input id="pmInvLabel" maxlength="60" autocomplete="off" />' +
+      "<label>" + esc(t("pm_inv_phone", "Their phone number (optional)")) +
+        '</label><input id="pmInvPhone" type="tel" inputmode="tel" maxlength="20" autocomplete="off" placeholder="0712 345 678" />' +
+      '<p class="pm-hint">' + esc(t("pm_inv_phone_d",
+        "Kept on this phone only. It is never sent to us, and it is only used to open WhatsApp or the message app at the right person.")) + "</p>" +
       '<div class="pm-modal-acts">' +
         '<button class="pm-btn" id="pmInvGo">' + esc(t("pm_inv_make", "Make a link")) + "</button>" +
         '<button class="pm-btn ghost" id="pmInvCancel">' + esc(t("pm_close", "Close")) + "</button>" +
-      "</div><div class=\"pm-msg-out\" id=\"pmInvMsg\"></div><div id=\"pmInvList\"></div>");
+      "</div>" +
+      '<div class="pm-msg-out" id="pmInvMsg"></div>' +
+      '<div id="pmInvList"></div>');
 
     document.getElementById("pmInvCancel").addEventListener("click", closeModal);
     // Bound HERE, once, and not inside renderInviteList — that function only
@@ -3225,7 +3401,7 @@
     // for confirmation N times and fire N revokes: the first succeeds and the
     // rest fail on a hash that is already gone, so a withdrawal that WORKED
     // reports an error.
-    document.getElementById("pmInvList").addEventListener("click", onRevokeClick);
+    document.getElementById("pmInvList").addEventListener("click", onInviteListClick);
     renderInviteList();
 
     document.getElementById("pmInvGo").addEventListener("click", async function (e) {
@@ -3234,71 +3410,307 @@
       btn.disabled = true;
       out.className = "pm-msg-out"; out.textContent = "";
       try {
-        var inv = await window.PMStore.inviteCreate(
-          document.getElementById("pmInvLabel").value.trim() || null);
-        out.className = "pm-msg-out good";
-        out.innerHTML = '<input readonly id="pmInvLink" value="' + esc(inv.link) + '" />' +
-          '<button class="pm-btn" id="pmInvCopy" style="margin-top:8px">' +
-          esc(t("pm_inv_copy", "Copy link")) + "</button>" +
-          '<div style="margin-top:6px">' +
-          esc(t("pm_inv_once", "This link is shown once and cannot be shown again. It works for one person, and expires.")) +
-          "</div>";
-        document.getElementById("pmInvCopy").addEventListener("click", function () {
-          var f = document.getElementById("pmInvLink");
-          f.select();
-          try { navigator.clipboard.writeText(inv.link); } catch (_) { document.execCommand("copy"); }
-          this.textContent = t("pm_inv_copied", "Copied");
-        });
-        renderInviteList();
+        var label = document.getElementById("pmInvLabel").value.trim();
+        var phone = document.getElementById("pmInvPhone").value.trim();
+        var inv = await window.PMStore.inviteCreate(label || null);
+        invMade = { link: inv.link, label: label, phone: phone, expiresAt: inv.expiresAt };
+        showInviteSend();
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
-      } finally {
         btn.disabled = false;
       }
     });
   }
 
-  // A link is a bearer credential: whoever opens it first becomes the customer
-  // in that thread. Withdrawing one that went to the wrong number is therefore
-  // the whole point of listing them — and pm_invite_revoke has existed since
-  // invites shipped with nothing able to call it, because pm_invites_mine did
-  // not return the hash the RPC needs to name a link. It does now.
+  // ---- step 2: getting it into their hands ---------------------------------
+
+  /**
+   * A Tanzanian mobile number in the form wa.me wants: digits only, country
+   * code included, no plus. 0712 345 678 is the way it is written here and
+   * 255712345678 is the way it has to be sent, and the gap between those two
+   * is the reason a "WhatsApp" button that simply used what was typed would
+   * open an empty chooser about a quarter of the time.
+   *
+   * Returns "" for anything too short to be a number, so a half-typed field
+   * gets the share sheet rather than a dialler pointed at three digits.
+   */
+  function intlPhone(raw) {
+    var digits = String(raw || "").replace(/\D/g, "");
+    if (digits.indexOf("00") === 0) digits = digits.slice(2);
+    if (digits.charAt(0) === "0") digits = "255" + digits.slice(1);
+    else if (digits.length === 9) digits = "255" + digits;   // 712345678
+    return digits.length >= 11 ? digits : "";
+  }
+
+  /** "expires on 20 September", or "" when the server did not say. */
+  function inviteExpiryWords(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    var lang = (window.getLang && window.getLang()) === "sw" ? "sw-TZ" : "en-GB";
+    try { return d.toLocaleDateString(lang, { day: "numeric", month: "long" }); }
+    catch (_) { return d.toISOString().slice(0, 10); }
+  }
+
+  function showInviteSend() {
+    var link = invMade.link;
+    var intl = intlPhone(invMade.phone);
+    var who = invMade.label || (invMade.phone || "").trim();
+    // What goes in the message body. Their name is not in it: the agent's note
+    // is for the agent ("the couple from Kariakoo") and putting it in the text
+    // would send somebody a message describing them in the third person.
+    var text = t("pm_inv_msg", "Here is a private, encrypted link to chat with me on Maisha na Lifeza. It works once, and you do not need an account. {link}", { link: link });
+    var enc = encodeURIComponent(text);
+
+    var canShare = !!(navigator.share);
+    // RFC 5724 says sms:<number>?body=<text> and Android obeys it. iOS does
+    // not: with a number present Safari wants an ampersand, and given a
+    // question mark it opens the message app with an empty body, which is the
+    // one failure that looks like the app working. One character, and it is
+    // the difference between a link that arrives and a blank draft.
+    var smsSep = /iPad|iPhone|iPod/.test(navigator.userAgent || "") ? "&" : "?";
+    var expiry = inviteExpiryWords(invMade.expiresAt);
+
+    modal("<h2>" + esc(t("pm_inv_send_t", "Send it to them")) + "</h2>" +
+      // The dots come from the key dialogs, which had this problem first: a
+      // second screen with no counter on it reads as the first one having
+      // reopened.
+      window.PMIdentityUI.steps(2, 2) +
+      '<p class="pm-role">' + esc(who
+        ? t("pm_inv_send_who", "The link for {who} is ready.", { who: who })
+        : t("pm_inv_send_ready", "The link is ready.")) + "</p>" +
+      '<div class="pm-note is-warn">' + esc(t("pm_inv_once2",
+        "This is the only time this link is shown. We keep no copy of it, so if you leave without sending it you will have to make another.")) +
+        (expiry ? " " + esc(t("pm_inv_expires_on", "It stops working on {date}.", { date: expiry })) : "") +
+      "</div>" +
+      '<input readonly id="pmInvLink" value="' + esc(link) + '" />' +
+      '<div class="pm-inv-send">' +
+        (intl
+          ? '<a class="pm-btn" id="pmInvWa" target="_blank" rel="noopener" href="https://wa.me/' +
+            esc(intl) + "?text=" + enc + '">' + esc(t("pm_inv_wa_to", "WhatsApp them")) + "</a>" +
+            '<a class="pm-btn ghost" id="pmInvSms" href="sms:+' + esc(intl) + smsSep + "body=" + enc + '">' +
+            esc(t("pm_inv_sms_to", "Text them")) + "</a>"
+          : '<a class="pm-btn" id="pmInvWa" target="_blank" rel="noopener" href="https://wa.me/?text=' + enc + '">' +
+            esc(t("pm_inv_wa", "Send on WhatsApp")) + "</a>" +
+            '<a class="pm-btn ghost" id="pmInvSms" href="sms:?body=' + enc + '">' +
+            esc(t("pm_inv_sms", "Send by SMS")) + "</a>") +
+        (canShare
+          ? '<button class="pm-btn ghost" id="pmInvShare">' + esc(t("pm_inv_share", "Other apps")) + "</button>"
+          : "") +
+        '<button class="pm-btn ghost" id="pmInvCopy">' + esc(t("pm_inv_copy", "Copy link")) + "</button>" +
+      "</div>" +
+      // The hand-off with nobody in the middle. Standing in front of somebody
+      // is the situation invites were written for, and until now the answer
+      // was "message it to yourself and read it out".
+      (window.QR
+        ? '<p style="margin-top:12px"><button class="pm-btn ghost" id="pmInvQrGo" style="width:100%">' +
+          esc(t("pm_inv_qr", "Show a code they can scan")) + "</button></p>" +
+          '<div id="pmInvQr" hidden>' +
+            (window.PMSafety ? window.PMSafety.qrSvg(link, t("pm_inv_qr_alt", "Invite code")) : "") +
+            '<p class="pm-qr-cap">' + esc(t("pm_inv_qr_d",
+              "Let them point their camera at this. The link goes straight from this screen to their phone.")) + "</p>" +
+          "</div>"
+        : "") +
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn ghost" id="pmInvDone">' + esc(t("pm_inv_done", "Done")) + "</button>" +
+      "</div>" +
+      '<div class="pm-msg-out" id="pmInvMsg2"></div>');
+
+    var out = document.getElementById("pmInvMsg2");
+    var said = function (msg, good) {
+      out.className = "pm-msg-out" + (good === false ? " bad" : good ? " good" : "");
+      out.textContent = msg;
+    };
+
+    document.getElementById("pmInvDone").addEventListener("click", function () {
+      invMade = null;
+      showInvite();
+    });
+
+    document.getElementById("pmInvCopy").addEventListener("click", function () {
+      var f = document.getElementById("pmInvLink");
+      try { f.select(); } catch (_) {}
+      window.PMSafety.copyText(link, function (ok) {
+        said(ok ? t("pm_inv_copied", "Copied") : t("pm_inv_copy_fail",
+          "Copying was refused. Select the link above and copy it by hand."), ok);
+      });
+    });
+
+    if (document.getElementById("pmInvShare")) {
+      document.getElementById("pmInvShare").addEventListener("click", async function () {
+        try {
+          await navigator.share({ title: t("pm_inv_t", "Invite a customer"), text: text });
+        } catch (_) {
+          // Cancelling the share sheet rejects, and telling somebody their own
+          // cancellation failed is noise. Only a share that could not open at
+          // all is worth a word, and there is no way to tell the two apart, so
+          // this says nothing.
+        }
+      });
+    }
+
+    if (document.getElementById("pmInvQrGo")) {
+      document.getElementById("pmInvQrGo").addEventListener("click", function () {
+        var box = document.getElementById("pmInvQr");
+        box.hidden = !box.hidden;
+        this.textContent = box.hidden
+          ? t("pm_inv_qr", "Show a code they can scan")
+          : t("pm_inv_qr_hide", "Hide the code");
+      });
+    }
+  }
+
+  // ---- the links you have out there ----------------------------------------
+  //
+  //  Two sections, and the split is the whole point. A link is a bearer
+  //  credential: whoever opens it first becomes the customer in that thread,
+  //  so the list exists to answer "what is still out there in the world". A
+  //  list where three dead entries sit above the one live one cannot answer
+  //  that, and it was answering it worse every week, because nothing could
+  //  ever be removed.
+  //
+  //  live      open links, newest first, each with Withdraw.
+  //  finished  used, withdrawn and expired, each with a Remove, and a Clear
+  //            for the lot. A finished link cannot hurt anybody; it is only
+  //            clutter, and clutter on this screen hides the one row that
+  //            matters.
+  //
+  //  Withdrawing does NOT remove. The row stays and says "Withdrawn", so a
+  //  customer who opens that link is told it was withdrawn rather than that
+  //  they may have mistyped it. Removing it is the separate, deliberate act
+  //  underneath, and the database enforces that order (p_message_invite_forget
+  //  refuses a link that is still open).
   async function renderInviteList() {
     var box = document.getElementById("pmInvList");
     if (!box) return;
+    var rows;
     try {
-      var rows = await window.PMStore.invitesMine(20);
-      if (!rows.length) { box.innerHTML = ""; return; }
-      box.innerHTML = "<h3>" + esc(t("pm_inv_yours", "Your links")) + "</h3>" +
-        rows.map(function (r) {
-          return '<div class="pm-inv-row"><span>' +
-            esc(r.label || t("pm_inv_nolabel", "(no note)")) +
-            '</span><span class="pm-badge' + (r.state === "used" ? " ok" : r.state === "open" ? "" : " off") + '">' +
-            esc(t("pm_inv_" + r.state, r.state)) + "</span>" +
-            (r.guest_name ? '<span class="pm-sub">' + esc(r.guest_name) + "</span>" : "") +
-            // Only an unused link can be withdrawn. A used one has already
-            // become a conversation, and pm_invite_revoke says so by refusing
-            // it — offering the button anyway would be offering a door that
-            // is locked on the other side.
-            (r.state === "open" && r.token_hash
-              ? '<button class="pm-btn danger" data-revoke="' + esc(r.token_hash) + '">' +
-                esc(t("pm_inv_revoke", "Withdraw")) + "</button>"
-              : "") +
-            "</div>";
-        }).join("");
+      rows = await window.PMStore.invitesMine(50);
     } catch (_) { box.innerHTML = ""; return; }
+    if (!rows.length) { box.innerHTML = ""; return; }
+
+    var live = rows.filter(function (r) { return r.state === "open"; });
+    var done = rows.filter(function (r) { return r.state !== "open"; });
+
+    box.innerHTML =
+      '<div class="pm-inv-head">' +
+        '<h3 class="pm-inv-h">' + esc(t("pm_inv_yours", "Your links")) + "</h3>" +
+        (done.length
+          ? '<button type="button" class="pm-link" data-inv-clear>' +
+            esc(t("pm_inv_clear", "Clear finished")) + "</button>"
+          : "") +
+      "</div>" +
+      (live.length
+        ? live.map(inviteRow).join("")
+        : '<p class="pm-inv-none">' + esc(t("pm_inv_no_live",
+            "No links are waiting to be opened.")) + "</p>") +
+      (done.length
+        ? '<div class="pm-inv-done"><span class="pm-inv-sec">' +
+          esc(t("pm_inv_finished", "Finished")) + "</span>" +
+          done.map(inviteRow).join("") + "</div>"
+        : "");
   }
 
-  // Delegated from #pmInvList, which outlives the rows inside it.
-  async function onRevokeClick(e) {
-    var btn = e.target.closest("[data-revoke]");
-    if (!btn) return;
-    if (!confirm(t("pm_inv_revoke_q", "Withdraw this link? Anyone holding it will no longer be able to use it."))) return;
+  /**
+   * One link. The state is a word, and beside it the fact that word implies:
+   * how long an open one has left, who used a used one, when a dead one died.
+   * "OPEN" on its own says nothing an agent can act on.
+   */
+  function inviteRow(r) {
+    var live = r.state === "open";
+    var when = live ? daysLeft(r.expires_at) : agoWords(r.created_at);
+    return '<div class="pm-inv-row' + (live ? " is-live" : "") + '">' +
+      '<span class="pm-inv-tx">' +
+        '<span class="pm-inv-label">' +
+          esc(r.label || r.guest_name || t("pm_inv_nolabel", "(no note)")) + "</span>" +
+        '<span class="pm-inv-meta">' +
+          '<span class="pm-badge' + (r.state === "used" ? " ok" : live ? "" : " off") + '">' +
+            esc(t("pm_inv_" + r.state, r.state)) + "</span>" +
+          (r.guest_name && r.label
+            ? '<span class="pm-inv-who">' + esc(r.guest_name) + "</span>" : "") +
+          (when ? '<span class="pm-inv-when">' + esc(when) + "</span>" : "") +
+        "</span>" +
+      "</span>" +
+      (live
+        ? '<button type="button" class="pm-btn danger pm-inv-act" data-revoke="' + esc(r.token_hash) + '">' +
+          esc(t("pm_inv_revoke", "Withdraw")) + "</button>"
+        // A finished link is clutter, not danger, so removing it is an icon
+        // and not a red button competing with the one above it.
+        : '<button type="button" class="pm-inv-x" data-forget="' + esc(r.token_hash) + '" ' +
+          'aria-label="' + esc(t("pm_inv_forget", "Remove from this list")) + '" ' +
+          'title="' + esc(t("pm_inv_forget", "Remove from this list")) + '">' +
+          '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" ' +
+          'stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>') +
+      "</div>";
+  }
+
+  /** "12 days left", or "expires today". Never a date: this is a countdown. */
+  function daysLeft(iso) {
+    if (!iso) return "";
+    var ms = new Date(iso).getTime() - Date.now();
+    if (isNaN(ms)) return "";
+    var days = Math.floor(ms / 86400000);
+    if (days <= 0) return t("pm_inv_today", "expires today");
+    if (days === 1) return t("pm_inv_1day", "1 day left");
+    return t("pm_inv_days", "{n} days left", { n: days });
+  }
+
+  /** "3 days ago". Coarse on purpose: nothing here turns on the hour. */
+  function agoWords(iso) {
+    if (!iso) return "";
+    var ms = Date.now() - new Date(iso).getTime();
+    if (isNaN(ms)) return "";
+    var days = Math.floor(ms / 86400000);
+    if (days <= 0) return t("pm_inv_ago_today", "today");
+    if (days === 1) return t("pm_inv_ago_1day", "yesterday");
+    return t("pm_inv_ago_days", "{n} days ago", { n: days });
+  }
+
+  // Delegated from #pmInvList, which outlives every row inside it.
+  async function onInviteListClick(e) {
+    var revoke = e.target.closest("[data-revoke]");
+    if (revoke) return askRevoke(revoke);
+    var forget = e.target.closest("[data-forget]");
+    if (forget) return doForget(forget);
+    var clear = e.target.closest("[data-inv-clear]");
+    if (clear) return askClear(clear);
+  }
+
+  /**
+   * Withdrawing is destructive and irreversible, so it is confirmed, and the
+   * confirmation is IN the dialog.
+   *
+   * window.confirm() was doing this job, which meant an untranslated system
+   * box in whatever language the phone is set to, on top of a screen that has
+   * been careful to be in two. It also cannot say what it is about to affect,
+   * so "Withdraw this link?" was the whole warning for an act that can cut off
+   * somebody who is holding it.
+   */
+  function askRevoke(btn) {
+    var row = btn.closest(".pm-inv-row");
+    var name = row ? row.querySelector(".pm-inv-label").textContent : "";
+    confirmInRow(row, t("pm_inv_revoke_q2",
+      "Withdraw the link for {who}? Anybody holding it will no longer be able to open it.", { who: name }),
+      t("pm_inv_revoke", "Withdraw"), async function (say) {
+        try {
+          await window.PMStore.inviteRevoke(btn.dataset.revoke);
+          await renderInviteList();
+        } catch (err) { say((err && err.message) || String(err)); }
+      });
+  }
+
+  /**
+   * Removing a finished link is not confirmed. Nothing can go wrong: the link
+   * is already dead, the row is a note to the agent about it, and a
+   * confirmation for an act with no consequence trains people to tap through
+   * the ones that have.
+   */
+  async function doForget(btn) {
     btn.disabled = true;
     try {
-      await window.PMStore.inviteRevoke(btn.dataset.revoke);
-      renderInviteList();
+      await window.PMStore.inviteForget(btn.dataset.forget);
+      await renderInviteList();
     } catch (err) {
       btn.disabled = false;
       var out = document.getElementById("pmInvMsg");
@@ -3306,6 +3718,52 @@
     }
   }
 
+  function askClear(btn) {
+    var host = btn.closest(".pm-inv-head");
+    confirmInRow(host, t("pm_inv_clear_q",
+      "Remove every finished link from this list? The links themselves are already dead, so nothing changes for anybody holding one."),
+      t("pm_inv_clear_go", "Remove them"), async function (say) {
+        try {
+          await window.PMStore.invitesClearFinished();
+          await renderInviteList();
+        } catch (err) { say((err && err.message) || String(err)); }
+      });
+  }
+
+  /**
+   * A confirmation that replaces the row it is about, rather than covering the
+   * whole screen. The thing being decided stays visible, which is most of what
+   * a confirmation is for.
+   *
+   * The callback is handed a `say` for reporting a failure, because by the
+   * time it runs the strip has already gone and there is nowhere else for a
+   * message to land.
+   */
+  function confirmInRow(anchor, question, goLabel, run) {
+    if (!anchor) return;
+    var strip = document.createElement("div");
+    strip.className = "pm-inv-ask";
+    strip.innerHTML = '<span>' + esc(question) + "</span>" +
+      '<span class="pm-inv-ask-acts">' +
+        '<button type="button" class="pm-btn danger" data-ask="go">' + esc(goLabel) + "</button>" +
+        '<button type="button" class="pm-btn ghost" data-ask="no">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      "</span>";
+    anchor.insertAdjacentElement("afterend", strip);
+    anchor.hidden = true;
+
+    strip.addEventListener("click", async function (e) {
+      var b = e.target.closest("[data-ask]");
+      if (!b) return;
+      if (b.dataset.ask === "no") { anchor.hidden = false; strip.remove(); return; }
+      strip.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
+      await run(function (msg) {
+        var out = document.getElementById("pmInvMsg");
+        if (out) { out.className = "pm-msg-out bad"; out.textContent = msg; }
+        if (anchor.isConnected) anchor.hidden = false;
+        strip.remove();
+      });
+    });
+  }
   // ---- arriving from somewhere that knows who you want ---------------------
   /**
    * `p-message.html?to=<user id>` — open a conversation with one person.
@@ -3363,8 +3821,19 @@
   }
 
   // ---- arriving on an invite link ------------------------------------------
-  // Runs before the normal boot decides what to show, because the answer to
-  // "who are you" is different when you arrived holding a link.
+  //
+  //  Runs before the normal boot decides what to show, because the answer to
+  //  "who are you" is different when you arrived holding a link.
+  //
+  //  This is the half of the feature the sender never sees, and it was the
+  //  thinner half by a long way: a name, two sentences and two buttons, on top
+  //  of an empty inbox. Somebody who has never heard of this site, sent a link
+  //  by a stranger they met once at a viewing, was being asked to tap "Start
+  //  chatting" on the strength of a heading.
+  //
+  //  So it says the three things that decide it: who, what happens to them,
+  //  and what it costs. And "Cancel" no longer drops them on an empty screen
+  //  with nothing to do.
   async function handleInviteLink() {
     var token = new URLSearchParams(location.search).get("i");
     if (!token) return false;
@@ -3374,33 +3843,44 @@
 
     var info = null;
     try { info = await window.PMStore.invitePeek(token); } catch (_) {}
-    if (!info) {
-      modal("<h2>" + esc(t("pm_inv_bad_t", "That link does not work")) + "</h2><p>" +
-        esc(t("pm_inv_bad_d", "It may have been mistyped. Ask for a new one.")) + "</p>" +
-        '<div class="pm-modal-acts"><button class="pm-btn" id="pmInvX">' +
-        esc(t("pm_close", "Close")) + "</button></div>");
-      document.getElementById("pmInvX").addEventListener("click", closeModal);
-      return true;
-    }
+    if (!info) return inviteDead(t("pm_inv_bad_d", "It may have been mistyped. Ask for a new one."));
     if (info.state !== "open") {
-      var why = info.state === "used" ? t("pm_inv_used_d", "This link has already been used.")
-              : info.state === "expired" ? t("pm_inv_exp_d", "This link has expired.")
-              : t("pm_inv_rev_d", "This link was withdrawn.");
-      modal("<h2>" + esc(t("pm_inv_bad_t", "That link does not work")) + "</h2><p>" + esc(why) + "</p>" +
-        '<div class="pm-modal-acts"><button class="pm-btn" id="pmInvX">' +
-        esc(t("pm_close", "Close")) + "</button></div>");
-      document.getElementById("pmInvX").addEventListener("click", closeModal);
-      return true;
+      return inviteDead(
+        info.state === "used" ? t("pm_inv_used_d", "This link has already been used.")
+      : info.state === "expired" ? t("pm_inv_exp_d", "This link has expired.")
+      : t("pm_inv_rev_d", "This link was withdrawn."));
     }
 
-    modal("<h2>" + esc(t("pm_inv_hi", "{who} wants to chat with you", { who: info.agent_name || t("pm_someone", "Someone") })) + "</h2>" +
-      "<p>" + esc(t("pm_inv_hi_d", "You do not need an account. Your messages are encrypted on this device — nobody else, including us, can read them.")) + "</p>" +
+    var who = info.agent_name || t("pm_someone", "Someone");
+    var expiry = inviteExpiryWords(info.expires_at);
+
+    modal("<h2>" + esc(t("pm_inv_hi", "{who} wants to chat with you", { who: who })) + "</h2>" +
+      '<p class="pm-role">' + esc(t("pm_inv_hi_role",
+        "You were sent a private link. Opening it starts one conversation, with them, and with nobody else.")) + "</p>" +
+      // Three facts, as facts, because this is a stranger's first sentence
+      // about this site and a paragraph of reassurance reads as sales.
+      '<ul class="pm-inv-facts">' +
+        "<li>" + esc(t("pm_inv_fact_free", "No account, no password, no phone number.")) + "</li>" +
+        "<li>" + esc(t("pm_inv_fact_e2e", "Your messages are locked on this phone. Nobody else, including us, can open them.")) + "</li>" +
+        "<li>" + esc(t("pm_inv_fact_device", "The key stays in this browser. Clearing it, or changing phone, loses the conversation.")) + "</li>" +
+      "</ul>" +
+      (expiry
+        ? '<p class="pm-hint">' + esc(t("pm_inv_expires_on", "It stops working on {date}.", { date: expiry })) + "</p>"
+        : "") +
       '<div class="pm-modal-acts">' +
         '<button class="pm-btn" id="pmInvOk">' + esc(t("pm_inv_start", "Start chatting")) + "</button>" +
-        '<button class="pm-btn ghost" id="pmInvNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
-      "</div><div class=\"pm-msg-out\" id=\"pmInvOut\"></div>");
+        '<button class="pm-btn ghost" id="pmInvNo">' + esc(t("pm_inv_not_now", "Not now")) + "</button>" +
+      "</div>" +
+      '<div class="pm-msg-out" id="pmInvOut"></div>');
 
-    document.getElementById("pmInvNo").addEventListener("click", closeModal);
+    // "Not now" used to close the dialog onto an empty inbox belonging to a
+    // session that did not exist, which is a dead end wearing the clothes of a
+    // choice. It goes home instead: the site has a front page, and somebody
+    // who has decided not to open a stranger's link should land on it.
+    document.getElementById("pmInvNo").addEventListener("click", function () {
+      location.href = "index.html";
+    });
+
     document.getElementById("pmInvOk").addEventListener("click", async function (e) {
       var out = document.getElementById("pmInvOut");
       var btn = e.currentTarget;      // captured, never read after an await
@@ -3408,13 +3888,13 @@
       out.className = "pm-msg-out";
       out.textContent = t("pm_inv_setting", "Setting up encryption…");
       try {
-        var who = await window.PMStore.me();
-        if (!who || !who.userId) await window.PMStore.signInAsGuest(null, null);
+        var meNow = await window.PMStore.me();
+        if (!meNow || !meNow.userId) await window.PMStore.signInAsGuest(null, null);
         await window.PMStore.ensureIdentity({});
         var threadId = await window.PMStore.inviteAccept(token);
         closeModal();
         await boot();
-        openThread({ threadId: threadId, kind: "direct", name: info.agent_name || t("pm_someone", "Someone"), sub: "" });
+        openThread({ threadId: threadId, kind: "direct", name: who, sub: "" });
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) || String(err);
@@ -3424,8 +3904,55 @@
     return true;
   }
 
+  /**
+   * A link that will never work, with the reason.
+   *
+   * All three reasons get their own sentence, because "this link doesn't work"
+   * is the least useful thing to tell somebody standing in a doorway with a
+   * phone: withdrawn means ask them, expired means ask for a new one, used
+   * means somebody already has this conversation and it may not be you.
+   *
+   * The way out is the front page, not a closed dialog over a blank screen.
+   */
+  function inviteDead(why) {
+    modal("<h2>" + esc(t("pm_inv_bad_t", "That link does not work")) + "</h2>" +
+      "<p>" + esc(why) + "</p>" +
+      '<p class="pm-hint">' + esc(t("pm_inv_bad_d2",
+        "Nothing has gone wrong on your phone. Ask whoever sent it for another one.")) + "</p>" +
+      '<div class="pm-modal-acts">' +
+        '<a class="pm-btn" href="index.html">' + esc(t("pm_inv_go_home", "Go to the home page")) + "</a>" +
+        '<button class="pm-btn ghost" id="pmInvX">' + esc(t("pm_close", "Close")) + "</button>" +
+      "</div>");
+    document.getElementById("pmInvX").addEventListener("click", closeModal);
+    return true;
+  }
+
   // ---- wiring --------------------------------------------------------------
   function wire() {
+    // A tap on the backdrop closes whatever dialog is open, which is right for
+    // all of them but one. Step 2 of an invite is holding the ONLY copy of a
+    // token the server never saw: closing it there does not dismiss a screen,
+    // it destroys a link the agent has not sent yet, and a link that is gone
+    // cannot be got back by reopening anything.
+    //
+    // Capture phase, because PMIdentityUI.attach() has its own backdrop
+    // listener that closes on the way up and registration order between the
+    // two is not something this should depend on.
+    el.pmModalBack && el.pmModalBack.addEventListener("click", function (e) {
+      if (e.target !== el.pmModalBack) return;
+      // Both conditions, and the second is not belt-and-braces. invMade lives
+      // as long as the page does, so on its own it would go on refusing to
+      // close the SAFETY-NUMBER dialog an hour after a link was made, which
+      // is a dialog nobody could dismiss. #pmInvMsg2 exists only while the
+      // send screen is actually on the glass.
+      var out = document.getElementById("pmInvMsg2");
+      if (!invMade || !out) return;
+      e.stopPropagation();
+      out.className = "pm-msg-out bad";
+      out.textContent = t("pm_inv_keep",
+        "Send the link first. Closing this loses it, and we cannot show it again.");
+    }, true);
+
     el.segChats && el.segChats.addEventListener("click", function () { showSeg("chats"); });
     el.segPeople && el.segPeople.addEventListener("click", function () { showSeg("people"); });
     el.segAi && el.segAi.addEventListener("click", function () { showSeg("ai"); });
@@ -3516,7 +4043,13 @@
     el.pmBack && el.pmBack.addEventListener("click", closeThread);
     el.pmVerify && el.pmVerify.addEventListener("click", openVerify);
     el.pmMembers && el.pmMembers.addEventListener("click", showMembers);
-    el.pmFpBtn && el.pmFpBtn.addEventListener("click", function () { showBackup(); });
+    // Named "Your safety number", so it opens the safety numbers. It used to
+    // open the BACKUP dialog, which is a different key ritual with a different
+    // consequence, and a button that opens something other than its own label
+    // is worse on this screen than on any other.
+    el.pmFpBtn && el.pmFpBtn.addEventListener("click", function () {
+      window.PMIdentityUI.safetyNumbers({ onBackup: showBackup });
+    });
     el.pmBroadcastBtn && el.pmBroadcastBtn.addEventListener("click", showBroadcast);
     el.pmRoomsBtn && el.pmRoomsBtn.addEventListener("click", showRooms);
     el.pmInviteBtn && el.pmInviteBtn.addEventListener("click", showInvite);

@@ -192,33 +192,61 @@
     /* ---- "Match to my life" chips + per-card commute ---- */
     .houses-places-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
     .houses-places-chips[hidden] { display: none; }
-    .hp-place-chip { display: inline-flex; align-items: center; gap: 5px; background: #eef6f2;
-      color: #0a6f4d; border: 1px solid #cfe6db; border-radius: 999px; padding: 4px 10px;
-      font-size: .8rem; font-weight: 600; }
-    /* The × removes one of the places the whole ranking is built from, so it
-       gets a real 40px target rather than the 2px of padding it had. */
-    .hp-place-chip button { background: transparent; border: none; color: #0a6f4d; cursor: pointer;
-      font-size: 1rem; line-height: 1; padding: 0 0 0 2px;
+    /* The heading over the chips. It was a style="" attribute on a span, in a
+       colour token this page does not define, so it rendered as the browser
+       default grey on a dark row. */
+    .hp-place-head { align-self: center; margin-right: 2px;
+      font-size: .8rem; font-weight: 600; color: var(--text-muted); }
+    .hp-place-chip { display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(46,230,166,.12); color: var(--green-emerald);
+      border: 1px solid rgba(46,230,166,.28); border-radius: var(--radius-pill);
+      padding: 4px 10px; font-size: .8rem; font-weight: 600; }
+    .hp-place-chip small { font-weight: 500; opacity: .75; }
+    /* The remove control drops one of the places the whole ranking is built
+       from, so it gets a real 40px target rather than the 2px of padding it
+       had. It was a &times; character; it is a drawn cross now, which is the
+       same shape on every phone and follows the chip's colour. */
+    .hp-place-chip button { background: transparent; border: none; cursor: pointer;
+      color: inherit; display: grid; place-items: center; padding: 0 0 0 2px;
       min-width: 40px; min-height: 40px; }
+    .hp-place-chip button:hover { color: var(--danger); }
     /* The place name inside a chip — present but quieter than the person's own
        label, and capped so one long name cannot push the row off a phone. */
     .hp-chip-where { font-weight: 500; opacity: .78; max-width: 12ch;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* .clear is the Edit chip, a real <button> now, so it needs the font it
        used to inherit as a <span> and a target a thumb can hit. */
-    .hp-place-chip.clear { background: #fff; cursor: pointer; font: inherit;
-      font-size: .8rem; font-weight: 600; min-height: 40px; }
+    .hp-place-chip.clear { background: none; cursor: pointer; font: inherit;
+      font-size: .8rem; font-weight: 600; min-height: 40px;
+      color: var(--text-muted); border-color: var(--border-strong); }
+    .hp-place-chip.clear:hover { color: var(--green-emerald); }
     .house-card-commute { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
-    /* The weekly total leads the commute block — the per-leg lines below explain
+    /* The weekly total leads the commute block. The per-leg lines below explain
        it, but this is the line someone actually reads. */
-    .hc-week { font-size: .8rem; font-weight: 700; color: #0a6f4d; }
-    .hc-leg { font-size: .78rem; color: #4b5563; }
-    .hc-leg.over { color: #b91c1c; font-weight: 600; }
-    .hc-leg.pending { color: #9ca3af; font-style: italic; }
+    .hc-week { font-size: .8rem; font-weight: 700; color: var(--green-emerald); }
+    .hc-leg { font-size: .78rem; color: var(--text-muted); }
+    .hc-leg b { font-weight: 600; color: var(--text); }
+    .hc-leg.over { color: var(--warn); font-weight: 600; }
+    .hc-leg.over b { color: var(--warn); }
+    .hc-leg.pending { color: var(--text-faint); font-style: italic; }
 
-    /* ---- My-places modal (reuses .alert-modal shell) ---- */
-    .mp-row { border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; margin-bottom: 10px; background: #fafafa; }
-    .mp-row-top { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+    /* ---- My-places modal (reuses .alert-modal shell) --------------------
+       This whole block used to be light: #fafafa cards, #e5e7eb borders,
+       #6b7280 text. The sheet around it is dark, and further down this file
+       `body[data-page="houses"] .alert-modal select` forces every control to
+       rgba(255,255,255,.05) on #E9F3EE with !important. Over a white card
+       that is white on white, which is what the place row had become: five
+       controls you could not read a word of. The row is a dark surface now,
+       and those forced controls read correctly on it without changing them.
+       Tokens throughout, so a brand change reaches this sheet too. */
+    .mp-row {
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3);
+      background: var(--surface-app);
+      color: var(--text);
+    }
+    .mp-row-top { display: flex; gap: var(--space-2); align-items: center; }
     .mp-row-top .mp-kind { flex: 0 0 auto; max-width: 46%; }
     .mp-row-top .mp-label { flex: 1 1 auto; min-width: 0; }
     /* 40px, not 30. This deletes one of the places the whole ranking is built
@@ -226,33 +254,88 @@
        missed tap either loses the place or lands in the field. 40 is the floor
        a thumb reliably hits, and it is what tests/pchat_life_test.mjs asserts
        for every control in this sheet. */
-    .mp-remove { flex: 0 0 auto; background: #fee2e2; color: #b91c1c; border: none; border-radius: 8px;
-      width: 40px; height: 40px; font-size: 1.1rem; line-height: 1; cursor: pointer; }
-    .mp-search-wrap { position: relative; display: flex; gap: 6px; }
-    .mp-search-wrap .mp-place { flex: 1 1 auto; min-width: 0; }
-    .mp-gps { flex: 0 0 auto; border: 1px solid #d1d5db; background: #fff; border-radius: 8px; padding: 0 10px; cursor: pointer; }
-    .mp-suggest { position: absolute; top: 100%; left: 0; right: 0; z-index: 30; background: #fff;
-      border: 1px solid #e5e7eb; border-radius: 10px; margin-top: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
-      max-height: 230px; overflow: auto; }
-    .mp-suggest[hidden] { display: none; }
-    .mp-sg { padding: 8px 10px; cursor: pointer; font-size: .85rem; }
-    .mp-sg:hover { background: #f0fdf4; }
-    .mp-sg small { display: block; color: #6b7280; font-size: .75rem; }
-    .mp-sg .known { color: #0a6f4d; font-weight: 700; }
-    .mp-row-bottom { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px;
-      font-size: .82rem; color: #374151; }
-    .mp-row-bottom select { padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 8px; }
-    .mp-status { margin-left: auto; font-size: .78rem; color: #6b7280; }
-    .mp-status.set { color: #0a6f4d; font-weight: 600; }
-    .mp-add { background: #eef6f2; color: #0a6f4d; border: 1px dashed #0a6f4d; border-radius: 10px;
-      padding: 9px; width: 100%; cursor: pointer; font-weight: 600; }
+    .mp-remove {
+      flex: 0 0 auto; width: var(--hit-min); height: var(--hit-min);
+      display: grid; place-items: center; cursor: pointer;
+      background: none; border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm); color: var(--text-muted);
+    }
+    .mp-remove:hover { color: var(--danger); border-color: var(--danger); }
+    .mp-remove:focus-visible { outline: 2px solid var(--green-emerald); outline-offset: 2px; }
+    /* Three questions, three columns, each label above its own control. As a
+       wrapping flex row on a 390px screen this broke into "By" and "Longest"
+       on one line with their selects on the next, attached to neither. */
+    .mp-row-bottom {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-2); margin-top: var(--space-3);
+    }
+    .mp-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .mp-field-l {
+      font-size: .72rem; font-weight: 700; letter-spacing: .02em;
+      text-transform: uppercase; color: var(--text-faint);
+    }
+    .mp-row-bottom select { width: 100%; font-size: .84rem; }
+    .mp-status {
+      margin: var(--space-3) 0 0; font-size: .8rem;
+      color: var(--text-faint);
+    }
+    .mp-status.set { color: var(--green-emerald); font-weight: 600; }
+    /* The answer to "how far am I from here, right now". Sits under the place
+       it belongs to, quiet until there is a real road figure to put in it. */
+    .mp-here-leg { margin: 4px 0 0; font-size: .8rem; color: var(--text-muted); }
+    .mp-here-leg[hidden] { display: none; }
+    .mp-add {
+      width: 100%; margin-top: var(--space-3); padding: var(--space-3);
+      cursor: pointer; font-family: inherit; font-weight: 600; font-size: .9rem;
+      background: none; color: var(--green-emerald);
+      border: 1px dashed var(--green-emerald);
+      border-radius: var(--radius-sm);
+    }
+    .mp-add:hover { background: rgba(46,230,166,.08); }
     .mp-row { cursor: pointer; }
-    .mp-row.is-active { border-color: #0a6f4d; box-shadow: 0 0 0 2px rgba(10,111,77,.15); background: #f3faf6; }
-    .am-tag { display: inline-block; font-size: .68rem; font-weight: 700; color: #0a6f4d; background: #eef6f2;
-      border: 1px solid #cfe6db; border-radius: 6px; padding: 1px 6px; vertical-align: middle; }
-    .am-tag.known { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
-    .mp-pin { background: none !important; border: none !important; font-size: 22px; line-height: 1;
-      text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+    .mp-row.is-active {
+      border-color: var(--green-emerald);
+      box-shadow: 0 0 0 2px rgba(46,230,166,.16);
+    }
+    /* "From where you are now": the measurement that runs the other way. */
+    .mp-here {
+      margin-top: var(--space-4); padding: var(--space-3);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      background: var(--surface-app);
+      display: grid; grid-template-columns: 1fr auto; gap: var(--space-3);
+      align-items: center;
+    }
+    .mp-here-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .mp-here-tx strong { font-size: .92rem; color: var(--text); }
+    .mp-here-tx span { font-size: .78rem; color: var(--text-muted); }
+    .mp-here-btn {
+      flex: none; min-height: var(--hit-min); padding: 0 var(--space-4);
+      cursor: pointer; font-family: inherit; font-weight: 700; font-size: .85rem;
+      background: var(--green-emerald); color: var(--text-on-brand);
+      border: 0; border-radius: var(--radius-sm);
+    }
+    .mp-here-btn:disabled { opacity: .6; cursor: progress; }
+    .mp-here-msg { grid-column: 1 / -1; margin: 0; font-size: .8rem; color: var(--text-muted); }
+    .mp-here-msg.is-ok { color: var(--green-emerald); }
+    .mp-here-msg.is-warn { color: var(--warn); }
+    .mp-here-msg[hidden] { display: none; }
+    .mp-map-error { margin: 0; padding: var(--space-5); font-size: .85rem; color: var(--text-muted); }
+    @media (max-width: 420px) {
+      .mp-here { grid-template-columns: 1fr; }
+      .mp-here-btn { width: 100%; }
+    }
+    .am-tag { display: inline-block; font-size: .68rem; font-weight: 700;
+      color: var(--green-emerald); background: rgba(46,230,166,.12);
+      border: 1px solid rgba(46,230,166,.28); border-radius: var(--radius-xs);
+      padding: 1px 6px; vertical-align: middle; }
+    .am-tag.known { background: rgba(246,196,90,.14); border-color: rgba(246,196,90,.34);
+      color: var(--gold-warm); }
+    /* The pin is a drawn SVG now, so it needs a colour to inherit rather than a
+       font-size to render a character at. */
+    .mp-pin { background: none !important; border: none !important; line-height: 0;
+      color: var(--green-emerald);
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
     .houses-near-me, .houses-alert-btn {
       flex-shrink: 0; padding: 10px 14px;
       background: var(--c-brand, var(--green)); color: #fff;
@@ -1169,8 +1252,61 @@
     body[data-page="houses"] .alert-modal input[type="range"] {
       background: transparent !important; border: 0 !important; padding: 0 !important;
     }
-    body[data-page="houses"] .am-search-results { background: #141A18; }
+    body[data-page="houses"] .am-search-results { background: var(--surface-app); }
     body[data-page="houses"] .house-card-photo { background: #0f1714 center/cover no-repeat; }
+
+    /* ---- The same sheet on a light phone --------------------------------
+       Everything above forces the controls in this sheet to near-white ink on
+       a 5%-white fill, and it does so unconditionally. The sheet's own shell
+       follows the theme, and so do the surfaces inside it, because
+       css/theme-light.css resolves --surface-app to #ffffff. Light theme was
+       therefore the same white-on-white the dark theme had: a place row whose
+       five controls could not be read.
+       These rules come later and are one level more specific, so they win the
+       !important fight rather than joining it. */
+    :root[data-theme="light"] body[data-page="houses"] .alert-modal { color-scheme: light; }
+    :root[data-theme="light"] body[data-page="houses"] .alert-modal input,
+    :root[data-theme="light"] body[data-page="houses"] .alert-modal select,
+    :root[data-theme="light"] body[data-page="houses"] .alert-modal textarea {
+      background: var(--surface) !important;
+      color: var(--c-text, #1a1915) !important;
+      border: 1px solid var(--c-border, #d8d4c8) !important;
+    }
+    :root[data-theme="light"] body[data-page="houses"] .alert-modal input::placeholder,
+    :root[data-theme="light"] body[data-page="houses"] .alert-modal textarea::placeholder {
+      color: var(--c-text-muted, #6b6960) !important;
+    }
+    /* The row, the "from here" panel and the words inside them, in the ink
+       this theme reads with. The tokens do the work; only the two that carry
+       an alpha are written out, because a wash has no token of its own. */
+    :root[data-theme="light"] .mp-row,
+    :root[data-theme="light"] .mp-here { background: var(--surface-2); color: var(--c-text, #1a1915); }
+    :root[data-theme="light"] .mp-row,
+    :root[data-theme="light"] .mp-here,
+    :root[data-theme="light"] .mp-remove { border-color: var(--c-border, #d8d4c8); }
+    :root[data-theme="light"] .mp-here-tx strong { color: var(--c-text, #1a1915); }
+    :root[data-theme="light"] .mp-field-l,
+    :root[data-theme="light"] .mp-status,
+    :root[data-theme="light"] .mp-here-tx span,
+    :root[data-theme="light"] .mp-here-leg,
+    :root[data-theme="light"] .mp-here-msg,
+    :root[data-theme="light"] .mp-map-error,
+    :root[data-theme="light"] .hp-place-head,
+    :root[data-theme="light"] .mp-remove,
+    :root[data-theme="light"] .hc-leg { color: var(--c-text-muted, #6b6960); }
+    /* The greens go to the deep brand green: --green-emerald is a neon meant
+       for a dark ground and fails contrast on cream. */
+    :root[data-theme="light"] .mp-status.set,
+    :root[data-theme="light"] .mp-add,
+    :root[data-theme="light"] .hc-week,
+    :root[data-theme="light"] .hp-place-chip,
+    :root[data-theme="light"] .am-tag { color: var(--green); }
+    :root[data-theme="light"] .mp-add { border-color: var(--green); }
+    :root[data-theme="light"] .mp-here-msg.is-ok { color: var(--green); }
+    :root[data-theme="light"] .mp-here-btn { background: var(--green); color: #fff; }
+    :root[data-theme="light"] .hc-leg b { color: var(--c-text, #1a1915); }
+    :root[data-theme="light"] .hp-place-chip.clear { color: var(--c-text-muted, #6b6960); }
+    :root[data-theme="light"] .mp-row.is-active { border-color: var(--green); box-shadow: 0 0 0 2px rgba(10,111,77,.15); }
     /* dark text on the bright green/gold fills for AA contrast.
        These fills are --c-brand / --c-accent / --c-success, which are BRIGHT
        only in the dark theme. Flip to light and the same four tokens resolve to
@@ -1642,7 +1778,22 @@
             life best — set a max travel time to hide the ones too far.
           </p>
           <div id="mpList"></div>
-          <button id="mpAddBtn" type="button" class="mp-add" data-i18n="mp_add">+ Add another place</button>
+          <button id="mpAddBtn" type="button" class="mp-add" data-i18n="mp_add">Add another place</button>
+
+          <!-- The other half of the question this sheet exists to answer.
+               Everything else here measures every room in the directory
+               against these places. This measures YOU against them, from
+               wherever the phone is standing right now, by road, so somebody
+               can check what their week already costs before deciding what a
+               listing would cost them. Same router, same maths. -->
+          <section class="mp-here" id="mpHere">
+            <div class="mp-here-tx">
+              <strong data-i18n="mp_here_title">From where you are now</strong>
+              <span data-i18n="mp_here_sub">Measure the places above against your current position, by road.</span>
+            </div>
+            <button id="mpHereBtn" type="button" class="mp-here-btn" data-i18n="mp_here_btn">Measure from here</button>
+            <p class="mp-here-msg" id="mpHereMsg" role="status" aria-live="polite" hidden></p>
+          </section>
 
           <div class="am-search-row" style="margin-top:12px">
             <input id="mpSearchInput" type="search" autocomplete="off"

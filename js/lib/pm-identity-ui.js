@@ -36,80 +36,35 @@
   }
   function fp() { return (host && host.fingerprint && host.fingerprint()) || "—"; }
 
-  /**
-   * A safety number laid out as a grid, not as a paragraph.
-   *
-   * Thirty digits reflowed by the browser wrap wherever the box happens to
-   * end — five groups then one — and comparing two ragged blocks digit by
-   * digit is exactly the reading task people give up on. Each group is its own
-   * cell, so both phones show the same three-by-two shape whatever their
-   * width, and a mismatch is somewhere on a line rather than somewhere in a
-   * wall.
-   */
-  // ---- the code people point a phone at --------------------------------------
+  // ---- borrowed from js/lib/pm-safety.js -----------------------------------
   //
-  //  Thirty digits is the honest length for a safety number and a hopeless
-  //  length for a human comparison — people skim, agree, and have checked
-  //  nothing. So the digits become a QR code, one phone reads the other, and
-  //  the comparison is done by a machine that cannot be bored.
+  //  The grid, the QR payload format and the QR drawing used to live here, and
+  //  a second copy grew on Profile the moment a safety number had to appear
+  //  outside a dialog. Two renderings of the same number is not a tidiness
+  //  problem: comparing is the ENTIRE feature, and two shapes on two phones
+  //  turn a match into a reading exercise. So they moved to pm-safety.js and
+  //  this file asks for them.
   //
-  //  PM2|<user id>|<thirty digits, no spaces>
-  //
-  //  The user id is in there so a scan can tell "this is the wrong person's
-  //  code" apart from "this is the right person with the wrong key" — two very
-  //  different things to be told.
-  var QR_PREFIX = "PM2";
+  //  Loaded before this one on both hosts (profile.html, p-message.html). The
+  //  guards are here so that a page which forgets the tag degrades to a number
+  //  with no code beside it rather than to a dialog that throws while somebody
+  //  is trying to check who they are talking to.
+  function S() { return window.PMSafety || null; }
 
   function qrPayload(userId, fingerprint) {
-    return QR_PREFIX + "|" + String(userId || "") + "|" +
-      String(fingerprint || "").replace(/\s+/g, "");
+    return S() ? S().qrPayload(userId, fingerprint) : "";
   }
   function parseQrPayload(text) {
-    var parts = String(text || "").split("|");
-    if (parts.length !== 3 || parts[0] !== QR_PREFIX) return null;
-    return { userId: parts[1], digits: parts[2] };
+    return S() ? S().parseQrPayload(text) : null;
   }
-
-  /**
-   * The code as inline SVG rather than a canvas: no draw-after-insert timing
-   * to get wrong, and it stays sharp at any size.
-   *
-   * Always black on white, in both themes, with the four-module quiet zone the
-   * spec requires. A themed QR code is a QR code that does not scan — the
-   * contrast and the margin ARE the format.
-   */
   function qrSvg(text, label) {
-    if (!window.QR) return "";
-    var code;
-    try { code = window.QR.encode(text, { ecc: "M" }); } catch (_) { return ""; }
-    var pad = 4, dim = code.size + pad * 2, d = "";
-    for (var y = 0; y < code.size; y++) {
-      var run = 0;
-      for (var x = 0; x <= code.size; x++) {
-        if (x < code.size && code.get(x, y)) { run++; continue; }
-        if (run) { d += "M" + (x - run + pad) + " " + (y + pad) + "h" + run + "v1h-" + run + "z"; run = 0; }
-      }
-    }
-    return '<div class="pm-qr"><svg viewBox="0 0 ' + dim + " " + dim + '" width="100%" ' +
-      'shape-rendering="crispEdges" role="img" aria-label="' + esc(label || "") + '">' +
-      '<rect width="' + dim + '" height="' + dim + '" fill="#ffffff"/>' +
-      '<path d="' + d + '" fill="#000000"/></svg></div>';
+    return S() ? S().qrSvg(text, label) : "";
   }
-
   function canScan() {
-    return typeof window.BarcodeDetector !== "undefined" &&
-      !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    return S() ? S().canScan() : false;
   }
-
   function fpBlock(value) {
-    var groups = String(value || "—").trim().split(/\s+/);
-    return '<div class="pm-big-fp">' + groups.map(function (g) {
-      return "<span>" + esc(g) + "</span>";
-    // Joined with a space, not butted together: a grid container drops
-    // whitespace-only text nodes, so it costs nothing on screen, and it keeps
-    // textContent a real safety number that can be copied, read by a screen
-    // reader, and compared by a test.
-    }).join(" ") + "</div>";
+    return S() ? S().grid(value) : "<div class=\"pm-big-fp\"><span>" + esc(value || "—") + "</span></div>";
   }
 
   function attach(opts) {
@@ -236,7 +191,19 @@
       (changed && canRecord
         ? '<p style="margin-top:10px"><button class="pm-btn ghost" id="pmFpAccept" style="width:100%">' +
           esc(t("pm_trust_accept", "They told me they changed phone")) + "</button></p>" : "") +
+      // The way on to the OTHER thing you can do with your own key, offered
+      // only when this dialog is about your own key and nobody else's. The
+      // P-Message header used to reach the backup dialog through a chip
+      // labelled "Your safety number", which was a mislabel; this is the door
+      // that chip was standing in for, in the place where it makes sense.
+      ((!o.theirs && o.onBackup)
+        ? '<p class="pm-alt"><button class="pm-link" id="pmFpBackup">' +
+          esc(t("pf_backup", "Save a backup code")) + "</button></p>" : "") +
       '<div class="pm-msg-out" id="pmFpMsg"></div>');
+
+    if ($("pmFpBackup")) {
+      $("pmFpBackup").addEventListener("click", function () { o.onBackup(); });
+    }
 
     $("pmFpOk").addEventListener("click", close);
 
@@ -425,7 +392,13 @@
     return '<p class="pm-role">' + esc(text) + "</p>";
   }
 
-  /** "Step 2 of 3", so a flow with a middle does not feel like a loop. */
+  /**
+   * "Step 2 of 3", so a flow with a middle does not feel like a loop.
+   *
+   * Exported, because the invite flow in js/pages/p-message.js has a middle
+   * too and a second copy would be a second wording of the same sentence in
+   * two languages.
+   */
   function steps(n, of) {
     var dots = "";
     for (var i = 1; i <= of; i++) {
@@ -597,35 +570,19 @@
   }
 
   /**
-   * Clipboard, with the fallback that matters.
+   * Clipboard, with the fallback that matters, from pm-safety.js.
    *
    * navigator.clipboard is absent on plain http and refused outright in some
    * Android webviews, which are exactly the conditions this app gets installed
-   * under. The old selection trick stays as the fallback rather than the
-   * button silently doing nothing on those devices.
+   * under, so the selection trick stays as the fallback rather than the button
+   * silently doing nothing on those devices. The backup dialog leans on that
+   * behaviour hard enough that it is worth naming here: see the note on the
+   * three-step backup flow below.
    */
   function copyText(text, done) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(
-        function () { done(true); },
-        function () { done(legacyCopy(text)); });
-      return;
-    }
-    done(legacyCopy(text));
-  }
-
-  function legacyCopy(text) {
-    try {
-      var ta = document.createElement("textarea");
-      ta.value = text;
-      ta.setAttribute("readonly", "");
-      ta.style.cssText = "position:fixed;left:-9999px;top:0";
-      document.body.appendChild(ta);
-      ta.select();
-      var done = document.execCommand("copy");
-      document.body.removeChild(ta);
-      return done;
-    } catch (_) { return false; }
+    var say = done || function () {};
+    if (S()) return S().copyText(text, say);
+    say(false);
   }
 
   /** A text file, through a blob URL. Returns false rather than throwing. */
@@ -833,6 +790,7 @@
     open: open,
     close: close,
     safetyNumbers: safetyNumbers,
+    steps: steps,
     backup: backup,
     restore: restore,
     deviceLock: deviceLock,

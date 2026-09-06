@@ -219,6 +219,62 @@ try {
 
   const nosyTable = await asUser({ sub: OTHER }, `select count(*)::int as n from public.pm_invites;`);
   ok(nosyTable[0].n === 0, "and RLS hides the rows themselves, not just the function");
+
+  section("7. Taking a dead link off the list");
+  //
+  //  The list was append-only, so a link withdrawn in March sat above the two
+  //  that were live in September and nothing could remove it: the app went on
+  //  showing the agent the thing they had asked it to destroy.
+  //
+  //  The rule that makes removal safe is the one worth pinning here. An OPEN
+  //  link that vanished from the list would still be out there, and the agent
+  //  would have lost the only screen that could tell them so, which is the
+  //  opposite of what somebody tidying up is trying to do.
+  const live = newToken();
+  await asUser({ sub: AMINA },
+    `select * from public.pm_invite_create(${literal(hashOf(live))}, 'still out there', 14);`);
+  const forgetLive = await threw(() => asUser({ sub: AMINA },
+    `select public.pm_invite_forget(${literal(hashOf(live))}) as gone;`));
+  ok(!!forgetLive && /still live/i.test(forgetLive.message),
+    "an open link cannot be removed from the list, because it is still out there",
+    forgetLive ? forgetLive.message : "no error raised");
+
+  const wentOne = await asUser({ sub: AMINA },
+    `select public.pm_invite_forget(${literal(hashOf(pulled))}) as gone;`);
+  ok(wentOne[0].gone === true, "a withdrawn one goes", JSON.stringify(wentOne[0]));
+  const twice = await asUser({ sub: AMINA },
+    `select public.pm_invite_forget(${literal(hashOf(pulled))}) as gone;`);
+  ok(twice[0].gone === false,
+    "and asking twice reports nothing removed rather than raising: a row that is already gone is not an error",
+    JSON.stringify(twice[0]));
+
+  // Somebody else's finished link is not theirs to tidy. Silence rather than
+  // an error: the delete matches no row they can see, which is the same thing
+  // the RLS policy would say.
+  const notYours = await asUser({ sub: OTHER },
+    `select public.pm_invite_forget(${literal(hashOf(dead))}) as gone;`);
+  ok(notYours[0].gone === false, "another agent cannot remove one of these",
+    JSON.stringify(notYours[0]));
+  const stillThere = await runSql(
+    `select count(*)::int as n from public.pm_invites where token_hash = ${literal(hashOf(dead))};`);
+  ok(stillThere[0].n === 1, "and it is still there afterwards", JSON.stringify(stillThere[0]));
+
+  // Clearing the lot. `live` must survive it; everything finished must not.
+  const cleared = await asUser({ sub: AMINA }, `select public.pm_invites_clear_finished() as n;`);
+  ok(cleared[0].n === 2, "clearing removes every finished link at once", JSON.stringify(cleared[0]));
+  const after = await asUser({ sub: AMINA }, `select label, state from public.pm_invites_mine(50);`);
+  ok(after.length === 1 && after[0].state === "open",
+    "and leaves exactly the live one behind", JSON.stringify(after));
+
+  // The used invite carried a thread. Deleting the invite must not take the
+  // conversation with it: pm_invites points at pm_threads, not the reverse.
+  const threadLives = await runSql(
+    `select count(*)::int as n from public.pm_threads where id = ${literal(thread)}::uuid;`);
+  ok(threadLives[0].n === 1,
+    "the conversation an accepted link created outlives the link", JSON.stringify(threadLives[0]));
+
+  const clearedNothing = await asUser({ sub: OTHER }, `select public.pm_invites_clear_finished() as n;`);
+  ok(clearedNothing[0].n === 0, "and another agent clearing their own list touches none of it");
 } catch (err) {
   // Without this the finally block's process.exit() swallows the exception
   // and the run reports a pass with exit 0 while having tested nothing.

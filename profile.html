@@ -22,6 +22,10 @@
   <link rel="stylesheet" href="css/action-cards.css" />
   <!-- The key dialogs (safety number, backup, restore), shared with p-message.html. -->
   <link rel="stylesheet" href="css/pm-identity.css" />
+  <!-- The safety number itself: the grid, the QR frame and the card that
+       carries them outside a dialog. Shared with agent.html, so what an
+       agent memorises here is the same object a customer compares against. -->
+  <link rel="stylesheet" href="css/pm-safety.css" />
   <!-- The storefront block. This page draws the SAME one agent.html publishes,
        so "Your public page" is the page rather than a description of it. -->
   <link rel="stylesheet" href="css/agent-card.css" />
@@ -45,7 +49,7 @@
        that hands out a private key.
        ===================================================================== */
     body[data-page="profile"] {
-      --c-surface: #141A18; --c-border: rgba(255,255,255,.08);
+      --c-surface: var(--surface-app); --c-border: rgba(255,255,255,.08);
       --c-text: #E9F3EE; --c-text-muted: rgba(233,243,238,.55);
 
       /* The --pm-* names css/agent-card.css is written against. They are the
@@ -55,10 +59,10 @@
       --pm-ink: #E9F3EE;
       --pm-ink-soft: rgba(233,243,238,.62);
       --pm-ink-faint: rgba(233,243,238,.5);
-      --pm-card: #141A18;
+      --pm-card: var(--surface-app);
       --pm-line: rgba(255,255,255,.08);
       --pm-field: rgba(255,255,255,.05);
-      --pm-brand: #2EE6A6;
+      --pm-brand: var(--green-emerald);
       --pm-brand-soft: rgba(46,230,166,.14);
       --pm-brand-line: rgba(46,230,166,.28);
       --pm-gold: #F6C45A;
@@ -90,7 +94,7 @@
     .pf-me { display: flex; align-items: center; gap: 14px; padding-right: 52px; }
     .pf-av {
       flex: 0 0 auto; width: 60px; height: 60px; border-radius: 20px; display: grid; place-items: center;
-      background: rgba(46,230,166,.13); color: #2EE6A6; font-size: 21px; font-weight: 800;
+      background: rgba(46,230,166,.13); color: var(--green-emerald); font-size: 21px; font-weight: 800;
     }
     .pf-av.is-guest { background: rgba(246,196,90,.14); color: #F6C45A; }
     .pf-me-tx { min-width: 0; }
@@ -108,6 +112,10 @@
 
     .pf-body { max-width: 560px; margin: 0 auto; padding: 4px 16px 0; }
     .pf-group { margin-top: 24px; }
+    /* A group with no heading of its own: the two backup rows under the
+       safety-number card, and the sign-out row. 24px of air under a heading
+       that is not there reads as a heading somebody forgot to write. */
+    .pf-group.is-tight { margin-top: 10px; }
     .pf-group-h {
       font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 800;
       letter-spacing: .14em; text-transform: uppercase; color: rgba(233,243,238,.62); margin: 0 0 9px;
@@ -119,10 +127,15 @@
     .pf-note b { color: #EAF1EE; }
     .pf-note.warn { border-color: rgba(246,196,90,.28); background: rgba(246,196,90,.07); }
 
-    /* A row that shows a value on the right — language, theme, safety number. */
-    .pf-val { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #2EE6A6; }
-    .pf-val.mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 500;
-      font-size: 11px; color: rgba(233,243,238,.5); }
+    /* A row that shows a value on the right: language, theme, a listing count.
+
+       NOT a safety number. This slot is sized for the word "English", and the
+       thirty digits that used to sit in it at flex: 0 0 auto took two thirds
+       of the row and folded the title beside them into one word per line. The
+       safety number has a card of its own now (css/pm-safety.css), and the
+       .mono variant that existed only to shrink it out of the way is gone with
+       it: a value that has to be made illegible to fit does not belong here. */
+    .pf-val { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--green-emerald); }
 
     .pf-acts { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
     .pf-acts .pm-btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
@@ -165,6 +178,11 @@
       background: var(--pm-gold-soft); border: 1px solid var(--pm-gold-soft);
       color: var(--pm-ink-soft);
     }
+    /* The safety number inside the storefront preview. A rule above it, the
+       same as on the public page, so it reads as evidence attached to the
+       card rather than as one more paragraph of the bio. */
+    .pf-shop-safety { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--pm-line); }
+
     .pf-shop-note { margin: 9px 2px 0; font-size: 11.5px; line-height: 1.5;
       color: rgba(233,243,238,.5); }
     :root[data-theme="light"] .pf-shop-note { color: var(--pm-ink-faint); }
@@ -221,6 +239,10 @@
   <script src="js/lib/pm-trust.js"></script>
   <script src="js/lib/qr.js"></script>
   <script src="js/lib/pm-device-lock.js"></script>
+  <!-- One safety number, one shape. pm-identity-ui.js asks this file for
+       the grid, the QR payload and the clipboard fallback, so it must load
+       first. -->
+  <script src="js/lib/pm-safety.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
   <!-- The storefront block, shared with agent.html. pm-presence.js first: the
        identity line asks it for the last-seen dot, and without it the block

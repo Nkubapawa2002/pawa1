@@ -28,6 +28,10 @@
   <!-- Identity, the numbers and the bio: the block profile.html draws too, so
        an agent looking at "your public page" is looking at this one. -->
   <link rel="stylesheet" href="css/agent-card.css" />
+  <!-- The safety number, shared with profile.html. The same grid on both
+       screens is the point: two shapes of one number is a number nobody
+       can compare. -->
+  <link rel="stylesheet" href="css/pm-safety.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 
   <style>
@@ -61,10 +65,10 @@
       --pm-ink: #E9F3EE;
       --pm-ink-soft: rgba(233,243,238,.62);
       --pm-ink-faint: rgba(233,243,238,.5);
-      --pm-card: #141A18;
+      --pm-card: var(--surface-app);
       --pm-line: rgba(255,255,255,.08);
       --pm-field: rgba(255,255,255,.05);
-      --pm-brand: #2EE6A6;
+      --pm-brand: var(--green-emerald);
       --pm-brand-soft: rgba(46,230,166,.14);
       --pm-brand-line: rgba(46,230,166,.28);
       --pm-on-brand: #06170F;
@@ -128,6 +132,11 @@
     #agCall { flex: 0 1 auto; min-width: 110px; }
     .ag-btn[disabled] { opacity: .5; cursor: not-allowed; }
     .ag-note { font-size: 11.5px; color: var(--pm-ink-faint); margin-top: 9px; line-height: 1.5; }
+
+    /* Their safety number, under the note that promises the encryption.
+       Separated by a rule rather than only by space: it is evidence for
+       the sentence above it, not another paragraph of it. */
+    .ag-safety { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--pm-line); }
 
     /* ---- what they list ------------------------------------------------ */
     .ag-secs { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none;
@@ -201,6 +210,11 @@
   <script src="js/lib/pm-presence.js"></script>
   <!-- The storefront block itself, shared with profile.html. AFTER
        pm-presence.js, whose html() it calls for the last-seen dot. -->
+  <!-- The safety number a customer can check before they write. qr.js is
+       what turns it into something a camera can compare; without it the
+       digits are still drawn and the code button simply is not. -->
+  <script src="js/lib/qr.js"></script>
+  <script src="js/lib/pm-safety.js"></script>
   <script src="js/lib/agent-card.js"></script>
   <script src="js/pages/agent.js"></script>
   <script src="js/core/sw-register.js"></script>

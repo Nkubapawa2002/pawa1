@@ -117,17 +117,31 @@ window.initHousesPage = async () => {
   // itself live in js/lib/commute-score.js — pure functions a test can drive
   // without a browser. Only the icon is presentation, so only the icon is
   // here; duplicating a speed would be one more number to drift.
-  const MODE_ICON = { walk: "", bodaboda: "", bajaji: "", daladala: "", car: "" };
-  const MODES = Object.fromEntries(
-    Object.entries(window.pawaCommute.MODES)
-      .map(([k, v]) => [k, { ...v, icon: MODE_ICON[k] || "" }]));
-  const PLACE_KINDS = {
-    work:   { icon: "", label: "Workplace" },
-    school: { icon: "", label: "School" },
-    family: { icon: "", label: "Family / friends" },
-    fav:    { icon: "", label: "Favourite spot" },
-    custom: { icon: "", label: "Place" }
+  // The WORDS are looked up at read time rather than frozen at load, so
+  // switching language redraws this sheet in the new one. Both maps carried an
+  // `icon` field of emoji once; the emoji were stripped and the empty field
+  // stayed behind, which is why every option here rendered with a leading
+  // space and every map pin rendered as nothing at all.
+  const MODE_KEY = {
+    walk: "mp_mode_walk", bodaboda: "mp_mode_bodaboda", bajaji: "mp_mode_bajaji",
+    daladala: "mp_mode_daladala", car: "mp_mode_car",
   };
+  const MODES = Object.fromEntries(
+    Object.entries(window.pawaCommute.MODES).map(([k, v]) => [k, {
+      ...v,
+      get label() { return tr(MODE_KEY[k], v.label); },
+    }]));
+  const KIND_KEY = {
+    work: "mp_kind_work", school: "mp_kind_school", family: "mp_kind_family",
+    fav: "mp_kind_fav", custom: "mp_kind_custom",
+  };
+  const KIND_EN = {
+    work: "Workplace", school: "School", family: "Family or friends",
+    fav: "Favourite spot", custom: "Place",
+  };
+  const PLACE_KINDS = Object.fromEntries(Object.keys(KIND_KEY).map((k) => [k, {
+    get label() { return tr(KIND_KEY[k], KIND_EN[k]); },
+  }]));
 
   // ---- Map opens immediately, independent of data/network speed ----------
   // (initMap is hoisted; it only needs the static container, not the listings.)
@@ -1080,7 +1094,7 @@ window.initHousesPage = async () => {
       // we list every matching village / ward / district / area in the country.
       const combined = [];
       const known = window.resolveTzPlace && window.resolveTzPlace(q);
-      if (known) combined.push({ name: known.name, tag: "Known place", context: "", lat: known.lat, lng: known.lng, _known: true });
+      if (known) combined.push({ name: known.name, tag: tr("mp_tag_known", "Known place"), context: "", lat: known.lat, lng: known.lng, _known: true });
       try {
         const hits = await pawaGeo.suggest(q, { limit: 25 });
         for (const h of hits) {
@@ -1969,8 +1983,9 @@ window.initHousesPage = async () => {
   function kindOf(k)  { return PLACE_KINDS[k] || PLACE_KINDS.custom; }
   function travelMin(km, mode) { return window.pawaCommute.travelMin(km, mode); }
   function fmtMin(min) {
-    if (min < 1) return "<1 min";
-    if (min < 60) return Math.round(min) + " min";
+    const mins = (n) => tr("mp_minutes", "{n} min").replace("{n}", n);
+    if (min < 1) return mins("<1");
+    if (min < 60) return mins(Math.round(min));
     const h = Math.floor(min / 60), mm = Math.round(min % 60);
     return mm ? `${h}h ${mm}m` : `${h}h`;
   }
@@ -2051,7 +2066,7 @@ window.initHousesPage = async () => {
     if (!myPlaces.length) { placesChips.hidden = true; placesChips.innerHTML = ""; return; }
     placesChips.hidden = false;
     placesChips.innerHTML =
-      `<span style="font-size:.8rem;font-weight:600;color:var(--c-text-muted,#6b6960);align-self:center;margin-right:2px">Matching your life:</span>` +
+      `<span class="hp-place-head">${esc(tr("mp_chips_head", "Matching your life:"))}</span>` +
       myPlaces.map(p => {
         // The place NAME, not just the label. "Work ≤60m" does not say where
         // work is, and a week after pinning it that is the only thing the
@@ -2062,17 +2077,21 @@ window.initHousesPage = async () => {
         const label = (p.label || "").trim();
         const name  = (p.name  || "").trim();
         const showName = name && name.toLowerCase() !== label.toLowerCase();
-        const full = showName ? `${label} — ${name}` : label;
+        const full = showName ? `${label}, ${name}` : label;
         return `
-        <span class="hp-place-chip" title="${esc(name)}">
-          ${kindOf(p.kind).icon} ${esc(label)}${showName ? ` <span class="hp-chip-where">· ${esc(name)}</span>` : ""} <small>${modeOf(p.mode).icon}${p.maxMin ? ` ≤${p.maxMin}m` : ""}</small>
-          <button type="button" data-id="${esc(p.id)}" aria-label="Remove ${esc(full)}">&times;</button>
+        <span class="hp-place-chip">
+          ${esc(label)}${showName ? ` <span class="hp-chip-where">${esc(name)}</span>` : ""}
+          <small>${esc(modeOf(p.mode).label)}${p.maxMin ? " " + esc(fmtMin(p.maxMin)) : ""}</small>
+          <button type="button" data-id="${esc(p.id)}" aria-label="${
+            esc(tr("mp_chip_remove", "Remove {place}").replace("{place}", full))}">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
         </span>`;
       }).join("") +
       // A button, not a span. This opens the sheet that owns every place the
       // ranking is built from, and as a <span> it was unreachable by keyboard
       // and unannounced to a screen reader.
-      `<button type="button" class="hp-place-chip clear" id="mpEditChip">Edit </button>`;
+      `<button type="button" class="hp-place-chip clear" id="mpEditChip">${esc(tr("mp_edit", "Edit"))}</button>`;
     placesChips.querySelectorAll("button[data-id]").forEach(btn => {
       btn.addEventListener("click", () => {
         myPlaces = myPlaces.filter(x => x.id !== btn.dataset.id);
@@ -2089,13 +2108,20 @@ window.initHousesPage = async () => {
   // kind of community service (School, Hospital, Market, Bank, …).
   function resultTag(it) {
     const at = (it.addresstype || "").toLowerCase();
+    // The administrative levels are ours to name, so they are translated. The
+    // service kinds below are OSM's own vocabulary arriving with the result,
+    // and stay the data they are, the same way a listing title does.
     const ADMIN = {
-      state: "Region", region: "Region", county: "District", state_district: "District",
-      municipality: "District", district: "District", city: "City", town: "Town",
-      suburb: "Suburb", neighbourhood: "Area", quarter: "Area", residential: "Area",
-      village: "Village", hamlet: "Village", ward: "Ward", administrative: "Area"
+      state: "region", region: "region", county: "district", state_district: "district",
+      municipality: "district", district: "district", city: "city", town: "town",
+      suburb: "suburb", neighbourhood: "area", quarter: "area", residential: "area",
+      village: "village", hamlet: "village", ward: "ward", administrative: "area"
     };
-    if (ADMIN[at]) return ADMIN[at];
+    const ADMIN_EN = {
+      region: "Region", district: "District", city: "City", town: "Town",
+      suburb: "Suburb", area: "Area", village: "Village", ward: "Ward",
+    };
+    if (ADMIN[at]) return tr("mp_tag_" + ADMIN[at], ADMIN_EN[ADMIN[at]]);
     const cls = (it.class || "").toLowerCase(), type = (it.type || "").toLowerCase();
     const SERVICE = {
       school: "School", college: "College", university: "University", kindergarten: "School",
@@ -2109,7 +2135,7 @@ window.initHousesPage = async () => {
     if (SERVICE[type]) return SERVICE[type];
     if (["amenity", "shop", "leisure", "tourism", "office", "healthcare", "building"].includes(cls))
       return (type || cls).replace(/_/g, " ").replace(/\b\w/, c => c.toUpperCase());
-    return "Place";
+    return tr("mp_tag_place", "Place");
   }
 
   // Friendly "nearby area" name from a reverse-geocode address — used when
@@ -2134,7 +2160,7 @@ window.initHousesPage = async () => {
   async function searchPlaces(q) {
     const out = [];
     const known = window.resolveTzPlace && window.resolveTzPlace(q);
-    if (known) out.push({ name: known.name, lat: known.lat, lng: known.lng, tag: "Known place", context: "", known: true });
+    if (known) out.push({ name: known.name, lat: known.lat, lng: known.lng, tag: tr("mp_tag_known", "Known place"), context: "", known: true });
     try {
       // Country-wide: every matching village / ward / district / area, each kept
       // distinct (same name in different districts all show), not just the top 8.
@@ -2197,6 +2223,10 @@ window.initHousesPage = async () => {
     let draft = myPlaces.length ? myPlaces.map(p => ({ ...p })) : [blank()];
     let activeId = draft[0].id;
     let mpMap = null, mpMarkers = {};
+    // Declared up here, not beside the button that fills it: renderRows() runs
+    // during setup and calls paintHere(), so a `let` further down would still
+    // be in its temporal dead zone and take the whole sheet with it.
+    let hereKm = new Map();        // place id -> road km, or null for no route
 
     backdrop.hidden = false;
     document.getElementById("mpMapOffline")?.setAttribute("hidden", "");
@@ -2216,42 +2246,59 @@ window.initHousesPage = async () => {
       listEl.innerHTML = "";
       draft.forEach(p => listEl.appendChild(buildRow(p)));
       syncSave();
+      // Every rebuild throws the rows away, so the "from here" figures have to
+      // be put back or a change of dropdown would silently erase them.
+      paintHere();
     }
 
     function buildRow(p) {
       const row = document.createElement("div");
       row.className = "mp-row" + (p.id === activeId ? " is-active" : "");
+      const mins = (n) => tr("mp_minutes", "{n} min").replace("{n}", n);
+      const perWeek = (n) => tr("mp_per_week", "{n}x a week").replace("{n}", n);
       row.innerHTML = `
         <div class="mp-row-top">
-          <select class="mp-kind" aria-label="Kind of place">
-            ${Object.entries(PLACE_KINDS).map(([k, v]) => `<option value="${k}"${p.kind === k ? " selected" : ""}>${v.icon} ${v.label}</option>`).join("")}
+          <select class="mp-kind" aria-label="${esc(tr("mp_kind_aria", "Kind of place"))}">
+            ${Object.entries(PLACE_KINDS).map(([k, v]) => `<option value="${k}"${p.kind === k ? " selected" : ""}>${esc(v.label)}</option>`).join("")}
           </select>
-          <input class="mp-label" type="text" maxlength="40" placeholder="Label (e.g. My office)" value="${esc(p.label)}" />
-          <button class="mp-remove" type="button" title="Remove this place" aria-label="Remove">&times;</button>
+          <input class="mp-label" type="text" maxlength="40" placeholder="${esc(tr("mp_label_ph", "Name it"))}" value="${esc(p.label)}" />
+          <button class="mp-remove" type="button" aria-label="${esc(tr("mp_remove_aria", "Remove this place"))}">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
         </div>
+        <!-- Three questions, one per column, each label sitting above its own
+             control. They were inline labels on a wrapping flex row, which on a
+             390px screen broke into "By" and "Max" on one line with their
+             selects on the next, attached to neither. -->
         <div class="mp-row-bottom">
-          <label class="mp-mode-lbl">By
-            <select class="mp-mode" aria-label="Transport mode">
-              ${Object.entries(MODES).map(([k, v]) => `<option value="${k}"${p.mode === k ? " selected" : ""}>${v.icon} ${v.label}</option>`).join("")}
+          <label class="mp-field">
+            <span class="mp-field-l">${esc(tr("mp_by", "By"))}</span>
+            <select class="mp-mode" aria-label="${esc(tr("mp_mode_aria", "How you travel there"))}">
+              ${Object.entries(MODES).map(([k, v]) => `<option value="${k}"${p.mode === k ? " selected" : ""}>${esc(v.label)}</option>`).join("")}
             </select>
           </label>
-          <label class="mp-max-lbl">Max
-            <select class="mp-max" aria-label="Maximum travel time">
-              <option value="">any time</option>
-              ${[10, 15, 20, 30, 45, 60, 90].map(m => `<option value="${m}"${+p.maxMin === m ? " selected" : ""}>${m} min</option>`).join("")}
+          <label class="mp-field">
+            <span class="mp-field-l">${esc(tr("mp_max", "Longest"))}</span>
+            <select class="mp-max" aria-label="${esc(tr("mp_max_aria", "Longest one-way trip you will accept"))}">
+              <option value="">${esc(tr("mp_max_any", "any length"))}</option>
+              ${[10, 15, 20, 30, 45, 60, 90].map(m => `<option value="${m}"${+p.maxMin === m ? " selected" : ""}>${esc(mins(m))}</option>`).join("")}
             </select>
           </label>
           <!-- How often they go. This is the weight the whole ranking turns on,
                so it is a control rather than something inferred silently: a
                workplace and a favourite spot must not count the same, and only
                the person knows which is which. Defaults from the kind. -->
-          <label class="mp-freq-lbl">Go
-            <select class="mp-freq" aria-label="How often you go there">
-              ${[1, 2, 3, 5, 7].map(n => `<option value="${n}"${window.pawaCommute.tripsFor(p) === n ? " selected" : ""}>${n}&times;/week</option>`).join("")}
+          <label class="mp-field">
+            <span class="mp-field-l">${esc(tr("mp_go", "Go"))}</span>
+            <select class="mp-freq" aria-label="${esc(tr("mp_freq_aria", "How often you go there"))}">
+              ${[1, 2, 3, 5, 7].map(n => `<option value="${n}"${window.pawaCommute.tripsFor(p) === n ? " selected" : ""}>${esc(perWeek(n))}</option>`).join("")}
             </select>
           </label>
-          <span class="mp-status${p.lat != null ? " set" : ""}">${p.lat != null ? " " + esc(p.name || "location set") : "tap map / search →"}</span>
-        </div>`;
+        </div>
+        <p class="mp-status${p.lat != null ? " set" : ""}">${
+          p.lat != null ? esc(p.name || (p.lat.toFixed(4) + ", " + p.lng.toFixed(4)))
+                        : esc(tr("mp_not_set", "Tap the map or search"))}</p>
+        <p class="mp-here-leg" data-here="${esc(p.id)}" hidden></p>`;
 
       const labelIn = row.querySelector(".mp-label");
       const freqSel = row.querySelector(".mp-freq");
@@ -2297,9 +2344,10 @@ window.initHousesPage = async () => {
     function updateCoords() {
       if (!coordsEl) return;
       const p = activePlace(), k = kindOf(p.kind);
+      const who = p.label || k.label;
       coordsEl.textContent = Number.isFinite(p.lat)
-        ? `${k.icon} ${p.label || k.label}: ${p.name || (p.lat.toFixed(4) + ", " + p.lng.toFixed(4))}`
-        : `Setting ${k.icon} ${p.label || k.label} — search or tap the map`;
+        ? `${who}: ${p.name || (p.lat.toFixed(4) + ", " + p.lng.toFixed(4))}`
+        : tr("mp_setting", "Setting {place}. Search, or tap the map.").replace("{place}", who);
       coordsEl.classList.toggle("has-pin", Number.isFinite(p.lat));
     }
 
@@ -2324,7 +2372,18 @@ window.initHousesPage = async () => {
         if (mpMarkers[p.id]) { mpMarkers[p.id].remove(); delete mpMarkers[p.id]; }
         return;
       }
-      const icon = L.divIcon({ className: "mp-pin", html: kindOf(p.kind).icon, iconSize: [26, 26], iconAnchor: [13, 26] });
+      // A drawn pin, not a character. The html here used to be an emoji, then
+      // an empty string once the emoji were removed, so every place a person
+      // pinned put an INVISIBLE marker on the map: you tapped, the row said it
+      // was set, and the map showed nothing. A stroke SVG inherits the sheet's
+      // colour and is the same shape on every phone.
+      const icon = L.divIcon({
+        className: "mp-pin",
+        html: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">' +
+              '<path d="M12 22s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z" fill="currentColor"/>' +
+              '<circle cx="12" cy="11" r="2.6" fill="#0b1a14"/></svg>',
+        iconSize: [26, 26], iconAnchor: [13, 26],
+      });
       if (mpMarkers[p.id]) {
         mpMarkers[p.id].setLatLng([p.lat, p.lng]).setIcon(icon);
       } else {
@@ -2362,8 +2421,12 @@ window.initHousesPage = async () => {
         const first = draft.find(p => Number.isFinite(p.lat));
         if (first) mpMap.setView([first.lat, first.lng], 13);
       } catch (err) {
+        // The sheet still works without a map: search and GPS both set a place.
+        // So this says the map failed and gets out of the way, rather than
+        // printing an exception at somebody looking for a room.
+        console.warn("[houses] places map failed to init:", err?.message || err);
         const el = document.getElementById("mpModalMap");
-        if (el) el.innerHTML = `<div style="padding:20px;color:#b91c1c;font-size:.85rem">Map error: ${esc(String(err))}</div>`;
+        if (el) el.innerHTML = `<p class="mp-map-error">${esc(tr("mp_map_error", "The map could not start."))}</p>`;
       }
     }
 
@@ -2375,13 +2438,17 @@ window.initHousesPage = async () => {
       if (q.length < 2) { resultsEl.hidden = true; return; }
       searchTimer = setTimeout(async () => {
         resultsEl.hidden = false;
-        resultsEl.innerHTML = `<div class="am-search-result loading">Searching…</div>`;
+        resultsEl.innerHTML = `<div class="am-search-result loading">${esc(tr("mp_searching", "Searching…"))}</div>`;
         const hits = await searchPlaces(q);
-        if (!hits.length) { resultsEl.innerHTML = `<div class="am-search-result loading">No matches — tap the map to drop a pin.</div>`; return; }
+        if (!hits.length) {
+          resultsEl.innerHTML = `<div class="am-search-result loading">${
+            esc(tr("mp_no_match", "Nothing found. Tap the map to drop a pin instead."))}</div>`;
+          return;
+        }
         resultsEl.innerHTML = hits.map((it, i) => {
           const rest = it.context || "";
           return `<div class="am-search-result" data-i="${i}">
-            <strong>${esc(it.name)}</strong> <span class="am-tag${it.known ? " known" : ""}">${esc(it.tag || "Place")}</span>
+            <strong>${esc(it.name)}</strong> <span class="am-tag${it.known ? " known" : ""}">${esc(it.tag || tr("mp_tag_place", "Place"))}</span>
             ${rest ? `<small>${esc(rest)}</small>` : ""}
           </div>`;
         }).join("");
@@ -2407,6 +2474,83 @@ window.initHousesPage = async () => {
         alert(pawaLocate.message(err));
       } finally {
         gpsBtn.disabled = false; gpsBtn.textContent = " GPS";
+      }
+    };
+
+    // ---- "From where you are now" -----------------------------------------
+    // The mirror of the ranking. The directory answers "how far is this room
+    // from the places my week runs through"; this answers "how far am I, right
+    // now, from those same places", which is the figure a person can check
+    // against their own experience and therefore the one that makes the rest
+    // believable. Real road distance only, from the same pawaRoute matrix the
+    // listing ranking uses: a straight line to your workplace is worse than no
+    // number, and this sheet has never printed one.
+    const hereBtn = document.getElementById("mpHereBtn");
+    const hereMsg = document.getElementById("mpHereMsg");
+
+    function sayHere(text, tone) {
+      if (!hereMsg) return;
+      hereMsg.hidden = !text;
+      hereMsg.textContent = text || "";
+      hereMsg.className = "mp-here-msg" + (tone ? " is-" + tone : "");
+    }
+
+    // Painted after every renderRows(), because that rebuilds the rows and
+    // would otherwise throw the measurement away the moment somebody changed
+    // a dropdown.
+    function paintHere() {
+      listEl.querySelectorAll(".mp-here-leg").forEach((el) => {
+        const p = draft.find((x) => x.id === el.dataset.here);
+        if (!p || !hereKm.has(p.id)) { el.hidden = true; el.textContent = ""; return; }
+        const km = hereKm.get(p.id);
+        el.hidden = false;
+        el.textContent = km == null
+          ? tr("mp_here_noroad", "no road route")
+          : tr("mp_here_leg", "{km} km by road, about {mins}")
+              .replace("{km}", km.toFixed(1))
+              .replace("{mins}", fmtMin(travelMin(km, p.mode)));
+      });
+    }
+
+    if (hereBtn) hereBtn.onclick = async () => {
+      const pinned = draft.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+      if (!pinned.length) { sayHere(tr("mp_here_none", "Pin at least one place above first."), "warn"); return; }
+      hereBtn.disabled = true;
+      sayHere(tr("mp_here_working", "Finding you…"));
+      let fix;
+      try {
+        fix = await pawaLocate.best({ targetAccuracy: 50 });
+      } catch (err) {
+        hereBtn.disabled = false;
+        // pawaLocate knows why it failed, and a refused permission is a
+        // different sentence from a phone that could not get a fix.
+        sayHere(pawaLocate.message(err) || tr("mp_here_denied",
+          "Location is off. Turn it on for this site, then try again."), "warn");
+        return;
+      }
+      sayHere(tr("mp_here_measuring", "Measuring by road…"));
+      try {
+        const kms = window.pawaRoute
+          ? await window.pawaRoute.table({ lat: fix.lat, lng: fix.lng },
+              pinned.map((p) => ({ lat: p.lat, lng: p.lng })))
+          : pinned.map(() => null);
+        hereKm = new Map(pinned.map((p, i) => [p.id, Number.isFinite(kms[i]) ? kms[i] : null]));
+        paintHere();
+        // Done. The button and the "measuring…" line are released HERE, not
+        // after the reverse-geocode below: naming the area you are standing in
+        // is a courtesy, and holding the finished measurement hostage to a
+        // second network call left the sheet saying "measuring" over figures
+        // that were already on screen.
+        hereBtn.disabled = false;
+        hereBtn.textContent = tr("mp_here_again", "Measure again");
+        sayHere("");
+        reverseName(fix.lat, fix.lng).then((where) => {
+          if (where) sayHere(tr("mp_here_from", "You are in {where}.").replace("{where}", where), "ok");
+        }).catch(() => {});
+      } catch (_) {
+        hereBtn.disabled = false;
+        hereBtn.textContent = tr("mp_here_again", "Measure again");
+        sayHere(tr("mp_here_failed", "Could not measure from here. Try again in a moment."), "warn");
       }
     };
 
@@ -2851,19 +2995,25 @@ window.initHousesPage = async () => {
       // that a per-leg minute count never does. It counts both directions and
       // how often they actually go — see js/lib/commute-score.js.
       const weekHtml = commute && commute.weekMin != null
-        ? `<span class="hc-week">≈ ${fmtMin(commute.weekMin)} a week on the road${commute.pending ? " so far" : ""}</span>`
+        ? `<span class="hc-week">${esc(
+            tr(commute.pending ? "mp_week_sofar" : "mp_week",
+               commute.pending ? "About {mins} a week on the road so far"
+                               : "About {mins} a week on the road")
+              .replace("{mins}", fmtMin(commute.weekMin)))}</span>`
         : "";
       const commuteHtml = commute ? `<div class="house-card-commute">${weekHtml}${
         commute.legs.map(l => {
-          const head = `${kindOf(l.place.kind).icon} ${esc(l.place.label)}`;
-          // Real road distance only — never a straight-line guess to your workplace.
+          const head = esc(l.place.label);
+          // Real road distance only, never a straight-line guess to your workplace.
           const val = l.state === "road"
-            ? `${l.km.toFixed(1)} km · ~${fmtMin(l.min)} ${modeOf(l.place.mode).icon}`
+            ? esc(tr("mp_here_leg", "{km} km by road, about {mins}")
+                    .replace("{km}", l.km.toFixed(1))
+                    .replace("{mins}", fmtMin(l.min) + " " + modeOf(l.place.mode).label))
             : l.state === "measuring"
-              ? `measuring road distance…`
-              : `no road route`;
+              ? esc(tr("mp_leg_measuring", "measuring the road distance"))
+              : esc(tr("mp_leg_noroad", "no road route"));
           const cls = l.state === "road" ? (l.ok ? "" : " over") : " pending";
-          return `<span class="hc-leg${cls}">${head} · ${val}</span>`;
+          return `<span class="hc-leg${cls}"><b>${head}</b> ${val}</span>`;
         }).join("")
       }</div>` : "";
       // Nearest MAIN road (tarmac) — filled from cache now, or patched in

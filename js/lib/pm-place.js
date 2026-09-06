@@ -162,6 +162,11 @@
   /** Does this body carry a place at all? Cheap enough to run per message. */
   function has(body) { return !!read(body); }
 
+  // Roughly the difference between a doorway and a block. Kept identical to
+  // COARSE_M in js/pages/p-message.js: the sender and the reader must not
+  // disagree about which side of "exact" a pin falls on.
+  var COARSE_M = 100;
+
   var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
     '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z" stroke="currentColor" stroke-width="2"/>' +
     '<circle cx="12" cy="10" r="2.4" stroke="currentColor" stroke-width="2"/></svg>';
@@ -203,8 +208,18 @@
     return '<span class="pm-place' + (place.outside ? " is-outside" : "") + '"' + data + ">" +
       '<span class="pm-place-h">' + PIN_SVG +
         "<b>" + esc(label || t("pmp_a_place", "A place")) + "</b></span>" +
-      '<span class="pm-place-co">' + esc(window.PlaceBook.coords(place.lat, place.lng)) +
-        (acc ? " · " + esc(t("pmp_within", "within {n} m", { n: acc })) : "") + "</span>" +
+      '<span class="pm-place-co">' + esc(window.PlaceBook.coords(place.lat, place.lng)) + "</span>" +
+      // Accuracy on its own line, in the SAME words the sender read on the
+      // attach strip before sending. It used to be a tail on the coordinates,
+      // "-6.792400, 39.208300 . within 300 m", where the one number that
+      // decides whether this is a doorway or a block was the quietest thing in
+      // the card and dressed as part of a machine-readable string.
+      (acc
+        ? '<span class="pm-place-acc' + (acc > COARSE_M ? " is-coarse" : "") + '">' +
+            esc(acc > COARSE_M
+              ? t("pmp_acc_coarse", "Roughly this area, within {n} m.", { n: acc })
+              : t("pmp_acc_fine", "Exact to {n} m.", { n: acc })) + "</span>"
+        : "") +
       (place.outside
         ? '<span class="pm-place-warn">' + esc(t("pmp_outside",
             "This pin is not in Tanzania. It is usually a latitude and longitude the wrong way round.")) + "</span>"

@@ -1,0 +1,187 @@
+/* ============================================================================
+   pm-safety.css — the safety number, wherever it is shown.
+
+   Pairs with js/lib/pm-safety.js. Three screens draw this now:
+
+     profile.html    your own number, as a card you can hold up.
+     agent.html      an agent's number, on their public page, so a customer
+                     can check it BEFORE they write rather than afterwards.
+     p-message.html  the same number inside the verify dialog.
+
+   The grid, the QR frame and the trust badge live here rather than in
+   css/pm-identity.css because the dialog is no longer the only place they
+   appear, and a safety number that is a 3x2 grid in one place and something
+   else in another is a safety number nobody can compare. One definition.
+
+   Written against the --pm-* names all three pages already define, with
+   fallbacks so a page that forgets them degrades to something readable rather
+   than to invisible text.
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   The number itself.
+
+   Thirty digits, six groups of five, three across and two down at EVERY
+   width. Reflowed text wraps wherever the box happens to end, so two phones
+   of different sizes show two different shapes and matching becomes reading.
+   Each group is its own cell, so a mismatch lands on a line.
+
+   Never truncated with an ellipsis, however tempting: a shortened safety
+   number is one people would compare the visible half of, and half of thirty
+   digits is about 2^50, which is back to being worth grinding.
+   --------------------------------------------------------------------------- */
+.pm-big-fp {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-1, 4px) var(--space-2, 8px);
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 15px; letter-spacing: .04em; line-height: 1.9;
+  font-feature-settings: "tnum", "zero";
+  text-align: center;
+  color: var(--pm-brand, var(--green-emerald));
+  background: var(--pm-brand-soft, rgba(46, 230, 166, .08));
+  border: 1px solid var(--pm-brand-line, rgba(46, 230, 166, .2));
+  border-radius: var(--radius-lg, 14px);
+  padding: var(--space-3, 12px) var(--space-2, 8px);
+  margin: var(--space-2, 8px) 0 var(--space-1, 4px);
+  /* Selectable in full, because reading it aloud is the fallback for every
+     device where the camera or the clipboard is refused. */
+  user-select: all; -webkit-user-select: all;
+}
+.pm-big-fp span { display: block; }
+/* Inside a dense row rather than on a card of its own. */
+.pm-big-fp.is-small { font-size: 13px; line-height: 1.7; padding: var(--space-2, 8px) var(--space-1, 4px); }
+
+/* ---------------------------------------------------------------------------
+   The QR code and its caption.
+
+   Black on white in BOTH themes, keeping the four-module quiet zone. That is
+   not a styling oversight: contrast and margin are part of the QR format, and
+   a code tinted to match the page is a code that does not scan.
+   --------------------------------------------------------------------------- */
+.pm-qr {
+  background: #ffffff; border-radius: var(--radius-md, 12px); padding: 10px;
+  margin: var(--space-2, 8px) auto var(--space-1, 4px);
+  max-width: 260px;
+}
+.pm-qr svg { display: block; }
+.pm-qr-cap { text-align: center; font-size: 12px; margin: 2px 0 0; }
+
+/* ---------------------------------------------------------------------------
+   What this device remembers about someone else's number.
+   --------------------------------------------------------------------------- */
+.pm-trust-badge {
+  display: inline-block; vertical-align: middle; margin-left: 6px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: var(--radius-xs, 6px);
+  background: rgba(255, 255, 255, .08); color: var(--pm-ink-soft, rgba(233, 243, 238, .7));
+}
+.pm-trust-badge.is-ok {
+  background: var(--pm-brand-soft, rgba(46, 230, 166, .16)); color: var(--pm-brand, var(--green-emerald));
+}
+.pm-trust-badge.is-changed { background: rgba(255, 138, 122, .18); color: #ff8a7a; }
+
+:root[data-theme="light"] .pm-trust-badge { background: rgba(20, 20, 15, .07); color: #4b493f; }
+:root[data-theme="light"] .pm-trust-badge.is-changed { background: rgba(176, 42, 24, .12); color: #b02a18; }
+
+/* ===========================================================================
+   The card.
+
+   Not a list row. A safety number was a value in the right-hand slot of an
+   action row on Profile, which is a slot sized for the word "English" and it
+   was being handed thirty digits: the row's own title collapsed to one word
+   per line and the number came out at 11px and half opacity, the least
+   legible text on a screen whose only job is being read out loud.
+
+   So it gets the width of the column, and the number is the largest thing in
+   it.
+   =========================================================================== */
+.pms {
+  /* The ink on a filled brand button. It cannot be one value: --pm-brand is a
+     bright emerald in dark and a deep green in light, so a single foreground
+     is unreadable on one of them. Declared on the card rather than :root so
+     the pair travels with the component to whatever page adopts it next. */
+  --pms-on-brand: var(--text-on-brand, #06170F);
+
+  background: var(--pm-card, var(--surface-app));
+  border: 1px solid var(--pm-line, rgba(255, 255, 255, .08));
+  border-radius: var(--radius-xl, 18px);
+  padding: var(--space-4, 15px);
+}
+:root[data-theme="light"] .pms { --pms-on-brand: #ffffff; }
+
+.pms-h { display: flex; align-items: center; gap: var(--space-2, 9px); flex-wrap: wrap; }
+.pms-ic {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: var(--radius-md, 11px);
+  display: grid; place-items: center;
+  background: var(--pm-brand-soft, rgba(46, 230, 166, .13));
+  color: var(--pm-brand, var(--green-emerald));
+}
+.pms-ic svg { width: 20px; height: 20px; }
+.pms-t {
+  font-family: var(--font-app, 'Plus Jakarta Sans', system-ui, sans-serif);
+  font-size: 14.5px; font-weight: 800; color: var(--pm-ink, #E9F3EE);
+}
+
+.pms-d {
+  margin: var(--space-2, 8px) 0 0;
+  font-size: 12.5px; line-height: 1.55; color: var(--pm-ink-soft, rgba(233, 243, 238, .62));
+}
+
+/* Two or three actions, wrapping rather than shrinking: "Copy the number"
+   truncated to "Copy the num…" on a 360px phone is a button that has stopped
+   saying what it does. */
+.pms-acts { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); margin-top: var(--space-3, 12px); }
+.pms-btn {
+  flex: 1 1 auto; min-height: var(--hit-min, 44px);
+  background: var(--pm-brand, var(--green-emerald)); color: var(--pms-on-brand);
+  border: 1px solid transparent; border-radius: var(--radius-md, 12px);
+  padding: 10px 14px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+  transition: border-color var(--dur-fast, .12s) var(--ease, ease),
+              background var(--dur-fast, .12s) var(--ease, ease);
+}
+.pms-btn.ghost {
+  background: var(--pm-field, rgba(255, 255, 255, .06));
+  color: var(--pm-ink, #E9F3EE);
+  border-color: var(--pm-line, rgba(255, 255, 255, .1));
+}
+.pms-btn.ghost:hover { border-color: var(--pm-brand-line, rgba(46, 230, 166, .28)); }
+.pms-btn:focus-visible { outline: none; box-shadow: var(--focus-ring, 0 0 0 3px rgba(46, 230, 166, .4)); }
+
+.pms-qr { margin-top: var(--space-3, 12px); }
+.pms-cap {
+  text-align: center; font-size: 12px; margin: var(--space-1, 4px) 0 0;
+  color: var(--pm-ink-faint, rgba(233, 243, 238, .5));
+}
+
+.pms-msg {
+  font-size: 12.5px; line-height: 1.5; margin-top: var(--space-2, 8px); min-height: 17px;
+  color: var(--pm-ink-soft, rgba(233, 243, 238, .6));
+}
+.pms-msg.good { color: var(--pm-brand, var(--green-emerald)); }
+.pms-msg.bad { color: #ff8a7a; }
+:root[data-theme="light"] .pms-msg.bad { color: #a3123c; }
+
+/* ---------------------------------------------------------------------------
+   Light.
+
+   .pm-big-fp inherits the page's own --pm-brand values, which every host
+   already redefines for light, so the number needs nothing here. The two
+   colours that do NOT come from that palette are the ones below.
+   --------------------------------------------------------------------------- */
+:root[data-theme="light"] .pms-btn.ghost { background: rgba(20, 20, 15, .05); }
+
+/* ---------------------------------------------------------------------------
+   Compact: a preview of a page rather than the page.
+
+   Profile shows an agent their own storefront, and the storefront now carries
+   a safety number. Repeating the full card there would put the same number on
+   one screen twice, with two Show-my-code buttons, one of which is showing the
+   agent something only a customer needs. So the preview keeps the number and
+   the sentence and drops the controls.
+   --------------------------------------------------------------------------- */
+.pms.is-compact {
+  background: none; border: 0; padding: 0;
+}
+.pms.is-compact .pms-ic { width: 26px; height: 26px; border-radius: var(--radius-sm, 8px); }
+.pms.is-compact .pms-ic svg { width: 16px; height: 16px; }
+.pms.is-compact .pms-t { font-size: 12.5px; }
+.pms.is-compact .pms-d { font-size: 11.5px; }

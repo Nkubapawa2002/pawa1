@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="css/design-system.css" />
   <!-- The key dialogs (safety number, backup, restore), shared with profile.html. -->
   <link rel="stylesheet" href="css/pm-identity.css" />
+  <link rel="stylesheet" href="css/pm-safety.css" />
   <!-- Presence, work kinds and the link to a storefront — shared with
        agent.html so the two screens speak one visual language. -->
   <link rel="stylesheet" href="css/pm-shared.css" />
@@ -68,12 +69,12 @@
       --pm-ink: #E9F3EE;
       --pm-ink-soft: rgba(233,243,238,.62);
       --pm-ink-faint: rgba(233,243,238,.5);
-      --pm-card: #141A18;
+      --pm-card: var(--surface-app);
       --pm-bubble: #16211C;
       --pm-line: rgba(255,255,255,.08);
       --pm-field: rgba(255,255,255,.05);
       --pm-bar: rgba(8,16,12,.72);
-      --pm-brand: #2EE6A6;
+      --pm-brand: var(--green-emerald);
       --pm-brand-soft: rgba(46,230,166,.14);
       --pm-brand-line: rgba(46,230,166,.28);
       --pm-on-brand: #06170F;
@@ -146,7 +147,24 @@
        (`:empty` would not help — the buttons are always present, just
        hidden.) */
     .pm-tools { display: flex; flex-wrap: wrap; gap: 7px; }
-    .pm-tools .pm-admin-btn { margin-top: 11px; }
+    .pm-tools .pm-admin-btn,
+    .pm-tools .pm-tool-btn { margin-top: 11px; }
+
+    /* A tool anyone may use, as opposed to .pm-admin-btn. Same shape, so the
+       row reads as one row; different colour, so "Invite a customer" does not
+       look like a thing the database is about to refuse you. */
+    .pm-tool-btn {
+      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+      background: var(--pm-field); color: var(--pm-ink-soft);
+      border: 1px solid var(--c-border);
+      border-radius: 12px; padding: 8px 12px; font: inherit; font-size: 12px;
+      font-weight: 800; cursor: pointer;
+    }
+    .pm-tool-btn.is-primary {
+      background: var(--pm-brand-soft); color: var(--pm-brand);
+      border-color: var(--pm-brand-line);
+    }
+    .pm-tool-btn:hover { border-color: var(--pm-brand-line); }
     .pm-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 800; margin: 0; color: var(--pm-ink); }
     .pm-lock {
       display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
@@ -154,19 +172,11 @@
     }
     .pm-lock.is-open { color: var(--pm-gold); }
     .pm-lock svg { width: 13px; height: 13px; }
-    /* Thirty digits, not twelve, so this line wraps now. It is a <button>, and
-       a button centres its text by default — which turned the second line into
-       a stray fragment floating under the first. Left-aligned and given a
-       width to wrap inside.
-
-       NOT truncated with an ellipsis, however tempting: a shortened safety
-       number is one people would compare the visible half of, and half of it
-       is 2^33, which is back to being grindable. */
-    .pm-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px;
-      color: var(--pm-ink-faint); margin-top: 5px; letter-spacing: .02em;
-      text-align: left; line-height: 1.6; max-width: 250px; }
-    /* The tools no longer compete for this row, so the number gets the width
-       its max-width always asked for and lands as three groups by two. */
+    /* .pm-fp is gone. Printing the whole safety number in the header was an
+       attempt to make it prominent that made it unreadable: 11px muted mono,
+       wrapping mid-number, on a line with no room. It is a chip in the tools
+       row now, and the digits are drawn at a size somebody can read them at,
+       in the one shape every screen uses (css/pm-safety.css). */
 
     /* [hidden] is a UA display:none, and ANY author display wins over it.
        Several controls here set display, so the attribute is honoured
@@ -227,10 +237,69 @@
     .pm-chat-wrap:hover > .pm-row { border-right: 0; }
     .pm-row-more:hover { color: var(--pm-brand); background: var(--pm-brand-soft); }
 
-    .pm-inv-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      padding: 9px 0; border-bottom: 1px solid var(--pm-line); font-size: .86rem; }
+    /* ── The invite dialog ─────────────────────────────────────────────────
+       Rebuilt with the two-step flow in js/pages/p-message.js. The old list
+       was four bare rows with a state word and, on one of them, a Withdraw
+       button the width of the primary action. It could not say how long a
+       link had left, who had used one, or when a dead one died, and nothing
+       could ever be taken off it, so it grew into a graveyard with the one
+       live link somewhere inside.
+       -------------------------------------------------------------------- */
+    .pm-inv-head { display: flex; align-items: baseline; justify-content: space-between;
+      gap: 10px; margin: 20px 0 2px; }
+    /* Restated, because the shared stylesheets style bare h3 in the editorial
+       serif and an element rule beats the inherited face: "Your links" was
+       coming out in Fraunces inside a dialog set in the app face. Same trap
+       .pm-modal h2 already fixed one level up. */
+    .pm-inv-h { font-family: var(--font-app); font-size: 13px; font-weight: 800;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--pm-ink-soft); margin: 0; }
+    .pm-inv-sec { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--pm-ink-faint); margin: 14px 0 2px; }
+    .pm-inv-none { font-size: 12.5px; color: var(--pm-ink-faint); margin: 6px 0 0; }
+    .pm-inv-done { opacity: .72; }
+
+    .pm-inv-row { display: flex; align-items: center; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--pm-line); }
     .pm-inv-row:last-child { border-bottom: 0; }
-    #pmInvLink { width: 100%; font-family: ui-monospace, "JetBrains Mono", monospace; font-size: .76rem; }
+    .pm-inv-tx { min-width: 0; flex: 1; }
+    .pm-inv-label { display: block; font-size: 13.5px; font-weight: 700; color: var(--pm-ink);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-inv-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 3px; }
+    .pm-inv-who { font-size: 11.5px; font-weight: 700; color: var(--pm-ink-soft); }
+    .pm-inv-when { font-size: 11.5px; color: var(--pm-ink-faint); }
+    /* Withdraw is destructive but it is not the point of the screen, so it is
+       sized like a row control and not like the button that made the link. */
+    .pm-inv-act { flex: 0 0 auto; padding: 7px 11px; font-size: 12px; }
+    .pm-inv-x { flex: 0 0 auto; width: 32px; height: 32px; display: grid; place-items: center;
+      background: none; border: 1px solid var(--pm-line); border-radius: 9px;
+      color: var(--pm-ink-faint); cursor: pointer; padding: 0; }
+    .pm-inv-x svg { width: 14px; height: 14px; }
+    .pm-inv-x:hover { color: var(--pm-ink); border-color: var(--pm-ink-faint); }
+
+    /* The confirmation, in place of the row it is about. A system confirm()
+       cannot name what it is about to do, cannot be translated, and covers the
+       thing being decided. */
+    .pm-inv-ask { display: flex; flex-direction: column; gap: 9px;
+      background: var(--pm-field); border: 1px solid var(--pm-line);
+      border-radius: 13px; padding: 11px 12px; margin: 8px 0;
+      font-size: 12.5px; line-height: 1.5; color: var(--pm-ink-soft); }
+    .pm-inv-ask-acts { display: flex; gap: 8px; }
+    .pm-inv-ask-acts .pm-btn { flex: 1; padding: 8px 10px; font-size: 12.5px; }
+
+    /* Step 2: the five ways out. Two per row on a phone, so no single one
+       reads as the only way and none of them is a 320px slab. */
+    .pm-inv-send { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .pm-inv-send .pm-btn { text-align: center; text-decoration: none; display: block; }
+
+    /* The three facts on the customer's side. A list, not a paragraph: this is
+       a stranger's first sentence about this site and a block of reassurance
+       reads as a sales pitch. */
+    .pm-inv-facts { margin: 0 0 12px; padding-left: 18px; }
+    .pm-inv-facts li { font-size: 12.5px; line-height: 1.55; color: var(--pm-ink-soft); margin: 5px 0; }
+
+    #pmInvLink { width: 100%; font-family: var(--font-mono, ui-monospace, "JetBrains Mono", monospace);
+      font-size: .76rem; }
     .pm-rtx { min-width: 0; flex: 1; }
     .pm-name { font-size: 14.5px; font-weight: 700; color: var(--pm-ink); display: flex; align-items: center; gap: 7px; }
     .pm-sub { font-size: 12px; color: var(--pm-ink-soft); margin-top: 2px;
@@ -476,10 +545,14 @@
        than an index into a list: the log is rewritten on every incoming
        message, and an index that pointed at row 4 before the redraw points at
        somebody else's place after it. */
-    .pm-place-btn { flex: 0 0 auto; background: var(--pm-field); color: var(--pm-brand);
-      border: 1px solid var(--c-border); border-radius: 13px; width: 42px; height: 42px;
+    /* 44px, not 42. --hit-min is the floor for anything a thumb has to find on
+       a moving bus, and this is the only way into the whole location flow. */
+    .pm-place-btn { flex: 0 0 auto; background: var(--pm-brand-soft); color: var(--pm-brand);
+      border: 1px solid var(--pm-brand-line); border-radius: 13px;
+      width: var(--hit-min); height: var(--hit-min);
       display: grid; place-items: center; cursor: pointer; padding: 0; }
-    .pm-place-btn:hover { border-color: var(--pm-brand-line); }
+    .pm-place-btn:hover { background: var(--pm-brand); color: var(--pm-on-brand);
+      border-color: transparent; }
     .pm-compose.is-blocked .pm-place-btn { opacity: .35; cursor: not-allowed; }
 
     .pm-place { display: block; margin: -1px 0 5px; padding: 9px 10px;
@@ -490,7 +563,13 @@
     .pm-place-h svg { width: 14px; height: 14px; flex: 0 0 auto; }
     .pm-place-h b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pm-place-co { display: block; margin-top: 3px; font-size: 11.5px; color: var(--pm-ink-soft);
-      font-family: ui-monospace, "JetBrains Mono", monospace; }
+      font-family: var(--font-mono); }
+    /* The reader is told how exact the pin is in the SAME words the sender saw
+       before sending it. Two vocabularies for one number is how "within 300 m"
+       comes to mean something different at each end of the conversation. */
+    .pm-place-acc { display: block; margin-top: 4px; font-size: 11.5px;
+      color: var(--pm-ink-faint); }
+    .pm-place-acc.is-coarse { color: var(--pm-gold); }
     /* A pin outside Tanzania is almost always a latitude and longitude the
        wrong way round, and somebody about to set off is entitled to know
        before they do rather than after. */
@@ -513,7 +592,20 @@
       padding-left: 8px; }
     .pm-attach b { display: block; color: var(--pm-brand); font-size: 11px; font-weight: 800; }
     .pm-attach .pm-at-body { display: block; overflow: hidden; text-overflow: ellipsis;
-      white-space: nowrap; font-family: ui-monospace, "JetBrains Mono", monospace; }
+      white-space: nowrap; font-family: var(--font-mono); }
+    /* How exact the pin is, said to the SENDER before it goes rather than only
+       to the reader afterwards. Coarse takes the gold that already means "read
+       this before you act on it" on the outside-Tanzania warning, so the two
+       cautions on this screen look like each other. */
+    .pm-attach .pm-at-acc { display: block; margin-top: 3px; font-size: 11px;
+      color: var(--pm-ink-faint); }
+    .pm-attach .pm-at-acc.is-coarse { color: var(--pm-gold); }
+    .pm-attach .pm-at-acc .pm-place-b { margin-left: 4px; padding: 3px 8px; font-size: 10.5px; }
+
+    /* Who the pin is about to reach. First thing in the picker, because it is
+       the first thing somebody wants to know before sending where they are. */
+    .pm-pick-to { margin: 0 0 var(--space-2); color: var(--pm-brand);
+      font-size: 13px; font-weight: 800; line-height: 1.4; }
 
     /* ---- the map a pin opens on -------------------------------------------
        A sheet of its own, not a dialog: a map inside a 420px modal is a
@@ -765,15 +857,24 @@
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.9"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
         <span id="pmLockText" data-i18n="pm_lock_on">End-to-end encrypted</span>
       </div>
-      <button class="pm-fp" id="pmFpBtn" type="button" style="background:none;border:0;cursor:pointer;padding:0" hidden></button>
     </div>
 
     <!-- A row of their own, below the title, so nothing here can be pushed
-         under the floating theme toggle or off the side of a phone. -->
+         under the floating theme toggle or off the side of a phone.
+
+         Three kinds of button live here and they are no longer one colour.
+         Announce and Rooms are the ADMIN's, and stay violet. Invite is what an
+         ordinary agent came to this screen to do, so it is the brand action.
+         The safety number is a door, not a task, so it is the quiet one. -->
     <div class="pm-tools">
       <button class="pm-admin-btn" id="pmBroadcastBtn" type="button" hidden data-i18n="pm_broadcast">Announce</button>
       <button class="pm-admin-btn" id="pmRoomsBtn" type="button" hidden data-i18n="pm_rooms">Rooms</button>
-      <button class="pm-admin-btn" id="pmInviteBtn" type="button" hidden data-i18n="pm_invite">Invite</button>
+      <button class="pm-tool-btn is-primary" id="pmInviteBtn" type="button" hidden data-i18n="pm_invite">Invite a customer</button>
+      <!-- Thirty digits used to be printed here, wrapping mid-number in 11px
+           grey, on a button that opened the BACKUP dialog. The number belongs
+           where it can be read (Profile's card, and the dialog behind this
+           chip), and a button has to open the thing it is named after. -->
+      <button class="pm-tool-btn" id="pmFpBtn" type="button" hidden data-i18n="pf_safety">Your safety number</button>
     </div>
 
     <div class="pm-segs" role="tablist">
@@ -973,6 +1074,10 @@
   <!-- Loaded AFTER pm-store: it beats against PMStore.touchSeen(), and the
        page starts it once boot() knows there is an identity to be present as. -->
   <script src="js/lib/pm-presence.js"></script>
+  <!-- One safety number, one shape. pm-identity-ui.js asks this file for
+       the grid, the QR payload and the clipboard fallback, so it must load
+       first. -->
+  <script src="js/lib/pm-safety.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
   <!-- PN-Zaki. Order matters: ai-tools registers window.AITools, which
        pn-zaki folds into its system prompt at load; gemini-chat and

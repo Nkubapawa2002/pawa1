@@ -502,6 +502,28 @@
   }
   function inviteRevoke(hash) { return rpc("pm_invite_revoke", { p_token_hash: hash }); }
 
+  /**
+   * Take a FINISHED link off the agent's list for good.
+   *
+   * Withdrawing kills a link; it does not remove it, and it should not: a
+   * customer who opens a withdrawn link deserves to be told it was withdrawn
+   * rather than that it may have been mistyped. But the row then sits in the
+   * agent's list for ever, above the two links that are actually live, and
+   * "the app still shows me the thing I asked it to destroy" is a fair reading
+   * of that.
+   *
+   * So the two acts are separate. The database refuses to forget a link that
+   * is still open (see supabase/features/message/p_message_invite_forget.sql),
+   * because a live credential that has vanished from the only screen listing
+   * it is the opposite of what somebody tidying up is trying to achieve.
+   */
+  function inviteForget(hash) { return rpc("pm_invite_forget", { p_token_hash: hash }); }
+
+  /** The same, for every finished link at once. Returns how many went. */
+  function invitesClearFinished() {
+    return rpc("pm_invites_clear_finished").then(function (n) { return Number(n) || 0; });
+  }
+
   // ---- reading --------------------------------------------------------------
   /**
    * A thread's messages, decrypted.
@@ -828,5 +850,7 @@
     inviteAccept: inviteAccept,
     invitesMine: invitesMine,
     inviteRevoke: inviteRevoke,
+    inviteForget: inviteForget,
+    invitesClearFinished: invitesClearFinished,
   };
 })();

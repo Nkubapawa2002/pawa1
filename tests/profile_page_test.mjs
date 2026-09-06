@@ -221,11 +221,60 @@ try {
       .forEach((h) => ok(hrefs.includes(h), `links to ${h}`, JSON.stringify(hrefs)));
     ok(new Set(hrefs).size === hrefs.length, "and no destination appears twice", JSON.stringify(hrefs));
 
-    const fp = r.find((x) => x.act === "fingerprint");
-    ok(fp && /\d{5}( \d{5}){5}/.test(fp.value),
-       "the safety number is read from the key already on the device", fp && fp.value);
+    // The safety number is a CARD, not a row. It used to sit in the value slot
+    // on the right of an action row, which is the slot that holds the word
+    // "English": thirty digits there took two thirds of the width, folded the
+    // row's own title into one word per line, and drew the number at 11px and
+    // half opacity. So the shape is part of the assertion, not decoration.
+    const fpCard = await page.evaluate(() => {
+      const c = document.getElementById("pfSafety");
+      if (!c) return null;
+      const num = c.querySelector(".pm-big-fp");
+      const cs = num && getComputedStyle(num);
+      return {
+        text: num ? num.textContent.trim() : "",
+        cells: num ? num.querySelectorAll("span").length : 0,
+        cols: cs ? cs.gridTemplateColumns.split(" ").length : 0,
+        size: cs ? parseFloat(cs.fontSize) : 0,
+        acts: [...c.querySelectorAll("[data-pms]")].map((b) => b.dataset.pms),
+      };
+    });
+    ok(fpCard && /^\d{5}( \d{5}){5}$/.test(fpCard.text),
+       "the safety number is read from the key already on the device",
+       fpCard && fpCard.text);
+    ok(fpCard && fpCard.cells === 6 && fpCard.cols === 3,
+       "and laid out as six groups over three columns, the same shape both phones see",
+       JSON.stringify(fpCard));
+    ok(fpCard && fpCard.size >= 14,
+       "at a size somebody can read out loud, not squeezed into a row's value slot",
+       fpCard && fpCard.size + "px");
+    ok(fpCard && fpCard.acts.includes("code") && fpCard.acts.includes("copy"),
+       "with its own code and copy buttons", JSON.stringify(fpCard && fpCard.acts));
     ok(r.some((x) => x.act === "backup") && r.some((x) => x.act === "restore"),
        "with backup and restore beside it");
+    ok(!r.some((x) => x.act === "fingerprint"),
+       "and no leftover row trying to print thirty digits in the value slot");
+
+    // The code the other phone reads. It is the SAME payload builder the
+    // scanner parses with (js/lib/pm-safety.js owns both), which is the whole
+    // reason that file exists: when Profile drew its own code and the dialog
+    // parsed the dialog's, a mismatch would have been invisible here and
+    // total in the field.
+    await page.evaluate(() => document.querySelector('#pfSafety [data-pms="code"]').click());
+    await sleep(300);
+    const myCode = await page.evaluate(() => {
+      const box = document.querySelector("#pfSafety [data-pms-qr]");
+      if (!box || box.hidden) return null;
+      const num = document.querySelector("#pfSafety .pm-big-fp");
+      const payload = window.PMSafety.qrPayload("agent_1", num.textContent);
+      const back = window.PMSafety.parseQrPayload(payload);
+      return { drawn: !!box.querySelector("svg"), back: back,
+               digits: num.textContent.replace(/\s+/g, "") };
+    });
+    ok(myCode && myCode.drawn, "the code for the other phone's camera draws");
+    ok(myCode && myCode.back && myCode.back.userId === "agent_1" && myCode.back.digits === myCode.digits,
+       "and reads back as this account holding this number, which is what a scan compares",
+       JSON.stringify(myCode && myCode.back));
 
     // Profile must never CREATE a key: publishing one would advertise somebody
     // as reachable on P-Message when they never opened it.
@@ -237,10 +286,10 @@ try {
     ok(errs.length === 0, "no page errors", errs.slice(0, 3).join("\n        "));
 
     section("4. The key dialogs are the shared ones");
-    await page.evaluate(() => document.querySelector('[data-act="fingerprint"]').click());
+    await page.evaluate(() => document.querySelector('#pfSafety [data-pms="verify"]').click());
     await sleep(400);
     ok(await page.$eval("#pfModalBack", (n) => n.classList.contains("is-on")), "the safety-number dialog opens");
-    const big = await page.$eval(".pm-big-fp", (n) => n.textContent.trim());
+    const big = await page.$eval("#pfModal .pm-big-fp", (n) => n.textContent.trim());
     ok(/\d{5}( \d{5}){5}/.test(big), "showing the full thirty digits, not a truncation", big);
     ok(await page.$eval(".pm-modal", (n) => getComputedStyle(n).backgroundColor !== "rgba(0, 0, 0, 0)"),
        "and it is styled — css/pm-identity.css travelled with the library");

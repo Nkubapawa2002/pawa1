@@ -32,6 +32,17 @@
 
   var userId = new URLSearchParams(location.search).get("u") || "";
   var card = null;
+  // What pm_peer() returned for them: the public key that arrived on THIS
+  // device, the safety number derived from it here, and what pm-trust.js
+  // remembers about that key. Null when they have never published one, or when
+  // the call failed, and the card is written to read correctly either way.
+  //
+  // It is a second row rather than more columns on the first because
+  // pm_agent_card() does not carry a key and must not start to: the number
+  // shown for somebody has to be computed from the key their messages will
+  // actually be sealed to, not read out of whichever column happened to be
+  // fetched alongside their bio.
+  var peer = null;
   var listings = [];
   var section = "";          // "" = everything, else houses|services|trucks|jobs
 
@@ -182,7 +193,51 @@
           ? t("ag_call_only", "They have not opened P-Message yet, so there is no key to encrypt to. The number is the one they printed on their own listings, and a call is an ordinary call.")
           : t("pm_unreachable_d", "They have not opened P-Message yet, so there is no key to encrypt to. Their listings still carry a phone number.")) +
         "</div>" +
+        safetyHtml() +
       "</div>";
+
+    var box = document.getElementById("agSafety");
+    if (box && window.PMSafety) window.PMSafety.wire(box);
+  }
+
+  /**
+   * Their safety number, on the page a stranger reads BEFORE writing.
+   *
+   * The note directly above this promises that messages are encrypted on the
+   * device and that nobody with the database can read them. That promise has
+   * exactly one hole in it, and it is worth naming: the public keys come from
+   * the same database as the messages, so whoever controls it could hand a
+   * customer a key of its own and read everything sealed to it. The safety
+   * number is the only thing that closes the hole, and until now it lived four
+   * taps inside a conversation that had not started yet.
+   *
+   * So it goes here, under the claim it substantiates, where somebody deciding
+   * whether to trust this person can act on it.
+   *
+   * DERIVED HERE, from the key that actually arrived (PMStore.peer). Never the
+   * fingerprint column beside it: anyone able to substitute the key can write
+   * the column too, and a number supplied by the attacker cannot catch the
+   * attacker.
+   */
+  function safetyHtml() {
+    if (!window.PMSafety || !peer || !peer.fingerprint) return "";
+    // Both halves have to agree. pm_agent_card's `reachable` and pm_peer's key
+    // read the same table, so in practice they always do, but a card that says
+    // "not on P-Message" directly above a safety number derived from their key
+    // is a page arguing with itself, and on this page the reader is deciding
+    // whether to believe it.
+    if (!card.reachable) return "";
+    return '<div class="ag-safety">' + window.PMSafety.card({
+      fingerprint: peer.fingerprint,
+      userId: peer.userId,
+      own: false,
+      name: card.display_name || t("pm_someone", "Someone"),
+      // What this device remembers about this key from previous visits, so a
+      // key that has CHANGED says so on the storefront rather than waiting for
+      // the customer to open a thread and notice a banner.
+      trust: peer.trust || null,
+      idPrefix: "agSafety",
+    }) + "</div>";
   }
 
   // Which catalogue to label the kinds against: "cleaning" has to be read as a
@@ -307,12 +362,25 @@
       return;
     }
 
-    try {
-      card = await window.PMStore.agentCard(userId);
-    } catch (err) {
+    // Both at once. The card is the page's identity and pm_peer carries the
+    // key behind the safety number; asking for one and then the other would
+    // put a second round trip in front of the first paint for the sake of a
+    // block that sits at the bottom of the card.
+    //
+    // allSettled, not all: a missing key is an ordinary state for somebody who
+    // has never opened P-Message, and it must not take the storefront down
+    // with it.
+    var got = await Promise.allSettled([
+      window.PMStore.agentCard(userId),
+      window.PMStore.peer(userId),
+    ]);
+    if (got[0].status === "rejected") {
+      var err = got[0].reason;
       fail((err && err.message) || String(err));
       return;
     }
+    card = got[0].value;
+    peer = got[1].status === "fulfilled" ? got[1].value : null;
     if (!card) {
       fail(t("ag_nobody", "There is nobody here. The link may be old, or they may have removed their account."));
       return;

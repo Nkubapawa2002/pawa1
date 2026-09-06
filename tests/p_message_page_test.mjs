@@ -309,9 +309,35 @@ window.supabase = { createClient: function () {
       var st = db.threads[args.p_thread];
       return Promise.resolve({ data: st ? (st.members || []).length : 0, error: null });
     }
+    // Revoke MARKS. It used to delete the row here, which quietly made the
+    // stub disagree with p_message_invites.sql: the real function sets
+    // revoked_at and leaves the row, so a customer opening a withdrawn link is
+    // told it was withdrawn rather than that they may have mistyped it. A stub
+    // that deleted could never catch a UI that assumed the row disappears.
     if (name === "pm_invite_revoke") {
-      db.invites = (db.invites || []).filter(function (i) { return i.token_hash !== args.p_token_hash; });
+      (db.invites || []).forEach(function (i) {
+        if (i.token_hash === args.p_token_hash) i.state = "revoked";
+      });
       return Promise.resolve({ data: null, error: null });
+    }
+    // Removing a row from the list is the separate act, and the database
+    // refuses it on a link that is still open. The stub refuses it too, or a
+    // UI that offered Remove on a live link would pass here and lose somebody
+    // a credential in production.
+    if (name === "pm_invite_forget") {
+      var target = (db.invites || []).filter(function (i) { return i.token_hash === args.p_token_hash; })[0];
+      if (target && target.state === "open") {
+        return Promise.resolve({ data: null, error: { message: "That link is still live. Withdraw it first." } });
+      }
+      var before = (db.invites || []).length;
+      db.invites = (db.invites || []).filter(function (i) { return i.token_hash !== args.p_token_hash; });
+      return Promise.resolve({ data: db.invites.length < before, error: null });
+    }
+    if (name === "pm_invites_clear_finished") {
+      var kept = (db.invites || []).filter(function (i) { return i.state === "open"; });
+      var went = (db.invites || []).length - kept.length;
+      db.invites = kept;
+      return Promise.resolve({ data: went, error: null });
     }
     if (name === "pm_group_create") {
       var gid = "room-" + (Object.keys(db.threads).length + 1);
@@ -569,9 +595,14 @@ try {
 
   ok(await page.$eval("#pmLockText", (n) => n.textContent).then((t) => /encrypted/i.test(t)),
      "the header says the conversations are end-to-end encrypted");
-  const fp = await page.$eval("#pmFpBtn", (n) => ({ hidden: n.hidden, text: n.textContent }));
-  ok(!fp.hidden && /\d{5}( \d{5}){5}/.test(fp.text),
-     "a safety number was generated and is on screen", fp.text);
+  // The header chip used to PRINT the thirty digits, in 11px muted mono, on a
+  // line with no room: it wrapped mid-number, which is the one thing a safety
+  // number must not do, and it opened the BACKUP dialog. So the assertion is
+  // now about the door rather than about the text on it, and the digits are
+  // checked where they are actually legible.
+  const fp = await page.$eval("#pmFpBtn", (n) => ({ hidden: n.hidden, text: n.textContent.trim() }));
+  ok(!fp.hidden && /safety number|namba/i.test(fp.text),
+     "a safety number was generated, and the header offers a way to it", fp.text);
 
   const published = await page.evaluate(() => (window.__PM_SENT || []).find((c) => c.name === "pm_publish_key"));
   ok(!!published, "the public key was published, so other people can write to this device");
@@ -592,6 +623,29 @@ try {
   await page.click("#pmBkSkip");
   await sleep(300);
   ok(!(await page.$eval("#pmModalBack", (n) => n.classList.contains("is-on"))), "\"Later\" dismisses it");
+
+  // And the header chip goes to the OTHER key dialog. Checked here rather than
+  // in section 1 because the first-run backup modal is open until the line
+  // above dismisses it, and opening a second dialog over it would be testing
+  // this one by breaking that one.
+  await page.evaluate(() => document.getElementById("pmFpBtn").click());
+  await sleep(400);
+  const fpDlg = await page.evaluate(() => {
+    const g = document.querySelector("#pmModal .pm-big-fp");
+    return { open: document.getElementById("pmModalBack").classList.contains("is-on"),
+             digits: g ? g.textContent.trim() : "",
+             cells: g ? g.querySelectorAll("span").length : 0,
+             isBackup: !!document.getElementById("pmBkPass") };
+  });
+  ok(fpDlg.open && /^\d{5}( \d{5}){5}$/.test(fpDlg.digits) && fpDlg.cells === 6,
+     "and it opens on the full thirty digits, six groups over three columns",
+     JSON.stringify(fpDlg));
+  // The chip is named "Your safety number". It used to open "Save a backup
+  // code", which is a different key ritual with a different consequence, and
+  // on this screen more than any other a button has to open its own label.
+  ok(!fpDlg.isBackup, "and not on the backup dialog, which is a different thing entirely");
+  await page.evaluate(() => document.getElementById("pmFpOk").click());
+  await sleep(250);
 
   section("3. The agent directory");
   await page.click("#segPeople");
@@ -1425,68 +1479,178 @@ try {
     await ap.page.close();
   }
 
-  section("8k. Withdrawing an invite link");
+  section("8k. The links an agent has out there");
   {
-    // pm_invite_revoke has existed since invites shipped and nothing could
-    // call it: pm_invites_mine did not return the token hash, so no UI could
-    // name the link it wanted to withdraw. It does now, and this is the button
-    // that was impossible to write.
+    //  A link is a bearer credential: whoever opens it first becomes the
+    //  customer in that thread. So this list exists to answer one question,
+    //  "what is still out there", and for a long time it could not:
+    //
+    //    · nothing could be withdrawn, because pm_invites_mine did not return
+    //      the token hash the revoke RPC needs to name a link;
+    //    · then nothing could be REMOVED, so a link withdrawn in March sat
+    //      above the two that were live in September, and the app went on
+    //      showing an agent the thing they had asked it to destroy;
+    //    · and the confirmation was window.confirm(), an untranslated system
+    //      box that cannot say which link it is about to kill.
+    //
+    //  All three are what this section pins.
     const ap = await openPage("agent@example.com");
     await sleep(900);
     await ap.page.evaluate(() => {
+      // If anything still reaches for the system dialog, this counts it. It
+      // must stay at zero: a confirmation that cannot be translated and cannot
+      // name its subject has no business on a screen that is careful about
+      // both.
       window.__CONFIRMS = 0;
       window.confirm = () => { window.__CONFIRMS++; return true; };
       document.getElementById("pmModalBack").classList.remove("is-on");
       document.getElementById("pmInviteBtn").click();
     });
     await sleep(300);
-    await ap.page.evaluate(() => document.getElementById("pmInvGo").click());
+
+    // Step 1 asks for a note and, optionally, the number to send it to. The
+    // number is the whole reason step 2 can hand the link over rather than
+    // print it: without it "send this to somebody" is a text box and a shrug.
+    ok(await ap.page.$("#pmInvLabel") !== null && await ap.page.$("#pmInvPhone") !== null,
+       "step 1 asks who it is for, and where to send it");
+
+    await ap.page.evaluate(() => {
+      document.getElementById("pmInvLabel").value = "the couple from Kariakoo";
+      document.getElementById("pmInvPhone").value = "0712 345 678";
+      document.getElementById("pmInvGo").click();
+    });
     await sleep(900);
+
+    // Step 2. Five ways out, and the two that matter most are aimed at the
+    // number that was typed rather than at a chooser.
+    const send = await ap.page.evaluate(() => {
+      const g = (id) => document.getElementById(id);
+      return {
+        link: g("pmInvLink") ? g("pmInvLink").value : "",
+        wa: g("pmInvWa") ? g("pmInvWa").getAttribute("href") : "",
+        sms: g("pmInvSms") ? g("pmInvSms").getAttribute("href") : "",
+        copy: !!g("pmInvCopy"),
+        qrBtn: !!g("pmInvQrGo"),
+        step: (document.querySelector(".pm-steps-n") || {}).textContent || "",
+      };
+    });
+    ok(/[?&]i=/.test(send.link), "a link is produced, carrying the token", send.link.slice(0, 60));
+    // 0712 345 678 is how a number is written here; 255712345678 is how wa.me
+    // has to be given it. A WhatsApp button that used what was typed opens an
+    // empty chooser, which looks like the feature working.
+    ok(/^https:\/\/wa\.me\/255712345678\?text=/.test(send.wa),
+       "WhatsApp opens at that person, with the message ready", send.wa.slice(0, 60));
+    ok(/^sms:\+255712345678[?&]body=/.test(send.sms),
+       "and so does the message app", send.sms.slice(0, 60));
+    ok(send.wa.includes(encodeURIComponent(send.link)),
+       "both carry the link itself, not a description of it");
+    ok(send.copy && send.qrBtn,
+       "with the clipboard and a scannable code beside them, for the phone that has neither app");
+    ok(/2/.test(send.step), "and it says which step this is", send.step);
+
+    // The code is the only hand-off that involves nobody at all: the link goes
+    // from this screen into that camera, touching no carrier and no messaging
+    // company. For a bearer credential handed over in person that is the right
+    // thing to offer, so it has to actually draw.
+    await ap.page.evaluate(() => document.getElementById("pmInvQrGo").click());
+    await sleep(400);
+    ok(await ap.page.$("#pmInvQr svg") !== null,
+       "the code draws, so a link can be handed over with nothing in the middle");
+
+    // Back to the list, and make a second link. This is what makes the
+    // listener question real rather than theoretical: the first render happens
+    // while the list is still empty and returns before binding anything, so
+    // one link can never reveal a handler bound per redraw. Two can.
+    await ap.page.evaluate(() => document.getElementById("pmInvDone").click());
+    await sleep(700);
+    // Named too. Both rows carry a note, so "which link am I about to kill" is
+    // a question the confirmation can actually be checked on: with one of them
+    // blank, a confirmation naming the wrong row would still read as passing.
+    await ap.page.evaluate(() => {
+      document.getElementById("pmInvLabel").value = "Mr Mushi, plot 44";
+      document.getElementById("pmInvGo").click();
+    });
+    await sleep(700);
+    await ap.page.evaluate(() => document.getElementById("pmInvDone").click());
+    await sleep(700);
 
     const listed = await ap.page.evaluate(() => ({
       rows: document.querySelectorAll("#pmInvList .pm-inv-row").length,
       revoke: document.querySelectorAll("#pmInvList [data-revoke]").length,
+      forget: document.querySelectorAll("#pmInvList [data-forget]").length,
+      clear: !!document.querySelector("#pmInvList [data-inv-clear]"),
     }));
-    ok(listed.rows === 1, "a new link is listed", JSON.stringify(listed));
-    ok(listed.revoke === 1, "with a way to withdraw it");
+    ok(listed.rows === 2, "both links are listed", JSON.stringify(listed));
+    ok(listed.revoke === 2, "each with a way to withdraw it");
+    ok(listed.forget === 0 && !listed.clear,
+       "and nothing offering to remove a link that is still live, because it would still be live",
+       JSON.stringify(listed));
 
-    // A SECOND link, from the same open modal. This is what makes the listener
-    // question real rather than theoretical: the first render happens while the
-    // list is still empty and returns before binding anything, so one link can
-    // never reveal a handler bound per redraw. Two can, and an agent making a
-    // couple of links in one sitting is the ordinary case, not a stress test.
-    await ap.page.evaluate(() => document.getElementById("pmInvGo").click());
-    await sleep(900);
-    ok(await ap.page.evaluate(() =>
-         document.querySelectorAll("#pmInvList .pm-inv-row").length) === 2,
-       "a second link made in the same sitting is listed beside it");
-
+    // Withdrawing asks IN the dialog, naming the link, and never through the
+    // system box.
     await ap.page.evaluate(() => document.querySelector("#pmInvList [data-revoke]").click());
+    await sleep(300);
+    const asked = await ap.page.evaluate(() => {
+      const strip = document.querySelector(".pm-inv-ask");
+      return { there: !!strip, text: strip ? strip.textContent : "",
+               confirms: window.__CONFIRMS,
+               revokes: (window.__PM_SENT || []).filter((c) => c.name === "pm_invite_revoke").length };
+    });
+    ok(asked.there, "withdrawing asks first");
+    // Newest first, so the first Withdraw belongs to the SECOND link made.
+    // Naming the wrong one would be worse than naming none.
+    ok(/Mr Mushi/.test(asked.text) && !/Kariakoo/.test(asked.text),
+       "naming the link it is about, which a system dialog cannot do", asked.text.slice(0, 90));
+    ok(asked.confirms === 0, "and never through window.confirm, which cannot be translated");
+    ok(asked.revokes === 0, "nothing is withdrawn until the question is answered");
+
+    await ap.page.evaluate(() => document.querySelector('.pm-inv-ask [data-ask="go"]').click());
     await sleep(900);
     const gone = await ap.page.evaluate(() => ({
       calls: (window.__PM_SENT || []).filter((c) => c.name === "pm_invite_revoke").length,
-      rows: document.querySelectorAll("#pmInvList .pm-inv-row").length,
       confirms: window.__CONFIRMS,
+      live: document.querySelectorAll("#pmInvList .pm-inv-row.is-live").length,
+      forget: document.querySelectorAll("#pmInvList [data-forget]").length,
+      clear: !!document.querySelector("#pmInvList [data-inv-clear]"),
+      finished: (document.querySelector(".pm-inv-done") || {}).textContent || "",
     }));
-    ok(gone.calls >= 1, "which calls pm_invite_revoke with the hash it was given");
-    ok(gone.rows === 1, "the withdrawn link stops being listed, and only that one",
-       "rows left: " + gone.rows);
-    // ONE tap, ONE revoke. #pmInvList outlives its own rows, so a handler bound
-    // per redraw accumulates: the modal renders the list on open and again
-    // after a link is made, and the next tap would then confirm twice and fire
-    // two revokes — the second failing on a hash that is already gone, which
+    // ONE tap, ONE revoke. #pmInvList outlives its own rows, so a handler
+    // bound per redraw accumulates: the modal renders the list on open and
+    // again after every link, and the next tap would then fire several
+    // revokes, all but the first failing on a hash that is already gone, which
     // paints an error over a withdrawal that worked.
     ok(gone.calls === 1,
-       "exactly once — the list is redrawn repeatedly and must not stack up listeners",
+       "exactly one revoke for one tap, however many times the list has been redrawn",
        "revoke calls: " + gone.calls);
-    // And asked once. This is the half a person actually sees: pm_invite_revoke
-    // is an UPDATE that matches nothing the second time, so the extra calls are
-    // silent — what is not silent is being asked "withdraw this link?" twice for
-    // one tap, which reads as the button having failed.
-    ok(gone.confirms === 1,
-       "and asked for confirmation once, not once per redraw that had happened",
-       "confirm prompts: " + gone.confirms);
-    ok(ap.errs.length === 0, "no page errors withdrawing a link", ap.errs.slice(0, 3).join("\n        "));
+    ok(gone.confirms === 0, "and still nothing through the system dialog");
+    ok(gone.live === 1, "the withdrawn link leaves the live list", "live rows: " + gone.live);
+    // It does NOT vanish. The row is what tells a customer opening that link
+    // that it was withdrawn rather than mistyped, so it moves rather than
+    // disappearing, and removing it is the separate act underneath.
+    ok(/Mr Mushi/.test(gone.finished),
+       "and moves to Finished rather than vanishing, so the reason survives for whoever opens it",
+       gone.finished.slice(0, 90));
+    ok(gone.forget === 1 && gone.clear,
+       "where it can now be removed, one at a time or all at once", JSON.stringify(gone));
+
+    // Removing a dead one is not confirmed: nothing can go wrong, and a
+    // confirmation for an act with no consequence trains people to tap through
+    // the ones that have.
+    await ap.page.evaluate(() => document.querySelector("#pmInvList [data-forget]").click());
+    await sleep(900);
+    const cleared = await ap.page.evaluate(() => ({
+      forgets: (window.__PM_SENT || []).filter((c) => c.name === "pm_invite_forget").length,
+      rows: document.querySelectorAll("#pmInvList .pm-inv-row").length,
+      finished: !!document.querySelector(".pm-inv-done"),
+      confirms: window.__CONFIRMS,
+    }));
+    ok(cleared.forgets === 1, "removing a finished link calls pm_invite_forget once",
+       JSON.stringify(cleared));
+    ok(cleared.rows === 1 && !cleared.finished,
+       "and it is gone from the list, leaving only the live one", JSON.stringify(cleared));
+    ok(cleared.confirms === 0, "with no confirmation, because nothing can go wrong");
+
+    ok(ap.errs.length === 0, "no page errors through any of it", ap.errs.slice(0, 3).join("\n        "));
     await ap.page.close();
   }
 
@@ -1614,8 +1778,21 @@ try {
   const guestLock = await guest.page.$eval("#pmLockText", (n) => n.textContent);
   ok(/encrypted/i.test(guestLock) && !/not/i.test(guestLock),
      "the guest gets the same end-to-end lock as everyone else", guestLock);
-  const guestFp = await guest.page.$eval("#pmFpBtn", (n) => n.textContent);
-  ok(/\d{5}( \d{5}){5}/.test(guestFp), "and their own safety number", guestFp);
+  // Read from inside the dialog rather than off the chip. The header used to
+  // print the whole number and it wrapped mid-digit-group; a guest's number is
+  // as real as anybody's, so it is checked where it is actually shown.
+  await guest.page.evaluate(() => document.getElementById("pmFpBtn").click());
+  await sleep(400);
+  const guestFp = await guest.page.evaluate(() => {
+    const g = document.querySelector("#pmModal .pm-big-fp");
+    return g ? g.textContent.trim() : "";
+  });
+  ok(/^\d{5}( \d{5}){5}$/.test(guestFp), "and their own safety number", guestFp);
+  await guest.page.evaluate(() => {
+    const b = document.getElementById("pmFpOk");
+    if (b) b.click();
+  });
+  await sleep(200);
 
   const guestPub = await guest.page.evaluate(() =>
     (window.__PM_SENT || []).find((c) => c.name === "pm_publish_key"));

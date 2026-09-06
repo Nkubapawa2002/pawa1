@@ -66,14 +66,19 @@
       '<span class="ha-find-ic ' + (o.tint || "ic-emerald") + '" aria-hidden="true">' + (o.icon || "") + "</span>" +
       '<span class="ha-find-tx"><span class="ha-find-t">' + esc(o.title) + "</span>" +
       (o.desc ? '<span class="ha-find-d">' + esc(o.desc) + "</span>" : "") + "</span>" +
-      (o.value ? '<span class="pf-val' + (o.mono ? " mono" : "") + '">' + esc(o.value) + "</span>" : "");
+      (o.value ? '<span class="pf-val">' + esc(o.value) + "</span>" : "");
     return o.href
       ? '<a class="ha-find-card" href="' + esc(o.href) + '">' + inner + "</a>"
       : '<button type="button" class="ha-find-card" data-act="' + esc(o.act) + '">' + inner + "</button>";
   }
+  // A title is optional. The two backup rows sit under the safety-number card
+  // and belong to the heading ABOVE it, so repeating "Your encryption key" over
+  // them would split one subject into two, and an empty <h2> would leave a gap
+  // that reads as a heading somebody forgot to write.
   function group(title, rows) {
     if (!rows.length) return "";
-    return '<section class="pf-group"><h2 class="pf-group-h">' + esc(title) + "</h2>" +
+    return '<section class="pf-group' + (title ? "" : " is-tight") + '">' +
+      (title ? '<h2 class="pf-group-h">' + esc(title) + "</h2>" : "") +
       '<div class="ha-find">' + rows.join("") + "</div></section>";
   }
 
@@ -126,7 +131,26 @@
       window.AgentCard.bio(storeCard, {
         emptyText: t("pf_shop_nobio", "You have not written anything about your work yet. This is the space a customer reads first."),
       }) +
-      window.AgentCard.stats(storeCard, { compact: true });
+      window.AgentCard.stats(storeCard, { compact: true }) +
+      // The safety number a customer now sees on agent.html, shown here for
+      // the same reason everything else in this block is: so the preview is
+      // the page rather than a description of it. An agent who does not know
+      // their number is published cannot answer a customer who rings up
+      // reading it out.
+      //
+      // Compact: no buttons and no code. The full card with the QR is already
+      // at the top of this screen, and two copies with two sets of controls
+      // would be one screen asking twice.
+      (fingerprint && window.PMSafety
+        ? '<div class="pf-shop-safety">' + window.PMSafety.card({
+            fingerprint: fingerprint,
+            own: false,
+            compact: true,
+            name: storeCard.display_name || t("pf_you", "You"),
+            note: t("pf_shop_safety", "Customers can compare this with the number on their own screen before they write to you. It is on your page now."),
+            idPrefix: "pfShopSafety",
+          }) + "</div>"
+        : "");
 
     var warn = window.AgentCard.reachable(storeCard) ? ""
       : '<p class="pf-shop-warn">' +
@@ -306,13 +330,34 @@
     html += noticesHtml();
 
     // ---- encryption --------------------------------------------------------
-    // The key is the account, so it sits above the listings rather than under
-    // a settings heading three taps down.
+    //
+    //  The key is the account, so it sits above the listings rather than under
+    //  a settings heading three taps down.
+    //
+    //  The safety number is a CARD, not a row. It used to be a row with the
+    //  number in the value slot on the right, which is the slot that holds the
+    //  word "English": thirty digits at flex: 0 0 auto took two thirds of the
+    //  width, crushed "Your safety number" into one word per line, and drew
+    //  the number itself at 11px and half opacity. The one string on this
+    //  screen that exists to be read out loud was the hardest thing on it to
+    //  read.
+    //
+    //  Now it is the same 3x2 grid the verify dialog and the public agent page
+    //  draw, from js/lib/pm-safety.js, at the width of the column, with the QR
+    //  code for the other person's camera folded in underneath. Same object
+    //  everywhere: a number people compare cannot have two shapes.
     if (me.userId && fingerprint) {
-      html += group(t("pf_g_key", "Your encryption key"), [
-        row({ act: "fingerprint", icon: ICON.key, title: t("pf_safety", "Your safety number"),
-              desc: t("pf_safety_d", "Read it aloud to someone to prove nobody is in between."),
-              value: fingerprint, mono: true }),
+      html += '<section class="pf-group"><h2 class="pf-group-h">' +
+        esc(t("pf_g_key", "Your encryption key")) + "</h2>" +
+        window.PMSafety.card({
+          fingerprint: fingerprint,
+          userId: me.userId,
+          own: true,
+          idPrefix: "pfSafety",
+          verifyAction: t("pf_safety_check", "Check someone else's"),
+        }) +
+        "</section>";
+      html += group("", [
         row({ act: "backup", icon: ICON.key, tint: "ic-gold", title: t("pf_backup", "Save a backup code"),
               desc: t("pf_backup_d", "The only copy of this key is on this device. A code lets you restore it on another.") }),
         row({ act: "restore", icon: ICON.key, tint: "ic-gold", title: t("pf_restore", "Restore from a backup code"),
@@ -391,6 +436,20 @@
     }
 
     el.pfMain.innerHTML = html;
+
+    // The safety card owns two of its own buttons (show the code, copy the
+    // number) and hands the third back here, because "check someone else's"
+    // means opening a dialog and pm-safety.js deliberately owns none.
+    //
+    // Re-bound after every render because innerHTML above threw the old node
+    // away. PMSafety.wire marks the element it bound, so this is safe to call
+    // on a node that somehow survived.
+    var safety = document.getElementById("pfSafety");
+    if (safety && window.PMSafety) {
+      window.PMSafety.wire(safety, {
+        onVerify: function () { window.PMIdentityUI.safetyNumbers(); },
+      });
+    }
   }
 
   // ---- actions -------------------------------------------------------------
@@ -427,7 +486,8 @@
       }
       if (act === "billing") { showBilling(); return; }
 
-      if (act === "fingerprint") return window.PMIdentityUI.safetyNumbers();
+      // No "fingerprint" case any more: the safety number is a card with its
+      // own buttons, wired at the end of render().
       if (act === "backup") return window.PMIdentityUI.backup();
       if (act === "restore") return window.PMIdentityUI.restore();
 
