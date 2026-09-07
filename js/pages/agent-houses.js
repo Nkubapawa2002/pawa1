@@ -184,6 +184,11 @@ window.initAgentHousesPage = async () => {
   let searchTimer     = null;       // debounce timer for Mapbox search
   let gpsAccuracyM    = null;       // accuracy (metres) of the last GPS fix, if any
   let _videoWarmed    = false;   // see warmVideoGateway(), ~3000 lines below
+  // The workspace: the board of eight parts, and one part at a time behind it.
+  // Declared up here with the rest of the module state for the same reason
+  // ownerQuota is: mountWorkspace() is called before any await, and a `let`
+  // further down is a temporal dead zone, not a definition.
+  let formWs        = null;
 
   // ---- Is this page finished setting itself up? --------------------------
   //
@@ -385,6 +390,14 @@ create policy "house-photos upload" on storage.objects for insert
   newBtn?.addEventListener("click", () => requestForm(null));
   cancelBtn?.addEventListener("click", () => closeForm());
 
+  // The board over the eight parts of the form, built here for the same reason
+  // the buttons above are bound here: it needs the DOM and nothing else, and
+  // everything below this line waits on the network. Mounted after the cancel
+  // binding on purpose, because the workspace MOVES that button onto the
+  // board, and a listener travels with the node while a re-created button
+  // would not.
+  mountWorkspace();
+
   // ---- Hard requirement: Supabase must be configured -----------------------
   if (!sb) {
     authCard.hidden = false;
@@ -580,8 +593,13 @@ create policy "house-photos upload" on storage.objects for insert
       // one house to let, so an owner is spared them. The waiting-renters
       // board above is NOT gated: a room to fill is a room to fill.
       if (!isOwnerAccount()) {
-        window.renderAgentClientTip?.({ mount: dashboard, id: "ahClientTip", kind: "houses" });
-        window.renderFrameScout?.({ mount: dashboard, id: "ahFrameScout", kind: "houses" });
+        // Mounted into #ahCoach, which sits UNDER the listings, rather than
+        // into the dashboard itself. Both panels insert at their mount's
+        // firstChild, so passing the dashboard put two long coaching cards
+        // above the properties the agent came here to manage.
+        const coach = document.getElementById("ahCoach") || dashboard;
+        window.renderAgentClientTip?.({ mount: coach, id: "ahClientTip", kind: "houses" });
+        window.renderFrameScout?.({ mount: coach, id: "ahFrameScout", kind: "houses" });
       }
       window.renderAgentMessages?.({ sb, mount: dashboard });   // admin → agent inbox
     } else {
@@ -721,9 +739,10 @@ create policy "house-photos upload" on storage.objects for insert
 
   // ---- Load my listings ----------------------------------------------------
   async function loadMyListings() {
-    // Skeleton (or keep the one already in HTML on first load). Reset to the
-    // grid layout — only the populated-listings branch switches to table mode.
-    listEl.classList.remove("ah-table-mode");
+    // Skeleton (or keep the one already in HTML on first load). Back to the
+    // plain grid the skeleton and the empty state sit in; only the populated
+    // branch below switches it to the listing-card layout.
+    listEl.classList.remove("aw-listings");
     listEl.setAttribute("aria-busy", "true");
     listEl.innerHTML = `
       <div class="hp-sk-card" style="grid-template-columns:1fr;grid-template-rows:160px auto" aria-hidden="true">
@@ -785,73 +804,91 @@ create policy "house-photos upload" on storage.objects for insert
       document.getElementById("ahEmptyNew")?.addEventListener("click", () => requestForm(null));
       return;
     }
-    // Listings render as a compact table (one row per property) so an agent
-    // can scan/manage many listings at a glance, like the parcel dashboard.
-    listEl.classList.add("ah-table-mode");
-    const typeLabel = t => ({ apartment: "Apartment", house: "House", plot: "Plot", office: "Office", shop: "Shop / business", warehouse: "Warehouse" }[t] || (t || "—"));
-    const rows = data.map(h => {
-      const photo = window.DataStore.housePhotoUrl(h.photo);
-      const listing = h.listing === "sale" ? tr("ah_for_sale") : tr("ah_for_rent");
-      const price = formatPrice(h);
-      const where = esc(h.area || "—") + (h.region ? ", " + esc(h.region) : "");
-      // Agent commission ("dalali" fee): what the TENANT pays the agent for the
-      // deal, separate from the rent. TZ standard = one month's rent (or an
-      // explicit agent_fee_tzs). Sale listings use a different model → "—".
-      const agentFee = h.listing === "rent"
+    // One card per property.
+    //
+    // This used to be an eight-column table at `min-width: 640px` inside an
+    // `overflow-x: auto`, which is a sideways scroll on every phone sold, with
+    // Edit and Delete parked in the column furthest off the right-hand edge.
+    // It also carried eleven hardcoded English strings and six raw hex colours
+    // in inline styles. Cards stack on a phone, go two and three up on a wide
+    // screen, and every string and colour below comes from i18n and the tokens.
+    listEl.classList.add("aw-listings");
+
+    const typeLabel = (ty) => {
+      const known = ["apartment", "house", "plot", "office", "shop", "warehouse"];
+      return known.includes(ty) ? tr("ah_type_" + ty) : (ty || tr("ah_type_other"));
+    };
+    const ICO = {
+      clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+      home:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
+      pin:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+      cash:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
+    };
+
+    const cards = data.map(h => {
+      const photo   = window.DataStore.housePhotoUrl(h.photo);
+      const isSale  = h.listing === "sale";
+      const price   = formatPrice(h);
+      const unit    = isSale ? "TZS" : "TZS " + tr("aw_per_" + (h.period === "total" ? "total" : "month"));
+      const where   = [h.area, h.region].filter(Boolean).join(", ");
+
+      // The commission the TENANT pays the agent for the deal, separate from
+      // the rent. The Tanzanian standard is one month's rent unless an explicit
+      // figure was set. A sale runs on a different model, so it shows nothing.
+      const fee = !isSale
         ? (Number(h.agent_fee_tzs) > 0 ? Number(h.agent_fee_tzs) : (Number(h.price_tzs) || 0))
         : 0;
-      const feeCell = agentFee > 0
-        ? `<strong>TZS ${agentFee.toLocaleString("en-US")}</strong>${Number(h.agent_fee_tzs) > 0 ? "" : ` <small style="color:#6b6960;">1 mo</small>`}`
-        : `<small style="color:#9aa0a6;">—</small>`;
-      // Listings auto-delete (row + photos/videos) 15 days after posting.
+
+      // Listings and their media are removed automatically 15 days after
+      // posting. Three days out that stops being a fact and becomes a warning.
       const daysLeft = Math.ceil((new Date(h.created_at).getTime() + 15 * 864e5 - Date.now()) / 864e5);
-      const expChip = daysLeft <= 3
-        ? `<span title="This listing and its photos/videos are removed automatically 15 days after posting" style="display:inline-block;background:#fde6e2;color:#b3261e;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">${daysLeft <= 0 ? "Expires today" : "Expires in " + daysLeft + "d"}</span>`
-        : `<span title="This listing and its photos/videos are removed automatically 15 days after posting" style="display:inline-block;background:#eef2f7;color:#5b6472;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">Expires in ${daysLeft}d</span>`;
-      return `<tr data-id="${h.id}">
-        <td class="ah-td-photo">
-          <span class="ah-thumb" data-loading="true" style="background-image:url('${photo}')"></span>
-        </td>
-        <td class="ah-td-title"><span class="ah-row-title">${esc(h.title)}</span>${h.available === false ? ` <span style="display:inline-block;background:#fde6e2;color:#b3261e;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;">${h.listing === "sale" ? "Sold" : "Rented"} · off-market</span>` : ""} ${expChip}</td>
-        <td class="ah-td-type">${esc(typeLabel(h.type))}${h.room_kind === "single" ? ` · ${esc("Single room")}` : h.room_kind === "master" ? ` · ${esc("Master room")}` : ""}</td>
-        <td class="ah-td-listing"><span class="ah-pill ah-pill-${h.listing === "sale" ? "sale" : "rent"}">${esc(listing)}</span></td>
-        <td class="ah-td-price"><strong>${price.value}</strong> <small>${price.unit}</small></td>
-        <td class="ah-td-fee">${feeCell}</td>
-        <td class="ah-td-area">${where}</td>
-        <td class="ah-td-actions">
-          ${h.listing === "rent" ? `<button class="ah-btn ah-tenant-btn" aria-label="Mark deal completed for ${esc(h.title)}">${esc(tr("ah_completed_btn"))}</button>` : ""}
-          ${h.listing === "sale" ? `<button class="ah-btn ${h.available === false ? "" : "ah-btn-complete"} ah-sold-btn" aria-label="${h.available === false ? "Re-list" : "Mark sold"} ${esc(h.title)}">${h.available === false ? esc(tr("ah_relist_btn")) : esc(tr("ah_mark_sold_btn"))}</button>` : ""}
-          <button class="ah-btn ah-edit-btn" aria-label="Edit ${esc(h.title)}">${esc(tr("ah_edit"))}</button>
-          <button class="ah-btn ah-btn-danger ah-delete-btn" aria-label="Delete ${esc(h.title)}">${esc(tr("ah_delete"))}</button>
-        </td>
-      </tr>`;
+      const expText  = daysLeft <= 0 ? tr("aw_expires_today")
+                     : daysLeft === 1 ? tr("aw_expires_1")
+                     : tr("aw_expires_n").replace("{n}", daysLeft);
+      const expFlag  = `<span class="aw-flag aw-flag--${daysLeft <= 3 ? "soon" : "calm"}">${esc(expText)}</span>`;
+
+      const offFlag = h.available === false
+        ? `<span class="aw-flag aw-flag--off">${esc(tr(isSale ? "aw_off_sold" : "aw_off_rented"))}</span>`
+        : "";
+
+      return `<article class="aw-listing" data-id="${esc(h.id)}">
+        <div class="aw-listing__photo" data-loading="true" style="background-image:url('${esc(photo)}')">
+          <span class="aw-listing__tag${isSale ? " aw-listing__tag--sale" : ""}">${esc(tr(isSale ? "ah_for_sale" : "ah_for_rent"))}</span>
+        </div>
+        <div class="aw-listing__body">
+          <h3 class="aw-listing__title">${esc(h.title)}</h3>
+          <span class="aw-listing__price">${esc(price.value)} <small>${esc(unit)}</small></span>
+          <ul class="aw-listing__facts">
+            <li>${ICO.home}${esc(typeLabel(h.type))}</li>
+            ${where ? `<li>${ICO.pin}${esc(where)}</li>` : ""}
+            ${fee > 0 ? `<li>${ICO.cash}${esc(tr("aw_your_fee"))} <b>${fee.toLocaleString("en-US")}</b>${Number(h.agent_fee_tzs) > 0 ? "" : " " + esc(tr("aw_fee_one_month"))}</li>` : ""}
+            <li>${ICO.clock}${expFlag}</li>
+            ${offFlag ? `<li>${offFlag}</li>` : ""}
+          </ul>
+        </div>
+        <div class="aw-listing__acts">
+          ${!isSale ? `<button type="button" class="ah-btn ah-tenant-btn" aria-label="${esc(tr("ah_completed_btn"))}: ${esc(h.title)}">${esc(tr("ah_completed_btn"))}</button>` : ""}
+          ${isSale ? `<button type="button" class="ah-btn ${h.available === false ? "" : "ah-btn-complete"} ah-sold-btn" aria-label="${esc(tr(h.available === false ? "ah_relist_btn" : "ah_mark_sold_btn"))}: ${esc(h.title)}">${esc(tr(h.available === false ? "ah_relist_btn" : "ah_mark_sold_btn"))}</button>` : ""}
+          <button type="button" class="ah-btn ah-edit-btn" aria-label="${esc(tr("ah_edit"))}: ${esc(h.title)}">${esc(tr("ah_edit"))}</button>
+          <button type="button" class="ah-btn ah-btn-danger ah-delete-btn" aria-label="${esc(tr("ah_delete"))}: ${esc(h.title)}">${esc(tr("ah_delete"))}</button>
+        </div>
+      </article>`;
     }).join("");
-    listEl.innerHTML = `<table class="ah-table">
-      <thead>
-        <tr>
-          <th class="ah-td-photo"></th>
-          <th>Property</th>
-          <th>Type</th>
-          <th>Listing</th>
-          <th>Price</th>
-          <th title="The commission the tenant pays you — one month's rent, separate from the rent">Agent fee</th>
-          <th>Area</th>
-          <th class="ah-td-actions"></th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-    listEl.querySelectorAll("tr[data-id]").forEach(tr => {
-      const id = tr.dataset.id;
-      const row = data.find(x => x.id === id);
-      tr.querySelector(".ah-edit-btn").addEventListener("click", () => requestForm(row));
-      tr.querySelector(".ah-delete-btn").addEventListener("click", () => deleteListing(row));
-      tr.querySelector(".ah-tenant-btn")?.addEventListener("click", () => openTenantPanel(row));
-      tr.querySelector(".ah-sold-btn")?.addEventListener("click", () => markSold(row));
+
+    listEl.innerHTML = cards;
+
+    listEl.querySelectorAll("[data-id]").forEach(card => {
+      const row = data.find(x => String(x.id) === card.dataset.id);
+      if (!row) return;
+      card.querySelector(".ah-edit-btn").addEventListener("click", () => requestForm(row));
+      card.querySelector(".ah-delete-btn").addEventListener("click", () => deleteListing(row));
+      card.querySelector(".ah-tenant-btn")?.addEventListener("click", () => openTenantPanel(row));
+      card.querySelector(".ah-sold-btn")?.addEventListener("click", () => markSold(row));
     });
-    // Drop shimmer on each row thumbnail when its image is ready.
-    listEl.querySelectorAll(".ah-thumb[data-loading]").forEach(el => {
-      const m = el.getAttribute("style").match(/url\(['"]?([^'")]+)['"]?\)/);
+
+    // Drop the shimmer on each cover as its image arrives.
+    listEl.querySelectorAll(".aw-listing__photo[data-loading]").forEach(el => {
+      const m = (el.getAttribute("style") || "").match(/url\(['"]?([^'")]+)['"]?\)/);
       if (!m) { el.removeAttribute("data-loading"); return; }
       const img = new Image();
       img.decoding = "async"; img.loading = "lazy";
@@ -870,7 +907,6 @@ create policy "house-photos upload" on storage.objects for insert
   }
   fListing?.addEventListener("change", toggleMinMonths);
 
-  let formRail = null;
 
   function openForm(row) {
     editingId = row?.id || null;
@@ -1007,15 +1043,97 @@ create policy "house-photos upload" on storage.objects for insert
     mode = "form";
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    // Init or refresh pin picker map (must wait for the section to be
-    // visible before MapLibre can size itself correctly).
-    setTimeout(() => initPinMap(), 80);
+    // The workspace. The eight parts become a board of eight tiles, and only
+    // the part the agent has opened is in the layout, which is what took a
+    // 390px phone off a thirteen-screen scroll.
+    //
+    // The pin map is no longer built here. MapLibre cannot size itself inside
+    // a container that is display:none, and an agent who never opens "Where it
+    // is" was paying for a map, a style, a marker and a tile budget to render
+    // nothing. It is built the first time that part is opened instead, and
+    // initPinMap() resizes on every visit after that.
+    mountWorkspace();
+    formWs?.toBoard();
+  }
 
-    // The section rail: which of the eight parts you are in, and which ones
-    // already hold an answer. It can only be mounted once the form is on
-    // screen, and it has to re-read the ticks after a listing is loaded in.
-    formRail = formRail || window.AgentPortalRail?.mount({ rail: "#ahRail", form: "#ahForm" });
-    formRail?.refresh();
+  /**
+   * Build the workspace over the form.
+   *
+   * Called once while the page assembles itself rather than the first time the
+   * form is opened. Nothing here measures anything, so it does not need the
+   * form to be on screen, and mounting early means a test or a tool that
+   * unhides #ahFormSection by hand gets the board rather than the eight raw
+   * panels underneath it.
+   */
+  function mountWorkspace() {
+    if (formWs) return formWs;
+    formWs = window.AgentWorkspace?.mount({
+      form: "#ahForm",
+      summarize: summarizeSection,
+      // The "listings last 15 days" warning is about the listing, not about
+      // any one part of it, so it lives on the board beside Save rather than
+      // above all eight steps in turn.
+      boardOnly: ".ap-note--warn",
+      // MapLibre cannot size itself inside a container that is display:none,
+      // so the pin map is built the first time this part is opened, and
+      // resized on every visit after that. initPinMap() does both.
+      onStep: (panel) => { if (panel.id === "ahSecWhere") setTimeout(initPinMap, 60); },
+    }) || null;
+    return formWs;
+  }
+
+  /**
+   * The line under each tile on the board.
+   *
+   * Five of the eight parts are described perfectly well by counting what the
+   * agent has filled in, and js/lib/agent-workspace.js already does that. The
+   * three below are not: a pin is set or it is not, a price is a figure rather
+   * than a field, and "6 photos" is the answer where "1 of 1 filled" is noise.
+   * Returning "" hands the tile back to the generic count.
+   */
+  function summarizeSection(panel) {
+    switch (panel.id) {
+      case "ahSecMedia": {
+        const p = photoTiles.length, v = videoTiles.length;
+        if (!p && !v) return tr("aw_sum_no_photos");
+        if (!v) return tr("aw_sum_photos").replace("{n}", p);
+        return tr("aw_sum_photos_videos").replace("{n}", p).replace("{v}", v);
+      }
+      case "ahSecPrice": {
+        const n = Number(fPrice?.value);
+        const rooms = fRoomsList ? fRoomsList.querySelectorAll(".ah-room").length : 0;
+        const bills = fCostsList ? fCostsList.children.length : 0;
+        if (!n && rooms) return tr("aw_sum_price_rooms");
+        if (!n) return tr("aw_sum_no_price");
+        const money = "TZS " + n.toLocaleString("en-US");
+        return bills
+          ? tr("aw_sum_price_bills").replace("{money}", money).replace("{n}", bills)
+          : money;
+      }
+      case "ahSecRooms": {
+        const rooms = fRoomsList ? fRoomsList.querySelectorAll(".ah-room").length : 0;
+        if (!rooms) return tr("aw_sum_no_rooms");
+        return rooms === 1 ? tr("aw_sum_room_1") : tr("aw_sum_rooms").replace("{n}", rooms);
+      }
+      case "ahSecWhere": {
+        // An address is an answer and ticks the section, but it is not the
+        // pin, and a tile that reads "Masaki" beside a tick while no pin
+        // exists is the tile telling the agent the part is finished when the
+        // one thing buyers navigate by is still missing. Say both.
+        const where = [fArea?.value, fRegion?.value].filter(Boolean).join(", ").trim();
+        if (!pickedLatLng) {
+          return where ? tr("aw_sum_place_no_pin").replace("{place}", where) : tr("aw_sum_no_pin");
+        }
+        return where ? tr("aw_sum_pin_at").replace("{place}", where) : tr("aw_sum_pin");
+      }
+      case "ahSecSpec": {
+        const groups = fGroupsList ? fGroupsList.querySelectorAll(".ah-group").length : 0;
+        if (!groups) return tr("aw_sum_no_groups");
+        return groups === 1 ? tr("aw_sum_group_1") : tr("aw_sum_groups").replace("{n}", groups);
+      }
+      default:
+        return "";
+    }
   }
 
   function closeForm() {
@@ -2405,6 +2523,40 @@ create policy "house-photos upload" on storage.objects for insert
     }).join("");
   }
 
+  /**
+   * A finished room folds to one line.
+   *
+   * A room card is a kind, a price, a period, a count, a vacancy, five size
+   * bands, eight characteristic chips, a free-text box and a fold with
+   * twenty-six more chips behind it: 1,114px on a 390px screen. That is the
+   * right amount of detail and the wrong amount of screen, because an agent
+   * with four room types was scrolling past three finished ones to reach the
+   * fourth. Four open cards were 4,456px of the thirteen-screen form.
+   *
+   * New rooms open, because the agent just asked for one. Rooms loaded from a
+   * saved listing arrive folded, because the agent came back to change one of
+   * them, not all four.
+   */
+  function roomSummary(node) {
+    const val = (sel) => (node.querySelector(sel)?.value || "").trim();
+    const kind = val(".ah-r-kind");
+    const price = val(".ah-r-price");
+    const count = Number(val(".ah-r-count")) || 1;
+    const bits = [];
+    if (kind) bits.push(kind);
+    if (price !== "") bits.push("TZS " + Number(price).toLocaleString("en-US"));
+    if (count > 1) bits.push(tr("aw_room_count").replace("{n}", count));
+    return bits.length ? bits.join(", ") : tr("aw_room_blank");
+  }
+
+  function setRoomFold(node, shut) {
+    node.dataset.awFold = shut ? "shut" : "open";
+    const b = node.querySelector(".aw-fold");
+    if (b) b.setAttribute("aria-expanded", shut ? "false" : "true");
+    const sum = node.querySelector(".aw-roomsum");
+    if (sum) sum.textContent = shut ? roomSummary(node) : "";
+  }
+
   function addRoomRow(room) {
     if (!fRoomsList || !HS) return null;
     const r = room || {};
@@ -2415,6 +2567,10 @@ create policy "house-photos upload" on storage.objects for insert
     node.innerHTML = `
       <div class="ah-room-head">
         <strong>${esc(tr("ah_room_row"))}</strong>
+        <span class="aw-roomsum"></span>
+        <button type="button" class="aw-fold" aria-expanded="true" aria-label="${esc(tr("aw_room_fold"))}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
         <button type="button" class="ah-x" aria-label="${esc(tr("ah_room_remove"))}">×</button>
       </div>
       <div class="ah-room-grid">
@@ -2491,7 +2647,30 @@ create policy "house-photos upload" on storage.objects for insert
       </div>`;
     node.querySelector(".ah-x").addEventListener("click", () => { node.remove(); renderRoomSuggest(); });
     node.querySelector(".ah-r-kind").addEventListener("input", renderRoomSuggest);
+
+    // The whole head is the target, not just the chevron: it is a 44px-tall
+    // bar on a phone and the chevron is 16px of it. The remove button inside
+    // it has to be excluded, or deleting a room folds the one below it.
+    node.querySelector(".ah-room-head").addEventListener("click", (e) => {
+      if (e.target.closest(".ah-x")) return;
+      setRoomFold(node, node.dataset.awFold !== "shut");
+    });
+
     wireRoomExtras(node, r);
+    // A folded card shows the kind and the price, so it has to be re-read when
+    // either changes underneath it.
+    node.addEventListener("input", () => {
+      if (node.dataset.awFold === "shut") setRoomFold(node, true);
+    });
+    // One room open at a time. Adding the fourth room type used to leave the
+    // three finished ones open above it, which is 4,456px of a 390px screen
+    // spent on rooms the agent had already dealt with. Every other card folds
+    // to its summary line; this one opens, unless it arrived with a listing
+    // already in it, in which case nothing here is new and it folds too.
+    for (const other of fRoomsList.querySelectorAll(".ah-room")) {
+      if (other !== node) setRoomFold(other, true);
+    }
+    setRoomFold(node, !!(room && (r.kind || r.price != null)));
     fRoomsList.appendChild(node);
     renderRoomSuggest();
     return node;
