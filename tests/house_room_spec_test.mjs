@@ -70,8 +70,12 @@ EN.FEATURE_GROUPS.forEach((g) => {
   if (!g.title.en || !g.title.sw) missing.push("group:" + g.key);
   g.items.forEach((it) => { if (!it.en || !it.sw) missing.push(it.key); });
 });
+// A size band is a word, not a word and a sentence. The describing sentences
+// were removed on purpose: "Small", "Medium" and "Large" already say it, and
+// SIZE_PHOTO_NOTE says the rest once for all three.
 EN.SIZE_BANDS.forEach((b) => {
-  if (!b.en || !b.sw || !b.hint.en || !b.hint.sw) missing.push("size:" + b.key);
+  if (!b.en || !b.sw) missing.push("size:" + b.key);
+  if (b.hint) missing.push("size-hint-came-back:" + b.key);
 });
 ok(missing.length === 0, "every catalogue entry is translated, none half-done",
    missing.join(", "));

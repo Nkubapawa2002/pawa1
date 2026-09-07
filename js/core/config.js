@@ -527,110 +527,119 @@ window.pawaDemandSpec = (r) => {
 // deadlines, and never losing a deal to a lost number. Dismissible; re-appears
 // after RESHOW_DAYS so the habit keeps getting reinforced.
 //   opts: { mount, id?, kind?: "houses"|"services"|"trucks", captureHint? }
+// A card shared by both panels below. Design tokens, never brand hex: these
+// mount on three portals in two themes, and the pair used to paint themselves a
+// cream gradient with #7a5a10 ink, which on the dark portal was unreadable and
+// in light mode was invisible.
+//
+// Both were essays. Between them they put ~130 words above an agent's own
+// listings, in English only, on a page an agent opens to deal with a property.
+// Each is now a heading, a sentence and its button.
+function coachCard(o) {
+  const say = (k, en) => {
+    const v = window.t ? window.t(k) : k;
+    return !v || v === k ? en : v;
+  };
+  const el = document.createElement("div");
+  el.id = o.id;
+  el.style.cssText =
+    "margin:0 0 var(--space-3,12px);display:flex;gap:var(--space-3,12px);align-items:flex-start;" +
+    "padding:var(--space-3,12px) var(--space-4,16px);" +
+    "border:1px solid var(--border);" +
+    "border-left:2px solid " + o.accent + ";" +
+    "border-radius:var(--radius-md,12px);background:var(--surface);";
+  el.innerHTML =
+    // The icon takes a text colour, not the accent. --gold on the light theme's
+    // white surface is 1.4:1, which is an icon nobody can see; the accent stays
+    // on the 2px rule, where a colour does not have to be legible to work.
+    '<span aria-hidden="true" style="flex:0 0 auto;line-height:0;padding-top:2px;color:var(--text-muted);">' +
+      o.icon + "</span>" +
+    '<span style="flex:1;min-width:0;">' +
+      '<b style="display:block;font-size:var(--text-sm,.85rem);font-weight:700;color:var(--text);">' +
+        say(o.hKey, o.hEn) + "</b>" +
+      '<span style="display:block;margin:2px 0 var(--space-2,8px);font-size:var(--text-xs,.72rem);' +
+        'line-height:1.45;color:var(--text-muted);">' + say(o.pKey, o.pEn) + "</span>" +
+      o.acts +
+    "</span>";
+  return el;
+}
+
+/** Shared by both: honour a recent dismissal, then remember a new one. */
+function coachGate(id, key, days) {
+  try {
+    const at = +localStorage.getItem(key) || 0;
+    if (at && Date.now() - at < days * 86400000) { document.getElementById(id)?.remove(); return false; }
+  } catch (_) {}
+  return !document.getElementById(id);
+}
+function coachDismiss(el, id, key) {
+  document.getElementById(id + "Dismiss")?.addEventListener("click", () => {
+    try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
+    el.remove();
+  });
+}
+
+const COACH_BTN =
+  "border:0;border-radius:var(--radius-sm,9px);padding:7px 14px;font:inherit;" +
+  "font-size:var(--text-xs,.72rem);font-weight:600;cursor:pointer;";
+
 window.renderAgentClientTip = (opts) => {
   opts = opts || {};
-  const mount = opts.mount;
-  if (!mount) return;
+  if (!opts.mount) return;
   const id = opts.id || "agentClientTip";
-  const kind = opts.kind || "houses";
-  const RESHOW_DAYS = 14;
-  const KEY = "pawa.agentClientTip.dismissedAt." + kind;
+  const KEY = "pawa.agentClientTip.dismissedAt." + (opts.kind || "houses");
+  if (!coachGate(id, KEY, 14)) return;
 
-  // Respect a recent dismissal.
-  try {
-    const at = +localStorage.getItem(KEY) || 0;
-    if (at && (Date.now() - at) < RESHOW_DAYS * 86400000) { document.getElementById(id)?.remove(); return; }
-  } catch (_) {}
-  if (document.getElementById(id)) return;   // already on screen
-
-  const item = kind === "trucks" ? "truck job" : kind === "services" ? "service request" : "room";
-  const captureHint = opts.captureHint ||
-    (kind === "houses"
-      ? "Save every caller's phone, what they want, their budget and their move-in dates — use the <strong>Tenant</strong> button to log renters and keep the <strong>waiting-renters</strong> board full."
-      : "Save every caller's phone, what they need, their budget and their dates.");
-  const beatLine = kind === "houses"
-    ? " — even before a tenant's rent ends"
-    : "";
-
-  const el = document.createElement("div");
-  el.id = id;
-  el.style.cssText = "margin:0 0 16px;border:1px solid #e3d3a6;border-radius:14px;overflow:hidden;" +
-    "background:linear-gradient(180deg,#fffaf0,#ffffff);box-shadow:0 1px 3px rgba(0,0,0,.05);";
-  el.innerHTML =
-    '<div style="display:flex;gap:12px;padding:14px 16px;align-items:flex-start;font-family:inherit;">' +
-      '<div style="line-height:0;flex-shrink:0;color:var(--green-neon,#10b981)">' + '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="22" height="22">' + '<rect x="3" y="7" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/>' + '<path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' + '<path d="M3 12h18" stroke="currentColor" stroke-width="1.8"/></svg>' + '</div>' +
-      '<div style="flex:1;min-width:0;">' +
-        '<div style="font-weight:800;color:#7a5a10;font-size:1rem;margin:0 0 3px;">Your client list is your business</div>' +
-        '<p style="margin:0 0 8px;font-size:.88rem;line-height:1.5;color:#5b5036;">' + captureHint +
-          ' The contacts you keep today are the deals you close tomorrow — this is the single most valuable asset you build here.</p>' +
-        '<ul style="margin:0;padding-left:18px;font-size:.84rem;line-height:1.6;color:#5b5036;">' +
-          '<li><strong>Instant matches</strong> — when a new ' + item + ' comes up you already have customers waiting, so you call them first and close before anyone else.</li>' +
-          '<li><strong>Repeat &amp; referrals</strong> — a client you served well comes back and sends their friends.</li>' +
-          '<li><strong>Beat deadlines</strong> — knowing each customer’s dates lets you line up the next deal early' + beatLine + '.</li>' +
-          '<li><strong>Never lose income</strong> — a saved number is a deal you can still close; a lost number is money gone.</li>' +
-        '</ul>' +
-        '<button type="button" id="' + id + 'Dismiss" style="margin-top:10px;background:#7a5a10;color:#fff;border:0;' +
-          'border-radius:9px;padding:8px 16px;font-weight:600;font-size:.85rem;cursor:pointer;">Got it</button>' +
-      '</div>' +
-    '</div>';
-
-  // Sit at the top of the dashboard. The subscription paywall (if any) inserts at
-  // firstChild too and may mount after this — that's fine, it lands above the tip.
-  mount.insertBefore(el, mount.firstChild);
-  document.getElementById(id + "Dismiss")?.addEventListener("click", () => {
-    try { localStorage.setItem(KEY, String(Date.now())); } catch (_) {}
-    el.remove();
+  const t = (k, en) => { const v = window.t ? window.t(k) : k; return !v || v === k ? en : v; };
+  const el = coachCard({
+    id,
+    accent: "var(--gold)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+      'stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' +
+      '<rect x="3" y="7" width="18" height="13" rx="2.5"/>' +
+      '<path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M3 12h18"/></svg>',
+    hKey: "coach_clients_h", hEn: "Your client list is your business",
+    pKey: "coach_clients_p",
+    pEn: "Save every caller's number, what they want and when they move. The contacts you keep today are the deals you close tomorrow.",
+    acts: '<button type="button" id="' + id + 'Dismiss" style="' + COACH_BTN +
+      'background:var(--surface-2);color:var(--text-soft);">' +
+      t("coach_got_it", "Got it") + "</button>",
   });
+  opts.mount.insertBefore(el, opts.mount.firstChild);
+  coachDismiss(el, id, KEY);
 };
 
-// =====================================================
-// Agent awareness — "scout the Frame before you list"
-// =====================================================
-// One agent owns one Frame. Before listing, an agent should read the area as a
-// room for business: the magnets that gather people, the roads/nodes that carry
-// them, the daily rhythm, and where demand beats supply. This card surfaces the
-// Frame tool at the listing moment. Dismissible; re-appears after RESHOW_DAYS.
-//   opts: { mount, id?, kind?: "houses"|"services"|"trucks" }
+// One agent owns one Frame: an area read as a room for business. This surfaces
+// the tool at the listing moment.
 window.renderFrameScout = (opts) => {
   opts = opts || {};
-  const mount = opts.mount;
-  if (!mount) return;
+  if (!opts.mount) return;
   const id = opts.id || "agentFrameScout";
-  const kind = opts.kind || "houses";
-  const RESHOW_DAYS = 21;
-  const KEY = "pawa.frameScout.dismissedAt." + kind;
+  const KEY = "pawa.frameScout.dismissedAt." + (opts.kind || "houses");
+  if (!coachGate(id, KEY, 21)) return;
 
-  try {
-    const at = +localStorage.getItem(KEY) || 0;
-    if (at && (Date.now() - at) < RESHOW_DAYS * 86400000) { document.getElementById(id)?.remove(); return; }
-  } catch (_) {}
-  if (document.getElementById(id)) return;
-
-  const lead = kind === "trucks" ? "moving routes" : kind === "services" ? "service" : "rooms";
-  const el = document.createElement("div");
-  el.id = id;
-  el.style.cssText = "margin:0 0 16px;border:1px solid #c9bdf0;border-radius:14px;overflow:hidden;" +
-    "background:linear-gradient(135deg,#f4f1ff,#ffffff);box-shadow:0 1px 3px rgba(0,0,0,.05);";
-  el.innerHTML =
-    '<div style="display:flex;gap:12px;padding:14px 16px;align-items:flex-start;font-family:inherit;">' +
-      '<div aria-hidden="true" style="flex-shrink:0;width:34px;height:34px;border-radius:10px;background:rgba(99,60,214,.12);display:grid;place-items:center;">' +
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5326c0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>' +
-      '</div>' +
-      '<div style="flex:1;min-width:0;">' +
-        '<div style="font-weight:800;color:#3f2aa0;font-size:1rem;margin:0 0 3px;">Scout the area first - read its Frame</div>' +
-        '<p style="margin:0 0 8px;font-size:.88rem;line-height:1.5;color:#4a4368;">A Frame reads any area as a <strong>room for business</strong>: who gathers there, the roads and nodes that carry them, the daily rhythm, and where demand beats supply. Pick the right Frame for your ' + lead + ', then own it.</p>' +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-          '<a href="frame.html" style="background:#5326c0;color:#fff;border:0;border-radius:9px;padding:8px 16px;font-weight:700;font-size:.85rem;text-decoration:none;">Open the Frame</a>' +
-          '<button type="button" id="' + id + 'Dismiss" style="background:transparent;color:#5326c0;border:1px solid #c9bdf0;border-radius:9px;padding:8px 14px;font-weight:600;font-size:.85rem;cursor:pointer;">Maybe later</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-  mount.insertBefore(el, mount.firstChild);
-  document.getElementById(id + "Dismiss")?.addEventListener("click", () => {
-    try { localStorage.setItem(KEY, String(Date.now())); } catch (_) {}
-    el.remove();
+  const t = (k, en) => { const v = window.t ? window.t(k) : k; return !v || v === k ? en : v; };
+  const el = coachCard({
+    id,
+    accent: "var(--green-neon)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+      'stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' +
+      '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>',
+    hKey: "coach_frame_h", hEn: "Read the area before you list",
+    pKey: "coach_frame_p",
+    pEn: "A Frame reads an area as a room for business: who gathers there, and where demand beats supply.",
+    acts:
+      '<span style="display:flex;gap:var(--space-2,8px);flex-wrap:wrap;">' +
+        '<a href="frame.html" style="' + COACH_BTN +
+          'background:var(--green-neon);color:var(--text-on-brand);text-decoration:none;">' +
+          t("coach_frame_open", "Open the Frame") + "</a>" +
+        '<button type="button" id="' + id + 'Dismiss" style="' + COACH_BTN +
+          'background:var(--surface-2);color:var(--text-soft);">' +
+          t("coach_later", "Maybe later") + "</button>" +
+      "</span>",
   });
+  opts.mount.insertBefore(el, opts.mount.firstChild);
+  coachDismiss(el, id, KEY);
 };
 
 // =====================================================

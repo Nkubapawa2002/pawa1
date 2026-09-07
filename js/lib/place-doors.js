@@ -150,7 +150,6 @@
     root.classList.add("pd");
     root.innerHTML =
       door(IC.card, tr("ah_loc_h"), tr("ah_loc_sub_short"),
-        '<p class="pd-hint">' + esc(tr("ah_loc_sub")) + "</p>" +
         '<div class="pd-row">' +
           '<input class="pd-code" data-pd="code" type="text" inputmode="latin" autocomplete="off"' +
           ' spellcheck="false" maxlength="13" placeholder="K7M-2Q9-F3T"' +
@@ -176,7 +175,6 @@
         '<div class="pd-row"><button type="button" class="pd-btn pd-btn--brand" data-pd="req">' +
           esc(tr("ah_remote_btn")) + "</button></div>" +
         '<div data-pd="reqBox" hidden>' +
-          '<p class="pd-hint">' + esc(tr("ah_remote_hint")) + "</p>" +
           '<div class="pd-row">' +
             '<input data-pd="reqLink" readonly aria-label="' + esc(tr("ah_remote_link_aria")) + '">' +
             '<button type="button" class="pd-btn pd-btn--brand" data-pd="reqCopy">' + esc(tr("ah_remote_copy")) + "</button>" +

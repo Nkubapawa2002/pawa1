@@ -806,7 +806,6 @@ body[data-page="house"] :focus-visible {
   font: var(--fw-regular) var(--text-sm)/1.5 var(--font-app);
   color: var(--hx-ink-faint);
 }
-.hx-size-hint { color: var(--hx-ink-soft); }
 
 /* A cost stated as nothing is good news, not a missing value: it must not wear
    the muted styling that means "the agent did not say". */

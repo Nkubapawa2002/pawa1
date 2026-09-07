@@ -425,9 +425,7 @@
   function sizeNoteHtml(room) {
     var S = window.HouseSpec;
     if (!room || !room.sizeBand || !S || !S.sizeNote) return "";
-    var hint = S.sizeHint ? S.sizeHint(room.sizeBand) : "";
-    return '<p class="hx-size-note">' + esc(S.sizeNote()) +
-      (hint ? ' <span class="hx-size-hint">' + esc(hint) + '</span>' : "") + '</p>';
+    return '<p class="hx-size-note">' + esc(S.sizeNote()) + '</p>';
   }
 
   /**

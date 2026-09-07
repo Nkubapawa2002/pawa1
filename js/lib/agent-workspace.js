@@ -126,6 +126,8 @@
    * not; a price is a figure, not a field). Everywhere else this counts what
    * the agent has actually filled in, which is honest and needs no knowledge
    * of the page at all.
+   *
+   * Empty is "", never a sentence about being empty.
    */
   function genericSummary(panel) {
     let filled = 0;
@@ -139,7 +141,11 @@
     const chips = panel.querySelectorAll(".ap-chip.is-on, .ah-chip.active").length;
     if (chips) return t("aw_sum_chosen").replace("{n}", chips);
     if (!total) return "";
-    if (!filled) return t("aw_sum_empty");
+    // An untouched part says nothing. It used to say "Nothing yet", which on
+    // an empty board was the same two words eight times, under eight names
+    // that were already unticked and over a meter already reading "0 of 8".
+    // A summary is for what IS there.
+    if (!filled) return "";
     return t("aw_sum_filled").replace("{n}", filled).replace("{of}", total);
   }
 

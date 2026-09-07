@@ -413,13 +413,18 @@ create policy "house-photos upload" on storage.objects for insert
       ${esc(tr(a.i18n))}
     </label>
   `).join("");
+  // Listen to the CHECKBOX, not to the label around it.
+  //
+  // A tap on a <label> fires click twice: once from the pointer, with the label
+  // as the target, and once again when the label's own activation behaviour
+  // clicks the control it labels. The guard here used to be "flip it by hand
+  // unless the target is the checkbox", which flipped it on the first click and
+  // let the browser flip it straight back on the second, so an amenity could
+  // not be turned on at all. `change` fires once, after the browser has already
+  // done the toggling, and needs no guard.
   fAmenities.querySelectorAll(".ah-chip").forEach(chip => {
     const cb = chip.querySelector("input");
-    chip.addEventListener("click", (e) => {
-      // Don't double-toggle when the click was on the (hidden) checkbox.
-      if (e.target !== cb) cb.checked = !cb.checked;
-      chip.classList.toggle("active", cb.checked);
-    });
+    cb.addEventListener("change", () => chip.classList.toggle("active", cb.checked));
   });
 
   // ---- Populate region dropdown from existing regions table ----------------
@@ -784,9 +789,9 @@ create policy "house-photos upload" on storage.objects for insert
             <circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16" r="1"/>
           </svg>
         </div>
-        <div class="hp-empty__title">Couldn't load your listings</div>
+        <div class="hp-empty__title">${esc(tr("ah_list_fail"))}</div>
         <div class="hp-empty__sub">${esc(error.message)}</div>
-        <button class="hp-empty__cta" type="button" onclick="location.reload()">Try again</button>
+        <button class="hp-empty__cta" type="button" onclick="location.reload()">${esc(tr("ah_try_again"))}</button>
       </div>`;
       return;
     }
@@ -799,7 +804,7 @@ create policy "house-photos upload" on storage.objects for insert
         </div>
         <div class="hp-empty__title">${esc(tr("ah_no_listings"))}</div>
         <div class="hp-empty__sub">${tr("ah_no_listings_hint_html")}</div>
-        <button class="hp-empty__cta" type="button" id="ahEmptyNew">+ Add your first listing</button>
+        <button class="hp-empty__cta" type="button" id="ahEmptyNew">+ ${esc(tr("ah_add_first"))}</button>
       </div>`;
       document.getElementById("ahEmptyNew")?.addEventListener("click", () => requestForm(null));
       return;
@@ -1095,7 +1100,7 @@ create policy "house-photos upload" on storage.objects for insert
     switch (panel.id) {
       case "ahSecMedia": {
         const p = photoTiles.length, v = videoTiles.length;
-        if (!p && !v) return tr("aw_sum_no_photos");
+        if (!p && !v) return "";
         if (!v) return tr("aw_sum_photos").replace("{n}", p);
         return tr("aw_sum_photos_videos").replace("{n}", p).replace("{v}", v);
       }
@@ -1104,7 +1109,7 @@ create policy "house-photos upload" on storage.objects for insert
         const rooms = fRoomsList ? fRoomsList.querySelectorAll(".ah-room").length : 0;
         const bills = fCostsList ? fCostsList.children.length : 0;
         if (!n && rooms) return tr("aw_sum_price_rooms");
-        if (!n) return tr("aw_sum_no_price");
+        if (!n) return "";
         const money = "TZS " + n.toLocaleString("en-US");
         return bills
           ? tr("aw_sum_price_bills").replace("{money}", money).replace("{n}", bills)
@@ -1112,7 +1117,7 @@ create policy "house-photos upload" on storage.objects for insert
       }
       case "ahSecRooms": {
         const rooms = fRoomsList ? fRoomsList.querySelectorAll(".ah-room").length : 0;
-        if (!rooms) return tr("aw_sum_no_rooms");
+        if (!rooms) return "";
         return rooms === 1 ? tr("aw_sum_room_1") : tr("aw_sum_rooms").replace("{n}", rooms);
       }
       case "ahSecWhere": {
@@ -1122,13 +1127,13 @@ create policy "house-photos upload" on storage.objects for insert
         // one thing buyers navigate by is still missing. Say both.
         const where = [fArea?.value, fRegion?.value].filter(Boolean).join(", ").trim();
         if (!pickedLatLng) {
-          return where ? tr("aw_sum_place_no_pin").replace("{place}", where) : tr("aw_sum_no_pin");
+          return where ? tr("aw_sum_place_no_pin").replace("{place}", where) : "";
         }
         return where ? tr("aw_sum_pin_at").replace("{place}", where) : tr("aw_sum_pin");
       }
       case "ahSecSpec": {
         const groups = fGroupsList ? fGroupsList.querySelectorAll(".ah-group").length : 0;
-        if (!groups) return tr("aw_sum_no_groups");
+        if (!groups) return "";
         return groups === 1 ? tr("aw_sum_group_1") : tr("aw_sum_groups").replace("{n}", groups);
       }
       default:
@@ -1151,7 +1156,7 @@ create policy "house-photos upload" on storage.objects for insert
   fPhotoLabel.addEventListener("click", (e) => {
     if (photoTiles.length >= MAX_PHOTOS) {
       e.preventDefault();
-      alert(`You can add up to ${MAX_PHOTOS} photos per listing.`);
+      alert(tr("ah_photo_cap").replace("{n}", MAX_PHOTOS));
       return;
     }
     fPhotoInput.click();
@@ -2600,15 +2605,12 @@ create policy "house-photos upload" on storage.objects for insert
               <button type="button" class="ah-band__b${r.sizeBand === b.key ? " is-on" : ""}"
                       data-band="${b.key}" aria-pressed="${r.sizeBand === b.key ? "true" : "false"}">
                 <strong>${esc(HS.say(b))}</strong>
-                <small>${esc(HS.say(b.hint))}</small>
               </button>`).join("")}
           </div>
-          <p class="ah-band__help">${esc(HS.t("size_help"))}</p>
         </div>
         <div class="ah-wide ah-feats">
           <span class="ah-band__q ah-band__q--lead">${esc(HS.t("feats_q"))}</span>
-          <p class="ah-band__help">${esc(HS.t("feats_help"))}</p>
-          <ul class="ah-feats__on" data-empty="${esc(HS.t("feats_none"))}"></ul>
+          <ul class="ah-feats__on"></ul>
           <div class="ah-feats__chips">
             ${topFeatureChips()}
           </div>
@@ -2734,14 +2736,12 @@ create policy "house-photos upload" on storage.objects for insert
   }
 
   function drawChosenFeatures(node) {
-    const list = node.querySelector(".ah-feats__on");
     const chosen = readFeatures(node);
     // Grey out an offered chip once it is on the list; a typed one has no chip
     // to grey, which is fine — the list itself is the record.
     node.querySelectorAll(".ah-fg").forEach(b => {
       b.classList.toggle("is-used", chosen.indexOf(b.dataset.feat) >= 0);
     });
-    list.classList.toggle("is-empty", chosen.length === 0);
   }
 
   function addFeature(node, value) {
@@ -2815,7 +2815,7 @@ create policy "house-photos upload" on storage.objects for insert
     // opened "More kinds" to reach a godown is usually about to add a second
     // one, so the fold does not slam shut behind them.
     const wasOpen = !!fRoomSuggest.querySelector("details[open]");
-    fRoomSuggest.innerHTML = `<p class="ah-suggest-lead">${esc(tr("ah_room_suggest_lead"))}</p>`;
+    fRoomSuggest.innerHTML = "";
 
     const chip = (k) => {
       const b = document.createElement("button");
@@ -2901,7 +2901,6 @@ create policy "house-photos upload" on storage.objects for insert
                value="${esc((existing && existing.title) || HS.say(preset.title))}">
         <button type="button" class="ah-x" aria-label="${esc(tr("ah_group_remove"))}">×</button>
       </div>
-      <p class="ah-group-blurb">${esc(HS.say(preset.blurb))}</p>
       <div class="ah-suggest ah-g-suggest"></div>
       <div class="ah-kvs"></div>
       <button type="button" class="ah-btn ah-g-add" style="margin-top:9px;">${esc(tr("ah_group_add_line"))}</button>`;
@@ -2985,7 +2984,7 @@ create policy "house-photos upload" on storage.objects for insert
     if (!fGroupSuggest || !HS) return;
     const used = new Set(Array.from(fGroupsList.querySelectorAll(".ah-group"))
       .map(n => n.dataset.key));
-    fGroupSuggest.innerHTML = `<p class="ah-suggest-lead">${esc(tr("ah_group_suggest_lead"))}</p>`;
+    fGroupSuggest.innerHTML = "";
     HS.GROUPS.forEach(g => {
       // "Anything else" never disappears — an agent may want four of them.
       if (g.key !== "custom" && used.has(g.key)) return;

@@ -110,18 +110,17 @@
   // actually needs is the bracket — and then the photographs, which are the
   // honest size record and are already on every listing.
   //
-  // So: three brackets, one tap, and the page tells the reader to judge the
-  // rest from the pictures rather than pretending 18 m² was surveyed.
+  // So: three brackets, one tap, and the photographs carry the detail.
+  //
+  // Each band used to carry a sentence describing it ("A bed and a little
+  // space around it"), under a fourth sentence saying to judge the rest from
+  // the photos. Four sentences to choose between three words. Small, medium
+  // and large are three words a person already owns; the descriptions made
+  // the row 210px tall and said nothing the word did not.
   var SIZE_BANDS = [
-    { key: "small",  en: "Small",  sw: "Kidogo",
-      hint: { en: "A bed and a little space around it",
-              sw: "Kitanda na nafasi kidogo pembeni" } },
-    { key: "medium", en: "Medium", sw: "Wastani",
-      hint: { en: "Bed, wardrobe and room to move",
-              sw: "Kitanda, kabati na nafasi ya kupita" } },
-    { key: "large",  en: "Large",  sw: "Kubwa",
-      hint: { en: "Bed, seating and space left over",
-              sw: "Kitanda, sehemu ya kukaa na nafasi ya ziada" } },
+    { key: "small",  en: "Small",  sw: "Kidogo" },
+    { key: "medium", en: "Medium", sw: "Wastani" },
+    { key: "large",  en: "Large",  sw: "Kubwa" },
   ];
   var SIZE_BY_KEY = {};
   SIZE_BANDS.forEach(function (b) { SIZE_BY_KEY[b.key] = b; });
@@ -249,10 +248,6 @@
     var b = SIZE_BY_KEY[key];
     return b ? say(b) : "";
   }
-  function sizeHint(key) {
-    var b = SIZE_BY_KEY[key];
-    return b && b.hint ? say(b.hint) : "";
-  }
 
   // ------------------------------------------------------- free vs unknown
   // A cost of zero is a FACT — "water is included", "no service charge" — and
@@ -295,14 +290,14 @@
   // drift apart when they live in two dictionaries, and these are read only by
   // the form and the page that draw SIZE_BANDS and FEATURE_GROUPS.
   var UI = {
+    // size_help, feats_help and feats_none are deliberately gone. Each was a
+    // sentence sitting between a question and the controls that answer it,
+    // and each restated the question: "pick the bracket" over three brackets,
+    // "tap what fits" over a row of taps, "nothing chosen yet" over a list
+    // that is visibly empty.
     size_q:      { en: "How big is it?",            sw: "Ni kubwa kiasi gani?" },
-    size_help:   { en: "Pick the bracket. The photos show the rest.",
-                   sw: "Chagua kadirio. Picha zinaonyesha mengine." },
     feats_q:     { en: "What is this room like?",    sw: "Chumba hiki kikoje?" },
-    feats_help:  { en: "This is what clients decide on. Tap what fits, then add anything of your own.",
-                   sw: "Hiki ndicho wateja huamulia. Gusa kinachofaa, kisha ongeza chako." },
     feats_add:   { en: "Add your own…",           sw: "Ongeza chako…" },
-    feats_none:  { en: "Nothing chosen yet",        sw: "Hakuna kilichochaguliwa" },
     feats_more:  { en: "More characteristics",      sw: "Sifa zaidi" },
     kinds_more:  { en: "More kinds",                sw: "Aina zaidi" },
     remove:      { en: "Remove",                    sw: "Ondoa" },
@@ -384,10 +379,6 @@
       key: "rules",
       icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
       title: { en: "Rules & regulations", sw: "Sheria na masharti" },
-      blurb: {
-        en: "The house rules a tenant agrees to. Say them here and nobody argues at the gate.",
-        sw: "Masharti ya nyumba anayokubali mpangaji. Yaandike hapa ili yasibishaniwe langoni.",
-      },
       items: [
         { label: { en: "Deposit", sw: "Dhamana" }, values: [
           { en: "1 month, refundable", sw: "Mwezi 1, inarudishwa" },
@@ -447,10 +438,6 @@
       key: "area",
       icon: "M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z",
       title: { en: "In this area", sw: "Katika eneo hili" },
-      blurb: {
-        en: "What the neighbourhood gives you: water, power, the road, transport. The map cannot say these. You can.",
-        sw: "Eneo linatoa nini: maji, umeme, barabara, usafiri. Ramani haiwezi kusema haya; wewe unaweza.",
-      },
       items: [
         { label: { en: "Water", sw: "Maji" }, values: [
           { en: "Tap water every day (DAWASA)", sw: "Maji ya bomba kila siku (DAWASA)" },
@@ -500,10 +487,6 @@
       key: "services",
       icon: "M14.7 6.3a4 4 0 0 1-5 5L4 17v3h3l5.7-5.7a4 4 0 0 0 5-5l-2 2-2.6-.7-.7-2.6 2-2z",
       title: { en: "Services included", sw: "Huduma zinazojumuishwa" },
-      blurb: {
-        en: "What comes with the place, and whether it is already paid for.",
-        sw: "Kinachokuja na nyumba, na kama kimeshalipiwa.",
-      },
       items: [
         { label: { en: "Garbage collection", sw: "Kuzoa taka" }, values: [
           { en: "Weekly, included", sw: "Kila wiki, imejumuishwa" },
@@ -532,10 +515,6 @@
       key: "legal",
       icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
       title: { en: "Paperwork & legal", sw: "Nyaraka na sheria" },
-      blurb: {
-        en: "What you can show, and who signs. This is what turns a viewing into a deal.",
-        sw: "Unachoweza kuonyesha, na nani anasaini. Hii ndiyo hugeuza ziara kuwa mkataba.",
-      },
       items: [
         { label: { en: "Ownership document", sw: "Hati ya umiliki" }, values: [
           { en: "Title deed available", sw: "Hati miliki ipo" },
@@ -562,10 +541,6 @@
       key: "custom",
       icon: "M12 5v14M5 12h14",
       title: { en: "Anything else", sw: "Kitu kingine chochote" },
-      blurb: {
-        en: "Name the category yourself and put anything in it. Nothing here is fixed.",
-        sw: "Taja kichwa mwenyewe na weka chochote ndani yake. Hakuna kilichofungwa hapa.",
-      },
       items: [],
     },
   ];
@@ -869,7 +844,6 @@
       return normalizeFeatures(list).map(featureLabel).filter(Boolean);
     },
     sizeLabel: sizeLabel,
-    sizeHint: sizeHint,
     sizeNote: function () { return say(SIZE_PHOTO_NOTE); },
     parseCost: parseCost,
     freeLabel: function () { return say(FREE_LABEL); },

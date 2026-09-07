@@ -175,7 +175,7 @@
     .ah-pin-picker {
       position: relative;
       /* Roomy enough to drag the pin precisely and see the surrounding area. */
-      height: clamp(360px, 48vh, 520px);
+      height: clamp(260px, 34vh, 400px);
       border-radius: var(--radius); overflow: hidden;
       border: 1px solid var(--c-border);
     }
@@ -500,10 +500,6 @@
        second, because it is only a shortcut to it. */
     .ah-feats { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-1); }
     .ah-feats__on { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
-    .ah-feats__on.is-empty::before {
-      content: attr(data-empty);
-      font-size: var(--text-xs); color: var(--c-text-muted); font-style: italic;
-    }
     .ah-feats__on li {
       display: inline-flex; align-items: center; gap: var(--space-2);
       padding: 5px 6px 5px 11px; border-radius: var(--radius-pill);
@@ -718,7 +714,6 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
               </span>
               <h1 class="auth-title" data-i18n="ah_auth_title">Sign in to list a house</h1>
-              <p class="auth-lead" data-i18n="ah_auth_sub">New here? Creating an account takes a moment.</p>
             </div>
 
             <div class="auth-tabs">
@@ -796,7 +791,7 @@
 
       <div class="ap-note" role="note">
         <span class="ap-note__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.3l2.4 2.4 4.6-4.9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span data-i18n-html="ah_close_reminder"><strong>Closed a house deal?</strong> Tap <strong>Completed</strong> for a rental or <strong>Mark sold</strong> for a sale, so the listing disappears from clients straight away. A house is taken once. Leaving it up means buyers keep calling about a place that is gone. Trucks and services stay up; only houses come off when booked.</span>
+        <span data-i18n-html="ah_close_reminder"><strong>Deal closed?</strong> Tap Completed or Mark sold so it leaves the search.</span>
       </div>
 
       <div id="ahList" class="ah-list" aria-live="polite" aria-busy="true">
@@ -854,7 +849,7 @@
 
           <div class="ap-note ap-note--warn" role="note">
             <span class="ap-note__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            <span data-i18n-html="ah_ttl_notice">Listings are temporary. This property and its photos and videos are removed automatically <strong>15 days</strong> after posting. You can delete it sooner at any time, or re-post it to refresh the 15 days.</span>
+            <span data-i18n-html="ah_ttl_notice">Live for <strong>15 days</strong>. Re-post to refresh.</span>
           </div>
 
           <!-- 1 ---------------------------------------------------------- -->
@@ -863,7 +858,6 @@
               <span class="ap-panel__n" aria-hidden="true">1</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="ah_section_media">Photos and video</h3>
-                <p data-i18n="ah_media_help">Up to 12 photos and 2 short clips of no more than 20 seconds each. The first photo becomes the cover. Drag the tiles to reorder them.</p>
               </div>
             </div>
 
@@ -871,7 +865,7 @@
             <label id="ahPhotoLabel" class="ap-drop" for="ahPhotoInput">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
               <span data-i18n="ah_upload_cta">Add photos</span>
-              <small data-i18n="ah_upload_hint">JPG, PNG or WebP · resized to 1600 px · auto-enhanced</small>
+              <small data-i18n="ah_upload_hint">JPG, PNG or WebP</small>
             </label>
             <input id="ahPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
 
@@ -881,7 +875,7 @@
               <label id="ahVideoLabel" class="ap-drop" for="ahVideoInput">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                 <span data-i18n="ah_video_cta">Add a video walkthrough</span>
-                <small data-i18n="ah_video_hint">MP4 or WebM · up to 20 seconds · up to 20 MB</small>
+                <small data-i18n="ah_video_hint">Up to 20 seconds</small>
               </label>
               <input id="ahVideoInput" type="file" accept="video/mp4,video/webm,video/quicktime" multiple hidden />
             </div>
@@ -893,13 +887,12 @@
               <span class="ap-panel__n" aria-hidden="true">2</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="ah_section_basics">The basics</h3>
-                <p data-i18n="ah_section_basics_sub">What the place is, and whether you are renting it out or selling it.</p>
               </div>
             </div>
 
             <div class="ap-field">
               <label for="ahTitle" data-i18n="ah_field_title">Listing title</label>
-              <input id="ahTitle" type="text" required maxlength="120" placeholder="e.g. Modern 2-bed apartment with an ocean view" data-i18n-placeholder="ah_field_title_ph" />
+              <input id="ahTitle" type="text" required maxlength="120" placeholder="e.g. 2-bed apartment, ocean view" data-i18n-placeholder="ah_field_title_ph" />
             </div>
 
             <div class="ap-grid-2">
@@ -933,7 +926,7 @@
               <input id="ahIsFrame" type="checkbox" />
               <span class="ap-check__tx">
                 <span data-i18n-html="ah_field_is_frame">This is a <strong>Frame</strong>, a room or space for business</span>
-                <small data-i18n="ah_field_is_frame_hint">Tick this if it is a shop, office, godown, stall, kiosk or any business space. Frames show on the Frame opportunity map; ordinary residential rooms do not.</small>
+                <small data-i18n="ah_field_is_frame_hint">A shop, office, godown, stall or kiosk.</small>
               </span>
             </label>
           </section>
@@ -944,7 +937,6 @@
               <span class="ap-panel__n" aria-hidden="true">3</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="ah_section_price">Price and bills</h3>
-                <p data-i18n="ah_section_price_sub">The figure clients compare you on, and everything they will owe on top of it. Both belong here, because a rent with three hidden bills behind it is not the rent.</p>
               </div>
             </div>
 
@@ -952,7 +944,7 @@
               <div class="ap-field">
                 <label for="ahPrice" data-i18n="ah_field_price">Price, TZS</label>
                 <input id="ahPrice" type="number" min="0" step="50000" placeholder="1800000" />
-                <small class="ap-hint" data-i18n="ah_field_price_hint">Leave this blank if you price each room separately below. The cheapest room becomes the "from" price.</small>
+                <small class="ap-hint" data-i18n="ah_field_price_hint">Blank if you price each room below.</small>
               </div>
               <div class="ap-field">
                 <label for="ahPeriod" data-i18n="ah_field_period">Period</label>
@@ -967,19 +959,16 @@
             <div class="ap-field" id="ahMinMonthsRow">
               <label for="ahMinMonths" data-i18n="ah_field_min_months">Minimum months to pay upfront</label>
               <input id="ahMinMonths" type="number" min="1" max="60" step="1" value="1" placeholder="6" />
-              <small class="ap-hint" data-i18n="ah_field_min_months_hint">How many months the tenant must pay at once for this room, shop or office. Ignored for properties listed for sale.</small>
             </div>
 
             <!-- Agent commission ("dalali" fee) the tenant pays you — rent only -->
             <div class="ap-field" id="ahAgentFeeRow">
               <label for="ahAgentFee" data-i18n="ah_field_agent_fee">Your agent fee, TZS</label>
               <input id="ahAgentFee" type="number" min="0" step="50000" placeholder="0" data-i18n-placeholder="ah_field_agent_fee_ph" />
-              <small class="ap-hint" data-i18n="ah_field_agent_fee_hint">The commission the tenant pays you for the deal, shown separately from the rent. Leave it blank to use the standard one month's rent, or type any amount.</small>
             </div>
 
             <div class="ap-sub">
-              <h4 data-i18n="ah_section_costs">Additional costs, the bills</h4>
-              <p class="ap-hint" style="margin-bottom:var(--space-3)" data-i18n="ah_section_costs_sub">Bills the tenant pays on top of the rent: electricity, water, garbage, security, internet and anything else. Add each one so clients see the full monthly cost before they call. Leave the amount blank for "metered", meaning pay as you use, or for "included".</p>
+              <h4 data-i18n="ah_section_costs">Bills on top of the rent</h4>
               <!-- Tap a chip to add a common bill, or add your own below. -->
               <div id="ahCostQuick" class="ah-chips" style="margin-bottom:var(--space-3)"></div>
               <div id="ahCostsList" class="ah-costs"></div>
@@ -1001,8 +990,7 @@
             <div class="ap-panel__head">
               <span class="ap-panel__n" aria-hidden="true">4</span>
               <div class="ap-panel__tx">
-                <h3 data-i18n="ah_section_rooms">Rooms, categories and prices</h3>
-                <p data-i18n="ah_section_rooms_sub">List every kind of room or space in this property and what each one costs: singles, a master, a shop frame, a godown, a parking bay, anything. Tap a suggestion to add it, or type your own name for it. The cheapest one becomes the "from" price clients see.</p>
+                <h3 data-i18n="ah_section_rooms">Rooms and prices</h3>
               </div>
             </div>
 
@@ -1014,8 +1002,8 @@
             </button>
 
             <div class="ap-sub">
-              <h4 data-i18n="ah_section_size_sub">The property as a whole</h4>
-              <p class="ap-hint" style="margin-bottom:var(--space-3)" data-i18n="ah_section_size_hint">Only if the whole property is the thing being let or sold. A plot you are letting room by room can leave these at zero.</p>
+              <h4 data-i18n="ah_section_size_sub">The whole property</h4>
+              <p class="ap-hint" style="margin-bottom:var(--space-3)" data-i18n="ah_section_size_hint">Zero if you let room by room.</p>
               <div class="ap-grid-3">
                 <div class="ap-field">
                   <label for="ahBedrooms" data-i18n="ah_field_bedrooms">Bedrooms</label>
@@ -1043,7 +1031,6 @@
               <span class="ap-panel__n" aria-hidden="true">5</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="ah_section_where">Where it is</h3>
-                <p data-i18n="ah_section_where_sub">The address in words, then the pin that buyers actually navigate to. Search a place, drag the pin, or stand at the property and use GPS.</p>
               </div>
             </div>
 
@@ -1137,7 +1124,6 @@
                   <span class="ap-acc__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
                 </summary>
                 <div class="ap-acc__body">
-                  <p class="ap-hint" style="margin-bottom:var(--space-3)" data-i18n="ah_loc_sub">Somebody standing at the property can read you nine characters down the phone, or send you a map link in P-Message or WhatsApp. Put it in here and the pin drops exactly where they were standing. You never have to go there yourself.</p>
                   <div class="ap-inline" style="margin-bottom:var(--space-2)">
                     <input id="ahLocCode" type="text" inputmode="latin" autocomplete="off" spellcheck="false"
                            maxlength="13" placeholder="K7M-2Q9-F3T"
@@ -1153,7 +1139,7 @@
                   </div>
                   <div id="ahLocMsg" class="ah-place-msg" role="status" aria-live="polite"></div>
                   <div class="ah-place-list" id="ahPlaceList"></div>
-                  <p class="ap-hint" data-i18n-html="ah_loc_howto">How does the person there make a code? Send them <a href="share-location.html" target="_blank" rel="noopener">this page</a>. One tap, no account, no app.</p>
+                  <p class="ap-hint" data-i18n-html="ah_loc_howto">They have no code? Send them <a href="share-location.html" target="_blank" rel="noopener">this page</a>.</p>
                 </div>
               </details>
 
@@ -1177,7 +1163,6 @@
                 </summary>
                 <div class="ap-acc__body">
                   <div class="ah-pm-head">
-                    <h6 data-i18n="ah_pm_h">Pins people sent you in P-Message</h6>
                     <button type="button" id="ahPmScan" class="ah-btn" data-i18n="ah_pm_scan">Look again</button>
                   </div>
                   <div id="ahPmMsg" class="ah-place-msg" role="status" aria-live="polite"></div>
@@ -1198,7 +1183,6 @@
                 <div class="ap-acc__body">
                   <button type="button" id="ahReqLoc" class="ah-btn ah-btn-brand" data-i18n="ah_remote_btn">Request the location</button>
                   <div id="ahReqLocBox" hidden style="margin-top:var(--space-3)">
-                    <p class="ap-hint" data-i18n="ah_remote_hint">Send this link to the person there. When they tap "Share my location", the pin drops here automatically.</p>
                     <div class="ap-inline" style="margin-top:var(--space-2)">
                       <input id="ahReqLocLink" readonly aria-label="The link to send" data-i18n-aria-label="ah_remote_link_aria" />
                       <button type="button" id="ahReqLocCopy" class="ah-btn ah-btn-brand" data-i18n="ah_remote_copy">Copy</button>
@@ -1206,15 +1190,14 @@
                     </div>
                     <div id="ahReqLocStatus" class="ah-place-msg ok" role="status" aria-live="polite"></div>
                   </div>
-                  <p class="ap-hint" data-i18n-html="ah_remote_alt_html">You can also <a href="meet.html" target="_blank" rel="noopener">use a Meet room</a>, or search for the place above and describe it.</p>
+                  <p class="ap-hint" data-i18n-html="ah_remote_alt_html">Or <a href="meet.html" target="_blank" rel="noopener">use a Meet room</a>.</p>
                 </div>
               </details>
             </div>
 
             <!-- Auto from OpenStreetMap, once the pin is down. -->
             <div class="ap-sub">
-              <h4 data-i18n="ah_section_nearby">What is nearby</h4>
-              <p class="ap-hint" style="margin-bottom:var(--space-3)" data-i18n="ah_section_nearby_sub">Schools, hospitals, mosques, churches, markets and transport, detected automatically around your pin. Buyers see this on the listing.</p>
+              <h4 data-i18n="ah_section_nearby">What's nearby</h4>
               <div class="ap-inline" style="margin-bottom:var(--space-3)">
                 <div id="ahNearbyRadius" class="ah-seg" role="group" aria-label="Search radius" data-i18n-aria-label="ah_nearby_radius_aria">
                   <button type="button" data-r="1000">1 km</button>
@@ -1228,7 +1211,7 @@
                 <span id="ahNearbyStatus" class="ap-hint" role="status" aria-live="polite"></span>
               </div>
               <div id="ahNearbyPanel" class="ah-nearby">
-                <p class="ap-hint" id="ahNearbyHint" style="margin:0" data-i18n="ah_nearby_hint">Drop a pin first and this panel fills in by itself.</p>
+                <p class="ap-hint" id="ahNearbyHint" style="margin:0" data-i18n="ah_nearby_hint">Drop a pin and this fills itself.</p>
               </div>
             </div>
           </section>
@@ -1239,7 +1222,6 @@
               <span class="ap-panel__n" aria-hidden="true">6</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="ah_section_amenities">Amenities and furnishing</h3>
-                <p data-i18n="ah_section_amenities_sub">Tap what the place has. Anything the list does not cover, add it yourself.</p>
               </div>
             </div>
 
@@ -1281,8 +1263,7 @@
             <div class="ap-panel__head">
               <span class="ap-panel__n" aria-hidden="true">7</span>
               <div class="ap-panel__tx">
-                <h3 data-i18n="ah_section_spec">Everything else about this place</h3>
-                <p data-i18n="ah_section_spec_sub">The facts people actually decide on: house rules, what the area gives you, what services come with it, the paperwork. Tap a category to open it, then tap a line to add it and edit the answer. Anything you cannot find, type yourself. Nothing here is a fixed list.</p>
+                <h3 data-i18n="ah_section_spec">Anything else</h3>
               </div>
             </div>
             <div class="ah-suggest" id="ahGroupSuggest" aria-label="Detail categories" data-i18n-aria-label="ah_aria_categories"></div>
@@ -1295,7 +1276,6 @@
               <span class="ap-panel__n" aria-hidden="true">8</span>
               <div class="ap-panel__tx">
                 <h3 data-i18n="ah_section_desc">Description and availability</h3>
-                <p data-i18n="ah_section_desc_sub">The last word is yours, and the number they ring.</p>
               </div>
             </div>
 
@@ -1318,7 +1298,6 @@
           <p id="ahFormMsg" class="ah-msg" role="alert" aria-live="polite" hidden></p>
 
           <div class="ap-actions">
-            <span class="ap-actions__note" data-i18n="ah_actions_note">Nothing is published until you save.</span>
             <button type="button" id="ahCancelBtn" class="ah-btn" data-i18n="ap_cancel">Cancel</button>
             <button type="submit" id="ahSaveBtn" class="ah-btn ah-btn-brand" data-i18n="ah_save">Save listing</button>
           </div>

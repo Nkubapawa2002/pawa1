@@ -240,8 +240,14 @@ async function main() {
     if (cmd === "eval") {
       const expr = rest.filter((a) => !a.startsWith("--"))[0];
       if (!expr) usage('missing "<expr>"');
-      const out = await p.evaluate((e) => {
-        try { return JSON.stringify(eval(e), null, 1); }
+      // --form evaluates against the signed-in form rather than the gate, which
+      // is the only way to measure anything past the auth card.
+      if (has("form")) await revealForm(p, page.replace(/^\//, ""));
+      // await the result: a probe that has to WAIT for something (a row the page
+      // renders on its own clock) returns a promise, and JSON.stringify of a
+      // pending promise is "{}", which reads as a probe that found nothing.
+      const out = await p.evaluate(async (e) => {
+        try { return JSON.stringify(await eval(e), null, 1); }
         catch (err) { return "threw: " + err.message; }
       }, expr);
       console.log(out);
@@ -249,6 +255,17 @@ async function main() {
     }
 
     if (cmd === "form") await revealForm(p, page.replace(/^\//, ""));
+
+    // --do="<expr>" runs in the page after the reveal and before the shot, so a
+    // screenshot can show a form with something in it rather than an empty one.
+    const doExpr = flag("do", "");
+    if (doExpr) {
+      const r = await p.evaluate(async (e) => {
+        try { return JSON.stringify(await eval(e), null, 1); } catch (err) { return "threw: " + err.message; }
+      }, doExpr);
+      console.log("  do         " + String(r).split(String.fromCharCode(10)).join(String.fromCharCode(10) + "             "));
+      await new Promise((r2) => setTimeout(r2, 400));
+    }
 
     const h = await health(p);
     const ok = report(page, h, errs, notFound);

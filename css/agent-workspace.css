@@ -41,9 +41,34 @@
 
 body[data-agent-workspace] {
   /* The board tile's floor. Two columns of these have to fit a 390px screen
-     with all eight visible, which is the whole point of the board. */
+     with all eight visible, which is the whole point of the board. Three
+     columns was measured and rejected: it leaves the name 44px of width and
+     wraps "Amenities and furnishing" onto five lines. */
   --aw-tile-min: 150px;
   --aw-line: var(--c-border);
+
+  /* THE DENSITY KNOB.
+     css/adaptive.css already publishes --ui-scale (1, .9 at data-vp="compact",
+     .84 under 340px) and js/core/viewport.js already stamps the attribute that
+     moves it. Nothing in the portal read it. This is where it lands: the
+     portal's own step down, multiplied by the adaptive layer's, so one page
+     that is already cramped gets both reductions rather than the larger one.
+
+     It is spent on air only. Type is stepped by hand below, because two of the
+     sizes on this form are floors rather than preferences and a blanket scale
+     would walk straight through them:
+       · a field's own text stays exactly 16px, or iOS Safari zooms the whole
+         page when it is focused
+       · a tap target stays --hit-min
+
+     CSS only. A custom property holding calc() comes back from
+     getComputedStyle as literal text and parseFloat reads it as 0, so nothing
+     may read --aw-d from JS. */
+  --aw-d: calc(0.8 * var(--ui-scale, 1));
+  --aw-1: calc(var(--space-1) * var(--aw-d));
+  --aw-2: calc(var(--space-2) * var(--aw-d));
+  --aw-3: calc(var(--space-3) * var(--aw-d));
+  --aw-4: calc(var(--space-4) * var(--aw-d));
 }
 
 /* ---------------------------------------------------------------------------
@@ -71,6 +96,14 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
   }
 }
 
+/* The page header band is a kicker, an h1, a one-line subtitle and 52px of
+   padding: 157px measured at 390px, and every word of it is said again by the
+   board's own head two elements below. agent-portal.css already drops the
+   three fact pills off this band while the form is open; this drops the rest.
+   The gate and the dashboard, which is where an agent actually needs to know
+   what page they are on, keep it. */
+body[data-agent-workspace]:has(#ahFormSection:not([hidden])) .ap-head { display: none; }
+
 /* ---------------------------------------------------------------------------
    2. The board — every part of the listing on one screen
    --------------------------------------------------------------------------- */
@@ -80,10 +113,12 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  gap: var(--aw-3);
+  margin-bottom: var(--aw-3);
 }
-.aw-board__tx { flex: 1 1 220px; min-width: 0; }
+/* 140px, not 220px. At 390px a 220px basis pushed the meter onto a second row
+   of its own, which spent a whole line on eight 14px bars. */
+.aw-board__tx { flex: 1 1 140px; min-width: 0; }
 .aw-board__k {
   display: block;
   font-size: var(--text-xs);
@@ -93,8 +128,8 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
   color: var(--c-brand);
 }
 .aw-board__h {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-lg);
+  margin: 0;
+  font-size: var(--text-md);
   font-weight: var(--fw-bold);
   line-height: var(--lh-snug);
   color: var(--c-text);
@@ -141,15 +176,17 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
 .aw-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--aw-tile-min), 1fr));
-  gap: var(--space-2);
+  gap: var(--aw-2);
 }
 
+/* No min-height. It existed to keep a tile square-ish while every one of them
+   carried a summary line; now an untouched tile carries nothing and a fixed
+   floor is 8 x 30px of blank card. The grid still equalises each row. */
 .aw-tile {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  min-height: 84px;
-  padding: var(--space-3);
+  gap: 2px;
+  padding: var(--aw-2) var(--aw-3);
   border: 1px solid var(--aw-line);
   border-radius: var(--radius-lg);
   background: var(--c-surface);
@@ -168,13 +205,13 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
 .aw-tile__top {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--aw-2);
 }
 .aw-tile__n {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 22px; height: 22px;
+  width: 18px; height: 18px;
   border-radius: var(--radius-pill);
   background: var(--c-surface-2);
   color: var(--c-text-muted);
@@ -186,7 +223,14 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
 .aw-tile__name {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  /* Two lines. "Description and availability" is the longest name on the form
+     and reaches exactly two at this width; a third would be the tile growing
+     to fit a heading rather than the heading fitting the tile. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   font-weight: var(--fw-semibold);
   line-height: var(--lh-snug);
   color: var(--c-text);
@@ -195,7 +239,7 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
    and sit on the type's baseline at any size. */
 .aw-tile__tick {
   flex: 0 0 auto;
-  width: 16px; height: 16px;
+  width: 14px; height: 14px;
   color: var(--c-brand);
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease);
@@ -223,12 +267,40 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
 .aw-board__acts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
+  gap: var(--aw-2);
+  margin-top: var(--aw-3);
   padding-bottom: calc(var(--app-bottom, 0px) + var(--space-4));
 }
+
+/* The 15-day notice arrives here from the top of the form (boardOnly in
+   js/pages/agent-houses.js). As a bordered, padded, gold-ruled box it was
+   90px of the one screen the board is trying to fit, for a fact worth reading
+   once. On the board it is a line. */
+body[data-agent-workspace].aw-on .aw-board .ap-note {
+  margin: 0 0 var(--aw-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+  gap: var(--aw-2);
+}
+body[data-agent-workspace].aw-on .aw-board .ap-note__ic { padding-top: 1px; }
+body[data-agent-workspace].aw-on .aw-board .ap-note__ic svg { width: 14px; height: 14px; }
 .aw-board__acts .ah-btn,
 .aw-board__acts .ap-btn { flex: 1 1 140px; }
+
+/* On a 320px phone the 150px floor drops the grid to ONE column and the board
+   grows back to eight stacked rows. The floor exists so a name has width, and
+   below 360px there is no width to protect: two narrow columns that fit the
+   screen beat one wide column that does not. */
+@media (max-width: 359px) {
+  body[data-agent-workspace] { --aw-tile-min: 124px; }
+  /* A 124px tile leaves the longest name, "Description and availability", one
+     word past two lines, and a clamp does not shorten a heading, it hides the
+     end of one. A third line costs 14px. */
+  .aw-tile__name { -webkit-line-clamp: 3; }
+}
 
 /* ---------------------------------------------------------------------------
    3. The step bar — where am I, and how do I get out
@@ -311,11 +383,24 @@ body[data-agent-workspace].aw-on .ap-shell { display: block; }
    between seeing a question and its answer together or not.
    --------------------------------------------------------------------------- */
 body[data-agent-workspace].aw-on .ap-panel {
-  padding: var(--space-4);
-  margin-bottom: var(--space-4);
+  padding: var(--aw-4);
+  margin-bottom: var(--aw-3);
 }
-body[data-agent-workspace].aw-on .ap-panel__head { margin-bottom: var(--space-4); }
-body[data-agent-workspace].aw-on .ap-field { margin-bottom: var(--space-3); }
+
+/* With the subtitle gone from all eight panels, the head is a number and a
+   heading: one row, centred on each other, rather than a block with a
+   paragraph hanging off it. */
+body[data-agent-workspace].aw-on .ap-panel__head {
+  align-items: center;
+  gap: var(--aw-2);
+  margin-bottom: var(--aw-3);
+}
+body[data-agent-workspace].aw-on .ap-panel__n { width: 22px; height: 22px; }
+body[data-agent-workspace].aw-on .ap-panel__tx h3 { font-size: var(--text-base); }
+
+body[data-agent-workspace].aw-on .ap-field { margin-bottom: var(--aw-3); gap: 2px; }
+body[data-agent-workspace].aw-on .ap-field > label { font-size: var(--text-xs); }
+body[data-agent-workspace].aw-on .ap-hint { margin-top: 2px; }
 body[data-agent-workspace].aw-on .ap-field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 body[data-agent-workspace].aw-on .ap-field select {
   /* 16px type is kept exactly: anything smaller makes iOS Safari zoom the page
@@ -323,8 +408,35 @@ body[data-agent-workspace].aw-on .ap-field select {
      which is --hit-min to the pixel. */
   padding: var(--space-2) var(--space-3);
 }
-body[data-agent-workspace].aw-on .ap-field textarea { min-height: 84px; }
-body[data-agent-workspace].aw-on .ap-sub { margin-top: var(--space-4); padding-top: var(--space-4); }
+body[data-agent-workspace].aw-on .ap-field textarea { min-height: 72px; }
+body[data-agent-workspace].aw-on .ap-sub { margin-top: var(--aw-4); padding-top: var(--aw-3); }
+body[data-agent-workspace].aw-on .ap-sub > h4 { margin-bottom: var(--aw-2); }
+
+/* Chips, media tiles and the drop zone. All air, none of it type. */
+body[data-agent-workspace].aw-on .ah-chips,
+body[data-agent-workspace].aw-on .ah-suggest,
+body[data-agent-workspace].aw-on .ah-media-grid,
+body[data-agent-workspace].aw-on .ap-media { gap: var(--aw-2); }
+body[data-agent-workspace].aw-on .ap-chip { padding: var(--aw-1) var(--aw-2); }
+body[data-agent-workspace].aw-on .ap-drop { padding: var(--aw-3) var(--aw-4); }
+body[data-agent-workspace].aw-on .ap-acc > summary { padding: var(--aw-2) var(--aw-3); }
+body[data-agent-workspace].aw-on .ap-acc__body { padding: var(--aw-3); }
+
+/* The room card, which is the tallest thing an agent meets. The three size
+   brackets are a row of three at every width now that they are one word each:
+   the sentences under them are gone, and Small, Medium and Large stacked full
+   width was 210px spent on three words. */
+body[data-agent-workspace].aw-on .ah-band__row {
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--aw-2);
+}
+body[data-agent-workspace].aw-on .ah-band__b {
+  min-height: var(--hit-min);
+  padding: var(--aw-2);
+  text-align: center;
+}
+body[data-agent-workspace].aw-on .ah-room-grid { gap: var(--aw-2); }
+body[data-agent-workspace].aw-on .ah-room { padding: var(--aw-3); }
 
 /* Three number boxes are three number boxes at every width. Stacking them,
    which is what the shared rule does under 620px, spent 430px of a phone
@@ -359,15 +471,6 @@ body[data-agent-workspace].aw-on .aw-board .ap-actions {
   flex-wrap: wrap;
   gap: var(--space-2);
   width: 100%;
-}
-body[data-agent-workspace].aw-on .aw-board .ap-actions__note {
-  flex: 1 0 100%;
-  order: -1;
-  margin-bottom: var(--space-1);
-  /* It says "nothing is published until you save", one tap above the button
-     that publishes. The shared rule drops it under 520px, which is exactly
-     the screen where the reassurance is worth most. */
-  display: block;
 }
 body[data-agent-workspace].aw-on .aw-board .ap-actions .ah-btn { flex: 1 1 140px; }
 /* Full width is right on a phone, where a thumb needs the whole row. On a
