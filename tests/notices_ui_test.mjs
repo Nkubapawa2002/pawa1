@@ -30,10 +30,13 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const NOTICES = [
   { id: "11111111-1111-4111-8111-111111111111", title: "Your listings have been paused",
     body: "Owes for March. Contact the admin to sort it out.", kind: "billing",
-    severity: "urgent", created_at: new Date().toISOString() },
+    // Aged on purpose, and by different amounts. A panel that shows no time at
+    // all is why a notice from this morning and one from five weeks ago used to
+    // look identical, so the fixture has to be able to tell them apart.
+    severity: "urgent", created_at: new Date(Date.now() - 2 * 86400000).toISOString() },
   { id: "22222222-2222-4222-8222-222222222222", title: "A word from the admin",
     body: "Come and see me about the Mwanza listings.", kind: "individual",
-    severity: "info", created_at: new Date().toISOString() },
+    severity: "info", created_at: new Date(Date.now() - 3 * 3600000).toISOString() },
 ];
 
 function stub(opts = {}) {
@@ -70,8 +73,16 @@ const GUEST   = { user: { id: "guest-1", email: null, is_anonymous: true } };
 const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"], protocolTimeout: 120000 });
 const errors = [];
 
+// A context per page, not just a page. Sharing the default context shares the
+// SERVICE WORKER: section 1 registers it, it activates while section 2 is
+// loading, sw-register.js reloads the page on controllerchange, and the goto
+// that was waiting for domcontentloaded never settles. It only bites when the
+// 76-file precache happens to finish inside section 1's wait, so it looks like
+// flakiness on a busy machine and passes on an idle one. An isolated context
+// starts with no worker and cannot race.
 async function open(body) {
-  const p = await browser.newPage();
+  const ctx = await browser.createBrowserContext();
+  const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(String(e)));
   await p.setViewport({ width: 390, height: 900, deviceScaleFactor: 1, isMobile: true });
   await p.evaluateOnNewDocument(() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} });
@@ -112,8 +123,13 @@ try {
     const txt = await panelText(p);
     ok(/ends in 5 days/i.test(txt),
        "the subscription row names the days left rather than counting rows", txt.slice(0, 160));
-    ok(/messages about your account|message about your account/i.test(txt),
-       "and the admin's messages are their own row", txt.slice(0, 220));
+    // It used to be enough that the panel said "2 messages about your account".
+    // That was the complaint: the notice was fetched, counted, and its own words
+    // thrown away. Each one is its own row now, and the row says what it says.
+    ok(/Your listings have been paused/.test(txt),
+       "each admin notice says what the admin actually wrote", txt.slice(0, 260));
+    ok(/A word from the admin/.test(txt),
+       "and every one of them, not the first", txt.slice(0, 260));
     ok(/pay the admin/i.test(txt),
        "with the one thing to do about it, which is not a button in this app");
 
@@ -125,11 +141,30 @@ try {
     });
     ok(counts === false, "and the subscription row carries no count chip", String(counts));
 
-    const href = await p.evaluate(() => {
-      const row = [...document.querySelectorAll(".nt-row")].find((r) => r.dataset.key === "admin");
-      return row ? row.getAttribute("href") : "";
+    const admin = await p.evaluate(() => {
+      const rows = [...document.querySelectorAll('.nt-item[data-key="admin"]')];
+      return {
+        n: rows.length,
+        href: rows[0] ? rows[0].getAttribute("href") : "",
+        when: rows.map((r) => (r.querySelector(".nt-item-when") || {}).textContent || ""),
+        ids: rows.map((r) => r.dataset.id).filter(Boolean).length,
+      };
     });
-    ok(/profile\.html#notices/.test(href), "the admin row leads to where the notices are listed", href);
+    ok(admin.n === 2, "one row per notice, not one row for all of them", String(admin.n));
+    ok(/profile\.html#notices/.test(admin.href),
+       "and each leads to where it can be read and marked", admin.href);
+    // A notice with no time on it is why one from this morning and one from
+    // five weeks ago used to look identical.
+    ok(admin.when.every((w) => w.trim() !== ""), "each carries when it arrived", admin.when.join(" | "));
+    ok(admin.when[0] !== admin.when[1],
+       "and two notices of different ages do not read the same", admin.when.join(" | "));
+    ok(admin.ids === 2, "and the id of the notice it stands for", String(admin.ids));
+
+    const sections = await p.evaluate(() =>
+      [...document.querySelectorAll(".nt-sec")].map((x) => x.dataset.sec));
+    ok(sections.indexOf("account") >= 0, "the account section exists", sections.join(","));
+    ok(sections.indexOf("nearby") < 0 || sections.indexOf("account") < sections.indexOf("nearby"),
+       "and what the admin said comes before what is merely new", sections.join(","));
     await p.close();
   }
 

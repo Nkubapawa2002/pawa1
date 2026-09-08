@@ -1,9 +1,15 @@
 // ============================================================================
 //  Notifications — the bell, the badge, and the panel
 // ============================================================================
-//  js/core/notify.js works out what is new. This draws it: a bell that rides
-//  under the theme toggle carrying a count, and a panel listing what changed,
-//  each row a door to the page it happened on.
+//  js/core/notify.js works out what is new. This draws it: a bell in the
+//  top-right corner carrying a count, and a panel grouped into sections by who
+//  a thing is from, so a customer waiting for a call is never the same shape as
+//  twelve new rooms.
+//
+//  Where the bell sits is the page's business, not this file's. On the three
+//  agent pages it sits under the theme toggle and rises when the toggle fades;
+//  on index.html the toggle takes the left corner and the bell simply owns the
+//  right one. css/notify.css carries both.
 //
 //  Every mark here is a Lucide-style stroke SVG, so it takes the colour of the
 //  text beside it and follows the theme without being told to. Every string
@@ -11,8 +17,6 @@
 // ============================================================================
 (function () {
   "use strict";
-
-  var PANEL_Z = 1050;
 
   function tx(key, fallback, vars) {
     var out = fallback;
@@ -44,6 +48,8 @@
     close:   '<path d="M6 6l12 12M18 6L6 18"/>',
     check:   '<path d="M4 12.5l5 5L20 6.5"/>',
     empty:   '<circle cx="12" cy="12" r="9"/><path d="M8.5 13.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/>',
+    // Somebody with their hand up: a person asking, not a thing posted.
+    hand:    '<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5V4.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 11V6.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-1.9-3.3a1.5 1.5 0 0 1 2.4-1.8L9 14"/>',
   };
   function icon(name, cls) {
     return '<svg class="nt-ic' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" ' +
@@ -64,6 +70,11 @@
     jobs:     { one: ["nt_job_1", "1 new day job"],     many: ["nt_jobs", "{n} new day jobs"] },
     messages: { one: ["nt_msg_1", "1 unread message"],  many: ["nt_msgs", "{n} unread messages"] },
     groups:   { one: ["nt_group_1", "1 new group chat"],many: ["nt_groups", "{n} new group chats"] },
+    // The requests section draws its own rows and never reaches doorHtml, so
+    // these two are the answer to "what if it ever does": a group with no
+    // entry here renders a row with no words in it.
+    demand:   { one: ["nt_want_1", "1 person is looking for a place"],
+                many: ["nt_wants", "{n} people are looking for a place"] },
     // Not "1 new message from the admin" for one and "{n} new" for two: what
     // the admin sent is the same kind of thing either way, and the word that
     // matters is who it is from.
@@ -107,6 +118,7 @@
     messages: ["nt_msg_d", "Encrypted, waiting in P-Message."],
     groups:   ["nt_group_d", "Somebody added you to a conversation."],
     admin:    ["nt_admin_d", "From the Pawa admin, about your listings or your subscription."],
+    demand:   ["nt_want_d", "Waiting in your area. Call them before somebody else does."],
   };
 
   // When the rooms row has been narrowed to this device's own area alerts, it
@@ -145,16 +157,31 @@
     return SUBS[g.key] ? tx(SUBS[g.key][0], SUBS[g.key][1]) : "";
   }
 
+  // ---- when it happened -----------------------------------------------------
+  /**
+   * How long ago, in the shortest true form.
+   *
+   * The old panel showed no time at all, which is what made a notice that
+   * arrived this morning and one from five weeks ago look identical. Minutes
+   * for the first hour, hours for the first day, days after that, and a plain
+   * date once "42 d" has stopped meaning anything to a reader.
+   */
+  function when(iso) {
+    if (!iso) return "";
+    var t = new Date(iso);
+    if (isNaN(t)) return "";
+    var mins = Math.floor((Date.now() - t.getTime()) / 60000);
+    if (mins < 1) return tx("nt_when_now", "now");
+    if (mins < 60) return tx("nt_when_min", "{n} min", { n: mins });
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return tx("nt_when_hour", "{n} h", { n: hrs });
+    var days = Math.floor(hrs / 24);
+    if (days <= 30) return tx("nt_when_day", "{n} d", { n: days });
+    return String(iso).slice(0, 10);
+  }
+
   // ---- the bell -------------------------------------------------------------
   var bell = null, badge = null, panel = null, backdrop = null;
-
-  function injectStyles() {
-    if (document.getElementById("pawa-notify-styles")) return;
-    var s = document.createElement("style");
-    s.id = "pawa-notify-styles";
-    s.textContent = CSS;
-    document.head.appendChild(s);
-  }
 
   function buildBell() {
     if (document.getElementById("pawa-notify-bell")) return;
@@ -166,25 +193,141 @@
     badge = bell.querySelector(".pawa-notify-badge");
     bell.addEventListener("click", function () { openPanel(); });
     document.body.appendChild(bell);
-    paintBadge(window.Notify ? window.Notify.state() : { total: 0 });
+    paintBadge(window.Notify ? window.Notify.state() : { total: 0, news: 0 });
   }
 
+  /**
+   * The badge counts what is ADDRESSED to this reader, and nothing else.
+   *
+   * It used to sum every group, so a quiet week with forty rooms posted read as
+   * "40 things to get through" and buried the one customer waiting for a call.
+   * Catalogue news still lights the bell, as a dot: there IS something, and the
+   * number would not have told anybody what to do about it.
+   */
   function paintBadge(st) {
     if (!bell || !badge) return;
-    var n = (st && st.total) || 0;
-    // 9+ rather than a number that grows the pill off the edge of the button.
-    badge.textContent = n > 9 ? "9+" : String(n);
-    badge.hidden = n === 0;
-    bell.classList.toggle("has-news", n > 0);
-    var label = n === 0
+    var mine = (st && st.total) || 0;
+    var news = (st && st.news) || 0;
+    badge.classList.toggle("is-dot", mine === 0 && news > 0);
+    badge.textContent = mine === 0 ? "" : mine > 9 ? "9+" : String(mine);
+    badge.hidden = mine === 0 && news === 0;
+    bell.classList.toggle("has-news", mine > 0 || news > 0);
+    var label = mine === 0
       ? tx("nt_open_none", "Notifications, nothing new")
-      : tx("nt_open", "Notifications, {n} new", { n: n });
+      : tx("nt_open", "Notifications, {n} new", { n: mine });
     bell.setAttribute("aria-label", label);
     bell.setAttribute("title", label);
   }
 
+  // ---- the three shapes a notification can take -----------------------------
+  /**
+   * Something is WRONG.
+   *
+   * Above every section, full width, nothing beside it to compare itself
+   * against, and never a count: "1" next to a changed safety number reads as
+   * one more thing to get through rather than the one thing to stop for.
+   */
+  function alarmHtml(g) {
+    return '<a class="nt-alarm" href="' + esc(g.href) + '" data-key="' + esc(g.key) + '">' +
+      icon(g.icon) +
+      '<span class="nt-alarm-tx">' +
+        '<span class="nt-alarm-h">' + esc(headline(g)) + "</span>" +
+        '<span class="nt-alarm-d">' + esc(subline(g)) + "</span>" +
+      "</span></a>";
+  }
+
+  /**
+   * One thing addressed to this reader, with when it arrived.
+   *
+   * An admin notice used to be a count over a fixed sentence: "1 message about
+   * your account", then "From the Pawa admin, about your listings or your
+   * subscription." What the admin actually SAID was fetched and thrown away.
+   */
+  function noticeHtml(g, it) {
+    var sev = it.severity === "urgent" ? " is-urgent"
+      : it.severity === "warn" ? " is-warn" : "";
+    return '<a class="nt-item' + sev + '" href="' + esc(g.href) +
+      '" data-key="' + esc(g.key) + '" data-id="' + esc(it.id || "") + '">' +
+      '<span class="nt-item-ic">' + icon(g.icon) + "</span>" +
+      '<span class="nt-item-tx">' +
+        '<span class="nt-item-h">' + esc(it.title || "") + "</span>" +
+        (it.body ? '<span class="nt-item-b">' + esc(it.body) + "</span>" : "") +
+      "</span>" +
+      '<span class="nt-item-when"><span class="nt-item-dot"></span>' +
+        esc(when(it.at)) + "</span></a>";
+  }
+
+  /** Merely new in the catalogue: a count and a door, which is its right shape. */
+  function doorHtml(g) {
+    var items = (g.items || []).filter(function (i) { return i.title; }).slice(0, 3);
+    var preview = items.length
+      ? '<span class="nt-row-eg">' +
+          items.map(function (i) { return esc(i.title); }).join(" · ") + "</span>"
+      : "";
+    return '<a class="nt-row" href="' + esc(g.href) + '" data-key="' + esc(g.key) + '">' +
+      '<span class="nt-row-ic">' + icon(g.icon) + "</span>" +
+      '<span class="nt-row-tx">' +
+        '<span class="nt-row-h">' + esc(headline(g)) + "</span>" +
+        '<span class="nt-row-d">' + esc(subline(g)) + "</span>" +
+        preview +
+      "</span>" +
+      // The subscription row is a STATE, not a tally, and a "1" beside it reads
+      // as one more thing to get through rather than the one thing to act on.
+      (g.key === "renew" ? "" :
+        '<span class="nt-row-n">' + (g.count > 99 ? "99+" : g.count) + "</span>") +
+    "</a>";
+  }
+
+  /**
+   * What a section holds, which depends on whether its rows are events.
+   *
+   * A customer request and an admin notice are things that happened to ONE
+   * person and are read one at a time. Twelve new rooms is a number. Giving
+   * both the same row is what made this panel unreadable.
+   */
+  function sectionBody(g) {
+    if (g.key === "demand") {
+      // Three rows, but the true count and the door, so the line underneath
+      // reads "+17 more in your area" and goes somewhere. g.items is the
+      // handful that travelled; g.count is how many there are.
+      return window.DemandRows
+        ? window.DemandRows.html(g.items || [], { limit: 3, total: g.count, href: g.href })
+        : "";
+    }
+    if (g.key === "admin") {
+      return (g.items || []).map(function (it) { return noticeHtml(g, it); }).join("");
+    }
+    return doorHtml(g);
+  }
+
+  var SECTION_WORDS = {
+    wants:   ["nt_sec_wants", "Somebody wants a place"],
+    account: ["nt_sec_account", "About your account"],
+    nearby:  ["nt_sec_nearby", "New nearby"],
+  };
+  // Who it is from, in the order it matters: a customer waiting for a call
+  // outranks a subscription reminder, and both outrank the catalogue.
+  var SECTION_ORDER = ["wants", "account", "nearby"];
+
+  function sectionHtml(name, groups) {
+    if (!groups.length) return "";
+    // Build the body FIRST. A section can count something it cannot draw: the
+    // requests section needs js/lib/demand-rows.js, which only the three agent
+    // portals load, and a heading reading "SOMEBODY WANTS A PLACE  4" over
+    // nothing at all is worse than no section.
+    var body = groups.map(sectionBody).join("");
+    if (!body) return "";
+    var w = SECTION_WORDS[name];
+    var n = groups.reduce(function (a, g) { return a + g.count; }, 0);
+    return '<section class="nt-sec" data-sec="' + esc(name) + '">' +
+      '<h3 class="nt-sec-h">' + esc(tx(w[0], w[1])) +
+        '<span class="nt-sec-n">' + (n > 99 ? "99+" : n) + "</span></h3>" +
+      body +
+    "</section>";
+  }
+
   // ---- the panel ------------------------------------------------------------
-  function rowsHtml(st) {
+  function bodyHtml(st) {
     var live = (st.groups || []).filter(function (g) { return g.count > 0; });
     if (!live.length) {
       return '<div class="nt-empty">' + icon("empty", "nt-empty-ic") +
@@ -192,32 +335,21 @@
         "<span>" + esc(tx("nt_none_d",
           "Nothing has been posted since you last looked. Check back later.")) + "</span></div>";
     }
-    return live.map(function (g) {
-      var items = (g.items || []).filter(function (i) { return i.title; }).slice(0, 3);
-      var preview = items.length
-        ? '<span class="nt-row-eg">' + items.map(function (i) { return esc(i.title); }).join(" · ") + "</span>"
-        : "";
-      return '<a class="nt-row' + (g.alarm ? " is-alarm" : "") + '" href="' + esc(g.href) +
-        '" data-key="' + esc(g.key) + '">' +
-        '<span class="nt-row-ic">' + icon(g.icon) + "</span>" +
-        '<span class="nt-row-tx">' +
-          '<span class="nt-row-h">' + esc(headline(g)) + "</span>" +
-          '<span class="nt-row-d">' + esc(subline(g)) + "</span>" +
-          preview +
-        "</span>" +
-        // The subscription row is a STATE, not a tally, and a "1" beside it
-        // reads as one more thing to get through rather than the one thing to
-        // act on. Every other row is a count and keeps its number.
-        (g.key === "renew" ? "" :
-          '<span class="nt-row-n">' + (g.count > 99 ? "99+" : g.count) + "</span>") +
-      "</a>";
-    }).join("");
+    // An alarm leaves its section and goes to the rail. Trust is always one;
+    // the subscription becomes one only when it is urgent, which is why this
+    // reads the flag rather than the key.
+    var out = live.filter(function (g) { return g.alarm; }).map(alarmHtml).join("");
+    var rest = live.filter(function (g) { return !g.alarm; });
+    SECTION_ORDER.forEach(function (name) {
+      out += sectionHtml(name, rest.filter(function (g) { return g.section === name; }));
+    });
+    return out;
   }
 
   function render() {
     if (!panel) return;
-    var st = window.Notify ? window.Notify.state() : { total: 0, groups: [] };
-    panel.querySelector(".nt-body").innerHTML = rowsHtml(st);
+    var st = window.Notify ? window.Notify.state() : { total: 0, news: 0, groups: [] };
+    panel.querySelector(".nt-body").innerHTML = bodyHtml(st);
     var clear = panel.querySelector(".nt-clear");
     // The engine owns the list of rows this button cannot touch; asking it
     // beats keeping a second copy here, which is how the button ends up
@@ -226,8 +358,10 @@
       return g.count > 0 && (!window.Notify || window.Notify.isDismissible(g.key));
     });
     // A row is a door AND a dismissal: opening the page is the same as saying
-    // "I have seen these", so the badge does not still claim them on the way back.
-    panel.querySelectorAll(".nt-row").forEach(function (a) {
+    // "I have seen these", so the badge does not still claim them on the way
+    // back. A customer request carries no data-key and is skipped here: it is
+    // answered by the Call button on it, or it passes its date.
+    panel.querySelectorAll("[data-key]").forEach(function (a) {
       a.addEventListener("click", function () {
         if (window.Notify) window.Notify.markSeen(a.dataset.key);
       });
@@ -248,7 +382,7 @@
     panel.hidden = true;
     panel.innerHTML =
       '<div class="nt-head">' +
-        "<b>" + esc(tx("nt_title", "What's new")) + "</b>" +
+        "<b>" + esc(tx("nt_title", "Notifications")) + "</b>" +
         '<button type="button" class="nt-x" aria-label="' + esc(tx("nt_close", "Close")) + '">' +
           icon("close") + "</button>" +
       "</div>" +
@@ -290,9 +424,13 @@
   function onEsc(e) { if (e.key === "Escape") closePanel(); }
 
   // ---- boot -----------------------------------------------------------------
+  // There is no injectStyles() any more. The panel is styled by css/notify.css,
+  // which every page that mounts the bell links, so both themes come from the
+  // tokens flipping rather than a second hand-written palette, and
+  // scripts/design/check_tokens.mjs can finally read the app's most-seen
+  // control.
   function init() {
     if (!document.body) return;
-    injectStyles();
     buildBell();
     if (window.Notify) {
       window.Notify.on(function (st) {
@@ -301,136 +439,6 @@
       });
     }
   }
-
-  var CSS = [
-    /* The bell rides under the theme toggle: same right edge, same size, one
-       gap below it. The toggle fades out after five seconds; this does not,
-       because a badge nobody can see is not a notification. */
-    ".pawa-notify-bell{",
-    "  position:fixed; z-index:1000;",
-    "  top:calc(env(safe-area-inset-top,0px) + 60px); right:12px;",
-    "  width:42px; height:42px; border-radius:50%;",
-    "  display:flex; align-items:center; justify-content:center;",
-    "  cursor:pointer; -webkit-tap-highlight-color:transparent;",
-    "  border:1px solid rgba(255,255,255,.14);",
-    "  background:rgba(14,24,18,.55); color:#e7f1ec;",
-    "  -webkit-backdrop-filter:blur(14px) saturate(1.1); backdrop-filter:blur(14px) saturate(1.1);",
-    "  box-shadow:0 6px 20px rgba(0,0,0,.28);",
-    "  transition:transform .18s var(--ease,cubic-bezier(.2,.7,.2,1)), background .25s ease;",
-    "}",
-    ".pawa-notify-bell:active{ transform:scale(.9); }",
-    /* When the theme toggle fades out, the bell takes its slot. Two floating
-       controls in the top-right corner is one more than that corner has room
-       for on a 390px screen: stacked, the lower one sits on index.html's
-       search button. At rest there is now exactly one, in the place the app
-       has always put a floating control, and the pair only appears while the
-       reader is actually touching the screen. */
-    ":root.pawa-toggle-idle .pawa-notify-bell{",
-    "  top:calc(env(safe-area-inset-top,0px) + 10px);",
-    "}",
-    ".pawa-notify-bell{ transition:top .28s var(--ease,cubic-bezier(.2,.7,.2,1)),",
-    "  transform .18s var(--ease,cubic-bezier(.2,.7,.2,1)), background .25s ease; }",
-    ".pawa-notify-bell .nt-ic{ width:21px; height:21px; }",
-    ":root[data-theme=\"light\"] .pawa-notify-bell{",
-    "  background:rgba(255,255,255,.72); color:#1a1915;",
-    "  border-color:rgba(20,20,15,.10); box-shadow:0 6px 18px rgba(20,30,25,.14);",
-    "}",
-    /* The badge is the whole point of the control, so it reads as the brand
-       colour rather than a warning red: this is news, not an error. */
-    ".pawa-notify-badge{",
-    "  position:absolute; top:-3px; right:-3px; min-width:18px; height:18px;",
-    "  padding:0 5px; border-radius:var(--radius-pill,999px);",
-    "  display:flex; align-items:center; justify-content:center;",
-    "  font:700 11px/1 var(--font-ui,system-ui,sans-serif);",
-    "  font-feature-settings:\"tnum\",\"zero\";",
-    "  background:var(--brand-primary); color:var(--text-on-brand);",
-    "  box-shadow:0 0 0 2px rgba(0,0,0,.35);",
-    "}",
-    ":root[data-theme=\"light\"] .pawa-notify-badge{ box-shadow:0 0 0 2px var(--white); }",
-    /* display:flex above beats the `hidden` ATTRIBUTE, so a count of zero drew
-       a "0" pill instead of nothing. Any element that ships hidden needs this
-       line beside its display rule, or the attribute is decorative. */
-    ".pawa-notify-badge[hidden]{ display:none; }",
-    ".pawa-notify-bell.has-news .nt-ic{ animation:ntRing 1.6s var(--ease,ease) 1; transform-origin:50% 4px; }",
-    "@keyframes ntRing{ 0%,100%{transform:rotate(0)} 15%{transform:rotate(13deg)} 30%{transform:rotate(-11deg)} 45%{transform:rotate(7deg)} 60%{transform:rotate(-5deg)} }",
-
-    ".nt-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:" + PANEL_Z + "; }",
-    /* A sheet from the top-right, which is where the bell is: the panel should
-       look like it came out of the control that opened it. */
-    ".nt-panel{",
-    "  position:fixed; z-index:" + (PANEL_Z + 1) + ";",
-    "  top:calc(env(safe-area-inset-top,0px) + 10px); right:10px; left:10px;",
-    "  max-width:420px; margin-left:auto;",
-    "  max-height:min(76vh,560px); display:flex; flex-direction:column;",
-    "  background:var(--surface-app); color:var(--text);",
-    "  border:1px solid var(--border-strong);",
-    "  border-radius:var(--radius-xl,24px); box-shadow:var(--shadow-3,0 16px 36px rgba(0,0,0,.55));",
-    "  font-family:var(--font-app,system-ui,sans-serif); overflow:hidden;",
-    "  transform:translateY(-10px) scale(.98); opacity:0;",
-    "  transition:transform .2s var(--ease,cubic-bezier(.2,.7,.2,1)), opacity .2s ease;",
-    "}",
-    ".nt-panel.is-on{ transform:none; opacity:1; }",
-    ":root[data-theme=\"light\"] .nt-panel{ background:var(--white); color:var(--text-ink); border-color:rgba(20,30,25,.14); }",
-    ".nt-head{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-3,12px);",
-    "  padding:var(--space-4,16px) var(--space-4,16px) var(--space-2,8px); }",
-    ".nt-head b{ font-size:var(--text-md,1.15rem); font-weight:var(--fw-extra,800); }",
-    ".nt-x{ width:34px; height:34px; border-radius:var(--radius-pill,999px); border:0; cursor:pointer;",
-    "  display:flex; align-items:center; justify-content:center; background:transparent; color:inherit; opacity:.7; }",
-    ".nt-x:hover{ opacity:1; background:rgba(127,127,127,.14); }",
-    ".nt-x .nt-ic{ width:18px; height:18px; }",
-    /* flex:1 with min-height:0 — a flex item will not shrink below its content
-       without the second half, so the list overflowed the panel and the button
-       below it ended up drawn on top of the last row. */
-    ".nt-body{ flex:1 1 auto; min-height:0; overflow-y:auto;",
-    "  padding:0 var(--space-2,8px) var(--space-2,8px); }",
-
-    ".nt-row{ display:flex; align-items:flex-start; gap:var(--space-3,12px); text-decoration:none;",
-    "  color:inherit; padding:var(--space-3,12px); border-radius:var(--radius,12px);",
-    "  transition:background .14s ease; }",
-    ".nt-row:hover{ background:rgba(127,127,127,.12); }",
-    ".nt-row-ic{ flex:0 0 auto; width:36px; height:36px; border-radius:var(--radius-sm,10px);",
-    "  display:flex; align-items:center; justify-content:center;",
-    "  background:var(--green-soft); color:var(--brand-primary); }",
-    /* An alarm is not news, so it does not wear the brand green every other
-       row wears. --warn rather than --danger: the key MAY have changed because
-       somebody reinstalled the app, and painting that red would teach people
-       to dismiss the one row that is worth stopping for. */
-    ".nt-row.is-alarm .nt-row-ic{ background:color-mix(in srgb, var(--warn) 16%, transparent);",
-    "  color:var(--warn); }",
-    ".nt-row.is-alarm .nt-row-h{ color:var(--warn); }",
-    ".nt-row-ic .nt-ic{ width:19px; height:19px; }",
-    ".nt-row-tx{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }",
-    ".nt-row-h{ font-weight:var(--fw-bold,700); font-size:var(--text-sm,.85rem); }",
-    ".nt-row-d{ font-size:var(--text-xs,.72rem); opacity:.6; line-height:1.4; }",
-    /* The examples are what turn a count into news: "3 new rooms" is a number,
-       "Mwenge single, Sinza bedsitter" is a reason to tap. */
-    ".nt-row-eg{ font-size:var(--text-xs,.72rem); opacity:.85; margin-top:3px;",
-    "  color:var(--link); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }",
-    ":root[data-theme=\"light\"] .nt-row-eg{ color:#0a6647; }",
-    ".nt-row-n{ flex:0 0 auto; font-family:var(--font-mono,ui-monospace,monospace);",
-    "  font-feature-settings:\"tnum\",\"zero\"; font-weight:var(--fw-bold,700);",
-    "  font-size:var(--text-sm,.85rem); opacity:.75; }",
-
-    ".nt-empty{ display:flex; flex-direction:column; align-items:center; gap:var(--space-2,8px);",
-    "  text-align:center; padding:var(--space-8,32px) var(--space-5,20px); }",
-    ".nt-empty-ic{ width:34px; height:34px; opacity:.35; }",
-    ".nt-empty b{ font-size:var(--text-sm,.85rem); font-weight:var(--fw-bold,700); }",
-    ".nt-empty span{ font-size:var(--text-xs,.72rem); opacity:.6; line-height:1.5; max-width:26ch; }",
-
-    ".nt-clear{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:var(--space-2,8px);",
-    "  width:calc(100% - 16px); margin:0 8px 12px; min-height:var(--hit-min,44px);",
-    "  border:1px solid var(--border-strong); background:transparent;",
-    "  color:inherit; border-radius:var(--radius,12px); cursor:pointer; font:inherit;",
-    "  font-size:var(--text-sm,.85rem); font-weight:var(--fw-semibold,600); }",
-    ".nt-clear:hover{ background:rgba(127,127,127,.12); }",
-    ".nt-clear .nt-ic{ width:17px; height:17px; }",
-    ":root[data-theme=\"light\"] .nt-clear{ border-color:rgba(20,30,25,.16); }",
-
-    "@media (prefers-reduced-motion: reduce){",
-    "  .pawa-notify-bell,.nt-panel,.nt-row{ transition:none; }",
-    "  .pawa-notify-bell.has-news .nt-ic{ animation:none; }",
-    "}",
-  ].join("\n");
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();

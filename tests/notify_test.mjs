@@ -73,12 +73,49 @@ const INBOX = [
   { thread_id: "t2", kind: "direct", other_name: "Juma", unread: 3, last_at: iso(20000) },
 ];
 
+// The reader is an agent who works Kinondoni, in Dar es Salaam. Without this
+// row there is no region, and js/core/notify.js is right to ask the server
+// nothing: a reader who is not an agent has no customers waiting for them.
+const AGENT_PROFILE = {
+  user_id: "me", name: "Neema", region: "Dar es Salaam", district: "Kinondoni",
+  area_of_operations: "Mwenge", area_kind: "ward", ward: "Mwenge",
+};
+
+// Nine open requests routed to that agent. Nine, not three, because the panel
+// draws three and has to say what it is not showing: the count, the "+6 more"
+// line and the door are the three things section 9 exists to pin.
+const DEMAND = Array.from({ length: 9 }, (_, i) => ({
+  id: "d" + i,
+  name: "Seeker " + i,
+  phone: i === 0 ? "0712000111" : "255713" + String(100000 + i),
+  area: i % 2 ? "Sinza" : "Mwenge",
+  match_level: i < 4 ? "district" : "region",
+  listing: "rent",
+  type: "house",
+  max_budget_tzs: 400000,
+  // The first one moves this week; the rest are further out. urgentCount()
+  // reads this, and so does the sort.
+  needed_by: new Date(now + (i === 0 ? 2 : 40 + i) * 86400000).toISOString().slice(0, 10),
+}));
+
 const stub = `window.supabase={createClient:function(){
-var M={houses:${JSON.stringify(HOUSES)},services:${JSON.stringify(SERVICES)},trucks:${JSON.stringify(TRUCKS)},day_jobs:${JSON.stringify(JOBS)}};
+var M={houses:${JSON.stringify(HOUSES)},services:${JSON.stringify(SERVICES)},trucks:${JSON.stringify(TRUCKS)},day_jobs:${JSON.stringify(JOBS)},agent_profiles:[${JSON.stringify(AGENT_PROFILE)}]};
 function q(tbl){var b={_t:tbl};["select","eq","neq","gt","gte","lt","lte","is","or","order","limit","in"].forEach(function(m){b[m]=function(){return b}});
-b.then=function(r,j){return Promise.resolve({data:M[b._t]||[],error:null}).then(r,j)};return b}
+b.then=function(r,j){return Promise.resolve({data:M[b._t]||[],error:null}).then(r,j)};
+// AgentProfile.get() ends in .maybeSingle(). A stub without it throws inside
+// that function's own try/catch, which returns null, which looks exactly like
+// "this reader is not an agent" and hides the whole requests section.
+b.maybeSingle=function(){var row=(M[b._t]||[])[0]||null;
+if(b._t==="agent_profiles"&&!isAgent)row=null;
+return Promise.resolve({data:row,error:null})};
+b.single=b.maybeSingle;return b}
 var s={user:{id:"me",email:"a@b.c",is_anonymous:false}};
+// Section 9 opens one page as somebody who is not an agent. Everything the
+// requests section needs comes from these two answers, so withholding both is
+// exactly what the server would do for a reader with no agent_profiles row.
+var isAgent=!window.__NOT_AN_AGENT;
 return{rpc:function(n){if(n==="pm_inbox")return Promise.resolve({data:${JSON.stringify(INBOX)},error:null});
+if(n==="house_demand_for_agent")return Promise.resolve({data:isAgent?${JSON.stringify(DEMAND)}:[],error:null});
 return Promise.resolve({data:[],error:null})},from:q,
 auth:{getSession:function(){return Promise.resolve({data:{session:s},error:null})},
 getUser:function(){return Promise.resolve({data:{user:s.user},error:null})},
@@ -106,7 +143,7 @@ const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"]
  * `alerts` and `trust` seed the two stores the bell reads and never writes:
  * the area alerts houses.html saves, and pm-trust.js's book of keys.
  */
-async function open({ firstRun = false, alerts = null, trust = null } = {}) {
+async function open({ firstRun = false, alerts = null, trust = null, agent = true } = {}) {
   const ctx = await browser.createBrowserContext();
   const page = await ctx.newPage();
   const errs = [];
@@ -123,8 +160,9 @@ async function open({ firstRun = false, alerts = null, trust = null } = {}) {
     if (/fonts\.googleapis|fonts\.gstatic/.test(u)) return r.respond({ status: 200, headers: { "content-type": "text/css" }, body: "" });
     r.continue();
   });
-  await page.evaluateOnNewDocument((since, fresh, al, tr) => {
+  await page.evaluateOnNewDocument((since, fresh, al, tr, notAgent) => {
     try {
+      if (notAgent) window.__NOT_AN_AGENT = true;
       localStorage.setItem("pawa-theme", "dark");
       if (!fresh) {
         localStorage.setItem("pawa_notify_seen", JSON.stringify({
@@ -134,7 +172,7 @@ async function open({ firstRun = false, alerts = null, trust = null } = {}) {
       if (al) localStorage.setItem("pawa_house_geo_alerts", JSON.stringify(al));
       if (tr) localStorage.setItem("pm-trust-v1", JSON.stringify(tr));
     } catch (e) {}
-  }, AN_HOUR_AGO, firstRun, alerts, trust);
+  }, AN_HOUR_AGO, firstRun, alerts, trust, !agent);
   await page.goto(BASE + "/index.html", { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForFunction(() => !!window.Notify && !!document.getElementById("pawa-notify-bell"), { timeout: 30000 });
   return { page, errs, close: () => ctx.close() };
@@ -149,7 +187,8 @@ console.log("\n1. It counts what arrived since this device last looked");
     const s = window.Notify.state();
     const by = {};
     s.groups.forEach((g) => { by[g.key] = g.count; });
-    return { total: s.total, by, badge: document.querySelector(".pawa-notify-badge").textContent };
+    return { total: s.total, news: s.news, by,
+             badge: document.querySelector(".pawa-notify-badge").textContent };
   });
   ok(st.by.houses === 3, "three rooms, and the one older than the mark is not news", JSON.stringify(st.by));
   ok(st.by.services === 1, "one service");
@@ -157,8 +196,16 @@ console.log("\n1. It counts what arrived since this device last looked");
   ok(st.by.jobs === 2, "two day jobs");
   ok(st.by.messages === 5, "five unread messages across the inbox", String(st.by.messages));
   ok(st.by.groups === 1, "one group nobody on this device had seen", String(st.by.groups));
-  ok(st.total === 12, "and the badge adds them up", String(st.total));
-  ok(st.badge === "9+", "capped at 9+ so the pill never outgrows the button", st.badge);
+  ok(st.by.demand === 9, "nine people are waiting for a place in this agent's area",
+     String(st.by.demand));
+  // The badge counts what is ADDRESSED to this reader and nothing else: five
+  // unread messages, one group somebody added them to, and nine customers
+  // waiting for a call. The six catalogue items still light the bell, but as
+  // `news`, because "12" because twelve rooms were posted is a number nobody
+  // can act on and it buries the one person waiting for a call.
+  ok(st.total === 15, "the badge counts what is addressed to this reader", String(st.total));
+  ok(st.news === 6, "and the catalogue is counted apart from it", String(st.news));
+  ok(st.badge === "9+", "which is the number on the pill, capped", st.badge);
   await t.close();
 }
 
@@ -176,8 +223,11 @@ console.log("\n2. A first run is not told the catalogue is news");
     badgeHidden: document.querySelector(".pawa-notify-badge").hidden,
   }));
   ok(st.seeded, "the mark is seeded on the first run");
-  // Messages are live state, not history, so they still count on day one.
-  ok(st.total === 5, "and only the unread messages count, not the whole catalogue", String(st.total));
+  // Messages and waiting customers are live state, not history, so they still
+  // count on day one. Seeding the mark to now silences the CATALOGUE, which is
+  // the only part of the bell a first-time reader has no history for.
+  ok(st.total === 14, "and only what is addressed to them counts, not the whole catalogue",
+     String(st.total));
   ok(!st.badgeHidden, "the badge still shows them");
   await t.close();
 }
@@ -230,7 +280,11 @@ console.log("\n4. Reading it clears it, except the part that is not ours to clea
   // An unread count belongs to the conversation. Clearing it from a panel the
   // sender cannot see would be the app lying to its reader about what they read.
   ok(after.by.messages === 5, "unread messages do NOT, because only opening them can", String(after.by.messages));
-  ok(after.total === 5, "so the badge keeps exactly what is still true", String(after.total));
+  // Nor do the customers. Somebody does not stop needing a place because an
+  // agent glanced at a panel, and a badge that can be tapped away is a badge
+  // that lets somebody dismiss the call that was going to pay for their week.
+  ok(after.by.demand === 9, "and neither do the people waiting for a call", String(after.by.demand));
+  ok(after.total === 14, "so the badge keeps exactly what is still true", String(after.total));
 
   const persisted = await t.page.evaluate(() => JSON.parse(localStorage.getItem("pawa_notify_seen")));
   ok(persisted.threads.includes("g1"), "and the mark is written down, so a reload agrees");
@@ -262,18 +316,28 @@ console.log("\n5. The theme toggle shows itself, then gets out of the way");
 }
 
 // ---------------------------------------------------------------------------
-console.log("\n6. The two controls share one corner without fighting over it");
+console.log("\n6. The two floating controls do not overlap each other");
 {
+  // This used to assert that the bell sat one gap BELOW the theme toggle on a
+  // shared right edge. index.html has not been laid out that way for some time:
+  // it sends the toggle to the left corner and pins the bell at the top of the
+  // right one, so the two never meet. The assertion outlived the layout and had
+  // been failing quietly; what it was protecting is that these two never sit on
+  // top of each other, and that is what it checks now.
   const t = await open();
   await sleep(700);
   const both = await t.page.evaluate(() => {
     const b = document.getElementById("pawa-notify-bell").getBoundingClientRect();
     const g = document.getElementById("pawa-theme-toggle").getBoundingClientRect();
-    return { below: b.top > g.top, sameRight: Math.abs(b.right - g.right) < 2, gap: Math.round(b.top - g.bottom) };
+    return {
+      overlap: b.left < g.right && b.right > g.left && b.top < g.bottom && b.bottom > g.top,
+      apart: Math.round(Math.abs(b.right - g.right)),
+      bellTop: Math.round(b.top),
+    };
   });
-  ok(both.below, "the bell sits below the day and night button");
-  ok(both.sameRight, "on the same right edge", "gap " + both.gap);
-  ok(both.gap >= 0 && both.gap < 20, "one gap apart, not stacked on top of it", String(both.gap));
+  ok(!both.overlap, "the bell and the day and night button never cover each other");
+  ok(both.apart > 100, "they hold opposite corners", String(both.apart));
+  ok(both.bellTop < 60, "and the bell is where a floating control belongs", String(both.bellTop));
 
   // index.html's search button lives in that corner too. Two floating controls
   // do not fit above it, so when the toggle fades the bell takes its slot.
@@ -345,31 +409,37 @@ console.log("\n8. A changed safety number is an alarm, and it cannot be tapped a
   const t = await open({ trust: TRUST_BOOK });
   await t.page.waitForFunction(() => window.Notify.state().total > 0, { timeout: 20000 });
   await t.page.click("#pawa-notify-bell");
-  await t.page.waitForSelector(".nt-row", { timeout: 10000 });
+  await t.page.waitForSelector(".nt-alarm", { timeout: 10000 });
+  // An alarm is no longer a row in the list. It is the rail above every
+  // section, which is the same claim the old assertion made ("first, above
+  // every kind of news") in the shape the panel has now.
   const p = await t.page.evaluate(() => {
-    const rows = [...document.querySelectorAll(".nt-row")];
-    const el = rows.find((r) => r.dataset.key === "trust");
+    const body = document.querySelector(".nt-body");
+    const el = body.querySelector('.nt-alarm[data-key="trust"]');
     const g = window.Notify.state().groups.find((x) => x.key === "trust");
     return {
-      first: rows[0]?.dataset.key,
+      first: body.firstElementChild === el,
+      aboveSections: !!el && (!body.querySelector(".nt-sec") ||
+        (el.compareDocumentPosition(body.querySelector(".nt-sec")) & Node.DOCUMENT_POSITION_FOLLOWING) > 0),
       count: g ? g.count : -1,
       names: ((g && g.items) || []).map((i) => i.title),
-      h: el?.querySelector(".nt-row-h")?.textContent,
-      d: el?.querySelector(".nt-row-d")?.textContent,
+      h: el?.querySelector(".nt-alarm-h")?.textContent,
+      d: el?.querySelector(".nt-alarm-d")?.textContent,
       href: el?.getAttribute("href"),
-      alarm: !!el?.classList.contains("is-alarm"),
-      icon: !!el?.querySelector(".nt-row-ic svg"),
+      icon: !!el?.querySelector("svg"),
+      counted: !!el?.querySelector(".nt-row-n"),
     };
   });
   // Only the peer whose key changed. Somebody merely seen is not an alarm.
   ok(p.count === 1, "one peer, not everyone on file", String(p.count));
   ok(p.names.join() === "Juma", "and it names them", p.names.join());
-  ok(p.first === "trust", "the alarm is the first row, above every kind of news", p.first);
+  ok(p.first, "the alarm is the first thing in the panel");
+  ok(p.aboveSections, "above every section, not inside one");
   ok(p.h === "1 safety number changed", "worded as something wrong, not something posted", p.h);
   ok(/blocked until you do/.test(p.d || ""), "and says what it costs to ignore", p.d);
   ok(p.href === "p-message.html", "a door to the place it can be dealt with", p.href);
-  ok(p.alarm, "painted as an alarm rather than in the brand green");
   ok(p.icon, "a stroke icon, never an emoji");
+  ok(!p.counted, "and never a count: \"1\" beside it reads as one more thing to get through");
 
   // The whole point of a sticky alarm is that doing nothing cannot clear it.
   const after = await t.page.evaluate(() => {
@@ -378,7 +448,7 @@ console.log("\n8. A changed safety number is an alarm, and it cannot be tapped a
     const g = window.Notify.state().groups.find((x) => x.key === "trust");
     return {
       count: g.count,
-      stillDrawn: !!document.querySelector('.nt-row[data-key="trust"]'),
+      stillDrawn: !!document.querySelector('.nt-alarm[data-key="trust"]'),
       clearHidden: document.querySelector(".nt-clear").hidden,
       dismissible: window.Notify.isDismissible("trust"),
     };
@@ -389,6 +459,86 @@ console.log("\n8. A changed safety number is an alarm, and it cannot be tapped a
   // Nothing left that the button could clear, so offering it would be a lie.
   ok(after.clearHidden, "and the button that cannot clear it stops offering to");
   ok(t.errs.length === 0, "no page errors across the alarm run", t.errs.slice(0, 2).join(" | "));
+  await t.close();
+}
+
+// ---------------------------------------------------------------------------
+// This section exists because the feature it describes shipped counting nothing
+// and nobody noticed. js/core/notify.js read .region off AgentProfile.get()
+// without awaiting it, so every reader on every page got undefined, the section
+// was skipped, and every other assertion in this file still passed. A count is
+// not a feature. What follows checks that a row is DRAWN, that it says how many
+// were left out, and that there is a way to reach the rest.
+console.log("\n9. Somebody wanting a place reaches the bell, not just the dashboard");
+{
+  const t = await open();
+  await t.page.waitForFunction(
+    () => (window.Notify.state().groups.find((g) => g.key === "demand") || {}).count > 0,
+    { timeout: 20000 });
+  await t.page.click("#pawa-notify-bell");
+  await t.page.waitForSelector('.nt-sec[data-sec="wants"]', { timeout: 10000 });
+
+  const w = await t.page.evaluate(() => {
+    const sec = document.querySelector('.nt-sec[data-sec="wants"]');
+    const rows = [...sec.querySelectorAll(".dm-row")];
+    const more = sec.querySelector("a.dm-more");
+    const first = rows[0];
+    return {
+      headCount: sec.querySelector(".nt-sec-n")?.textContent || "",
+      rows: rows.length,
+      tags: rows.map((r) => !!r.querySelector(".dm-tag")),
+      moreText: more ? more.textContent : (sec.querySelector(".dm-more")?.textContent || null),
+      moreIsLink: !!more,
+      moreHref: more ? more.getAttribute("href") : null,
+      call: !!first.querySelector('.dm-btn--call[href^="tel:"]'),
+      wa: (first.querySelector(".dm-btn--wa") || {}).href || "",
+      urgent: !!sec.querySelector(".dm-by.is-urgent"),
+      emoji: /\p{Extended_Pictographic}/u.test(sec.textContent),
+    };
+  });
+
+  ok(w.rows === 3, "the panel is a summary: three rows, not all nine", String(w.rows));
+  ok(w.headCount === "9", "and the heading counts everyone, not the three it drew", w.headCount);
+  // The bug this pins: the overflow used to be measured against the six rows
+  // that travelled rather than the nine that exist, so a heading reading 9 sat
+  // above a line reading "+3 more".
+  ok(/6/.test(w.moreText || ""), "the line underneath says how many are NOT shown", w.moreText);
+  ok(w.moreIsLink && w.moreHref === "agent-houses.html",
+     "and that line is the way through to them", String(w.moreHref));
+  // Own district first: it is where an agent can actually help, and DEMAND is
+  // built with the district matches spread through the list rather than at the
+  // top, so this fails if the shared sort is skipped.
+  ok(w.tags[0] && w.tags[1] && w.tags[2], "the agent's own district sorts first",
+     JSON.stringify(w.tags));
+  ok(w.call, "a row carries the phone number as something to press");
+  ok(/wa\.me\/255712000111/.test(w.wa),
+     "and a WhatsApp link with the leading zero replaced", w.wa);
+  ok(w.urgent, "somebody who moves this week is marked as moving this week");
+  ok(!w.emoji, "no emoji anywhere in the section");
+  ok(t.errs.length === 0, "no page errors while drawing requests", t.errs.slice(0, 2).join(" | "));
+  await t.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n10. A reader who is not an agent is never shown an empty version of it");
+{
+  const t = await open({ agent: false });
+  await t.page.waitForFunction(() => window.Notify.state().total > 0, { timeout: 20000 });
+  await t.page.click("#pawa-notify-bell");
+  await t.page.waitForSelector(".nt-row", { timeout: 10000 });
+  const w = await t.page.evaluate(() => ({
+    count: (window.Notify.state().groups.find((g) => g.key === "demand") || {}).count,
+    section: !!document.querySelector('.nt-sec[data-sec="wants"]'),
+    rows: document.querySelectorAll(".dm-row").length,
+    total: window.Notify.state().total,
+  }));
+  ok(w.count === 0, "nothing is counted for somebody with no agent profile", String(w.count));
+  ok(!w.section, "and no heading is drawn over nothing", String(w.section));
+  ok(w.rows === 0, "no rows either");
+  // Six, not fifteen: five unread messages and one group. The rest of the bell
+  // is untouched for a reader this feature is not for.
+  ok(w.total === 6, "the rest of the bell is exactly what it was", String(w.total));
+  ok(t.errs.length === 0, "no page errors", t.errs.slice(0, 2).join(" | "));
   await t.close();
 }
 

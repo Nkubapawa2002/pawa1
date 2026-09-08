@@ -162,6 +162,39 @@
   }
 
   /**
+   * Every open request routed to this agent.
+   *
+   * Gated three ways, deliberately. window.DemandRows is loaded on the home
+   * page and the three agent portals, window.AgentProfile only knows a region
+   * once the agent has set one, and a guest has no profile at all, so a reader
+   * who is not an agent never fires this RPC and never sees the section rather
+   * than seeing it empty.
+   *
+   * AgentProfile.get IS ASYNC AND TAKES THE CLIENT. Calling it bare and reading
+   * .region off the result reads a property off a pending Promise: undefined,
+   * every time, on every page, with no error to notice. That is how this whole
+   * section shipped counting nothing. The await is the feature.
+   *
+   * Twenty, not the hundred the dashboards ask for. The panel is a summary
+   * with a door to the full board; a bell that pulls a hundred rows every two
+   * minutes is a bell that costs more than it is worth.
+   */
+  async function demand() {
+    var DR = window.DemandRows;
+    var AP = window.AgentProfile;
+    var D = window.DataStore;
+    if (!DR || !AP || !AP.get || !D || !D.sb) return [];
+    var prof = null;
+    try { prof = await AP.get(D.sb); } catch (_) { return []; }
+    if (!prof || !prof.region) return [];
+    try {
+      return await DR.fetch({
+        sb: D.sb, region: prof.region, district: prof.district || null, limit: 20,
+      });
+    } catch (_) { return []; }
+  }
+
+  /**
    * Is the subscription worth interrupting somebody about?
    *
    * Only ever ONE row, never a count: an account has one subscription and the
@@ -188,27 +221,56 @@
   }
 
   // ---- putting it together -------------------------------------------------
+  //
+  // SECTIONS. Every group declares which of four places it belongs in, and the
+  // panel groups by that rather than drawing one flat list. The old list put
+  // "somebody is waiting for a place in your district" and "12 new rooms were
+  // posted" side by side in the same shape, which is the whole reason this had
+  // to be rebuilt.
+  //
+  //   alarm    something is WRONG. Full width, above everything, no count.
+  //   wants    somebody is asking YOU for something. One row each.
+  //   account  what the platform has to say about this account. One row each.
+  //   nearby   what is merely new in the catalogue. A count and a door.
+  //
+  // Array order is still the order within a section, so every ordering
+  // decision written down below survives.
   var GROUPS = [
     // Trust is FIRST, and it is the only row here that is not news about the
     // catalogue. Somebody's safety number changing is the most serious thing
     // this app can notice, it already blocks the composer in that thread, and
     // until now the only way to find out was to open the conversation. A
     // warning nobody is shown is not a warning.
-    { key: "trust",    href: "p-message.html",  icon: "shield", alarm: true },
+    { key: "trust",    section: "alarm",   href: "p-message.html",  icon: "shield", alarm: true },
+    // What a customer actually wants, routed to the agents who work that
+    // ground. It is the one thing in this panel that MAKES an agent money, and
+    // until now it never reached the bell at all: it was a card halfway down
+    // two of the three dashboards, so an agent out working never saw it.
+    // The door is the houses dashboard for all three portals, because
+    // agent_profiles has no kind: one profile serves every board, the requests
+    // are house_demand_pins, and that page is the only one that also says
+    // whether a lead is worth the call.
+    { key: "demand",   section: "wants",   href: "agent-houses.html", icon: "hand" },
     // The two rows that are about THIS ACCOUNT rather than about the
-    // catalogue, and they come second only to a changed safety number. An
-    // agent whose subscription runs out on Friday needs to know on Monday, and
-    // until now the only place either of these appeared was a banner on a
-    // dashboard that somebody out working never opens.
-    { key: "renew",    href: "profile.html#notices", icon: "clock",  alarm: true },
-    { key: "admin",    href: "profile.html#notices", icon: "stamp" },
-    { key: "houses",   href: "houses.html",     icon: "room" },
-    { key: "services", href: "services.html",   icon: "service" },
-    { key: "trucks",   href: "trucks.html",     icon: "truck" },
-    { key: "jobs",     href: "jobs.html",       icon: "job" },
-    { key: "messages", href: "p-message.html",  icon: "message", live: true },
-    { key: "groups",   href: "p-message.html",  icon: "group",   live: true },
+    // catalogue. An agent whose subscription runs out on Friday needs to know
+    // on Monday, and until now the only place either of these appeared was a
+    // banner on a dashboard that somebody out working never opens.
+    { key: "renew",    section: "account", href: "profile.html#notices", icon: "clock",  alarm: true },
+    { key: "admin",    section: "account", href: "profile.html#notices", icon: "stamp" },
+    { key: "houses",   section: "nearby",  href: "houses.html",     icon: "room" },
+    { key: "services", section: "nearby",  href: "services.html",   icon: "service" },
+    { key: "trucks",   section: "nearby",  href: "trucks.html",     icon: "truck" },
+    { key: "jobs",     section: "nearby",  href: "jobs.html",       icon: "job" },
+    { key: "messages", section: "nearby",  href: "p-message.html",  icon: "message", live: true },
+    { key: "groups",   section: "nearby",  href: "p-message.html",  icon: "group",   live: true },
   ];
+
+  // What the badge counts. Everything else still lights the bell, as a dot:
+  // "47" because 47 rooms were posted is a number nobody can act on, and it
+  // buries the one customer who is waiting for a call.
+  var ADDRESSED_TO_YOU = {
+    trust: true, demand: true, renew: true, admin: true, messages: true, groups: true,
+  };
 
   /**
    * Peers whose key is not the one this device wrote down.
@@ -257,6 +319,23 @@
     return { rows: picked, watched: true };
   }
 
+  /**
+   * The two numbers the bell reads.
+   *
+   * `total` is what the badge SHOWS, and it counts only what is addressed to
+   * this reader. `news` is everything else. Written once and called from all
+   * three places that produce a state, because when markSeen() recomputed the
+   * total with its own inline sum the badge disagreed with itself the moment a
+   * row was cleared.
+   */
+  function tally(groups) {
+    var total = 0, news = 0;
+    groups.forEach(function (g) {
+      if (ADDRESSED_TO_YOU[g.key]) total += g.count; else news += g.count;
+    });
+    return { total: total, news: news };
+  }
+
   async function compute() {
     var m = mark();
     var D = window.DataStore || {};
@@ -267,6 +346,7 @@
       catalogue(function () { return D.getDayJobs ? D.getDayJobs() : []; }, m.jobs),
       inbox(m.threads),
       notices(),
+      demand(),
     ]);
     var homes = narrowToAlerts(results[0]);
     var byKey = {
@@ -274,6 +354,7 @@
     };
     var pm = results[4];
     var acct = results[5];
+    var wants = results[6];
     var bill = billingAlert(acct.billing);
 
     // The same reasoning that seeds the catalogue timestamps applies to the
@@ -313,11 +394,27 @@
           items: [],
         });
       }
+      // The whole request travels, not a title: the panel draws the row that
+      // decides whether to make the call, and every field on it is one the
+      // agent needs before ringing a stranger.
+      // count is how many were fetched, items is the handful the panel draws.
+      // The difference is not a rounding error, it is the "+17 more" line, so
+      // the panel is told both rather than left to infer one from the other.
+      // demand() asks for 20, so an agent with more than that waiting sees 20
+      // and a door to the dashboard, never a number larger than was fetched.
+      if (g.key === "demand") {
+        return Object.assign({}, g, { count: wants.length, items: wants.slice(0, MAX_LIST) });
+      }
+      // `body` rides along now. A notice that can only be counted is a notice
+      // the reader has to leave the page to read.
       if (g.key === "admin") {
         return Object.assign({}, g, {
           count: acct.unread,
           items: acct.items.slice(0, MAX_LIST).map(function (r) {
-            return { id: r.id, title: r.title || "", at: r.created_at, severity: r.severity };
+            return {
+              id: r.id, title: r.title || "", body: r.body || "",
+              at: r.created_at, severity: r.severity,
+            };
           }),
         });
       }
@@ -345,11 +442,7 @@
 
     // Remembered so markAllSeen can retire the threads it just showed without
     // fetching the inbox a second time.
-    cache = {
-      total: groups.reduce(function (n, g) { return n + g.count; }, 0),
-      groups: groups,
-      _threads: pm.threads,
-    };
+    cache = Object.assign(tally(groups), { groups: groups, _threads: pm.threads });
     return cache;
   }
 
@@ -360,7 +453,7 @@
   }
 
   function state() {
-    return cache || { total: 0, groups: GROUPS.map(function (g) {
+    return cache || { total: 0, news: 0, groups: GROUPS.map(function (g) {
       return Object.assign({}, g, { count: 0, items: [] });
     }) };
   }
@@ -394,7 +487,14 @@
    * somebody dismiss the reminder that their listings come off the board on
    * Friday, which is the one this whole feature exists to deliver.
    */
-  var UNDISMISSABLE = { messages: true, trust: true, admin: true, renew: true };
+  //
+  // `demand` joins them, and for the plainest reason of the five: a request is
+  // not read, it is ANSWERED, or it passes its date and the server stops
+  // returning it. Letting an agent tap away the customer who is waiting for a
+  // call would be this panel deleting the only thing on it worth money.
+  var UNDISMISSABLE = {
+    messages: true, trust: true, admin: true, renew: true, demand: true,
+  };
 
   function markSeen(key) {
     var m = mark();
@@ -415,7 +515,7 @@
       cache.groups.forEach(function (g) {
         if (g.key === key && !UNDISMISSABLE[key]) { g.count = 0; g.items = []; }
       });
-      cache.total = cache.groups.reduce(function (n, g) { return n + g.count; }, 0);
+      Object.assign(cache, tally(cache.groups));
     }
     emit();
   }
@@ -431,7 +531,7 @@
       cache.groups.forEach(function (g) {
         if (!UNDISMISSABLE[g.key]) { g.count = 0; g.items = []; }
       });
-      cache.total = cache.groups.reduce(function (n, g) { return n + g.count; }, 0);
+      Object.assign(cache, tally(cache.groups));
     }
     emit();
   }

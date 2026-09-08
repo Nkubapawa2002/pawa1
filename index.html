@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="css/claude-design.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
+  <link rel="stylesheet" href="css/notify.css" />
   <!-- The helper-card styling, shared with p-chat.html. -->
   <link rel="stylesheet" href="css/action-cards.css" />
   <!-- "From the owner": one badge, four pages. css/owner-badge.css -->
@@ -962,7 +963,15 @@
   <script src="js/lib/pm-trust.js"></script>
   <!-- Notifications: the engine works out what is new since this device last
        looked; the UI draws the bell under the theme toggle. Both need
-       DataStore and Auth above them. -->
+       DataStore and Auth above them.
+
+       agent-profile and demand-rows are the requests section. Without them the
+       bell on the app's most-opened page can count customers waiting for a
+       call and has no way to draw one, which is the state this pair fixes.
+       Neither costs a reader who is not an agent anything: notify.js checks
+       for a profile with a region before it asks the server a question. -->
+  <script src="js/lib/agent-profile.js"></script>
+  <script src="js/lib/demand-rows.js"></script>
   <script src="js/core/notify.js"></script>
   <script src="js/lib/notify-ui.js"></script>
   <script src="js/lib/dialog.js"></script>
