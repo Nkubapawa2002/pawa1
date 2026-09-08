@@ -480,16 +480,29 @@ window.pawaDemandSpec = (r) => {
   if (!document.getElementById("pdsStyles")) {
     const s = document.createElement("style");
     s.id = "pdsStyles";
+    // Tokens, not hex. These chips are drawn inside a customer request, which
+    // now appears in the notification panel as well as on a dashboard, so they
+    // are read on a near-black surface as often as on a white one. The palette
+    // they replace was #eef2f0 / #e6efff / #ede9fe / #dff3e8 with dark ink:
+    // five light stickers on a dark card.
+    //
+    // Two levels, not five hues. A hard constraint an agent must be able to
+    // meet reads as emphasis; a soft preference to confirm on the call reads as
+    // an outline. The budget keeps a colour of its own because it is the number
+    // that decides whether the call is worth making.
     s.textContent = `
       .pds{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:5px}
-      .pds-c{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef2f0;color:#41504a;white-space:nowrap}
-      .pds-c.k{background:#e6efff;color:#1d4ed8}
-      .pds-c.t{background:#ede9fe;color:#6d28d9}
-      .pds-c.b{background:#dff3e8;color:#0a6f4d}
-      .pds-c.s{background:#f1f5f3;color:#52605a;font-weight:600}
-      .pds-line{flex-basis:100%;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:8px;line-height:1.35}
-      .pds-must{background:#e7f5ee;color:#0a6f4d}
-      .pds-avoid{background:#fdecea;color:#b3261e}`;
+      .pds-c{font-size:var(--text-xs);font-weight:var(--fw-bold);padding:2px 8px;
+        border-radius:var(--radius-pill);white-space:nowrap;
+        background:var(--surface-2);color:var(--text-soft)}
+      .pds-c.k,.pds-c.t{color:var(--text)}
+      .pds-c.b{background:var(--green-soft);color:var(--brand-primary)}
+      .pds-c.s{background:transparent;border:1px solid var(--border);
+        color:var(--text-muted);font-weight:var(--fw-semibold)}
+      .pds-line{flex-basis:100%;font-size:var(--text-xs);font-weight:var(--fw-bold);
+        padding:3px 8px;border-radius:var(--radius-xs);line-height:1.35}
+      .pds-must{background:var(--green-soft);color:var(--brand-primary)}
+      .pds-avoid{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}`;
     document.head.appendChild(s);
   }
 

@@ -3563,8 +3563,11 @@ create policy "house-photos upload" on storage.objects for insert
       // Who's been waiting for a room here? Surface renters who pinned this
       // area (with budget/specs matching this listing) and their phones, so
       // the agent can reach them the instant the listing goes live.
+      // Only hold the form open if the panel can actually be drawn. Without
+      // js/lib/demand-rows.js there are no rows and no Done button, so keeping
+      // it open would strand the agent on a form they have already saved.
       const waiting = await notifyWaitingRenters(saved || row).catch(() => []);
-      if (waiting.length) {
+      if (waiting.length && window.DemandRows) {
         renderWaitingPanel(waiting, saved || row);
         return;   // keep the form open so the agent can call them; "Done" closes it
       }
@@ -3627,26 +3630,22 @@ create policy "house-photos upload" on storage.objects for insert
     return String(p);
   }
 
-  // Whole days from today until a YYYY-MM-DD deadline (negative = passed).
-  function daysUntil(dateStr) {
-    if (!dateStr) return null;
-    const d = new Date(String(dateStr).slice(0, 10) + "T00:00:00");
-    if (isNaN(d)) return null;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    return Math.round((d - today) / 86400000);
-  }
-  // A "needs by <date> · N days left" urgency chip, coloured by how close it is.
-  // Sooner = hotter, so an agent's eye goes to the deals to close first.
-  function neededByChip(needed_by) {
-    const n = daysUntil(needed_by);
-    if (n == null) return "";
-    const date = String(needed_by).slice(0, 10);
-    const left = n <= 0 ? tr("adb_today") : n === 1 ? tr("ahw_day_left") : tr("ahw_days_left").replace("{n}", n);
-    const cls = n <= 3 ? "urgent" : n <= 14 ? "soon" : "later";
-    return `<span class="ah-by-chip ${cls}" title="${tr("ahw_move_by_title").replace("{date}", esc(date))}"> ${tr("adb_by")} ${esc(date)} · ${left}</span>`;
-  }
-
+  /**
+   * Everyone waiting here, the instant a listing saves.
+   *
+   * This panel owns the MOMENT, not the row. It appears over the form the agent
+   * has just submitted and is scoped to that listing's own area, which is why
+   * it keeps its own heading, sub-line and Done button.
+   *
+   * What a request LOOKS like belongs to js/lib/demand-rows.js, and handing
+   * that back is the point. This function used to parse the phone number
+   * itself, build its own Call and WhatsApp buttons, and colour its own
+   * deadline chip on thresholds of 3 and 14 days while the board six inches
+   * below it used 7 and 30. The same date read "urgent" in one panel and
+   * "soon" in the other, on one screen, at one moment.
+   */
   function renderWaitingPanel(rows, listing) {
+    const DR = window.DemandRows;
     ensureWaitStyles();
     let panel = document.getElementById("ahWaitingPanel");
     if (!panel) {
@@ -3654,24 +3653,15 @@ create policy "house-photos upload" on storage.objects for insert
       panel.id = "ahWaitingPanel";
       formSection.appendChild(panel);
     }
-    const area = listing.area || "this area";
-    const items = rows.map(r => {
-      const phone  = String(r.phone || "").trim();
-      const digits = phone.replace(/\D/g, "");
-      const intl   = digits.startsWith("0") ? "255" + digits.slice(1) : digits;
-      const spec = window.pawaDemandSpec ? window.pawaDemandSpec({ ...r, listing: r.listing || listing.listing, type: r.type || listing.type }) : "";
-      return `<div class="ah-wait-row">
-        <div class="ah-wait-who">
-          <strong>${esc(r.name || tr("ahw_waiting_renter"))}</strong>
-          ${spec}
-          ${neededByChip(r.needed_by)}
-        </div>
-        <div class="ah-wait-cta">
-          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> ${tr("action_call")}</a>
-          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">${tr("action_whatsapp")}</a>` : ""}
-        </div>
-      </div>`;
-    }).join("");
+    const area = listing.area || tr("ahw_your_area");
+    // house_demand_near answers about THIS listing, so a request that never
+    // stated its own kind or type is read as asking for what was just posted.
+    // The spec chips are drawn from the row, so that defaulting happens here
+    // rather than inside the shared renderer, which knows nothing about forms.
+    const items = DR.html(rows.map((r) => Object.assign({}, r, {
+      listing: r.listing || listing.listing,
+      type: r.type || listing.type,
+    })));
     const wHead = (rows.length === 1 ? tr("ahw_near_head_one") : tr("ahw_near_head_many"))
       .replace("{n}", rows.length).replace("{where}", esc(area));
     panel.innerHTML = `
@@ -3689,11 +3679,13 @@ create policy "house-photos upload" on storage.objects for insert
     });
   }
 
-  // The "renters waiting near you" card and the demand board, styled once and
-  // injected on first use. This block used to hold twenty-six literal hex
-  // values, all of them light: a mint card with dark-green ink, dropped onto
-  // a portal that is dark by default. It reads on both themes now because
-  // every value is a token, and the tokens are what the theme switch moves.
+  // The card AROUND the waiting rows, styled once and injected on first use.
+  // The rows themselves are .dm-* from css/notify.css, which this page links,
+  // so what is left here is a heading, a sub-line and a Done button. It used to
+  // be twenty-six literal hex values, all of them light: a mint card with
+  // dark-green ink, dropped onto a portal that is dark by default. It reads on
+  // both themes now because every value is a token, and the tokens are what the
+  // theme switch moves.
   function ensureWaitStyles() {
     if (document.getElementById("ahWaitStyles")) return;
     const s = document.createElement("style");
@@ -3705,39 +3697,9 @@ create policy "house-photos upload" on storage.objects for insert
       .ah-wait-head{font-weight:var(--fw-bold);font-size:var(--text-md);color:var(--c-brand);margin-bottom:2px}
       .ah-wait-sub{font-size:var(--text-sm);color:var(--c-text-soft);margin-bottom:var(--space-3);
         line-height:var(--lh-normal)}
-      .ah-wait-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
-        padding:var(--space-3) 0;border-top:1px solid var(--c-border)}
-      .ah-wait-who strong{display:block;font-size:var(--text-sm)}
-      .ah-wait-who small{color:var(--c-text-muted);font-size:var(--text-xs)}
-      .ah-wait-spec{display:block;color:var(--c-text-soft);font-size:var(--text-xs);margin-top:3px;
-        line-height:var(--lh-snug)}
-      .ah-misfit{opacity:.6}
-      .ah-misfit-chip{display:inline-block;font-size:var(--text-xs);font-weight:var(--fw-bold);
-        padding:1px 7px;border-radius:var(--radius-pill);background:var(--c-danger-soft);
-        color:var(--c-danger);margin-left:var(--space-1);white-space:nowrap}
-      .ah-wait-cta{display:flex;gap:var(--space-2);flex-shrink:0}
-      .ah-wait-btn{font-size:var(--text-sm);font-weight:var(--fw-semibold);text-decoration:none;
-        padding:7px var(--space-3);border-radius:var(--radius-sm);white-space:nowrap}
-      .ah-wait-btn.call{background:var(--c-brand);color:var(--c-brand-on)}
-      .ah-wait-btn.wa{background:var(--c-surface);color:var(--c-brand);
-        box-shadow:inset 0 0 0 1.5px var(--c-brand)}
       .ah-wait-done{margin-top:var(--space-3);width:100%;min-height:var(--hit-min);padding:var(--space-3);
         border:0;border-radius:var(--radius);background:var(--c-brand);color:var(--c-brand-on);
-        font:inherit;font-weight:var(--fw-semibold);font-size:var(--text-sm);cursor:pointer}
-      .ah-by-chip{display:inline-block;margin-top:var(--space-1);font-size:var(--text-xs);
-        font-weight:var(--fw-bold);padding:2px var(--space-2);border-radius:var(--radius-pill);
-        white-space:nowrap}
-      .ah-by-chip.urgent{background:var(--c-danger-soft);color:var(--c-danger)}
-      .ah-by-chip.soon{background:var(--c-warning-soft);color:var(--c-warning)}
-      .ah-by-chip.later{background:var(--c-bg-elev);color:var(--c-text-soft)}
-      #ahDemandBoard{margin:0 0 var(--space-5)}
-      .ah-board{position:relative;background:var(--c-warning-soft);border-color:var(--c-warning)}
-      .ah-board .ah-wait-head{color:var(--c-warning)}
-      .ah-board-x{position:absolute;top:var(--space-2);right:var(--space-3);border:0;background:none;
-        font-size:var(--text-md);line-height:1;color:var(--c-warning);cursor:pointer;opacity:.6}
-      .ah-board-x:hover{opacity:1}
-      .ah-board-more{margin-top:var(--space-3);font-size:var(--text-sm);color:var(--c-warning);
-        font-weight:var(--fw-semibold);text-align:center}`;
+        font:inherit;font-weight:var(--fw-semibold);font-size:var(--text-sm);cursor:pointer}`;
     document.head.appendChild(s);
   }
 
@@ -3782,38 +3744,33 @@ create policy "house-photos upload" on storage.objects for insert
     rows = [...byId.values()];
     if (!rows.length) { const ex = document.getElementById("ahDemandBoard"); if (ex) ex.remove(); return; }
 
-    // Most urgent first (soonest needed_by; open-ended last), then nearest.
-    rows.sort((a, b) => {
-      const da = daysUntil(a.needed_by), db = daysUntil(b.needed_by);
-      if ((da == null) !== (db == null)) return da == null ? 1 : -1;
-      if (da != null && db != null && da !== db) return da - db;
-      return (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9);
-    });
+    // Own district, then soonest needed_by, then nearest. The first two tiers
+    // are not decided here: DemandRows.sort owns them, so a request cannot rank
+    // one way on this board and another in the bell. Array.sort is stable, so
+    // sorting by distance first survives as the tie-break inside each tier,
+    // which is the one thing this board knows that the bell does not.
+    rows.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
+    rows = window.DemandRows ? window.DemandRows.sort(rows) : rows;
     const offer = await getAgentOffer();
     renderDemandBoard(rows, center || { label: region }, offer);
   }
 
   // The matching algorithm, run in Postgres: every active, non-expired request
   // in the agent's REGION, with their own DISTRICT ranked first (match_level).
-  // Prefers house_demand_for_agent (region+district); falls back to the older
-  // region-only RPC, then to nothing — so the board always works, whatever SQL
-  // is installed. (See supabase/features/house/house_demand_for_agent.sql.)
+  //
+  // Delegated, like the row. js/lib/demand-rows.js owns the pair of RPCs and
+  // the fallback between them, so a deployment that has not run
+  // house_demand_for_agent.sql degrades the same way on all three portals and
+  // in the bell. This page held a third copy of it, differing only in asking
+  // for 200 rows instead of 100.
   async function loadRegionDemand(region) {
-    if (!sb || !region) return [];
-    const district = (agentProfile && agentProfile.district) || null;
-    try {
-      const { data, error } = await sb.rpc("house_demand_for_agent", {
-        p_region: region, p_district: district, p_listing: null, p_limit: 200,
-      });
-      if (!error && Array.isArray(data)) return data;
-    } catch (_) {}
-    try {
-      const { data, error } = await sb.rpc("house_demand_in_region", {
-        p_region: region, p_listing: null, p_limit: 200,
-      });
-      if (error) return [];
-      return Array.isArray(data) ? data : [];
-    } catch (_) { return []; }
+    if (!sb || !region || !window.DemandRows) return [];
+    return window.DemandRows.fetch({
+      sb,
+      region,
+      district: (agentProfile && agentProfile.district) || null,
+      limit: 200,
+    });
   }
 
   // Where the agent operates: their declared profile point, else the average of
@@ -3884,52 +3841,55 @@ create policy "house-photos upload" on storage.objects for insert
     return null;
   }
 
+  /**
+   * The dashboard board: everyone waiting in this agent's area.
+   *
+   * The ROW is not drawn here. js/lib/demand-rows.js draws it, and the
+   * notification panel and the other two portals draw the same one, so a
+   * request cannot look or sort one way on a dashboard and another in the
+   * bell. This page keeps the two things that are genuinely its own: a centre
+   * with a 12 km ring around it, and assessFit(), which dims a lead this agent
+   * cannot serve.
+   */
   function renderDemandBoard(rows, center, offer) {
     let panel = document.getElementById("ahDemandBoard");
-    if (!rows.length) { if (panel) panel.remove(); return; }
-    ensureWaitStyles();
+    if (!rows.length || !window.DemandRows) { if (panel) panel.remove(); return; }
+    const DR = window.DemandRows;
     if (!panel) {
-      panel = document.createElement("div");
+      panel = document.createElement("section");
       panel.id = "ahDemandBoard";
+      panel.className = "dm-board";
       if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(panel, listEl);
       else dashboard.appendChild(panel);
     }
-    // Callable-fit leads first, "may not fit" last (stable — keeps urgency order
-    // within each group), so the agent's effort goes where a call can land.
-    const annotated = rows.map((r) => ({ r, reason: assessFit(r, offer) }));
-    annotated.sort((a, b) => (a.reason ? 1 : 0) - (b.reason ? 1 : 0));
-    const top = annotated.slice(0, 12);
-    const items = top.map(({ r, reason }) => {
-      const phone = String(r.phone || "").trim();
-      const digits = phone.replace(/\D/g, "");
-      const intl = digits.startsWith("0") ? "255" + digits.slice(1) : digits;
-      const inDistrict = r.match_level === "district";
-      const spec = window.pawaDemandSpec ? window.pawaDemandSpec(r) : "";
-      return `<div class="ah-wait-row${reason ? " ah-misfit" : ""}">
-        <div class="ah-wait-who">
-          <strong>${esc(r.name || tr("ahw_waiting_renter"))}</strong>${inDistrict ? ` <span class="ah-by-chip soon" style="margin-left:4px"> ${tr("adb_your_district")}</span>` : ""}${reason ? ` <span class="ah-misfit-chip" title="${tr("ahw_misfit_title")}">${esc(reason)}</span>` : ""}
-          ${r.area ? `<small>${esc(r.area)}</small>` : ""}
-          ${spec}
-          ${neededByChip(r.needed_by)}
-        </div>
-        <div class="ah-wait-cta">
-          <a class="ah-wait-btn call" href="tel:${esc(phone)}"> ${tr("action_call")}</a>
-          ${intl ? `<a class="ah-wait-btn wa" href="https://wa.me/${esc(intl)}" target="_blank" rel="noopener">${tr("action_whatsapp")}</a>` : ""}
-        </div>
-      </div>`;
-    }).join("");
-    const urgent = top.filter(({ r }) => { const n = daysUntil(r.needed_by); return n != null && n <= 7; }).length;
-    const fits = annotated.filter((a) => !a.reason).length;
-    const fitNote = offer ? ` <strong>${tr("ahw_fit_note").replace("{n}", fits)}</strong>` : "";
-    const bHead = (rows.length === 1 ? tr("ahw_near_head_one") : tr("ahw_near_head_many"))
-      .replace("{n}", rows.length).replace("{where}", esc(center.label || tr("ahw_your_area")));
-    panel.innerHTML = `<div class="ah-wait-card ah-board">
-      <button type="button" class="ah-board-x" id="ahBoardClose" aria-label="Hide">×</button>
-      <div class="ah-wait-head"> ${bHead}</div>
-      <div class="ah-wait-sub">${urgent ? `<strong>${tr("ahw_urgent_week").replace("{n}", urgent)}</strong> ` : ""}${fitNote ? fitNote + " " : ""}${tr("ahw_check_chips")}</div>
-      ${items}
-      ${rows.length > top.length ? `<div class="ah-board-more">${tr("ahw_more_waiting").replace("{n}", rows.length - top.length)}</div>` : ""}
-    </div>`;
+    // Callable-fit leads first, "may not fit" last (stable, so urgency order
+    // survives within each group), and the agent's effort goes where a call
+    // can land.
+    const reasons = new Map(rows.map((r) => [r, assessFit(r, offer)]));
+    const ordered = rows.slice().sort((a, b) =>
+      (reasons.get(a) ? 1 : 0) - (reasons.get(b) ? 1 : 0));
+    const shown = Math.min(12, ordered.length);
+    const urgent = DR.urgentCount(ordered.slice(0, shown));
+    const fits = ordered.filter((r) => !reasons.get(r)).length;
+    const fitNote = offer ? `<b>${tr("ahw_fit_note").replace("{n}", fits)}</b> ` : "";
+    const head = (rows.length === 1 ? tr("ahw_near_head_one") : tr("ahw_near_head_many"))
+      .replace("{n}", rows.length)
+      .replace("{where}", esc(center.label || tr("ahw_your_area")));
+
+    panel.innerHTML = `
+      <div class="dm-board__head">
+        <h3 class="dm-board__h">${head}</h3>
+        <button type="button" class="dm-board__x" id="ahBoardClose" aria-label="${esc(tr("adb_hide"))}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+               stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <p class="dm-board__sub">${urgent ? `<b>${tr("ahw_urgent_week").replace("{n}", urgent)}</b> ` : ""}${fitNote}${tr("ahw_check_chips")}</p>
+      ${DR.html(ordered, {
+        limit: 12,
+        noteOf: (r) => reasons.get(r) || "",
+        noteTitle: tr("ahw_misfit_title"),
+      })}`;
     document.getElementById("ahBoardClose")?.addEventListener("click", () => panel.remove());
   }
 

@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v328-2026-09-06-safety-number-and-invites";
+const VERSION = "v329-2026-09-08-requests-reach-the-bell";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -65,6 +65,7 @@ const APP_SHELL = [
   // likely to be opened with no signal.
   "./js/lib/home-search.js",
   "./js/core/notify.js",
+  "./css/notify.css",
   "./js/lib/notify-ui.js",
   // The bell's two readers. Without house-alerts.js it counts every new room
   // in the country instead of the ones this device asked about, and without
@@ -94,7 +95,11 @@ const APP_SHELL = [
   "./js/lib/auth-ui.js",
   "./js/lib/agent-profile.js",
   "./js/pages/houses-mobile.js",
+  // The board and the row it draws. agent-demand-board.js now hard-requires
+  // DemandRows and bails silently without it, so a cached install missing the
+  // second file loses every customer request and looks like it is working.
   "./js/lib/agent-demand-board.js",
+  "./js/lib/demand-rows.js",
   "./js/core/nav.js",
   "./js/pages/home-app.js",
   // The home Frame / earn / trust bands, and the service catalogue the trust
