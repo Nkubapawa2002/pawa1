@@ -86,6 +86,10 @@ create policy "service-photos upload" on storage.objects for insert
   const $ = (id) => document.getElementById(id);
   const authCard = $("asAuthCard"), dashboard = $("asDashboard"), formSection = $("asFormSection");
   const warnEl = $("asWarn"), listEl = $("asList"), userEmailEl = $("asUserEmail");
+  // Declared up here, not beside ensureStrip() below: showFatal() runs from a
+  // window error handler that can fire before this file finishes evaluating,
+  // and a `let` further down would still be in its temporal dead zone.
+  let strip = null;
   const tabSignIn = $("tabSignIn"), tabSignUp = $("tabSignUp");
   const authForm = $("asAuthForm"), authEmail = $("asEmail"), authPassword = $("asPassword");
   const authPasswordConfirm = $("asPasswordConfirm"), authPasswordConfirmRow = $("asPasswordConfirmRow");
@@ -125,11 +129,18 @@ create policy "service-photos upload" on storage.objects for insert
   function btnLabel(btn) {
     return btn?.querySelector("span")?.textContent ?? btn?.textContent ?? "";
   }
+  // The raw message goes to the console, where a developer will find it. The
+  // provider gets a sentence and a Reload button: "Cannot read properties of
+  // undefined" is not something to put in front of somebody with a trade.
   function showFatal(msg) {
-    if (!warnEl) { alert(msg); return; }
-    warnEl.innerHTML =
-      `<div class="ap-note ap-note--warn"><span class="ap-note__ic">${IC.warn}</span>` +
-      `<span><strong>${esc(T("ap_error"))}</strong> ${esc(String(msg))}</span></div>`;
+    try { console.error("[agent-services]", msg); } catch (_) {}
+    const st = ensureStrip();
+    if (!st) { alert(T("anx_fatal_t")); return; }
+    st.set("fatal", [{
+      id: "fatal", source: "fatal", severity: "fatal",
+      title: T("anx_fatal_t"), body: T("anx_fatal_b"),
+      action: { label: T("anx_reload"), onClick: () => location.reload() },
+    }]);
   }
   window.addEventListener("error", (e) => showFatal(e.message || T("ap_err_unknown")));
   window.addEventListener("unhandledrejection", (e) => showFatal(e.reason?.message || e.reason || T("ap_err_unknown")));
@@ -178,6 +189,7 @@ create policy "service-photos upload" on storage.objects for insert
       : (s?.user && s.user.is_anonymous !== true ? "account" : "out");
     if (who === "account") {
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
+      ensureStrip();
       userEmailEl.textContent = s.user.email || T("ap_no_email");
       // First thing after sign-in: make sure the agent has declared the region
       // they belong to + the area they operate in. New listings inherit these
@@ -185,26 +197,43 @@ create policy "service-photos upload" on storage.objects for insert
       try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
       if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyServices();
-      checkSubscription();
-      window.renderAgentClientTip?.({ mount: dashboard, id: "asClientTip", kind: "services" });
-      window.renderFrameScout?.({ mount: dashboard, id: "asFrameScout", kind: "services" });
-      window.renderAgentMessages?.({ sb, mount: dashboard });
+      refreshNotices(true);
+      // Into #asCoach, UNDER the listings. Both panels insert at their mount's
+      // firstChild, so passing the dashboard put two coaching cards above the
+      // services the provider came here to manage. agent-houses fixed this and
+      // these two did not.
+      const coach = document.getElementById("asCoach") || dashboard;
+      window.renderAgentClientTip?.({ mount: coach, id: "asClientTip", kind: "services" });
+      window.renderFrameScout?.({ mount: coach, id: "asFrameScout", kind: "services" });
       window.AgentDemandBoard?.load({ sb, agentProfile, mount: dashboard, kind: "services" });
     } else {
       authCard.hidden = false; dashboard.hidden = true; formSection.hidden = true;
     }
   }
 
-  // Subscription / activation guard (shared banner): deactivation, lapsed
-  // subscription, or the 48h pay-or-pause grace expiring → paywall (RLS also
-  // hides the listings); during grace, a live countdown demanding payment.
-  async function checkSubscription() {
-    if (!sb) return;
-    try {
-      const { data } = await sb.rpc("my_agent_subscription");
-      const sub = Array.isArray(data) ? data[0] : data;
-      window.renderAgentSubBanner(sub, { mount: dashboard, id: "asSubPaywall", what: "listings" });
-    } catch (_) { /* RPC not deployed yet — ignore */ }
+  // ---- The notice strip ---------------------------------------------------
+  // One card with a pager, so the dashboard is the same height whether nothing
+  // has happened or nine things have. It replaces the subscription paywall and
+  // the admin inbox, which both drew themselves at dashboard.firstChild in
+  // hardcoded light-theme hex, in English only. See js/lib/agent-notice-strip.js.
+  // (`strip` itself is declared up beside warnEl, so showFatal can reach it.)
+  function ensureStrip() {
+    if (!strip && warnEl && window.AgentNoticeStrip) {
+      strip = window.AgentNoticeStrip.mount({ into: warnEl });
+    }
+    return strip;
+  }
+
+  // my_notices() returns the unread admin messages AND the live billing state
+  // in one round trip, with days_left computed on the server. This page used to
+  // fire my_agent_subscription() on top of it and read agent_messages a second
+  // time directly.
+  async function refreshNotices(force) {
+    const st = ensureStrip();
+    if (!st || !window.Notices) return;
+    const data = await window.Notices.load(force);
+    st.set("sub", [window.agentBillingNotice?.(data.billing)].filter(Boolean));
+    st.set("admin", window.agentAdminNotices?.(data.notices) || []);
   }
 
   tabSignIn.addEventListener("click", () => {

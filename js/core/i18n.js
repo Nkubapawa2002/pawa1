@@ -1581,6 +1581,11 @@ window.I18N = {
     ah_new_listing: "New listing",
     ah_sign_out: "Sign out",
     ah_loading_listings: "Loading your listings…",
+    // Both of these were REFERENCED and never defined. window.t() returns the
+    // key itself when a string is missing, so `tr("ah_must_signin") || "…"`
+    // was truthy and put the literal text "ah_must_signin" in an alert box.
+    ah_loading: "Loading…",
+    ah_must_signin: "Please sign in first.",
     ah_no_email: "(no email)",
     ah_no_listings: "No listings yet",
     ah_no_listings_hint_html: "Tap <strong>+ New listing</strong> to add your first property.",
@@ -3157,6 +3162,53 @@ window.I18N = {
     aw_room_count: "{n} rooms",
     aw_room_blank: "Room type with nothing in it yet",
     aw_room_fold: "Open or close this room",
+
+    // ---- The agent notice strip (js/lib/agent-notice-strip.js) -------------
+    // One card, one notice, a pager for the rest. Every sentence here replaces
+    // an English-only essay that renderAgentSubBanner painted in hardcoded hex
+    // on a portal that is dark by default. Keep them short: this card is two
+    // clamped lines wide on a 390px screen, and an agent reads it standing up.
+    anx_a11y: "Account notices",
+    anx_prev: "Previous notice",
+    anx_next: "Next notice",
+    anx_dismiss: "Dismiss",
+    anx_of: "{n} of {of}",
+    anx_open_all: "See all",
+    anx_read: "Read it",
+    anx_reload: "Reload",
+    anx_admin: "Contact the admin",
+    anx_msg_t: "Message from the admin",
+    // A healthy subscription draws NOTHING. The green "Subscription active
+    // until 3 Oct" bar was the most-shown notice on this page and told an
+    // agent nothing they had to act on; it is already in the bell and on the
+    // Profile tab. There are nine states the RPC can emit, not seven: the
+    // `grace` pair is still emitted by agent_grace_active.sql, and cancelled
+    // and overdue used to be mislabelled as "expired".
+    anx_sub_today_t: "Your subscription ends today",
+    anx_sub_tomorrow_t: "Your subscription ends tomorrow",
+    anx_sub_soon_t: "Your subscription ends in {n} days",
+    anx_sub_soon_b: "Pay the admin before then and they will extend it.",
+    anx_sub_preview_t: "Live now, waiting for approval",
+    anx_sub_preview_b: "Your listings are on the board. An admin will approve the account within {n} days.",
+    anx_sub_preview_b0: "Your listings are on the board while an admin looks at the account.",
+    anx_sub_review_t: "An admin has to approve this account",
+    anx_sub_review_b: "The review window has closed, so your listings are off the board until an admin approves you.",
+    anx_sub_off_t: "An admin has paused this account",
+    anx_sub_off_b: "Your listings are off the board until it is sorted out.",
+    anx_sub_expired_t: "Your subscription has run out",
+    anx_sub_expired_b: "Your listings are off the board until it is renewed. Pay the admin and they will extend it.",
+    anx_sub_due_t: "Payment is due to keep this account open",
+    anx_sub_due_b: "A new agent pays the {fee} monthly subscription within {h} hours of registering.",
+    anx_sub_gracex_t: "The free period has ended",
+    anx_sub_gracex_b: "Your listings are off the board until the monthly subscription is paid.",
+    anx_sub_cancelled_t: "This subscription is cancelled",
+    anx_sub_cancelled_b: "Your listings are off the board. Pay the admin to put them back.",
+    anx_sub_overdue_t: "This subscription is overdue",
+    anx_sub_overdue_b: "Your listings are off the board until it is settled. Pay the admin to put them back.",
+
+    anx_fatal_t: "This page did not load properly",
+    anx_fatal_b: "Reload the page. If it happens again, tell the admin what you were doing.",
+
     ah_add: "Add",
     ah_add_cost: "Add a cost",
     ah_video_h: "A video walkthrough",
@@ -5043,6 +5095,8 @@ window.I18N = {
     ah_new_listing: "Orodhesha mpya",
     ah_sign_out: "Toka",
     ah_loading_listings: "Inapakia orodha zako…",
+    ah_loading: "Inapakia…",
+    ah_must_signin: "Tafadhali ingia kwanza.",
     ah_no_email: "(hakuna barua pepe)",
     ah_no_listings: "Bado huna orodha",
     ah_no_listings_hint_html: "Bonyeza <strong>+ Orodhesha mpya</strong> ili kuongeza mali yako ya kwanza.",
@@ -6563,6 +6617,42 @@ window.I18N = {
     aw_room_count: "vyumba {n}",
     aw_room_blank: "Aina ya chumba bado haina kitu",
     aw_room_fold: "Fungua au funga chumba hiki",
+
+    // ---- Ukanda wa taarifa wa wakala ---------------------------------------
+    anx_a11y: "Taarifa za akaunti",
+    anx_prev: "Taarifa iliyotangulia",
+    anx_next: "Taarifa inayofuata",
+    anx_dismiss: "Ondoa",
+    anx_of: "{n} kati ya {of}",
+    anx_open_all: "Ona zote",
+    anx_read: "Isome",
+    anx_reload: "Pakia upya",
+    anx_admin: "Wasiliana na msimamizi",
+    anx_msg_t: "Ujumbe kutoka kwa msimamizi",
+    anx_sub_today_t: "Usajili wako unaisha leo",
+    anx_sub_tomorrow_t: "Usajili wako unaisha kesho",
+    anx_sub_soon_t: "Usajili wako unaisha baada ya siku {n}",
+    anx_sub_soon_b: "Mlipe msimamizi kabla ya hapo naye ataongeza muda.",
+    anx_sub_preview_t: "Uko hewani, unasubiri idhini",
+    anx_sub_preview_b: "Matangazo yako yapo kwenye ubao. Msimamizi ataidhinisha akaunti ndani ya siku {n}.",
+    anx_sub_preview_b0: "Matangazo yako yapo kwenye ubao wakati msimamizi anaangalia akaunti.",
+    anx_sub_review_t: "Msimamizi anapaswa kuidhinisha akaunti hii",
+    anx_sub_review_b: "Muda wa mapitio umeisha, hivyo matangazo yako hayapo kwenye ubao mpaka msimamizi akuidhinishe.",
+    anx_sub_off_t: "Msimamizi amesimamisha akaunti hii",
+    anx_sub_off_b: "Matangazo yako hayapo kwenye ubao mpaka jambo hili limalizike.",
+    anx_sub_expired_t: "Usajili wako umeisha",
+    anx_sub_expired_b: "Matangazo yako hayapo kwenye ubao mpaka uhuishwe. Mlipe msimamizi naye ataongeza muda.",
+    anx_sub_due_t: "Malipo yanahitajika ili akaunti hii ibaki wazi",
+    anx_sub_due_b: "Wakala mpya hulipa usajili wa {fee} kwa mwezi ndani ya saa {h} tangu kujisajili.",
+    anx_sub_gracex_t: "Kipindi cha bure kimeisha",
+    anx_sub_gracex_b: "Matangazo yako hayapo kwenye ubao mpaka usajili wa mwezi ulipwe.",
+    anx_sub_cancelled_t: "Usajili huu umefutwa",
+    anx_sub_cancelled_b: "Matangazo yako hayapo kwenye ubao. Mlipe msimamizi ili yarudi.",
+    anx_sub_overdue_t: "Usajili huu umechelewa kulipwa",
+    anx_sub_overdue_b: "Matangazo yako hayapo kwenye ubao mpaka ulipwe. Mlipe msimamizi ili yarudi.",
+
+    anx_fatal_t: "Ukurasa huu haukupakia vizuri",
+    anx_fatal_b: "Pakia ukurasa upya. Ikitokea tena, mwambie msimamizi ulichokuwa unafanya.",
     ah_add: "Ongeza",
     ah_add_cost: "Ongeza gharama",
     ah_video_h: "Video ya kutembea nyumbani",

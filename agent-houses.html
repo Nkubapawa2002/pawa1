@@ -25,6 +25,10 @@
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
   <link rel="stylesheet" href="css/notify.css" />
+  <!-- The dashboard notice strip: one card, one notice, a pager for the rest.
+       Its own file rather than a section of notify.css, which is linked by
+       every page that mounts the bell while this exists on three. -->
+  <link rel="stylesheet" href="css/agent-notice.css" />
   <!-- The portal shell: header band, section rail, panels, fields, media
        tiles, map picker, sticky actions. Shared with agent-services.html and
        written entirely in design tokens, so it follows the brand and both
@@ -354,10 +358,22 @@
     /* ---------------------------------------------------------------------
        Tenant tracking modal
        --------------------------------------------------------------------- */
+    /* Not var(--z-modal). The token scale tops out at 100, but this page runs
+       inside the app shell, whose bottom tab bar is fixed at z-index 900 (see
+       js/core/app-shell.js). This overlay is appended to document.body, so it
+       and the tab bar are siblings in the root stacking context and 100 loses.
+       The thing that was covered is this modal's own Save and Cancel row, which
+       on a phone lands exactly where the tab bar is: taps navigated away
+       instead of submitting. jobs.html:147 and js/lib/dialog.js:94 already
+       carry this fix; raising the number is the whole of it.
+
+       The bottom padding is --app-bottom for the same reason: the scroller has
+       to be able to bring that action row clear of the bar. */
     .ah-tenant-overlay {
-      display: none; position: fixed; inset: 0; z-index: var(--z-modal);
+      display: none; position: fixed; inset: 0; z-index: 5000;
       background: var(--c-overlay); align-items: flex-start; justify-content: center;
-      padding: var(--space-6) var(--space-3); overflow-y: auto;
+      padding: var(--space-6) var(--space-3) calc(var(--app-bottom, 0px) + var(--space-6));
+      overflow-y: auto;
     }
     .ah-tenant-modal {
       position: relative; width: 100%; max-width: 520px;
@@ -761,7 +777,7 @@
     <!-- ==================================================================
          B. Dashboard (shown when authenticated)
          ================================================================== -->
-    <section id="ahDashboard" hidden>
+    <section id="ahDashboard" class="ap-dash" hidden>
       <div id="ahWarn"></div>
       <!-- An owner account's allowance: three posts every 180 days, no monthly
            fee. Filled by js/pages/agent-houses.js from owner_post_quota(), and
@@ -783,16 +799,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             <span data-i18n="ah_new_listing">New listing</span>
           </button>
-          <button id="ahSignOut" class="ah-btn" type="button">
+          <button id="ahSignOut" class="ah-btn ap-signout" type="button" aria-label="Sign out" data-i18n-aria-label="ap_sign_out">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
             <span data-i18n="ap_sign_out">Sign out</span>
           </button>
         </div>
-      </div>
-
-      <div class="ap-note" role="note">
-        <span class="ap-note__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.3l2.4 2.4 4.6-4.9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span data-i18n-html="ah_close_reminder"><strong>Deal closed?</strong> Tap Completed or Mark sold so it leaves the search.</span>
       </div>
 
       <div id="ahList" class="ah-list" aria-live="polite" aria-busy="true">
@@ -812,6 +823,16 @@
             <span class="hp-sk hp-sk--line" style="width:60%"></span>
           </div>
         </div>
+      </div>
+
+      <!-- Moved from ABOVE the listings to below them. It is an instruction
+           about the Completed and Mark sold buttons, and those buttons are on
+           every card in the list overhead: a permanent 84px banner explaining
+           a control the agent can already see was 84px of a 390px screen spent
+           on the same sentence every single visit. -->
+      <div class="ap-note ap-note--quiet" role="note">
+        <span class="ap-note__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.3l2.4 2.4 4.6-4.9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span data-i18n-html="ah_close_reminder"><strong>Deal closed?</strong> Tap Completed or Mark sold so it leaves the search.</span>
       </div>
 
       <!-- Where the two coaching panels land (config.js: renderAgentClientTip,
@@ -1359,6 +1380,7 @@
        out working needs and will never see by opening a dashboard.
        js/lib/notices.js is the shared reader behind both. -->
   <script src="js/lib/notices.js"></script>
+  <script src="js/lib/agent-notice-strip.js"></script>
   <script src="js/core/notify.js"></script>
   <script src="js/lib/notify-ui.js"></script>
   <script src="js/pages/agent-houses.js"></script>

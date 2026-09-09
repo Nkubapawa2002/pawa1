@@ -345,12 +345,54 @@ drop policy if exists "house-photos upload" on storage.objects;
 create policy "house-photos upload" on storage.objects for insert
   with check (bucket_id = 'house-photos' and auth.uid() is not null);`;
 
-  // ---- Surface any uncaught JS error as a visible banner -------------------
+  // ---- The notice strip ----------------------------------------------------
+  // Everything the platform has to say about this account, in one card with a
+  // pager, so the dashboard is the same height whether nothing has happened or
+  // nine things have. It replaces four writers that all did
+  // insertBefore(el, dashboard.firstChild) and none of which knew about the
+  // others. See js/lib/agent-notice-strip.js.
+  let strip = null;
+  function ensureStrip() {
+    if (!strip && warnEl && window.AgentNoticeStrip) {
+      strip = window.AgentNoticeStrip.mount({ into: warnEl });
+    }
+    return strip;
+  }
+
+  /**
+   * Read the account's notices ONCE and hand both halves to the strip.
+   *
+   * my_notices() returns the unread admin messages AND the live billing state
+   * in one round trip, with days_left computed on the server. This page used to
+   * fire my_agent_subscription() on top of it and read agent_messages a second
+   * time directly, so three surfaces could disagree about the same account.
+   */
+  async function refreshNotices(force) {
+    const s = ensureStrip();
+    if (!s || !window.Notices) return;
+    const data = await window.Notices.load(force);
+    s.set("sub", [window.agentBillingNotice?.(data.billing)].filter(Boolean));
+    s.set("admin", window.agentAdminNotices?.(data.notices) || []);
+  }
+
+  // ---- Surface any uncaught JS error -------------------------------------
   // Without this, a typo or RLS bug stops the script halfway through binding
   // event listeners and the user sees buttons that look fine but do nothing.
+  // The raw message goes to the console, where a developer will find it; the
+  // agent gets a sentence and a Reload button, because "Cannot read properties
+  // of undefined" is not something to put in front of a landlord.
   function showFatal(msg) {
-    if (!warnEl) { alert(msg); return; }
-    warnEl.innerHTML = `<div style="background:#fce4e4;color:#b91c1c;border:1px solid #f5b3b3;padding:12px 14px;border-radius:10px;margin-bottom:12px;font-size:.9rem;line-height:1.4"><strong>Agent dashboard error:</strong> ${esc(String(msg))}</div>`;
+    try { console.error("[agent-houses]", msg); } catch (_) {}
+    const s = ensureStrip();
+    if (!s) { alert(trf("anx_fatal_t", "This page did not load properly")); return; }
+    s.set("fatal", [{
+      id: "fatal",
+      source: "fatal",
+      severity: "fatal",
+      title: trf("anx_fatal_t", "This page did not load properly"),
+      body: trf("anx_fatal_b", "Reload the page. If it happens again, tell the admin what you were doing."),
+      action: { label: trf("anx_reload", "Reload"), onClick: () => location.reload() },
+    }]);
   }
   window.addEventListener("error", (e) => showFatal(e.message || "Unknown JS error"));
   window.addEventListener("unhandledrejection", (e) => showFatal(e.reason?.message || e.reason || "Promise rejected"));
@@ -456,17 +498,10 @@ create policy "house-photos upload" on storage.objects for insert
     if (event === "SIGNED_IN" && !authCard.hidden) routeOnAuth(session);
   });
 
-  // Subscription / activation guard: deactivation, lapsed subscription, or the
-  // 48h pay-or-pause grace expiring → paywall (RLS also hides the listings);
-  // during grace, a live countdown demanding payment.
-  async function checkSubscription() {
-    if (!sb) return;
-    try {
-      const { data } = await sb.rpc("my_agent_subscription");
-      const sub = Array.isArray(data) ? data[0] : data;
-      window.renderAgentSubBanner(sub, { mount: dashboard, id: "ahSubPaywall", what: "listings" });
-    } catch (_) { /* RPC not deployed yet — ignore */ }
-  }
+  // The subscription guard that used to live here called my_agent_subscription()
+  // and drew its own banner. my_notices() already returns that state, computed
+  // on the server, in the round trip the bell was making anyway, so
+  // refreshNotices() above is the whole of it now.
 
   // ---- the owner's account, and their allowance ---------------------------
   //
@@ -574,6 +609,10 @@ create policy "house-photos upload" on storage.objects for insert
       dashboard.hidden = false;
       formSection.hidden = true;
       mode = "dashboard";
+      // Before anything that can throw: a fatal after this point has somewhere
+      // to be shown. mount() is memoised on the element, so re-entering
+      // routeOnAuth (which SIGNED_IN does) cannot build a second one.
+      ensureStrip();
       userEmailEl.textContent = s.user.email || tr("ah_no_email");
       // Capture (once) the region the agent belongs to + the area they operate
       // in, so their listings surface for searchers in that area.
@@ -590,7 +629,11 @@ create policy "house-photos upload" on storage.objects for insert
       }
       if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyListings();
-      if (!isOwnerAccount()) checkSubscription();
+      // The admin's messages arrive here too, in the same round trip. An owner
+      // is on no subscription, but an admin can still write to them, so this
+      // runs for both kinds of account: agentBillingNotice() returns null when
+      // there is no billing state to report.
+      refreshNotices(true);
       loadWaitingNearMe();   // proactive demand board (renters waiting near them)
       // Two panels of coaching for somebody building an agency: keep a client
       // list, scout an area's Frame before you invest in it. Both are the
@@ -606,7 +649,6 @@ create policy "house-photos upload" on storage.objects for insert
         window.renderAgentClientTip?.({ mount: coach, id: "ahClientTip", kind: "houses" });
         window.renderFrameScout?.({ mount: coach, id: "ahFrameScout", kind: "houses" });
       }
-      window.renderAgentMessages?.({ sb, mount: dashboard });   // admin → agent inbox
     } else {
       authCard.hidden = false;
       dashboard.hidden = true;
@@ -4051,7 +4093,10 @@ create policy "house-photos upload" on storage.objects for insert
   function renderSetupCard() {
     // Hide the New-listing button while setup is needed.
     newBtn.hidden = true;
-    warnEl.innerHTML = "";
+    // clear(), not innerHTML = "". #ahWarn is the strip's host now, and wiping
+    // it would detach the card and its live region while the handle cached on
+    // the element still claimed to own them.
+    strip ? strip.clear() : (warnEl.innerHTML = "");
     const tr = (k) => (window.t ? window.t(k) : k);
     const lineCount = SETUP_SQL.split("\n").length;
     listEl.innerHTML = `

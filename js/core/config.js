@@ -307,22 +307,33 @@ if (window.CLERK_ENABLED) {
 }
 
 // =====================================================
-// Agent subscription banner — shared across all 3 agent dashboards
+// What the platform has to say to an agent about their account
 // =====================================================
-// Renders the right notice from a my_agent_subscription() result. The live model
-// is ADMIN-controlled (no payment gateway): an agent is live on registering,
-// must be approved by an admin within AGENT_APPROVAL_DAYS, then stays live while
-// the admin keeps their paid_until current. Reasons the RPC emits:
-//   • preview          → blue: live, pending admin approval (N days left)
-//   • approval_expired → red paywall: preview ended, awaiting admin approval
-//   • active           → subtle status bar (renew is handled by the admin)
-//   • expired          → red paywall: coverage lapsed, pay the admin to renew
-//   • deactivated      → red paywall: admin switched the account off (+ reason)
-//   • cancelled/overdue→ red paywall: pay the admin to reinstate
-//   • none             → nothing (removes any prior banner)
-// (The legacy `grace`/`grace_expired` branches below are kept for backward
-//  compatibility but are no longer emitted by the current RPC.)
-// opts: { mount: HTMLElement, id: string, what: "profile"|"listings"|"trucks" }
+// These build NOTICE OBJECTS for js/lib/agent-notice-strip.js. They do not
+// draw anything, and that is the point.
+//
+// What they replace: renderAgentSubBanner, ~115 lines that painted seven of
+// the nine states in hardcoded light-theme hex on a portal that is dark by
+// default, in English only, as multi-sentence essays with contact links inside
+// the body; and renderAgentMessages, which selected "id,body,created_at" and
+// then read m.title and m.severity, so every admin message on all three
+// dashboards rendered info-blue under a generic heading and the title the
+// admin actually typed was shown nowhere.
+//
+// Both are gone. js/lib/notices.js already reads the agent_messages rows AND
+// the billing state through one my_notices() RPC, with the title, the severity
+// and a server-computed days_left, cached and shared with the bell and the
+// Profile tab. Two readers over one table could disagree; one cannot.
+//
+// The live model is ADMIN-controlled (no payment gateway): an agent is live on
+// registering, must be approved within AGENT_APPROVAL_DAYS, then stays live
+// while the admin keeps paid_until current. Nine reasons can arrive:
+//   preview · approval_expired · active · grace · grace_expired
+//   · deactivated · expired · cancelled · overdue        (and `none`: silence)
+// `grace` and `grace_expired` are NOT dead: agent_grace_active.sql still
+// defines a my_agent_subscription() that emits them, and whichever SQL file
+// was applied last is what a given project runs.
+
 window.adminContactHtml = () => {
   const c = (window.APP_CONFIG?.SUPPORT_CONTACTS || [])[0] || {};
   const parts = [];
@@ -333,122 +344,136 @@ window.adminContactHtml = () => {
   return parts.length ? `Contact admin: ${parts.join(" · ")}.` : "Please contact the Pawa admin.";
 };
 
-window.renderAgentSubBanner = (sub, opts) => {
-  opts = opts || {};
-  const mount = opts.mount;
-  const id = opts.id || "agentSubPaywall";
-  const what = opts.what || "profile";
-  if (!mount) return;
+// One button, one translated label, one destination. The contact details used
+// to be HTML pasted into the middle of a sentence, which is how a notice ends
+// up impossible to translate and impossible to clamp.
+window.agentAdminAction = () => {
+  const t = (k, en) => { const v = window.t ? window.t(k) : null; return (v && v !== k) ? v : en; };
+  const c = (window.APP_CONFIG?.SUPPORT_CONTACTS || [])[0] || {};
+  const email = (window.APP_CONFIG?.ADMIN_EMAILS || [])[0];
+  let href = "";
+  if (c.whatsapp) href = "https://wa.me/" + c.whatsapp;
+  else if (c.phone) href = "tel:" + String(c.phone).replace(/\s/g, "");
+  else if (email) href = "mailto:" + email;
+  if (!href) return null;
+  return { label: t("anx_admin", "Contact the admin"), href, external: !!c.whatsapp };
+};
 
-  const prior = document.getElementById(id);
-  if (prior && prior._timer) { clearInterval(prior._timer); prior._timer = null; }
+/**
+ * The billing state, as one notice or as nothing at all.
+ *
+ * `billing` is the object my_notices() returns: { reason, active, status,
+ * paid_until, days_left, deadline, note }. Returns null when there is nothing
+ * the agent has to act on, which INCLUDES a healthy subscription: the green
+ * "Subscription active until 3 Oct" bar was the most-shown notice on this page
+ * and asked nothing of anybody. It is still in the bell and on the Profile tab.
+ *
+ * There is no setInterval here. The one it replaces ticked every 30 seconds
+ * and called location.reload(), which could take the page away from an agent
+ * halfway through typing a listing. The server owns the clock: the figure is
+ * rendered once, and when the deadline passes the next poll returns the next
+ * state.
+ */
+window.agentBillingNotice = (billing) => {
+  const b = billing || null;
+  if (!b || !b.reason || b.reason === "none") return null;
 
-  // Backward-compatible: if the RPC predates the `reason` field, derive it.
-  const active = sub ? sub.active !== false : true;
-  let reason = sub && sub.reason;
-  if (!reason) reason = active ? "active" : "expired";
+  const t = (k, en, vars) => {
+    let s = window.t ? window.t(k) : null;
+    if (!s || s === k) s = en;
+    if (vars) for (const v in vars) s = s.split("{" + v + "}").join(String(vars[v]));
+    return s;
+  };
+  const cfg = window.APP_CONFIG || {};
+  const fee = window.formatTZS ? window.formatTZS(cfg.AGENT_MONTHLY_FEE_TZS || 10000) : "TZS 10,000";
+  const graceH = cfg.AGENT_GRACE_HOURS || 48;
+  const days = cfg.AGENT_APPROVAL_DAYS || 7;
+  const admin = window.agentAdminAction();
+  const one = (severity, title, body) => ({
+    id: "sub:" + b.reason, source: "sub", severity, title, body,
+    action: admin, at: null,
+  });
 
-  // Nothing to show when there's no billing context at all. An ACTIVE
-  // subscription still renders a subtle status bar with a proactive "Renew"
-  // button (handled below) so agents can pay before they ever lapse.
-  if (reason === "none") { prior?.remove(); return; }
+  switch (b.reason) {
+    case "preview": {
+      const dl = b.deadline ? Math.max(0, Math.ceil((new Date(b.deadline) - new Date()) / 86400000)) : null;
+      return one("info", t("anx_sub_preview_t", "You are live while the admin reviews your account"),
+        dl != null
+          ? t("anx_sub_preview_b", "Your listings are on the board. An admin will approve the account within {n} days.", { n: dl })
+          : t("anx_sub_preview_b0", "Your listings are on the board while an admin looks at the account."));
+    }
+    case "approval_expired":
+      return one("blocking", t("anx_sub_review_t", "An admin has to approve this account"),
+        t("anx_sub_review_b", "The review window has closed, so your listings are off the board until an admin approves you.")
+          .replace("{n}", days));
 
-  const fee = window.formatTZS
-    ? window.formatTZS((window.APP_CONFIG?.AGENT_MONTHLY_FEE_TZS) || 10000)
-    : "TZS 10,000";
-  const graceH = (window.APP_CONFIG?.AGENT_GRACE_HOURS) || 48;
-  const noun = what === "listings" ? "Your listings are"
-             : what === "trucks"   ? "Your trucks are"
-             : "Your agent profile is";
-  const escTxt = (s) => String(s == null ? "" : s)
-    .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    case "active": {
+      // The only state that can be silent. Seven days is the point at which
+      // there is something to do about it.
+      const left = b.days_left != null ? Number(b.days_left)
+        : (b.paid_until ? Math.ceil((new Date(b.paid_until) - new Date()) / 86400000) : null);
+      if (left == null || left > 7) return null;
+      const title = left <= 0 ? t("anx_sub_today_t", "Your subscription ends today")
+        : left === 1 ? t("anx_sub_tomorrow_t", "Your subscription ends tomorrow")
+        : t("anx_sub_soon_t", "Your subscription ends in {n} days", { n: left });
+      return one("warn", title, t("anx_sub_soon_b", "Pay the admin before then and they will extend it."));
+    }
 
-  const el = prior || document.createElement("div");
-  el.id = id;
-  if (!prior) mount.insertBefore(el, mount.firstChild);
+    case "grace": {
+      const h = b.deadline ? Math.max(0, Math.ceil((new Date(b.deadline) - new Date()) / 3600000)) : graceH;
+      return one("warn", t("anx_sub_due_t", "Payment is due to keep this account open"),
+        t("anx_sub_due_b", "A new agent pays the {fee} monthly subscription within {h} hours of registering.",
+          { fee, h }));
+    }
+    case "grace_expired":
+      return one("blocking", t("anx_sub_gracex_t", "The free period has ended"),
+        t("anx_sub_gracex_b", "Your listings are off the board until the monthly subscription is paid."));
 
-  // Renewals are ADMIN-ONLY: an agent never pays through the app. To extend or
-  // reactivate a subscription they pay the admin, who records it in the All
-  // Agents tab (the amount they pay determines how long it lasts). So every
-  // "renew/pay" state simply directs the agent to contact the admin.
-  const renewViaAdmin = `<div style="margin-top:10px;font-weight:600">To renew, pay the admin and they'll extend your subscription.</div>` +
-    `<div style="margin-top:4px">${window.adminContactHtml()}</div>`;
+    case "deactivated":
+      // The admin's own reason, when they gave one. It is the single most
+      // useful sentence in the single most serious state, so it wins over the
+      // generic line. The strip escapes it and clamps it like anything else.
+      return one("blocking", t("anx_sub_off_t", "An admin has paused this account"),
+        (b.note && String(b.note).trim())
+          ? String(b.note).trim()
+          : t("anx_sub_off_b", "Your listings are off the board until it is sorted out."));
 
-  // ---- Active: subtle status bar (renew handled by the admin) ----
-  if (reason === "active") {
-    const pu = sub && sub.paid_until ? new Date(sub.paid_until) : null;
-    const daysLeft = pu ? Math.ceil((pu - new Date()) / 86400000) : null;
-    const soon = daysLeft != null && daysLeft <= 7;
-    const untilStr = pu ? pu.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
-    el.style.cssText = "margin:0 0 16px;padding:11px 16px;border-radius:12px;font-size:.9rem;line-height:1.5;" +
-      (soon ? "background:#fff7ed;border:1px solid #fdba74;color:#9a3412"
-            : "background:#f0fdf4;border:1px solid #bbf7d0;color:#166534");
-    el.innerHTML = soon
-      ? `<span>Subscription ends in <strong>${daysLeft} day${daysLeft === 1 ? "" : "s"}</strong>${untilStr ? ` (${untilStr})` : ""}.</span>` +
-        ` <span>To renew, pay the admin to extend it. ${window.adminContactHtml()}</span>`
-      : `<span>Subscription active${untilStr ? ` until <strong>${untilStr}</strong>` : ""}.</span>`;
-    return;
+    case "cancelled":
+      return one("blocking", t("anx_sub_cancelled_t", "This subscription is cancelled"),
+        t("anx_sub_cancelled_b", "Your listings are off the board. Pay the admin to put them back."));
+    case "overdue":
+      return one("blocking", t("anx_sub_overdue_t", "This subscription is overdue"),
+        t("anx_sub_overdue_b", "Your listings are off the board until it is settled. Pay the admin to put them back."));
+
+    default:
+      // expired, and anything a future RPC invents. Never silence: an unknown
+      // reason means something is wrong with the account, and the old code's
+      // final `else` labelled cancelled and overdue "Subscription expired",
+      // which was wrong copy on two real states.
+      return one("blocking", t("anx_sub_expired_t", "Your subscription has run out"),
+        t("anx_sub_expired_b", "Your listings are off the board until it is renewed. Pay the admin and they will extend it."));
   }
+};
 
-  // ---- New-agent approval window — live for N days, then admin must approve --
-  const approvalDays = (window.APP_CONFIG && window.APP_CONFIG.AGENT_APPROVAL_DAYS) || 7;
-  if (reason === "preview") {
-    const dl = sub && sub.deadline ? new Date(sub.deadline) : null;
-    const days = dl ? Math.max(0, Math.ceil((dl - new Date()) / 86400000)) : null;
-    el.style.cssText = "margin:0 0 16px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:12px 16px;border-radius:12px;font-size:.9rem;line-height:1.5";
-    el.innerHTML = `<strong>You're live — pending admin approval.</strong> ` +
-      `${noun.replace(/^Your/, "Your")} visible during a ${approvalDays}-day review` +
-      `${days != null ? ` · <strong>${days} day${days === 1 ? "" : "s"} left</strong>` : ""}. ` +
-      `An admin will approve your account shortly. ${window.adminContactHtml()}`;
-    return;
-  }
-  if (reason === "approval_expired") {
-    el.style.cssText = "margin:0 0 16px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
-    el.innerHTML = `<strong>Your ${approvalDays}-day preview has ended.</strong> ` +
-      `${noun} hidden from clients until an admin approves your account. ${window.adminContactHtml()}`;
-    return;
-  }
-
-  if (reason === "grace") {
-    el.style.cssText = "margin:0 0 16px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
-    const deadline = sub.deadline ? new Date(sub.deadline) : null;
-    const tick = () => {
-      let left = "";
-      if (deadline) {
-        const ms = deadline - new Date();
-        if (ms <= 0) { clearInterval(el._timer); location.reload(); return; }
-        const h = Math.floor(ms / 3600000);
-        const m = Math.floor((ms % 3600000) / 60000);
-        left = ` You have <strong>${h}h ${m}m</strong> left before your account is paused.`;
-      }
-      el.innerHTML = `<strong> Payment required to keep your account active.</strong> ` +
-        `New agents must pay the <strong>${fee}/month</strong> subscription within ${graceH} hours of registering.${left} ` +
-        renewViaAdmin;
-    };
-    tick();
-    if (deadline) el._timer = setInterval(tick, 30000);
-    return;
-  }
-
-  // Blocking states — red paywall.
-  el.style.cssText = "margin:0 0 16px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:14px 16px;border-radius:12px;font-size:.92rem;line-height:1.5";
-  if (reason === "deactivated") {
-    // The admin-set reason (stored in the billing note) tells the agent the exact
-    // problem; falls back to the subscription message when no reason was given.
-    const why = (sub && sub.note && String(sub.note).trim())
-      ? escTxt(sub.note)
-      : `Your monthly <strong>${fee}</strong> subscription is due — please settle it.`;
-    el.innerHTML = `<strong> Your account is inactive.</strong> ${noun} hidden from clients right now.` +
-      `<span style="display:block;margin:6px 0;">${why}</span>` +
-      `${window.adminContactHtml()} Once you reach the admin it'll be sorted out as fast as possible.`;
-  } else if (reason === "grace_expired") {
-    el.innerHTML = `<strong> Your ${graceH}-hour free period has ended — payment required.</strong> ` +
-      `${noun} hidden until your <strong>${fee}/month</strong> subscription is paid.` + renewViaAdmin;
-  } else {
-    const when = sub && sub.paid_until ? ` on ${sub.paid_until}` : "";
-    el.innerHTML = `<strong> Subscription expired${when}.</strong> ${noun} hidden from clients until it's renewed. ` +
-      `The <strong>${fee}/month</strong> subscription is paid to the admin, who extends it.` + renewViaAdmin;
-  }
+/**
+ * The admin's unread messages, as notices.
+ *
+ * `rows` is Notices.load().notices, which carries the title and the severity
+ * that the renderer this replaces asked for but never selected. Reading it
+ * marks nothing; the Profile tab is where a message is read in full and marked,
+ * which is what the action points at.
+ */
+window.agentAdminNotices = (rows) => {
+  const t = (k, en) => { const v = window.t ? window.t(k) : null; return (v && v !== k) ? v : en; };
+  return (Array.isArray(rows) ? rows : []).map((m) => ({
+    id: "admin:" + m.id,
+    source: "admin",
+    severity: m.severity === "urgent" ? "blocking" : m.severity === "warn" ? "warn" : "info",
+    title: m.title || t("anx_msg_t", "Message from the admin"),
+    body: String(m.body || "").replace(/\s+/g, " ").trim(),
+    action: { label: t("anx_read", "Read it"), href: "profile.html#notices" },
+    at: m.created_at || null,
+  }));
 };
 
 // =====================================================
@@ -685,68 +710,13 @@ window.pawaSendSms = async (to, message) => {
   } catch (_) { return { configured: false, sent: 0 }; }
 };
 
-// =====================================================
-// Agent inbox — messages the admin sent to this agent's account
-// =====================================================
-// Shows the agent any UNREAD messages the admin sent them (individually, or as
-// part of "everyone unpaid / deactivated"). Dismissing one marks it read so it
-// won't show again. Silently no-ops if the agent_messages table isn't installed
-// or the agent has no messages. Call from every agent dashboard.
-//   opts: { sb?, mount }
-window.renderAgentMessages = async (opts) => {
-  opts = opts || {};
-  const sb = opts.sb || (window.DataStore && window.DataStore.sb);
-  const mount = opts.mount;
-  if (!sb || !mount) return;
-
-  let rows = [];
-  try {
-    const { data, error } = await sb.from("agent_messages")
-      .select("id,body,created_at")
-      .is("read_at", null)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (error) return;            // table missing / no access → silently skip
-    rows = Array.isArray(data) ? data : [];
-  } catch (_) { return; }
-
-  const id = "agentMsgInbox";
-  document.getElementById(id)?.remove();
-  if (!rows.length) return;
-
-  const esc = window.escHtml || ((s) => String(s == null ? "" : s)
-    .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
-
-  const el = document.createElement("div");
-  el.id = id;
-  el.style.cssText = "margin:0 0 16px;display:flex;flex-direction:column;gap:10px";
-  el.innerHTML = rows.map((m) => {
-    let when = "";
-    try { when = " · " + new Date(m.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch (_) {}
-    const body = esc(m.body || "").replace(/\n/g, "<br>");
-    // Three severities, three edges. `urgent` is a deactivation or an overdue
-    // subscription: things that have already taken listings off the board.
-    const sev = m.severity === "urgent" ? "#b91c1c" : m.severity === "warn" ? "#b45309" : "#1e40af";
-    const head = esc(m.title || "Message from Pawa admin");
-    return `<div class="agent-msg" data-id="${esc(m.id)}" style="position:relative;border:1px solid #bfdbfe;border-left:4px solid ${sev};background:linear-gradient(180deg,#eff6ff,#fff);border-radius:13px;padding:13px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
-      <button type="button" class="agent-msg-x" aria-label="Dismiss" style="position:absolute;top:8px;right:11px;border:0;background:none;font-size:19px;line-height:1;color:#1e40af;cursor:pointer;opacity:.6">×</button>
-      <div style="font-weight:800;color:${sev};font-size:.86rem;margin:0 18px 4px 0">${head}${when}</div>
-      ${body ? `<div style="font-size:.9rem;line-height:1.5;color:#1e293b">${body}</div>` : ""}
-    </div>`;
-  }).join("");
-  mount.insertBefore(el, mount.firstChild);
-
-  el.querySelectorAll(".agent-msg-x").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const card = btn.closest(".agent-msg");
-      const mid = card && card.dataset.id;
-      card?.remove();
-      if (!el.querySelector(".agent-msg")) el.remove();
-      if (mid) { try { await sb.from("agent_messages").update({ read_at: new Date().toISOString() }).eq("id", mid); } catch (_) {} }
-      window.refreshAgentMsgBadge?.();   // keep the nav count in sync
-    });
-  });
-};
+// The agent inbox that used to live here is gone. renderAgentMessages read the
+// same agent_messages rows that js/lib/notices.js already reads through
+// my_notices(), so the dashboard ran two readers over one table and drew two
+// different cards from them. It also selected only id, body and created_at and
+// then read m.title and m.severity, so every message rendered info-blue under a
+// generic heading and the title the admin typed was shown nowhere.
+// window.agentAdminNotices() above turns the Notices rows into strip notices.
 
 // Unread-message count badge in the shared nav (Account menu) + a dot on the
 // mobile hamburger, so an agent notices a new admin message immediately on any

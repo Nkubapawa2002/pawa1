@@ -88,9 +88,9 @@ body[data-houses-pro][data-bg] {
   display: block;
   background:
     linear-gradient(90deg,
-      rgba(231,228,221,.55) 0%,
-      rgba(231,228,221,.95) 50%,
-      rgba(231,228,221,.55) 100%);
+      rgba(127,127,127,.14) 0%,
+      rgba(127,127,127,.30) 50%,
+      rgba(127,127,127,.14) 100%);
   background-size: 200% 100%;
   border-radius: 6px;
   animation: hp-shimmer 1.4s linear infinite;
@@ -119,7 +119,7 @@ body[data-houses-pro][data-bg] {
 .hp-sk-card__photo {
   aspect-ratio: 4 / 3;
   background: linear-gradient(90deg,
-    rgba(220,216,206,.6) 0%, rgba(232,229,221,.9) 50%, rgba(220,216,206,.6) 100%);
+    rgba(127,127,127,.16) 0%, rgba(127,127,127,.32) 50%, rgba(127,127,127,.16) 100%);
   background-size: 200% 100%;
   animation: hp-shimmer 1.4s linear infinite;
 }
@@ -154,7 +154,7 @@ body[data-houses-pro][data-bg] {
   height: 360px;
   border-radius: var(--hp-radius-lg);
   background: linear-gradient(90deg,
-    rgba(220,216,206,.6) 0%, rgba(232,229,221,.9) 50%, rgba(220,216,206,.6) 100%);
+    rgba(127,127,127,.16) 0%, rgba(127,127,127,.32) 50%, rgba(127,127,127,.16) 100%);
   background-size: 200% 100%;
   animation: hp-shimmer 1.4s linear infinite;
 }
@@ -176,7 +176,7 @@ body[data-houses-pro][data-bg] {
   .hp-sk-card__photo,
   .hp-sk-detail__hero {
     animation: none;
-    background: rgba(231,228,221,.75);
+    background: rgba(127,127,127,.20);
   }
 }
 

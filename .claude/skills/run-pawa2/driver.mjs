@@ -172,9 +172,33 @@ async function openPage(browser, url, opts = {}) {
 // These are the real element ids; guessing from the DOM races the page's own
 // auth routing and measures whichever won.
 const PORTAL = {
-  "agent-houses.html":   { gate: "ahAuthCard", form: "ahFormSection" },
-  "agent-services.html": { gate: "asAuthCard", form: "asFormSection" },
+  "agent-houses.html":   { gate: "ahAuthCard", form: "ahFormSection", dash: "ahDashboard" },
+  "agent-services.html": { gate: "asAuthCard", form: "asFormSection", dash: "asDashboard" },
+  "agent-trucks.html":   { gate: "atAuthCard", form: "atFormSection", dash: "atDashboard" },
 };
+
+// The DASHBOARD, not the form. Everything the platform says to an agent about
+// their account lands here, and none of it was ever reachable by a test: the
+// auth gate is all a signed-out scan can see, which is exactly how the
+// subscription banner stayed English-only for months.
+async function revealDash(p, pageName) {
+  const ids = PORTAL[pageName];
+  if (!ids) throw new Error(`no known auth gate for ${pageName} (known: ${Object.keys(PORTAL).join(", ")})`);
+  const ok = await p.evaluate((g, d, f) => {
+    const gate = document.getElementById(g);
+    if (gate) gate.hidden = true;
+    const form = document.getElementById(f);
+    if (form) form.hidden = true;
+    const dash = document.getElementById(d);
+    if (!dash) return false;
+    dash.hidden = false;
+    let n = dash.parentElement;
+    while (n) { if (n.hidden) n.hidden = false; n = n.parentElement; }
+    return true;
+  }, ids.gate, ids.dash, ids.form);
+  if (!ok) throw new Error(`#${ids.dash} not found on ${pageName}`);
+  await new Promise((r) => setTimeout(r, 600));
+}
 
 async function revealForm(p, pageName) {
   const ids = PORTAL[pageName];
@@ -243,6 +267,7 @@ async function main() {
       // --form evaluates against the signed-in form rather than the gate, which
       // is the only way to measure anything past the auth card.
       if (has("form")) await revealForm(p, page.replace(/^\//, ""));
+      if (has("dash")) await revealDash(p, page.replace(/^\//, ""));
       // await the result: a probe that has to WAIT for something (a row the page
       // renders on its own clock) returns a promise, and JSON.stringify of a
       // pending promise is "{}", which reads as a probe that found nothing.
@@ -255,6 +280,7 @@ async function main() {
     }
 
     if (cmd === "form") await revealForm(p, page.replace(/^\//, ""));
+    if (has("dash")) await revealDash(p, page.replace(/^\//, ""));
 
     // --do="<expr>" runs in the page after the reveal and before the shot, so a
     // screenshot can show a form with something in it rather than an empty one.

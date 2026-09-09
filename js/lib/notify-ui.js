@@ -440,6 +440,12 @@
     }
   }
 
+  // The panel, openable by something other than the bell. The agent notice
+  // strip gives every notice an action, and when a notice has nowhere else to
+  // go that action opens this. Synthesising a click on #pawa-notify-bell was
+  // the alternative, and it breaks the moment the bell has not mounted yet.
+  window.NotifyUI = { open: openPanel, close: closePanel };
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();

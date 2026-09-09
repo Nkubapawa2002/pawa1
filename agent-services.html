@@ -25,6 +25,10 @@
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
   <link rel="stylesheet" href="css/notify.css" />
+  <!-- The dashboard notice strip: one card, one notice, a pager for the rest.
+       Its own file rather than a section of notify.css, which is linked by
+       every page that mounts the bell while this exists on three. -->
+  <link rel="stylesheet" href="css/agent-notice.css" />
   <!-- The portal shell: header band, section rail, panels, fields, media
        tiles, map picker, sticky actions. Shared with agent-houses.html and
        written entirely in design tokens, so it follows the brand and both
@@ -153,7 +157,7 @@
     <!-- ==================================================================
          B. Dashboard
          ================================================================== -->
-    <section id="asDashboard" hidden>
+    <section id="asDashboard" class="ap-dash" hidden>
       <div id="asWarn"></div>
 
       <div class="ap-toolbar">
@@ -171,7 +175,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             <span data-i18n="as_new_service">New service</span>
           </button>
-          <button id="asSignOut" class="ap-btn" type="button">
+          <button id="asSignOut" class="ap-btn ap-signout" type="button" aria-label="Sign out" data-i18n-aria-label="ap_sign_out">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
             <span data-i18n="ap_sign_out">Sign out</span>
           </button>
@@ -179,6 +183,13 @@
       </div>
 
       <div id="asList" class="ap-cards" aria-live="polite" aria-busy="true"></div>
+
+      <!-- Where the two coaching panels land (config.js: renderAgentClientTip,
+           renderFrameScout). They insert at their mount's firstChild, so while
+           this element did not exist they were passed the dashboard and a
+           provider opening the page to deal with a job met two coaching cards
+           before their own services. agent-houses fixed that; this did not. -->
+      <div id="asCoach"></div>
     </section>
 
     <!-- ==================================================================
@@ -497,6 +508,7 @@
        out working needs and will never see by opening a dashboard.
        js/lib/notices.js is the shared reader behind both. -->
   <script src="js/lib/notices.js"></script>
+  <script src="js/lib/agent-notice-strip.js"></script>
   <script src="js/core/notify.js"></script>
   <script src="js/lib/notify-ui.js"></script>
   <script src="js/pages/agent-services.js"></script>

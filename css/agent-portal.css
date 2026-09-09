@@ -251,6 +251,20 @@ body[data-agent-portal] {
 body:has(#ahFormSection:not([hidden])) .ap-head__facts,
 body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
 
+/* And the argument is just as won on the DASHBOARD, which is the screen an
+   agent opens every day after the first. Measured at 390x844 before this:
+   284px of header, then a toolbar, then a standing note, and the agent's own
+   first listing began at y=505 of an 844px screen with NO notices on it. Of
+   that 505, everything above the toolbar was a pitch addressed to somebody who
+   has already signed up.
+
+   The kicker and the h1 stay: they are how you know which of the three portals
+   you are in. The subtitle and the three fact pills go. .ap-dash is on the
+   dashboard <section> of all three portals. */
+body:has(.ap-dash:not([hidden])) .ap-head__facts,
+body:has(.ap-dash:not([hidden])) .ap-head__tx p { display: none; }
+body:has(.ap-dash:not([hidden])) .ap-head { padding-bottom: var(--space-4); }
+
 /* ---------------------------------------------------------------------------
    3. Buttons
    One button, four intents. The old pages had .ah-btn, .as-btn, .ah-btn-primary
@@ -328,6 +342,38 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
 }
 .ap-toolbar__acts { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
+/* ---- The toolbar on a phone -------------------------------------------------
+   At 390px the who-block and two full-width buttons do not fit on one line, so
+   they wrapped and the bar cost 121px: more than the notice strip, for an email
+   address and a sign-out button.
+
+   One row instead. The email keeps a line of its own and ellipsises; "New
+   listing" keeps its words, because it is the reason the agent came; Sign out
+   becomes its icon, with the label read out rather than drawn. The word is
+   recoverable from the icon and the aria-label, and it is not a daily task.
+   Above 560px nothing changes: there is room for both labels there. */
+@media (max-width: 560px) {
+  .ap-toolbar {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+  .ap-who { flex: 1 1 auto; min-width: 0; gap: var(--space-2); }
+  .ap-who__av { width: 30px; height: 30px; }
+  .ap-who__av svg { width: 16px; height: 16px; }
+  /* "Signed in as" is a label for a value that is self-evidently an email. */
+  .ap-who__k { display: none; }
+  .ap-toolbar__acts { flex-wrap: nowrap; flex: 0 0 auto; }
+  .ap-toolbar__acts .ap-btn,
+  .ap-toolbar__acts .ah-btn { padding-inline: var(--space-3); }
+  /* The tap target stays --hit-min; only the words go. The button keeps an
+     aria-label, so what is lost is the drawn word, not the name: hiding the
+     span without that would leave a control a screen reader announces as
+     "button". */
+  .ap-signout { padding-inline: 0; width: var(--hit-min); }
+  .ap-signout span { display: none; }
+}
+
 /* ---------------------------------------------------------------------------
    5. Notes and messages
    --------------------------------------------------------------------------- */
@@ -343,6 +389,21 @@ body:has(#asFormSection:not([hidden])) .ap-head__facts { display: none; }
   color: var(--c-text-soft);
 }
 .ap-note strong { color: var(--c-text); }
+
+/* A standing reminder that sits UNDER the thing it describes. It is read once
+   and then it is furniture, so it gets no card and no fill: a rule, an icon and
+   a smaller line. */
+.ap-note--quiet {
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border: 0;
+  border-left: 2px solid var(--c-border);
+  border-radius: 0;
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--c-text-muted);
+}
+.ap-note--quiet .ap-note__ic { color: var(--c-text-muted); }
+.ap-note--quiet .ap-note__ic svg { width: 15px; height: 15px; }
 .ap-note__ic { flex: 0 0 auto; display: flex; padding-top: 2px; color: var(--c-brand); }
 .ap-note__ic svg { width: 18px; height: 18px; }
 /* It was the loudest thing on the screen and the least important: a gold bar

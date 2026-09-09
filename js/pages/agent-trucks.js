@@ -94,6 +94,10 @@ create policy "truck-photos upload" on storage.objects for insert
   const $ = (id) => document.getElementById(id);
   const authCard = $("atAuthCard"), dashboard = $("atDashboard"), formSection = $("atFormSection");
   const warnEl = $("atWarn"), listEl = $("atList"), userEmailEl = $("atUserEmail");
+  // Declared up here, not beside ensureStrip() below: showFatal() runs from a
+  // window error handler that can fire before this file finishes evaluating,
+  // and a `let` further down would still be in its temporal dead zone.
+  let strip = null;
   const tabSignIn = $("tabSignIn"), tabSignUp = $("tabSignUp");
   const authForm = $("atAuthForm"), authEmail = $("atEmail"), authPassword = $("atPassword");
   const authPasswordConfirm = $("atPasswordConfirm"), authPasswordConfirmRow = $("atPasswordConfirmRow");
@@ -124,9 +128,18 @@ create policy "truck-photos upload" on storage.objects for insert
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // The raw message goes to the console, where a developer will find it. The
+  // owner gets a sentence and a Reload button: "Cannot read properties of
+  // undefined" is not something to put in front of somebody with a lorry.
   function showFatal(msg) {
-    if (!warnEl) { alert(msg); return; }
-    warnEl.innerHTML = `<div class="ap-msg is-error">${esc(String(msg))}</div>`;
+    try { console.error("[agent-trucks]", msg); } catch (_) {}
+    const st = ensureStrip();
+    if (!st) { alert(T("anx_fatal_t")); return; }
+    st.set("fatal", [{
+      id: "fatal", source: "fatal", severity: "fatal",
+      title: T("anx_fatal_t"), body: T("anx_fatal_b"),
+      action: { label: T("anx_reload"), onClick: () => location.reload() },
+    }]);
   }
   window.addEventListener("error", (e) => showFatal(e.message || T("ap_err_unknown")));
   window.addEventListener("unhandledrejection", (e) => showFatal(e.reason?.message || e.reason || T("ap_err_unknown")));
@@ -197,6 +210,7 @@ create policy "truck-photos upload" on storage.objects for insert
       : (s?.user && s.user.is_anonymous !== true ? "account" : "out");
     if (who === "account") {
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
+      ensureStrip();
       userEmailEl.textContent = s.user.email || T("ap_no_email");
       // Make sure the owner has declared the region they belong to + the area
       // they operate in before they list — so their trucks surface to searchers
@@ -204,26 +218,43 @@ create policy "truck-photos upload" on storage.objects for insert
       try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
       if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyTrucks();
-      checkSubscription();
-      window.renderAgentClientTip?.({ mount: dashboard, id: "atClientTip", kind: "trucks" });
-      window.renderFrameScout?.({ mount: dashboard, id: "atFrameScout", kind: "trucks" });
-      window.renderAgentMessages?.({ sb, mount: dashboard });
+      refreshNotices(true);
+      // Into #atCoach, UNDER the listings. Both panels insert at their mount's
+      // firstChild, so passing the dashboard put two coaching cards above the
+      // trucks the owner came here to manage. agent-houses fixed this and these
+      // two did not.
+      const coach = document.getElementById("atCoach") || dashboard;
+      window.renderAgentClientTip?.({ mount: coach, id: "atClientTip", kind: "trucks" });
+      window.renderFrameScout?.({ mount: coach, id: "atFrameScout", kind: "trucks" });
       window.AgentDemandBoard?.load({ sb, agentProfile, mount: dashboard, kind: "trucks" });
     } else {
       authCard.hidden = false; dashboard.hidden = true; formSection.hidden = true;
     }
   }
 
-  // Subscription / activation guard: deactivation, lapsed subscription, or the
-  // 48h pay-or-pause grace expiring → paywall (RLS also hides the trucks);
-  // during grace, a live countdown demanding payment.
-  async function checkSubscription() {
-    if (!sb) return;
-    try {
-      const { data } = await sb.rpc("my_agent_subscription");
-      const sub = Array.isArray(data) ? data[0] : data;
-      window.renderAgentSubBanner(sub, { mount: dashboard, id: "atSubPaywall", what: "trucks" });
-    } catch (_) { /* RPC not deployed yet — ignore */ }
+  // ---- The notice strip ---------------------------------------------------
+  // One card with a pager, so the dashboard is the same height whether nothing
+  // has happened or nine things have. It replaces the subscription paywall and
+  // the admin inbox, which both drew themselves at dashboard.firstChild in
+  // hardcoded light-theme hex, in English only. See js/lib/agent-notice-strip.js.
+  // (`strip` itself is declared up beside warnEl, so showFatal can reach it.)
+  function ensureStrip() {
+    if (!strip && warnEl && window.AgentNoticeStrip) {
+      strip = window.AgentNoticeStrip.mount({ into: warnEl });
+    }
+    return strip;
+  }
+
+  // my_notices() returns the unread admin messages AND the live billing state
+  // in one round trip, with days_left computed on the server. This page used to
+  // fire my_agent_subscription() on top of it and read agent_messages a second
+  // time directly.
+  async function refreshNotices(force) {
+    const st = ensureStrip();
+    if (!st || !window.Notices) return;
+    const data = await window.Notices.load(force);
+    st.set("sub", [window.agentBillingNotice?.(data.billing)].filter(Boolean));
+    st.set("admin", window.agentAdminNotices?.(data.notices) || []);
   }
 
   tabSignIn.addEventListener("click", () => {

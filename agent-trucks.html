@@ -25,6 +25,10 @@
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
   <link rel="stylesheet" href="css/notify.css" />
+  <!-- The dashboard notice strip: one card, one notice, a pager for the rest.
+       Its own file rather than a section of notify.css, which is linked by
+       every page that mounts the bell while this exists on three. -->
+  <link rel="stylesheet" href="css/agent-notice.css" />
   <!-- The portal shell: header band, section rail, panels, fields, media
        tiles, map picker, sticky actions. Shared with agent-houses.html and
        agent-services.html.
@@ -152,22 +156,41 @@
     <!-- ==================================================================
          B. The trucks this owner already has
          ================================================================== -->
-    <section id="atDashboard" hidden>
+    <section id="atDashboard" class="ap-dash" hidden>
       <div id="atWarn"></div>
-      <div class="ap-bar">
-        <span class="ap-bar__who">
-          <span data-i18n="ap_signed_in_as">Signed in as</span>
-          <strong id="atUserEmail">&mdash;</strong>
-        </span>
-        <span class="ap-bar__acts">
+      <!-- The same toolbar the other two portals use, in place of a bare
+           `.ap-bar` that drew "Signed in as —" as loose text with no card and
+           no ellipsis, so a long email pushed the buttons off the row. One
+           shape for the three portals. -->
+      <div class="ap-toolbar">
+        <div class="ap-who">
+          <span class="ap-who__av" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </span>
+          <span class="ap-who__tx">
+            <span class="ap-who__k" data-i18n="ap_signed_in_as">Signed in as</span>
+            <strong class="ap-who__v" id="atUserEmail">&nbsp;</strong>
+          </span>
+        </div>
+        <div class="ap-toolbar__acts">
           <button id="atNewBtn" class="ap-btn ap-btn--brand" type="button" hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             <span data-i18n="at_new">New truck</span>
           </button>
-          <button id="atSignOut" class="ap-btn" type="button" data-i18n="ap_sign_out">Sign out</button>
-        </span>
+          <button id="atSignOut" class="ap-btn ap-signout" type="button" aria-label="Sign out" data-i18n-aria-label="ap_sign_out">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+            <span data-i18n="ap_sign_out">Sign out</span>
+          </button>
+        </div>
       </div>
       <div id="atList" class="ap-cards" aria-busy="true"></div>
+
+      <!-- Where the two coaching panels land (config.js: renderAgentClientTip,
+           renderFrameScout). They insert at their mount's firstChild, so while
+           this element did not exist they were passed the dashboard and an
+           owner opening the page to deal with a truck met two coaching cards
+           before their own vehicles. agent-houses fixed that; this did not. -->
+      <div id="atCoach"></div>
     </section>
 
     <!-- ==================================================================
@@ -455,6 +478,7 @@
        out working needs and will never see by opening a dashboard.
        js/lib/notices.js is the shared reader behind both. -->
   <script src="js/lib/notices.js"></script>
+  <script src="js/lib/agent-notice-strip.js"></script>
   <script src="js/core/notify.js"></script>
   <script src="js/lib/notify-ui.js"></script>
   <script src="js/pages/agent-trucks.js"></script>
