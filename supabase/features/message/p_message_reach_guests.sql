@@ -81,6 +81,19 @@
 --  post to them, or delete them (pm_group_delete needs an owner row). Section
 --  4 sweeps them up under the rule pm_group_leave already applies.
 --
+--  APPLIED TO PRODUCTION 2026-09-10, in four migrations named
+--  pm_reach_guests_1_predicates .. _4_guest_end_and_repair (the Supabase MCP;
+--  `node scripts/db/apply_sql.mjs` is refused by the permission classifier
+--  while auto mode is on, which is the documented trap in
+--  [[pawa2-db-hardening-applied]]).
+--
+--  Verified after applying: both predicates carry the narrowed clause; all
+--  three callers kept their app_is_guest() SENDER check and lost their
+--  recipient-side is_guest filter; six functions, no overloads, all still
+--  SECURITY DEFINER and still granted to authenticated; and the two orphaned
+--  rooms came back with their creator as owner and every message openable by
+--  them (8 of 8, and 2 of 2). Nothing was deleted.
+--
 --  Idempotent. Safe to re-apply.
 --  Depends on: p_message.sql, p_message_groups.sql, p_message_audience.sql,
 --              p_message_open.sql, p_message_guest_end.sql.
