@@ -1938,10 +1938,30 @@ try {
         msg: document.getElementById("pmCastMsg").textContent,
       };
     });
+    // PMStore.me() is async, so it cannot be read inline above. The identity
+    // this device published is the one on the key row it wrote.
+    sent.me = await ap.page.evaluate(async () => (await window.PMStore.me()).userId);
     ok(sent.n === 1, "the announcement goes once", JSON.stringify(sent));
-    ok(sent.ids && sent.ids.length === 1 && sent.ids[0] === picked,
-       "sealed to exactly the person in the basket, and to nobody else",
-       JSON.stringify(sent.ids));
+    // TWO WRAPS FOR ONE RECIPIENT, AND THE SECOND ONE IS THE POINT.
+    //
+    // This used to assert exactly one, which is what an announcement "sealed to
+    // the basket" looks like from the outside and is a bug from the inside.
+    // There is no separate "sent" store in P-Message: your copy of a message is
+    // just another wrap, which is why PMCrypto.seal() says in its own header
+    // that the sender must be in the list. Every other send path gets that free
+    // from pm_thread_keys(); broadcast built its list from the audience, and
+    // nobody is in an audience they are announcing to. So pm_broadcast wrote
+    // the sender in as thread OWNER with no key row of their own, and their own
+    // announcement came back to them as "encrypted for another device".
+    //
+    // Do not "fix" this back to a length of one.
+    ok(sent.ids && sent.ids.indexOf(picked) >= 0,
+       "sealed to the person in the basket", JSON.stringify(sent.ids));
+    ok(sent.ids && sent.ids.indexOf(sent.me) >= 0,
+       "and to the sender, so they can read their own announcement back",
+       JSON.stringify(sent));
+    ok(sent.ids && sent.ids.length === 2,
+       "and to nobody else at all", JSON.stringify(sent.ids));
     ok(sent.asked === 0,
        "and no scope was resolved at all: there is no second question that could give a different answer",
        String(sent.asked));
@@ -2111,8 +2131,18 @@ try {
       document.getElementById("pmModal").textContent);
     ok(/does not delete this conversation/i.test(dialog),
        "the confirm says what a block does NOT do, not only what it does");
-    ok(/not told/i.test(dialog),
-       "including that the other person is not told");
+    // The promise was deliberately softened: "They are not told" became
+    // "Nothing tells them, but they will find out if they try to write." Both
+    // halves matter. pm_can_speak refuses the send, so a block that promised
+    // silence would be promising something the database does not deliver, and
+    // the alternative — accepting the message and dropping it — is the feature
+    // lying about delivery. So the assertion is on the CLAIM, both halves of
+    // it, rather than on one form of words.
+    ok(/nothing tells them|not told/i.test(dialog),
+       "including that nothing notifies the other person", dialog.slice(0, 200));
+    ok(/find out if they try/i.test(dialog),
+       "and that they will find out if they try to write, which is what actually happens",
+       dialog.slice(0, 200));
 
     await ap.page.evaluate(() => document.getElementById("pmBlYes").click());
     await sleep(900);

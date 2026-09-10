@@ -181,7 +181,27 @@
     /* The safety number inside the storefront preview. A rule above it, the
        same as on the public page, so it reads as evidence attached to the
        card rather than as one more paragraph of the bio. */
-    .pf-shop-safety { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--pm-line); }
+    /* One sentence about the number now, not a second copy of the number. */
+    .pf-shop-safety {
+      margin: 13px 0 0; padding-top: 13px; border-top: 1px solid var(--pm-line);
+      font-size: 12px; line-height: 1.5; color: var(--pm-ink-soft);
+    }
+
+    /* How this account's listings are ordered. One block per thing they list,
+       three answers each, and each answer says what it COSTS as well as what
+       it does: an order with no downside stated is an advertisement. */
+    .pf-prefs { display: flex; flex-direction: column; gap: 16px; margin: 4px 0 2px; }
+    .pf-pref-h { margin: 0 0 7px; font-size: 12px; font-weight: 800; letter-spacing: .05em;
+      text-transform: uppercase; color: var(--pm-ink-faint); }
+    .pf-pref-o { display: flex; flex-direction: column; gap: 2px; width: 100%;
+      text-align: left; padding: 10px 12px; margin-bottom: 6px; border-radius: 11px;
+      background: var(--pm-field); border: 1px solid var(--pm-line);
+      color: var(--pm-ink); font: inherit; cursor: pointer; }
+    .pf-pref-o b { font-size: 13.5px; font-weight: 700; }
+    .pf-pref-o small { font-size: 11.5px; line-height: 1.45; color: var(--pm-ink-soft); }
+    .pf-pref-o:hover { border-color: var(--pm-brand-line); }
+    .pf-pref-o.is-on { border-color: var(--pm-brand); background: var(--pm-brand-soft); }
+    .pf-pref-o.is-on b { color: var(--pm-brand); }
 
     .pf-shop-note { margin: 9px 2px 0; font-size: 11.5px; line-height: 1.5;
       color: rgba(233,243,238,.5); }
@@ -248,6 +268,10 @@
        happen somewhere else, because the whole point of a block is that the
        person has stopped appearing. This is that somewhere. -->
   <script src="js/lib/pm-block.js"></script>
+  <!-- What each thing this account lists is ordered by. Nobody is assigned an
+       account type: it is derived from what they have actually listed, which
+       is why this reads the counts the storefront query already returned. -->
+  <script src="js/lib/account-prefs.js"></script>
   <!-- The storefront block, shared with agent.html. pm-presence.js first: the
        identity line asks it for the last-seen dot, and without it the block
        silently loses that line rather than failing. -->

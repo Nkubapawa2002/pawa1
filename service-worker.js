@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v331-2026-09-09-one-notice-at-a-time";
+const VERSION = "v332-2026-09-10-take-me-there-and-a-queue-that-moves";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -79,6 +79,17 @@ const APP_SHELL = [
   // judging a listing by its type alone, which is the bug they fixed.
   "./js/lib/house-spec.js",
   "./js/lib/listing-kinds.js",
+  // "Take me there", and the sheet a pin on the map opens. Both are on the
+  // houses directory, which is the Explore tab, so an install missing them
+  // loses the directions link and turns every pin back into a dead marker.
+  "./js/lib/maps-handoff.js",
+  "./js/lib/house-map-sheet.js",
+  "./css/house-map-sheet.css",
+  // The fair queue behind "Longest waiting first", and the per-account choice
+  // of which order to use. houses.js reads the turn as it starts, so a missing
+  // listing-order.js would silently drop the option rather than fail loudly.
+  "./js/lib/listing-order.js",
+  "./js/lib/account-prefs.js",
   // The national video stage on explore.html, and the stylesheet both stages
   // share with index.html.
   "./js/lib/video-national.js",

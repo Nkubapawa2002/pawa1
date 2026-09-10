@@ -432,25 +432,63 @@ function amenitiesSectionHtml(h) {
   </section>`;
 }
 
+/**
+ * Where it is.
+ *
+ * The three actions under the map used to sit in one flat row of equal-looking
+ * links, and the one a person actually wants (take me there) was the middle of
+ * three and the only one that did not work on its own: it opened Google Maps
+ * with a destination and no starting point, so the first thing it asked for was
+ * something the app already knew.
+ *
+ * So the hand-off is now the main action, drawn as one, and it carries its own
+ * promise underneath. Drawing the road on our own map is still here, because
+ * measuring is a different question from navigating and OSRM answers it without
+ * leaving the page; it is simply no longer competing for the same tap.
+ *
+ * `mapsUrl` arrives already built by PawaMaps (js/pages/house.js) so the link
+ * works before a single line of JavaScript on this page has run. house-place.js
+ * then upgrades it in place once a fix is known.
+ */
 function placeSectionHtml(h, mapsUrl, meetCode, pinLine) {
+  const hasPin = mapsUrl ? "" : ` aria-disabled="true"`;
   return `<section class="hx-card" id="sec-place">
     <div class="hx-card__head">${ico(ICO.map)}<h3>${esc(T("hs_h_place", "Where it is"))}</h3></div>
+    <p class="hx-sub">${esc(T("hs_place_sub", "The pin, the way there, and how far it is from the places you go."))}</p>
     <div class="hd-map" id="hdMap"></div>
-    <div class="hd-map-actions">
-      <a href="#" id="hdRouteBtn" role="button">${ico(ICO.route, 15)} Route from my location</a>
-      <a href="${mapsUrl}" target="_blank" rel="noopener">${ico(ICO.nav, 15)} Get directions</a>
-      <a href="meet.html?${meetCode}" target="_blank" rel="noopener">${ico(ICO.video, 15)} Live meet with agent</a>
+
+    <div class="hd-go">
+      <a class="hd-go__main" id="hdDirBtn"${mapsUrl ? ` href="${mapsUrl}"` : hasPin}
+         target="_blank" rel="noopener">
+        ${ico(ICO.nav, 18)}
+        <span class="hd-go__tx">
+          <span class="hd-go__t">${esc(T("hs_dir_go", "Directions in Google Maps"))}</span>
+          <small class="hd-go__d">${esc(mapsUrl
+            ? T("hs_dir_ready", "Opens with your location and this home already filled in. Nothing to type.")
+            : T("hs_dir_nopin", "This listing has no pin yet, so there is nowhere to navigate to."))}</small>
+        </span>
+      </a>
+      <div class="hd-map-actions">
+        <a href="#" id="hdRouteBtn" role="button">${ico(ICO.route, 15)} ${esc(T("hs_dir_draw", "Show the route on this map"))}</a>
+        <a href="meet.html?${meetCode}" target="_blank" rel="noopener">${ico(ICO.video, 15)} ${esc(T("hs_meet", "Live meet with agent"))}</a>
+      </div>
+      <div class="hd-go__msg" id="hdGoMsg" role="status" aria-live="polite" hidden></div>
     </div>
+
     ${pinLine}
     <!-- How far is this home from the nearest main (tarmac) road? -->
     <div class="hd-main-road" id="hdMainRoad" hidden></div>
-    <!-- Commute tool: how far is this home from your workplace / daily route? -->
+    <!-- How far is this home from the places this person actually goes? The
+         saved places come from "Match to my life" on houses.html, so for
+         anybody who has used that once there is nothing left to type here. -->
     <div class="hd-commute" id="hdCommute" hidden>
-      <label class="hd-commute-label" for="hdCommuteInput">How far is this home from your workplace or daily route?</label>
+      <p class="hd-commute-label">${esc(T("hs_far_q", "How far is this home from the places you go?"))}</p>
+      <div class="hd-saved" id="hdSaved" hidden></div>
+      <label class="hd-commute-sub" for="hdCommuteInput">${esc(T("hs_far_other", "Somewhere else"))}</label>
       <div class="hd-commute-row">
         <input type="text" id="hdCommuteInput" autocomplete="off"
-          placeholder="e.g. Mlimani City, Muhimbili Hospital, your office area…" />
-        <button type="button" id="hdCommuteBtn" class="hd-commute-btn">Measure</button>
+          placeholder="${esc(T("hs_far_ph", "Your workplace, school, or an area you know"))}" />
+        <button type="button" id="hdCommuteBtn" class="hd-commute-btn">${esc(T("hs_far_go", "Measure"))}</button>
       </div>
       <div id="hdCommuteMsg" class="hd-commute-msg" hidden></div>
       <div id="hdCommuteResults" class="hd-commute-results"></div>

@@ -58,7 +58,11 @@
       "<p>" + esc(t("pm_block_does",
         "They will not be able to add you to a room, include you in an announcement, or start a new conversation with you.")) + "</p>" +
       '<p class="pm-note">' + esc(t("pm_block_not",
-        "It does not delete this conversation and it does not reach messages already on either phone. It does not take either of you out of a room you are both already in. They are not told.")) + "</p>" +
+        // Kept word for word in step with pm_block_not. A fallback that
+        // promises silence where the key promises "they will find out if they
+        // try to write" is the wrong promise shown to whoever loses the i18n
+        // file, and it is the stronger of the two, which is the wrong way round.
+        "Neither of you can write here any more, but it does not delete this conversation and it does not reach messages already on either phone. It does not take either of you out of a room you are both already in. Nothing tells them, but they will find out if they try to write to you.")) + "</p>" +
       '<div class="pm-modal-acts">' +
         '<button class="pm-btn ghost" id="pmBlNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
         '<button class="pm-btn is-danger" id="pmBlYes">' + esc(t("pm_block_go", "Block them")) + "</button>" +

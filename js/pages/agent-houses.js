@@ -2343,6 +2343,27 @@ create policy "house-photos upload" on storage.objects for insert
     }
   });
 
+  // ---- Where the bathroom is ------------------------------------------------
+  //
+  //  Three answers that exclude each other, mapped onto the characteristic keys
+  //  the catalogue has always had (js/lib/house-spec.js, FEATURE_GROUPS[0]).
+  //  The KEY is what is stored and must not change; the question in front of it
+  //  is language.
+  //
+  //  `drops` is what makes them exclusive. Choosing "inside" has to remove
+  //  "shared" and "outside" from the room, or the listing carries two answers
+  //  and the detail sheet picks whichever comes first, which is not an answer.
+  //  toilet_inside / toilet_shared are dropped alongside their bathroom twins
+  //  for the same reason: HouseSpec.bathroom() reads both.
+  const BATH_CHOICES = [
+    { key: "inside",  feat: "bath_inside",  k: "ah_bath_in",
+      drops: ["bath_shared", "bath_outside", "toilet_shared"] },
+    { key: "shared",  feat: "bath_shared",  k: "ah_bath_shared",
+      drops: ["bath_inside", "bath_outside", "toilet_inside"] },
+    { key: "outside", feat: "bath_outside", k: "ah_bath_out",
+      drops: ["bath_inside", "bath_shared", "toilet_inside"] },
+  ];
+
   // ---- Additional costs / bills (electricity, water, garbage…) -------------
   // Each row is a self-contained DOM node (label + amount + billing + remove);
   // we scrape the rows at save time, so there's no separate state to keep in
@@ -2650,6 +2671,24 @@ create policy "house-photos upload" on storage.objects for insert
               </button>`).join("")}
           </div>
         </div>
+        <!-- WHERE IS THE BATHROOM. Its own question, above the chips.
+             It was already answerable down in the characteristics, as two of
+             thirty-three chips carrying the same weight as "Freshly painted",
+             and nothing stopped an agent ticking "inside" and "outside" at
+             once. It is the fact that settles a viewing before anybody spends
+             a Saturday and a daladala fare, so it is asked plainly, exactly
+             once, and the three answers exclude each other.
+             Nothing new is stored: these write the same feature keys. -->
+        <div class="ah-wide ah-band ah-bath">
+          <span class="ah-band__q">${esc(tr("ah_bath_q"))}</span>
+          <div class="ah-band__row" role="group">
+            ${BATH_CHOICES.map(c => `
+              <button type="button" class="ah-band__b ah-bath__b" data-bath="${c.key}"
+                      aria-pressed="false">
+                <strong>${esc(tr(c.k))}</strong>
+              </button>`).join("")}
+          </div>
+        </div>
         <div class="ah-wide ah-feats">
           <span class="ah-band__q ah-band__q--lead">${esc(HS.t("feats_q"))}</span>
           <ul class="ah-feats__on"></ul>
@@ -2784,6 +2823,38 @@ create policy "house-photos upload" on storage.objects for insert
     node.querySelectorAll(".ah-fg").forEach(b => {
       b.classList.toggle("is-used", chosen.indexOf(b.dataset.feat) >= 0);
     });
+    // The bathroom question reads the same list, so it is repainted from the
+    // one place that knows the list changed. paintBath never writes, so this
+    // cannot loop back here.
+    paintBath(node);
+  }
+
+  /** Remove named characteristics from a room, if they are on it. */
+  function dropFeatures(node, keys) {
+    const kill = new Set(keys.map(k => String(k).toLowerCase()));
+    node.querySelectorAll(".ah-feats__on li").forEach(li => {
+      if (kill.has(String(li.dataset.feat || "").toLowerCase())) li.remove();
+    });
+    drawChosenFeatures(node);
+  }
+
+  /**
+   * Light the bathroom answer that the room's characteristics actually say.
+   *
+   * Read from the chip list rather than from a variable of its own, so the two
+   * controls cannot drift: an agent who removes "Bathroom inside" from the
+   * list below sees the question go back to unanswered, and one who taps the
+   * chip in "More characteristics" sees the question answer itself. Two
+   * controls over one fact are only safe while one of them is the record.
+   */
+  function paintBath(node) {
+    const have = readFeatures(node).map(f => String(f).toLowerCase());
+    const hit = BATH_CHOICES.find(c => have.indexOf(c.feat) >= 0);
+    node.querySelectorAll(".ah-bath__b").forEach(b => {
+      const on = !!hit && b.dataset.bath === hit.key;
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
 
   function addFeature(node, value) {
@@ -2812,15 +2883,33 @@ create policy "house-photos upload" on storage.objects for insert
     node.dataset.sizeSqm = r && r.size != null ? String(Number(r.size)) : "";
     node.dataset.traits  = r && r.traits ? String(r.traits) : "";
 
-    node.querySelectorAll(".ah-band__b").forEach(b => {
+    // The size bracket. `:not(.ah-bath__b)` matters: the bathroom row below
+    // reuses the same visual class and would otherwise clear the size when it
+    // is answered, and be cleared by it.
+    node.querySelectorAll(".ah-band__b:not(.ah-bath__b)").forEach(b => {
       b.addEventListener("click", () => {
         const was = b.classList.contains("is-on");
-        node.querySelectorAll(".ah-band__b").forEach(o => {
+        node.querySelectorAll(".ah-band__b:not(.ah-bath__b)").forEach(o => {
           o.classList.remove("is-on"); o.setAttribute("aria-pressed", "false");
         });
         // Tapping the chosen bracket again clears it. A bracket nobody meant to
         // set is worse than none, and there is otherwise no way back to "unsaid".
         if (!was) { b.classList.add("is-on"); b.setAttribute("aria-pressed", "true"); }
+      });
+    });
+
+    // Where the bathroom is. Answering it writes ONE characteristic and removes
+    // the ones that contradict it, so the room can never carry two answers.
+    node.querySelectorAll(".ah-bath__b").forEach(b => {
+      b.addEventListener("click", () => {
+        const choice = BATH_CHOICES.find(c => c.key === b.dataset.bath);
+        if (!choice) return;
+        const was = b.classList.contains("is-on");
+        // Tapping the chosen answer again clears it, the same way the size
+        // bracket does: an agent who does not know must be able to say nothing.
+        dropFeatures(node, [choice.feat].concat(choice.drops));
+        if (!was) addFeature(node, choice.feat);
+        paintBath(node);
       });
     });
 

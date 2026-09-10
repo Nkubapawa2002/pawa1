@@ -136,6 +136,10 @@
   <script src="js/lib/place-match.js"></script>
   <script src="js/lib/geo.js"></script>
   <script src="js/lib/geolocate.js"></script>
+  <!-- "Take me there", handed to the app that actually navigates, with the
+       origin and the travel mode already filled in. Loads after geolocate.js
+       because it reads the fix that file remembers. -->
+  <script src="js/lib/maps-handoff.js"></script>
   <!-- The spec sheet the agent wrote themselves: the room-by-room price table
        and the titled fact groups. agent-houses.js writes it, house.js draws
        it, and both of them get its shape from here. -->

@@ -132,24 +132,19 @@
         emptyText: t("pf_shop_nobio", "You have not written anything about your work yet. This is the space a customer reads first."),
       }) +
       window.AgentCard.stats(storeCard, { compact: true }) +
-      // The safety number a customer now sees on agent.html, shown here for
-      // the same reason everything else in this block is: so the preview is
-      // the page rather than a description of it. An agent who does not know
-      // their number is published cannot answer a customer who rings up
-      // reading it out.
+      // A SENTENCE ABOUT THE NUMBER, NOT THE NUMBER.
       //
-      // Compact: no buttons and no code. The full card with the QR is already
-      // at the top of this screen, and two copies with two sets of controls
-      // would be one screen asking twice.
-      (fingerprint && window.PMSafety
-        ? '<div class="pf-shop-safety">' + window.PMSafety.card({
-            fingerprint: fingerprint,
-            own: false,
-            compact: true,
-            name: storeCard.display_name || t("pf_you", "You"),
-            note: t("pf_shop_safety", "Customers can compare this with the number on their own screen before they write to you. It is on your page now."),
-            idPrefix: "pfShopSafety",
-          }) + "</div>"
+      // This used to draw a second, compact copy of the safety card so the
+      // preview would be "the page rather than a description of it". The fact
+      // an agent needs from this block is that a number is published on their
+      // public page and a customer may read it out; thirty digits printed
+      // twice on one screen is what the person asked to be rid of, and the
+      // preview is not the place to reintroduce them. agent.html still shows
+      // the real card to the customer, which is where it does its work.
+      (fingerprint
+        ? '<p class="pf-shop-safety">' +
+            esc(t("pf_shop_safety_note", "Your safety number is on that page, so a customer can compare it against the one on their own screen before they write to you.")) +
+          "</p>"
         : "");
 
     var warn = window.AgentCard.reachable(storeCard) ? ""
@@ -334,30 +329,30 @@
     //  The key is the account, so it sits above the listings rather than under
     //  a settings heading three taps down.
     //
-    //  The safety number is a CARD, not a row. It used to be a row with the
-    //  number in the value slot on the right, which is the slot that holds the
-    //  word "English": thirty digits at flex: 0 0 auto took two thirds of the
-    //  width, crushed "Your safety number" into one word per line, and drew
-    //  the number itself at 11px and half opacity. The one string on this
-    //  screen that exists to be read out loud was the hardest thing on it to
-    //  read.
+    //  THE SAFETY NUMBER IS A DOOR HERE, NOT A DISPLAY.
     //
-    //  Now it is the same 3x2 grid the verify dialog and the public agent page
-    //  draw, from js/lib/pm-safety.js, at the width of the column, with the QR
-    //  code for the other person's camera folded in underneath. Same object
-    //  everywhere: a number people compare cannot have two shapes.
+    //  It has now been three shapes on this screen. It was a row with the
+    //  digits in the value slot, which crushed them to 11px at half opacity.
+    //  Then it was the full 3x2 card with a QR code and three buttons, which
+    //  fixed the legibility and introduced a different problem: thirty digits,
+    //  a QR code and a row of controls are the loudest object on a screen that
+    //  is otherwise a list of quiet settings, and they were there on every
+    //  visit whether or not anybody was comparing anything.
+    //
+    //  Comparing IS the feature. A number nobody is checking against another
+    //  phone is decoration, and it belongs where the checking happens: the
+    //  verify dialog, which shows YOURS and THEIRS side by side and records a
+    //  verdict. So this is one row that opens that dialog, and the digits are
+    //  not drawn on this page at all.
+    //
+    //  Nothing was removed from the feature: js/lib/pm-safety.js still owns the
+    //  one rendering, and pm-identity-ui.js still draws it. This screen simply
+    //  stopped being a second place to look at it.
     if (me.userId && fingerprint) {
-      html += '<section class="pf-group"><h2 class="pf-group-h">' +
-        esc(t("pf_g_key", "Your encryption key")) + "</h2>" +
-        window.PMSafety.card({
-          fingerprint: fingerprint,
-          userId: me.userId,
-          own: true,
-          idPrefix: "pfSafety",
-          verifyAction: t("pf_safety_check", "Check someone else's"),
-        }) +
-        "</section>";
-      html += group("", [
+      html += group(t("pf_g_key", "Your encryption key"), [
+        row({ act: "safety", icon: ICON.shield, tint: "ic-violet",
+              title: t("pf_safety", "Your safety number"),
+              desc: t("pf_safety_row_d", "Thirty digits that prove you are talking to the right person. Open it when somebody is comparing theirs against yours.") }),
         row({ act: "backup", icon: ICON.key, tint: "ic-gold", title: t("pf_backup", "Save a backup code"),
               desc: t("pf_backup_d", "The only copy of this key is on this device. A code lets you restore it on another.") }),
         row({ act: "restore", icon: ICON.key, tint: "ic-gold", title: t("pf_restore", "Restore from a backup code"),
@@ -415,7 +410,26 @@
     }
 
     // ---- settings ----------------------------------------------------------
+    //
+    // "How your listings are shown" only appears for an account that HAS
+    // listings, and it is derived from the counts already on screen above
+    // rather than from a type on a row. Nobody in this app is assigned a type:
+    // a person who lists a house is a house owner, and if they post a truck
+    // tomorrow they are that too. AccountPrefs.typesOf is the whole of that
+    // rule and it is the same rule pm_owner_listings uses.
+    var myTypes = window.AccountPrefs
+      ? window.AccountPrefs.typesOf({
+          houses: countOf("n_houses"), services: countOf("n_services"),
+          trucks: countOf("n_trucks"), jobs: countOf("n_jobs"),
+        })
+      : [];
     html += group(t("pf_g_settings", "Settings"), [
+      (myTypes.length
+        ? row({ act: "prefs", icon: ICON.tool, tint: "ic-sky",
+                title: t("pf_prefs", "How your listings are shown"),
+                desc: t("pf_prefs_d", "The order people see them in, chosen for each thing you list."),
+                value: String(myTypes.length) })
+        : ""),
       row({ act: "lang", icon: ICON.lang, tint: "ic-sky", title: t("pf_lang", "Language"),
             desc: t("pf_lang_d", "Switches the whole site."), value: lang === "sw" ? "Kiswahili" : "English" }),
       row({ act: "theme", icon: ICON.theme, tint: "ic-sky", title: t("pf_theme", "Appearance"),
@@ -444,19 +458,6 @@
 
     el.pfMain.innerHTML = html;
 
-    // The safety card owns two of its own buttons (show the code, copy the
-    // number) and hands the third back here, because "check someone else's"
-    // means opening a dialog and pm-safety.js deliberately owns none.
-    //
-    // Re-bound after every render because innerHTML above threw the old node
-    // away. PMSafety.wire marks the element it bound, so this is safe to call
-    // on a node that somehow survived.
-    var safety = document.getElementById("pfSafety");
-    if (safety && window.PMSafety) {
-      window.PMSafety.wire(safety, {
-        onVerify: function () { window.PMIdentityUI.safetyNumbers(); },
-      });
-    }
   }
 
   // ---- actions -------------------------------------------------------------
@@ -495,6 +496,15 @@
 
       // No "fingerprint" case any more: the safety number is a card with its
       // own buttons, wired at the end of render().
+      // The only door to the number on this page, and it opens the screen the
+      // number is for: yours and theirs side by side, with a verdict at the end.
+      if (act === "safety") return window.PMIdentityUI.safetyNumbers();
+      if (act === "prefs") {
+        return showPrefs(window.AccountPrefs ? window.AccountPrefs.typesOf({
+          houses: countOf("n_houses"), services: countOf("n_services"),
+          trucks: countOf("n_trucks"), jobs: countOf("n_jobs"),
+        }) : []);
+      }
       if (act === "backup") return window.PMIdentityUI.backup();
       if (act === "restore") return window.PMIdentityUI.restore();
       if (act === "blocked") return window.PMBlock && window.PMBlock.list();
@@ -549,6 +559,74 @@
       '<div class="pm-modal-acts"><button class="pm-btn" id="pfNoticeX">' +
       esc(t("pm_close", "Close")) + "</button></div>");
     document.getElementById("pfNoticeX").addEventListener("click", window.PMIdentityUI.close);
+  }
+
+  /**
+   * How the things this account lists are ordered for the people who see them.
+   *
+   * ONE SECTION PER THING THEY ACTUALLY LIST, and no others. A preferences
+   * screen offering to arrange a truck catalogue to somebody who has never
+   * listed a truck is a form to be worked through, which is the thing this app
+   * keeps deciding not to build.
+   *
+   * THE DEFAULT IS THE FAIR QUEUE, and it is the reason this screen exists.
+   * Every other order in the catalogue has a permanent bottom: newest-first
+   * buries whatever was posted last week and never stops, relevance buries
+   * whatever the search did not match. The fair queue is first-in-first-out
+   * with a head that advances every hour, so a listing that never reached the
+   * first screen eventually does. js/lib/listing-order.js has the arithmetic
+   * and tests/listing_order_test.mjs proves the property.
+   *
+   * What it deliberately does NOT do is let an owner buy their way up. There
+   * is one order, everybody rotates through it, and the only thing this screen
+   * changes is which order this account's OWN view uses.
+   */
+  function showPrefs(types) {
+    var AP = window.AccountPrefs;
+    if (!AP || !types.length) return;
+
+    var body = types.map(function (ty) {
+      var now = AP.get(me.userId, ty.key);
+      return '<div class="pf-pref">' +
+        '<h3 class="pf-pref-h">' + esc(t(ty.i18n, ty.key)) + "</h3>" +
+        AP.ORDERS.map(function (o) {
+          var on = now.order === o.key;
+          return '<button type="button" class="pf-pref-o' + (on ? " is-on" : "") + '"' +
+            ' data-pref="' + esc(ty.key) + '" data-order="' + esc(o.key) + '"' +
+            ' aria-pressed="' + (on ? "true" : "false") + '">' +
+            "<b>" + esc(t(o.i18n, o.key)) + "</b>" +
+            "<small>" + esc(t(o.d, "")) + "</small></button>";
+        }).join("") +
+        "</div>";
+    }).join("");
+
+    window.PMIdentityUI.open("<h2>" + esc(t("pf_prefs", "How your listings are shown")) + "</h2>" +
+      '<p class="pm-role">' + esc(t("pf_prefs_lead",
+        "One choice for each thing you list. It changes the order on your own screen; it does not move you up anybody else's.")) + "</p>" +
+      '<div class="pf-prefs">' + body + "</div>" +
+      '<div class="pm-modal-acts"><button class="pm-btn" id="pfPrefX">' +
+      esc(t("pm_close", "Close")) + "</button></div>" +
+      '<div class="pm-msg-out" id="pfPrefMsg"></div>');
+
+    document.getElementById("pfPrefX").addEventListener("click", window.PMIdentityUI.close);
+
+    var out = document.getElementById("pfPrefMsg");
+    document.querySelectorAll("[data-pref]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var type = b.dataset.pref;
+        AP.set(me.userId, type, { order: b.dataset.order });
+        // Repaint only this type's row. Redrawing the whole dialog would lose
+        // the reader's place in it, and there is nothing else on screen that
+        // this choice changes.
+        document.querySelectorAll('[data-pref="' + type + '"]').forEach(function (o) {
+          var on = o === b;
+          o.classList.toggle("is-on", on);
+          o.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        out.className = "pm-msg-out good";
+        out.textContent = t("pf_prefs_saved", "Saved.");
+      });
+    });
   }
 
   /**
@@ -642,6 +720,11 @@
       // it. Left behind they would be attached to a user id nothing can sign
       // in as again, and a later guest on this phone could be handed them.
       if (window.PMTrust) window.PMTrust.forgetAll(me.userId);
+      // And their preferences, for the same reason: the bucket is keyed by a
+      // user id that can never be signed in as again, so leaving it behind is
+      // litter that a later guest on this phone would not inherit but that
+      // nothing would ever clear either.
+      if (window.AccountPrefs) window.AccountPrefs.forget(me.userId);
       try { if (window.Auth) await window.Auth.signOut(); } catch (_) {}
       location.href = "index.html";
     });

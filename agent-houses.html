@@ -511,6 +511,12 @@
     }
     .ah-band__help { font-size: var(--text-xs); color: var(--c-text-muted); margin: 2px 0 0; line-height: var(--lh-normal); }
     @media (max-width: 420px) { .ah-band__row { grid-template-columns: 1fr; } }
+    /* "Where is the bathroom?" is the same control as the size bracket, one
+       question further down. Three short answers, so they stay side by side on
+       a narrow phone where the size words would have wrapped. */
+    .ah-bath { margin-top: var(--space-3); }
+    .ah-bath .ah-band__b { text-align: center; align-items: center; }
+    @media (max-width: 420px) { .ah-bath .ah-band__row { grid-template-columns: repeat(3, 1fr); } }
 
     /* ---- Room characteristics ----------------------------------------
        Chosen items first, because that is the answer; the suggestion bank

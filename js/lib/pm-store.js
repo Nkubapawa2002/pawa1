@@ -794,6 +794,18 @@
     var list = people.filter(function (p) { return p.public_key; })
       .map(function (p) { return { userId: p.user_id, publicKey: p.public_key }; });
     if (!list.length) throw new Error("NOBODY_REACHABLE");
+
+    // THE SENDER'S OWN WRAP. There is no separate "sent" store: your copy of a
+    // message is just another wrap, which is why PMCrypto.seal() says in its
+    // own header that the sender must be in the list. Every other send path
+    // gets this for free because pm_thread_keys() returns the sender too; this
+    // one builds its list from the chosen audience and nobody is in an audience
+    // they are announcing to. So pm_broadcast wrote you in as the thread OWNER
+    // with no key row of your own, and your own announcement came back to you
+    // as "This message was encrypted for another device".
+    if (identity.publicKey && !list.some(function (r) { return r.userId === identity.userId; })) {
+      list.push({ userId: identity.userId, publicKey: identity.publicKey });
+    }
     if (opts.onProgress) opts.onProgress({ phase: "sealing", total: list.length });
 
     // The thread id is chosen HERE so the body can be sealed against it — the

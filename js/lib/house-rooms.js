@@ -396,7 +396,17 @@
       out.push(tile(ICONS.size, S.sizeLabel(room.sizeBand), t("s_size")));
     }
     if (room.size) out.push(tile(ICONS.size, room.size + ' <small>m&sup2;</small>', t("s_floor"), { raw: true }));
-    out.push(tile(ICONS.bath, t(room.ensuite ? "s_own" : "s_shared"), t("s_bathroom")));
+    // THREE ANSWERS AND AN ABSENCE, not a boolean.
+    //
+    // This used to be `room.ensuite ? "Own" : "Shared"`, and `ensuite` is
+    // derived from two chips out of thirty-three. So a listing whose agent
+    // ticked "Bathroom outside" read "Shared", and — worse — a listing whose
+    // agent never mentioned the bathroom at all ALSO read "Shared". A tile
+    // that answers a question nobody asked it is how somebody spends a
+    // Saturday and a daladala fare finding out.
+    out.push(tile(ICONS.bath,
+      S && S.bathroomShort ? S.bathroomShort(room) : t(room.ensuite ? "s_own" : "s_shared"),
+      t("s_bathroom")));
     if (room.count > 1) out.push(tile(ICONS.count, room.count, t("s_ofkind")));
     if (room.periodLabel) out.push(tile(ICONS.clock, room.periodLabel.replace(/^per\s+/i, ""), t("s_billed")));
     return out.join("");
@@ -421,11 +431,26 @@
     }).join("") + '</ul>';
   }
 
-  /** The "judge the rest from the photos" line, shown under a size bracket. */
+  /**
+   * What a size bracket means, and what it does not.
+   *
+   * Two sentences, and they do different jobs. The first says what the word
+   * covers, in furniture rather than metres, because "Medium" on its own is a
+   * word whose meaning is set by whoever typed it and the reader is the one
+   * person who cannot ask. The second is the caveat that has always been here:
+   * a bracket is a bracket, and the photographs are the measurement.
+   *
+   * The listing FORM still offers three bare words. That is deliberate and is
+   * not an inconsistency: four sentences to choose between three words made
+   * the form row 210px tall and agents tapped nothing. Explaining is the
+   * reader's need, not the writer's.
+   */
   function sizeNoteHtml(room) {
     var S = window.HouseSpec;
     if (!room || !room.sizeBand || !S || !S.sizeNote) return "";
-    return '<p class="hx-size-note">' + esc(S.sizeNote()) + '</p>';
+    var hint = S.sizeHint ? S.sizeHint(room.sizeBand) : "";
+    return (hint ? '<p class="hx-size-hint">' + esc(hint) + '</p>' : "") +
+      '<p class="hx-size-note">' + esc(S.sizeNote()) + '</p>';
   }
 
   /**

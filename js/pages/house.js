@@ -137,7 +137,14 @@ function render(h) {
   const waNumber   = agentPhone.replace(/^\+/, "").replace(/\s+/g, "");
   const initials   = agentName.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
-  const mapsUrl   = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`;
+  // Built with whatever we already know about where this person is, so the
+  // link is complete before the page has finished drawing. It carries no
+  // origin when there is nothing honest to put there, and Google then uses the
+  // device's own location — the one case where saying less is still an answer.
+  // house-place.js re-points it the moment a fresher fix arrives.
+  const mapsUrl   = window.PawaMaps
+    ? window.PawaMaps.directions({ lat: h.lat, lng: h.lng }, { from: window.PawaMaps.knownOrigin() })
+    : "";
   const meetCode  = roomCodeFor(h.id);
   // &house=<id> turns the meet room into a "live viewing" — the listing is
   // pinned on the live map and shown in the room's side panel.

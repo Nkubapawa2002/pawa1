@@ -584,6 +584,40 @@
     .pm-place-b.is-go { background: var(--pm-brand); color: var(--pm-on-brand); border-color: transparent; }
     .pm-place-b[disabled] { opacity: .55; cursor: default; }
 
+    /* An invite that arrived inside a conversation. Gold rather than brand
+       green, and that is not decoration: a pin is information, this is a
+       CREDENTIAL, and the two should not be the same object at a glance. */
+    .pm-inv-card { display: block; margin: -1px 0 5px; padding: 9px 10px;
+      background: var(--pm-gold-soft); border: 1px solid var(--pm-gold-line);
+      border-radius: 12px; }
+    .pm-inv-card-h { display: flex; align-items: center; gap: 6px; color: var(--pm-gold);
+      font-size: 13px; font-weight: 800; min-width: 0; }
+    .pm-inv-card-h svg { width: 15px; height: 15px; flex: 0 0 auto; }
+    .pm-inv-card-d { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.45;
+      color: var(--pm-ink-soft); }
+    .pm-inv-card-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .pm-inv-card-b { display: inline-block; background: var(--pm-field);
+      border: 1px solid var(--c-border); color: var(--pm-ink); border-radius: 9px;
+      padding: 6px 10px; font: inherit; font-size: 11.5px; font-weight: 700;
+      cursor: pointer; text-decoration: none; }
+    /* --pm-on-brand, not a gold-specific name: it is defined in both themes as
+       the ink that reads on a filled brand button, and gold is light where
+       brand is light and dark where brand is dark. One token, both themes. */
+    .pm-inv-card-b.is-go { background: var(--pm-gold); color: var(--pm-on-brand);
+      border-color: transparent; }
+
+    /* Sending the link into a conversation instead of out of the app. */
+    .pm-inv-here { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--c-border); }
+    .pm-inv-here-d { margin: 6px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--pm-ink-faint); }
+    .pm-inv-here-list { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .pm-inv-here-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+      width: 100%; text-align: left; padding: 9px 11px; border-radius: 10px;
+      background: var(--pm-field); border: 1px solid var(--c-border); color: var(--pm-ink);
+      font: inherit; cursor: pointer; }
+    .pm-inv-here-row[disabled] { opacity: .55; cursor: default; }
+    .pm-inv-here-n { font-size: 13px; font-weight: 700; }
+    .pm-inv-here-s { font-size: 11px; color: var(--pm-ink-faint); }
+
     /* What is about to be sent alongside the words. */
     .pm-attach { display: flex; align-items: center; gap: 9px; padding: 8px 12px;
       border-top: 1px solid var(--c-border); background: var(--pm-bar);
@@ -1139,6 +1173,11 @@
   <script src="js/lib/loc-code.js"></script>
   <script src="js/lib/loc-share.js"></script>
   <script src="js/lib/pm-place.js"></script>
+  <!-- An invite link, read back out of a message body and drawn as a card.
+       Same wire format as a place: text inside the encrypted body, and no
+       linkifier anywhere near it. It recognises exactly one shape, an invite
+       on this app's own origin, which is the whole of the phishing fence. -->
+  <script src="js/lib/pm-invite-card.js"></script>
   <script src="js/lib/geolocate.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.js"></script>
   <script src="js/lib/pm-store.js"></script>

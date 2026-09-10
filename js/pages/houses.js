@@ -417,6 +417,13 @@ window.initHousesPage = async () => {
     if (!mapHidden && map) setTimeout(() => { try { map.resize(); renderReferenceMarkers(); } catch (_) {} }, 80);
   }
 
+  // The turn the fair queue is rotating on, read ONCE for the whole visit.
+  //
+  // js/lib/listing-order.js explains why: reading the clock inside the sort
+  // would let the list reshuffle under a reader's finger the moment an hour
+  // ticked over, which is worse than any order it could produce.
+  const FAIR_TURN = window.ListingOrder ? window.ListingOrder.turnAt(Date.now()) : 0;
+
   // Explicit sort chosen in the results bar. "recommended" leaves the order
   // produced by rankAndRender() (proximity / commute / match) untouched.
   function applySort() {
@@ -427,6 +434,13 @@ window.initHousesPage = async () => {
       case "newest":     visible.sort((a, b) =>
         new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0)); break;
       case "nearest": { const a = houseAnchor(); if (a) visible.sort((x, y) => effDist(x) - effDist(y)); break; }
+      // First in, first out, with the head of the queue advancing every hour,
+      // so a listing that never reached the first screen eventually does.
+      // fairQueue returns a new array rather than sorting in place, so this is
+      // the one arm that assigns instead of calling .sort().
+      case "fair":
+        if (window.ListingOrder) visible = window.ListingOrder.fairQueue(visible, { turn: FAIR_TURN });
+        break;
     }
   }
 
@@ -3231,12 +3245,24 @@ window.initHousesPage = async () => {
       const el = document.createElement("div");
       el.className = `house-marker type-${h.type || "house"}`;
       el.textContent = shortPrice(h);
-      el.addEventListener("click", (e) => { e.stopPropagation(); focusHouse(h.id, { fromMap: true }); });
-      const popup = new maplibregl.Popup({ offset: 14, closeButton: true, closeOnClick: true, maxWidth: "260px" })
-        .setHTML(popupHtml(h));
+      // A pin opens the SHEET, not a 260px popup.
+      //
+      // The popup could hold a photo, a price, "2 bed · 1 bath · 45 m²" and
+      // two phone buttons. Everything a person actually decides on — where the
+      // bathroom is, what "medium" means, the rules, what is owed on top of
+      // the rent, and how to get there — was somewhere else, so the popup's
+      // real function was to make somebody ring an agent for facts that were
+      // already in the row. js/lib/house-map-sheet.js draws all of it.
+      //
+      // focusHouse still runs: the card in the list behind the sheet stays in
+      // step, so closing the sheet leaves the right listing highlighted.
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        focusHouse(h.id, { fromMap: true });
+        if (window.HouseMapSheet) window.HouseMapSheet.open(h);
+      });
       const mk = new maplibregl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([h.lng, h.lat])
-        .setPopup(popup)
         .addTo(map);
       markers.set(h.id, mk);
     }
@@ -3475,7 +3501,6 @@ window.initHousesPage = async () => {
     const mk = markers.get(id);
     if (mk) {
       map.easeTo({ center: [h.lng, h.lat], zoom: Math.max(13, map.getZoom()), duration: 350 });
-      mk.togglePopup();
     }
     // On mobile, scroll the active card into view OR swap to map if user
     // tapped a pin while on the list tab.
@@ -3501,28 +3526,10 @@ window.initHousesPage = async () => {
   // ====================================================================
   //  Helpers
   // ====================================================================
-  function popupHtml(h) {
-    const photo = window.DataStore.housePhotoUrl(h.photo);
-    const price = formatPrice(h);
-    const meta = [
-      h.bedrooms ? `${h.bedrooms} bed` : "",
-      h.bathrooms ? `${h.bathrooms} bath` : "",
-      h.size_sqm ? `${h.size_sqm} m²` : ""
-    ].filter(Boolean).join(" · ");
-    const ph = h.agent?.phone || "";
-    const phClean = ph.replace(/\s+/g, "");
-    const wa = ph.replace(/^\+/, "").replace(/\s+/g, "");
-    return `<div class="house-popup">
-      ${photo ? `<img src="${photo}" alt="${esc(h.title)}">` : ""}
-      <h4>${esc(h.title)}</h4>
-      <div class="price">${priceLead(h)}${price.value} <span style="font-weight:500;color:#666">${price.unit}</span></div>
-      <div class="pop-meta">${esc(h.area || "")}${h.region ? ", " + esc(h.region) : ""}${meta ? " · " + meta : ""}</div>
-      <div class="pop-actions">
-        ${ph ? `<a class="btn-call" href="tel:${phClean}"> Call</a>` : ""}
-        ${ph ? `<a class="btn-wa" target="_blank" rel="noopener" href="https://wa.me/${wa}">WhatsApp</a>` : ""}
-      </div>
-    </div>`;
-  }
+  // popupHtml() was here. It is gone rather than left unused: a pin now opens
+  // js/lib/house-map-sheet.js, and a dead renderer that still looks callable is
+  // how two versions of the same card come to exist. Its markup lives on in
+  // .house-popup CSS, which maplibre no longer has anything to apply it to.
 
   function formatPrice(h) {
     const p = h.price_tzs || 0;

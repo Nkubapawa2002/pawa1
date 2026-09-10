@@ -23,8 +23,13 @@ function mountMap(h) {
   const mapEl = document.getElementById("hdMap");
   if (!mapEl) return;
 
+  // Before the early return, deliberately. The hand-off is a link, not a map
+  // feature: a listing whose map cannot be drawn here still has coordinates
+  // worth handing to the app that navigates.
+  wireDirections(h);
+
   if (h.lat == null || h.lng == null) {
-    mapEl.innerHTML = `<div class="hd-state" style="margin:0;border-radius:0;height:100%"><p>No pin set for this listing yet.</p></div>`;
+    mapEl.innerHTML = `<div class="hd-state" style="margin:0;border-radius:0;height:100%"><p>${esc(T("hs_dir_nopin", "This listing has no pin yet, so there is nowhere to navigate to."))}</p></div>`;
     return;
   }
 
@@ -59,8 +64,28 @@ function mountMap(h) {
 }
 
 /**
+ * The hand-off to Google Maps: one tap, nothing to fill in.
+ *
+ * All of the thinking is in js/lib/maps-handoff.js, and the one rule worth
+ * repeating here is why this is not an async click handler. Waiting for a GPS
+ * fix and THEN navigating is a popup the browser blocks and a href rewritten
+ * after the click has already been followed. So the link is always valid and
+ * gets better in the background instead.
+ */
+function wireDirections(h) {
+  const btn = document.getElementById("hdDirBtn");
+  if (!btn || !window.PawaMaps) return;
+  window.PawaMaps.bindDirections(btn, { lat: h.lat, lng: h.lng }, { mode: "car" });
+}
+
+/**
  * Draw the REAL driving route from the visitor to this house, so the distance
  * is the actual road rather than a straight line.
+ *
+ * This is the measuring answer, not the navigating one. Google Maps is one tap
+ * away above it and always was the right tool for "get me there"; what OSRM is
+ * for is telling somebody how far a place is without making them leave the
+ * listing they are reading.
  */
 function wireRouteButton(map, h) {
   const routeBtn = document.getElementById("hdRouteBtn");
@@ -68,11 +93,11 @@ function wireRouteButton(map, h) {
     e.preventDefault();
     if (!window.pawaLocate || !window.pawaRoute) return;
     const idle = routeBtn.innerHTML;
-    routeBtn.textContent = "Locating…";
+    routeBtn.textContent = T("hs_locating", "Finding you…");
     try {
       const fix = await window.pawaLocate.best({ targetAccuracy: 80, hardTimeout: 12000 });
       const r = await window.pawaRoute.route({ lat: fix.lat, lng: fix.lng }, { lat: h.lat, lng: h.lng });
-      if (!r || !r.geojson) { routeBtn.textContent = "Route unavailable"; return; }
+      if (!r || !r.geojson) { routeBtn.textContent = T("hs_route_none", "No road route found just now"); return; }
       const ensure = () => map.isStyleLoaded() ? Promise.resolve() : new Promise((res) => map.once("load", res));
       await ensure();
 
@@ -108,15 +133,110 @@ function wireRouteButton(map, h) {
         const b = cs.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(cs[0], cs[0]));
         map.fitBounds(b, { padding: 50, duration: 600 });
       }
-      routeBtn.textContent = `${r.km.toFixed(1)} km by road · ${Math.round(r.durationMin)} min` +
-        (alts.length ? ` · other road: ${alts.map((a) => a.km.toFixed(1) + " km").join(", ")}` : "");
-      routeBtn.title = alts.length
-        ? `Fastest road shown solid; ${alts.length === 1 ? "1 alternative road" : alts.length + " alternative roads"} shown dashed.`
-        : "";
+      showGoMsg("");
+      routeBtn.textContent = fillT(T("hs_route_read", "{km} km by road, about {min} min"),
+                                   { km: r.km.toFixed(1), min: Math.round(r.durationMin) });
+      if (alts.length) {
+        routeBtn.title = fillT(T("hs_route_alt", "Other road: {list}"),
+                               { list: alts.map((a) => a.km.toFixed(1) + " km").join(", ") });
+      }
     } catch (err) {
+      // Never window.alert(): it is untranslated, it cannot be styled, and it
+      // steals the tap that the Google Maps link above would have answered
+      // anyway. The refusal is a state of this section, so it is drawn in it.
       routeBtn.innerHTML = idle;
-      alert((window.pawaLocate && window.pawaLocate.message ? window.pawaLocate.message(err) : (err && err.message)) || "Couldn't get your location.");
+      showGoMsg((window.pawaLocate && window.pawaLocate.message
+        ? window.pawaLocate.message(err)
+        : (err && err.message)) || T("hs_route_none", "No road route found just now"));
     }
+  });
+}
+
+/** The one status line under the two map actions. Empty means hidden. */
+function showGoMsg(text) {
+  const el = document.getElementById("hdGoMsg");
+  if (!el) return;
+  el.textContent = text || "";
+  el.hidden = !text;
+}
+
+// The five kinds "Match to my life" stores, as words. The keys are set by
+// js/pages/houses.js and are not ours to rename; anything it has not heard of
+// is a place, which is true and is better than printing a database word.
+const PLACE_KIND_KEY = {
+  work: "hs_work", school: "hs_school", family: "hs_family", fav: "hs_fav",
+};
+const PLACE_KIND_EN = {
+  work: "Workplace", school: "School", family: "Family", fav: "Favourite spot",
+};
+
+function placeKindLabel(kind) {
+  const key = PLACE_KIND_KEY[kind];
+  return key ? T(key, PLACE_KIND_EN[kind]) : T("hs_place_other", "Place");
+}
+
+/**
+ * The places this person already told us they travel to.
+ *
+ * Each row offers both answers, because they are different questions asked in
+ * the same breath: Google Maps takes you there, and the map here tells you how
+ * far it is without leaving the listing. The Google link is a real anchor with
+ * a real href, so it is a navigation and never a blocked popup.
+ *
+ * @param {number}   lat  this listing's pin, which is the ORIGIN here
+ * @param {number}   lng
+ * @param {Function} onMeasure  called with a place to route on this page's map
+ */
+function renderSavedPlaces(lat, lng, onMeasure) {
+  const box = document.getElementById("hdSaved");
+  if (!box || !window.PawaMaps) return;
+
+  const places = window.PawaMaps.savedPlaces();
+  if (!places.length) {
+    // Not an empty state with a button to somewhere else: the place editor
+    // lives on houses.html and sending somebody off this listing to fill in a
+    // form is how you lose them. One sentence, so the box is explicable the
+    // next time they see it full.
+    box.innerHTML = `<p class="hd-saved__none">${esc(T("hs_far_add", "Save a place once and it is here on every listing."))}</p>`;
+    box.hidden = false;
+    return;
+  }
+
+  // Workplace first. It is the one the whole feature is named after and the
+  // one that decides whether a home is liveable; a café should never outrank it
+  // just because it was saved later.
+  const order = { work: 0, school: 1, family: 2, custom: 3, fav: 4 };
+  const sorted = places.slice().sort((a, b) =>
+    (order[a.kind] ?? 3) - (order[b.kind] ?? 3));
+
+  box.innerHTML = sorted.map((p, i) => {
+    const name = String(p.name || p.label || "").trim() || placeKindLabel(p.kind);
+    const href = window.PawaMaps.directions(p, {
+      from: { lat, lng }, mode: window.PawaMaps.modeOf(p),
+    });
+    return `<div class="hd-saved__row">
+      <span class="hd-saved__who">
+        <span class="hd-saved__n">${esc(name)}</span>
+        <span class="hd-saved__k">${esc(placeKindLabel(p.kind))}</span>
+      </span>
+      <span class="hd-saved__acts">
+        <a class="hd-saved__go" href="${href}" target="_blank" rel="noopener">${ico(ICO.nav, 13)} ${esc(T("hs_far_open", "Open in Google Maps"))}</a>
+        <button type="button" class="hd-saved__here" data-i="${i}">${ico(ICO.route, 13)} ${esc(T("hs_far_here", "Draw it on this map"))}</button>
+      </span>
+    </div>`;
+  }).join("");
+  box.hidden = false;
+
+  box.querySelectorAll(".hd-saved__here").forEach((b) => {
+    b.addEventListener("click", () => {
+      const p = sorted[parseInt(b.dataset.i, 10)];
+      if (!p) return;
+      // Shaped like a pawaGeo suggestion, because that is what selectPlace()
+      // measures. `tag` is what its row prints, so it says what kind of place
+      // this is rather than repeating the name.
+      onMeasure({ name: String(p.name || p.label || "").trim() || placeKindLabel(p.kind),
+                  tag: placeKindLabel(p.kind), lat: p.lat, lng: p.lng, saved: true });
+    });
   });
 }
 
@@ -411,11 +531,20 @@ function poiLabel(el, catMeta) {
 
 // ============================================================================
 // Commute tool — "how far is this home from my workplace / daily route?"
-// Geocodes the typed place via LocationIQ (pawaGeo.suggest), then measures the
-// REAL driving route via pawaRoute (OSRM ×2 + Valhalla) — the actual road km +
-// minutes, with the route drawn on the map. NEVER straight-line: if no engine
-// can route it, we say so rather than show a crow-flies number. No match → ask
-// the user for a famous area/landmark near their workplace and try again.
+//
+// Two ways in, and the first one is new.
+//
+//   THE PLACES ALREADY SAVED. "Match to my life" on houses.html asks a person
+//   once for their workplace, their school and the spots they visit, and keeps
+//   them on the device. This sheet never read them, so on every single listing
+//   it asked for a workplace that had already been typed, spelled and pinned.
+//   They are now the first thing in the box, each with a one-tap hand-off to
+//   Google Maps and a one-tap draw on the map here. Nothing to type at all.
+//
+//   ANYWHERE ELSE. The typed box, unchanged: LocationIQ (pawaGeo.suggest) to
+//   find it, then the REAL driving route via pawaRoute (OSRM ×2 + Valhalla) —
+//   the actual road km + minutes, drawn on the map. NEVER straight-line: if no
+//   engine can route it we say so rather than show a crow-flies number.
 // ============================================================================
 function attachCommuteTool(map, lat, lng) {
   const wrap  = document.getElementById("hdCommute");
@@ -425,6 +554,7 @@ function attachCommuteTool(map, lat, lng) {
   const resEl = document.getElementById("hdCommuteResults");
   if (!wrap || !input || !btn || !window.pawaGeo) return;
   wrap.hidden = false;
+  renderSavedPlaces(lat, lng, (p) => selectPlace(p));
 
   let workMarker = null, lineReady = false, measureSeq = 0;
 
@@ -505,7 +635,8 @@ function attachCommuteTool(map, lat, lng) {
 
     const ctx = p.context ? ` <span class="hd-commute-ctx">(${esc(p.context)})</span>` : "";
     const seq = ++measureSeq;
-    showMsg(`Measuring the real road distance to <strong>${esc(p.name)}</strong>…`, "");
+    const who = `<strong>${esc(p.name)}</strong>`;
+    showMsg(fillT(T("hs_far_measuring", "Measuring the real road distance to {name}…"), { name: who }), "");
 
     // Real driving route (road km + minutes + geometry to draw).
     let r = null;
@@ -521,21 +652,23 @@ function attachCommuteTool(map, lat, lng) {
       setAltLines(alts.map((a) => a.geojson.coordinates));
       // Zoom out far enough to show EVERY road that reaches the place.
       fitCoords([].concat(r.geojson.coordinates, ...alts.map((a) => a.geojson.coordinates)));
-      const altNote = alts.length
-        ? `There ${alts.length === 1 ? "is 1 more road" : `are ${alts.length} more roads`} to reach this area — ` +
-          alts.map((a) => `${fmtKm(a.km)} · ~${Math.round(a.durationMin)} min`).join(", ") +
-          ` (drawn lighter on the map).`
-        : `Measured along the actual road, drawn on the map.`;
+      const altList = alts.map((a) => `${fmtKm(a.km)}, ~${Math.round(a.durationMin)} min`).join(", ");
+      const altNote = !alts.length
+        ? T("hs_far_road_note", "Measured along the actual road, drawn on the map.")
+        : alts.length === 1
+          ? fillT(T("hs_far_alt_one", "There is 1 more road into this area: {list}. It is drawn lighter on the map."), { list: altList })
+          : fillT(T("hs_far_alt_many", "There are {n} more roads into this area: {list}. They are drawn lighter on the map."),
+                  { n: alts.length, list: altList });
       showMsg(
-        ` <strong>${fmtKm(r.km)} by road</strong> · ~${Math.round(r.durationMin)} min drive ` +
-        `from this home to <strong>${esc(p.name)}</strong>${ctx}. ` +
-        `<span class="hd-commute-note">${altNote}</span>`,
+        fillT(T("hs_far_road", "{km} by road, about {min} min drive from this home to {name}."),
+              { km: `<strong>${fmtKm(r.km)}</strong>`, min: Math.round(r.durationMin), name: who + ctx }) +
+        ` <span class="hd-commute-note">${altNote}</span>`,
         "ok"
       );
       if (rows) {
         const row = rows.find((x) => x.place === p);
         const kmEl = row && row.el.querySelector(".hd-cr-km");
-        if (kmEl) kmEl.textContent = fmtKm(r.km) + " by road";
+        if (kmEl) kmEl.textContent = fillT(T("hs_far_by_road", "{km} by road"), { km: fmtKm(r.km) });
       }
     } else {
       // No routing engine (OSRM ×2 + Valhalla) could measure it — show the honest
@@ -543,8 +676,8 @@ function attachCommuteTool(map, lat, lng) {
       setLine([], true);
       setAltLines([]);
       showMsg(
-        `Couldn’t measure the road distance to <strong>${esc(p.name)}</strong>${ctx} right now. ` +
-        `<span class="hd-commute-note">Please try again in a moment.</span>`,
+        fillT(T("hs_far_nomeasure", "Could not measure the road distance to {name} right now."), { name: who + ctx }) +
+        ` <span class="hd-commute-note">${T("hs_far_retry", "Please try again in a moment.")}</span>`,
         "warn"
       );
     }
@@ -560,8 +693,10 @@ function attachCommuteTool(map, lat, lng) {
       // Road distance only — blank until measured (tapping the row routes it).
       el.innerHTML =
         `<span class="hd-cr-name">${esc(p.name)}</span>` +
-        `<span class="hd-cr-meta">${esc(p.tag || "Place")}${p.context ? " · " + esc(p.context) : ""}</span>` +
-        `<span class="hd-cr-km">${p.roadKm != null ? fmtKm(p.roadKm) + " by road" : "tap to measure"}</span>`;
+        `<span class="hd-cr-meta">${esc(p.tag || T("hs_place_other", "Place"))}${p.context ? " · " + esc(p.context) : ""}</span>` +
+        `<span class="hd-cr-km">${p.roadKm != null
+          ? esc(fillT(T("hs_far_by_road", "{km} by road"), { km: fmtKm(p.roadKm) }))
+          : esc(T("hs_far_tap", "tap to measure"))}</span>`;
       resEl.appendChild(el);
       const row = { el, place: p };
       el.addEventListener("click", () => selectPlace(p, rows));
@@ -588,7 +723,7 @@ function attachCommuteTool(map, lat, lng) {
     const hits = window.pawaPlaceMatch.search(q, { near: { lat, lng }, limit: 5 });
     if (!hits.length) return;   // leave whatever is on screen; the geocoder may know it
     const places = hits.map((h) => ({
-      name: h.name, tag: h.kind ? h.kind.charAt(0).toUpperCase() + h.kind.slice(1) : "Place",
+      name: h.name, tag: h.kind ? h.kind.charAt(0).toUpperCase() + h.kind.slice(1) : T("hs_place_other", "Place"),
       context: h.city && h.city !== h.name ? h.city : "", lat: h.lat, lng: h.lng,
       local: true, score: h.score, exact: h.exact,
     }));

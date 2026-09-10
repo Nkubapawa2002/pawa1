@@ -194,15 +194,29 @@ try {
   // Poll rather than sleep a fixed amount: the local answer lands in a few ms
   // and the geocoder round trip in a few hundred, and a test that waits the
   // worst case for both is a test nobody runs.
-  const until = async (fn, ms = 15000) => {
+  // A SWALLOWED TIMEOUT IS WHY THIS FILE HAS BEEN LYING.
+  //
+  // This returned false and said nothing, so every caller carried straight on
+  // and asserted against a page that had never reached the state being waited
+  // for. The assertion then failed somewhere else entirely, naming a row or a
+  // caption instead of naming the wait that never finished, and the whole
+  // section read as a bug in the page. Say so instead: the label is the only
+  // part of the failure that points anywhere useful.
+  const timedOut = [];
+  const until = async (fn, ms = 15000, label = "") => {
     const deadline = Date.now() + ms;
     for (;;) {
       if (await fn()) return true;
-      if (Date.now() > deadline) return false;
+      if (Date.now() > deadline) {
+        if (label) timedOut.push(label);
+        console.log("  WAIT  timed out after " + ms + "ms: " + (label || "(unlabelled)"));
+        return false;
+      }
       await settle(120);
     }
   };
-  const rowsShowing = (re) => until(async () => (await rows()).some((r) => re.test(r)));
+  const rowsShowing = (re) => until(
+    async () => (await rows()).some((r) => re.test(r)), 15000, "a result row matching " + re);
 
   section("1. The page can see the places this app knows at all");
   {
@@ -232,8 +246,25 @@ try {
 
   section("3. The confidently wrong Tabora row no longer leads");
   {
+    // THE WAIT HAS TO BE ABOUT THIS SEARCH, NOT ABOUT ANY MESSAGE.
+    //
+    // It used to be `until(/by road|couldn|measur/i)`. Section 2 leaves the
+    // preview line on screen — "Found X. Tap it to MEASURE the road distance"
+    // — which matches that pattern instantly, so the rows read below were
+    // whatever the preview had drawn rather than the geocoder's, and this
+    // section passed or failed on how fast the machine was. Nothing about the
+    // page was wrong either time.
+    //
+    // So: the geocoder must actually have been asked, and the box must have
+    // stopped showing a PREVIEW line, which is the one state only the
+    // post-Measure path can produce.
+    const askedBefore = geocodes.length;
     await page.click("#hdCommuteBtn");
-    await until(async () => /by road|couldn|measur/i.test(await msg()));
+    await until(async () => geocodes.length > askedBefore, 15000, "the geocoder to be asked (section 3)");
+    await until(async () => {
+      const m = await msg();
+      return !!m && !/found|did you mean|searching/i.test(m);
+    });
     const shown = await rows();
     ok(shown.length > 0, "results came back",
        JSON.stringify(shown) + " msg=" + (await msg()) + " asked=" + JSON.stringify(geocodes));
@@ -268,8 +299,17 @@ try {
     ok(/did you mean/i.test(await msg()),
        "and asks, rather than asserting — it is a guess at a letter nobody typed", await msg());
 
+    // Same trap as section 3, one step worse: without naming the query, this
+    // waited on a message that section 3's measurement had already left on
+    // screen and then asserted against it, reporting a caption about the wrong
+    // place entirely.
+    const askedBefore5 = geocodes.length;
     await page.click("#hdCommuteBtn");
-    await until(async () => /no exact match|closest|by road|couldn/i.test(await msg()));
+    await until(async () => geocodes.length > askedBefore5, 15000, "the geocoder to be asked (section 5)");
+    await until(async () => {
+      const m = await msg();
+      return /no exact match|closest|mikoceni|mikocheni/i.test(m || "");
+    });
     const after = await msg();
     ok(/no exact match|closest/i.test(after),
        "pressing Measure still captions it as approximate", after);

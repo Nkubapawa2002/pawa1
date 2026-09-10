@@ -221,60 +221,33 @@ try {
       .forEach((h) => ok(hrefs.includes(h), `links to ${h}`, JSON.stringify(hrefs)));
     ok(new Set(hrefs).size === hrefs.length, "and no destination appears twice", JSON.stringify(hrefs));
 
-    // The safety number is a CARD, not a row. It used to sit in the value slot
-    // on the right of an action row, which is the slot that holds the word
-    // "English": thirty digits there took two thirds of the width, folded the
-    // row's own title into one word per line, and drew the number at 11px and
-    // half opacity. So the shape is part of the assertion, not decoration.
-    const fpCard = await page.evaluate(() => {
-      const c = document.getElementById("pfSafety");
-      if (!c) return null;
-      const num = c.querySelector(".pm-big-fp");
-      const cs = num && getComputedStyle(num);
-      return {
-        text: num ? num.textContent.trim() : "",
-        cells: num ? num.querySelectorAll("span").length : 0,
-        cols: cs ? cs.gridTemplateColumns.split(" ").length : 0,
-        size: cs ? parseFloat(cs.fontSize) : 0,
-        acts: [...c.querySelectorAll("[data-pms]")].map((b) => b.dataset.pms),
-      };
-    });
-    ok(fpCard && /^\d{5}( \d{5}){5}$/.test(fpCard.text),
-       "the safety number is read from the key already on the device",
-       fpCard && fpCard.text);
-    ok(fpCard && fpCard.cells === 6 && fpCard.cols === 3,
-       "and laid out as six groups over three columns, the same shape both phones see",
-       JSON.stringify(fpCard));
-    ok(fpCard && fpCard.size >= 14,
-       "at a size somebody can read out loud, not squeezed into a row's value slot",
-       fpCard && fpCard.size + "px");
-    ok(fpCard && fpCard.acts.includes("code") && fpCard.acts.includes("copy"),
-       "with its own code and copy buttons", JSON.stringify(fpCard && fpCard.acts));
+    // THE SAFETY NUMBER IS A DOOR ON THIS SCREEN, NOT A DISPLAY.
+    //
+    // It has been three shapes here. A row with the digits in the value slot,
+    // which drew them at 11px and half opacity. Then the full 3x2 card with a
+    // QR code and three buttons, which fixed that and introduced the opposite
+    // problem: the loudest object on a screen of quiet settings, present on
+    // every visit whether or not anybody was comparing anything.
+    //
+    // Comparing is the feature, so the digits live where the comparing happens
+    // — the verify dialog, which shows yours and theirs together and records a
+    // verdict. These assertions are the ones that fail if a later edit decides
+    // Profile should print them again.
+    const onPage = await page.evaluate(() => ({
+      card:   !!document.getElementById("pfSafety"),
+      digits: !!document.querySelector("#pfMain .pm-big-fp"),
+      qr:     !!document.querySelector("#pfMain [data-pms-qr]"),
+      // Thirty digits in any shape, anywhere a person can read them.
+      loose:  /\d{5}[\s-]?\d{5}[\s-]?\d{5}/.test(document.getElementById("pfMain").innerText),
+    }));
+    ok(!onPage.card && !onPage.digits, "no safety-number card is drawn on Profile", JSON.stringify(onPage));
+    ok(!onPage.qr, "and no QR code either, which is the same number in another alphabet");
+    ok(!onPage.loose, "nor thirty digits loose anywhere else on the screen", JSON.stringify(onPage));
+    ok(r.some((x) => x.act === "safety"), "there is one row that opens the dialog instead");
     ok(r.some((x) => x.act === "backup") && r.some((x) => x.act === "restore"),
        "with backup and restore beside it");
     ok(!r.some((x) => x.act === "fingerprint"),
        "and no leftover row trying to print thirty digits in the value slot");
-
-    // The code the other phone reads. It is the SAME payload builder the
-    // scanner parses with (js/lib/pm-safety.js owns both), which is the whole
-    // reason that file exists: when Profile drew its own code and the dialog
-    // parsed the dialog's, a mismatch would have been invisible here and
-    // total in the field.
-    await page.evaluate(() => document.querySelector('#pfSafety [data-pms="code"]').click());
-    await sleep(300);
-    const myCode = await page.evaluate(() => {
-      const box = document.querySelector("#pfSafety [data-pms-qr]");
-      if (!box || box.hidden) return null;
-      const num = document.querySelector("#pfSafety .pm-big-fp");
-      const payload = window.PMSafety.qrPayload("agent_1", num.textContent);
-      const back = window.PMSafety.parseQrPayload(payload);
-      return { drawn: !!box.querySelector("svg"), back: back,
-               digits: num.textContent.replace(/\s+/g, "") };
-    });
-    ok(myCode && myCode.drawn, "the code for the other phone's camera draws");
-    ok(myCode && myCode.back && myCode.back.userId === "agent_1" && myCode.back.digits === myCode.digits,
-       "and reads back as this account holding this number, which is what a scan compares",
-       JSON.stringify(myCode && myCode.back));
 
     // Profile must never CREATE a key: publishing one would advertise somebody
     // as reachable on P-Message when they never opened it.
@@ -286,11 +259,25 @@ try {
     ok(errs.length === 0, "no page errors", errs.slice(0, 3).join("\n        "));
 
     section("4. The key dialogs are the shared ones");
-    await page.evaluate(() => document.querySelector('#pfSafety [data-pms="verify"]').click());
+    await page.evaluate(() => document.querySelector('[data-act="safety"]').click());
     await sleep(400);
     ok(await page.$eval("#pfModalBack", (n) => n.classList.contains("is-on")), "the safety-number dialog opens");
     const big = await page.$eval("#pfModal .pm-big-fp", (n) => n.textContent.trim());
     ok(/\d{5}( \d{5}){5}/.test(big), "showing the full thirty digits, not a truncation", big);
+    // The one rendering, still shared: the row on Profile changed, pm-safety.js
+    // did not, and the dialog is still where the QR for the other phone's
+    // camera comes from.
+    const shared = await page.evaluate(() => {
+      const num = document.querySelector("#pfModal .pm-big-fp");
+      const cs = num && getComputedStyle(num);
+      return { cells: num ? num.querySelectorAll("span").length : 0,
+               cols: cs ? cs.gridTemplateColumns.split(" ").length : 0,
+               size: cs ? parseFloat(cs.fontSize) : 0 };
+    });
+    ok(shared.cells === 6 && shared.cols === 3,
+       "laid out as six groups over three columns, the same shape both phones see",
+       JSON.stringify(shared));
+    ok(shared.size >= 14, "at a size somebody can read out loud", shared.size + "px");
     ok(await page.$eval(".pm-modal", (n) => getComputedStyle(n).backgroundColor !== "rgba(0, 0, 0, 0)"),
        "and it is styled — css/pm-identity.css travelled with the library");
     await page.evaluate(() => document.getElementById("pmFpOk").click());

@@ -338,9 +338,14 @@ try {
   ok(/Upstairs, own entrance/.test(r.selected.note),
      "the sentence the agent wrote about that one room shows with it",
      JSON.stringify(r.selected));
-  ok(r.selected.tiles.some((t) => /Bathroom: Own/i.test(t)) &&
+  // "Own" was the old word and it could only ever mean two things, because it
+  // was a boolean. It said the same "Shared" for a room the agent had marked
+  // BATHROOM OUTSIDE and for a room the agent had never mentioned a bathroom
+  // on at all. The tile now names which of the three it is, and has a fourth
+  // state for the listing that never said. See tests/house_bathroom_test.mjs.
+  ok(r.selected.tiles.some((t) => /Bathroom: Inside the room/i.test(t)) &&
      r.selected.tiles.some((t) => /Floor area: 18/.test(t)),
-     "a self-contained room says so, with its own size — not the building's",
+     "a self-contained room says the bathroom is INSIDE, with its own size, not the building's",
      JSON.stringify(r.selected.tiles));
   ok(/all taken/i.test(r.selected.vacancy),
      "a space with nothing free says so outright", JSON.stringify(r.selected));

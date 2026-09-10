@@ -1767,10 +1767,19 @@
       // swallowed it would lose the thing only a person could say.
       var place = (!m.failed && !gone && window.PMPlace) ? window.PMPlace.read(text) : null;
       var shown = place ? placeStripped(text) : text;
+      // An invite link gets a card for the same reason a pin does, and under
+      // one rule that a pin does not need: ONLY a link on this app's own
+      // origin. Bodies here are escaped and never linkified on purpose, and
+      // dressing an arbitrary URL as a tappable card inside an encrypted chat
+      // is a phishing surface. js/lib/pm-invite-card.js holds that check.
+      var invite = (!m.failed && !gone && !place && window.PMInviteCard)
+        ? window.PMInviteCard.read(text) : null;
+      if (invite) shown = window.PMInviteCard.stripped(text);
 
       return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") +
         (gone ? " gone" : "") +
         (place ? " has-place" : "") +
+        (invite ? " has-invite" : "") +
         '" data-msg="' + esc(m.id || "") + '">' +
         quoteHtml(m) + (place ? window.PMPlace.card(place, {
           // Who sent it, so that saving the pin keeps the one fact the pin
@@ -1781,7 +1790,9 @@
           fromId: m.mine ? "" : (m.senderId || ""),
           guest: !m.mine && !!m.senderGuest,
           msgId: m.id || "", at: m.at || "",
-        }) : "") + esc(shown) +
+        }) : "") +
+        (invite ? window.PMInviteCard.card(invite, { mine: !!m.mine }) : "") +
+        esc(shown) +
         '<span class="pm-msg-at">' + who + esc(clock(m.at)) +
         // Answering is offered on every message including one this device
         // cannot open: the id is what gets sent, not the words, so replying
@@ -3319,6 +3330,17 @@
           : "") +
         '<button class="pm-btn ghost" id="pmInvCopy">' + esc(t("pm_inv_copy", "Copy link")) + "</button>" +
       "</div>" +
+      // The route that does NOT leave the app. Every other one here hands the
+      // link to a different program, which is right for reaching somebody who
+      // is not here yet. This one is for the other case: a person you are
+      // already talking to, who wants to pass it on to somebody else.
+      '<div class="pm-inv-here">' +
+        '<button class="pm-btn ghost" id="pmInvHereGo" style="width:100%">' +
+          esc(t("pm_inv_here", "Send it in a conversation")) + "</button>" +
+        '<p class="pm-inv-here-d">' + esc(t("pm_inv_here_d",
+          "For somebody you already talk to here who wants to pass it on. Pick the conversation it goes into.")) + "</p>" +
+        '<div id="pmInvHereList" class="pm-inv-here-list" hidden></div>' +
+      "</div>" +
       // The hand-off with nobody in the middle. Standing in front of somebody
       // is the situation invites were written for, and until now the answer
       // was "message it to yourself and read it out".
@@ -3376,6 +3398,72 @@
         this.textContent = box.hidden
           ? t("pm_inv_qr", "Show a code they can scan")
           : t("pm_inv_qr_hide", "Hide the code");
+      });
+    }
+
+    // ---- into a conversation that already exists ---------------------------
+    //
+    //  The list is fetched on the tap rather than drawn with the dialog. It is
+    //  a round trip, and paying for it on every invite so that most people can
+    //  ignore a list they did not ask for is the wrong trade.
+    //
+    //  ANNOUNCEMENTS ARE NOT OFFERED. An announcement is one-way by design
+    //  (pm_can_announce welds the composer shut for everybody but its owner),
+    //  so a link sent into one reaches people who cannot answer it, and an
+    //  invite whose whole purpose is starting a conversation would land in the
+    //  one place where conversation is impossible.
+    var hereGo = document.getElementById("pmInvHereGo");
+    if (hereGo) {
+      hereGo.addEventListener("click", async function () {
+        var box = document.getElementById("pmInvHereList");
+        if (!box.hidden) { box.hidden = true; return; }
+        box.hidden = false;
+        box.innerHTML = '<p class="pm-inv-here-d">' + esc(t("pm_loading", "Loading…")) + "</p>";
+
+        var rows = [];
+        try { rows = await window.PMStore.inbox(); } catch (_) { rows = []; }
+        var pick = rows.filter(function (r) { return r.kind === "direct" || r.kind === "group"; });
+
+        if (!pick.length) {
+          box.innerHTML = '<p class="pm-inv-here-d">' + esc(t("pm_inv_here_none",
+            "You have no conversations yet, so there is nowhere in the app to send it. Use one of the ways above.")) + "</p>";
+          return;
+        }
+
+        box.innerHTML = '<p class="pm-inv-here-d">' + esc(t("pm_inv_here_pick", "Which conversation?")) + "</p>" +
+          pick.map(function (r, i) {
+            var name = r.kind === "group"
+              ? (r.title || t("pm_room", "Room"))
+              : (r.other_name || t("pm_someone", "Someone"));
+            var sub = r.kind === "group"
+              ? t("pm_room_sub", "Group room")
+              : [r.other_area, r.other_region].filter(Boolean).join(" · ");
+            return '<button class="pm-inv-here-row" type="button" data-here="' + i + '">' +
+              '<span class="pm-inv-here-n">' + esc(name) + "</span>" +
+              (sub ? '<span class="pm-inv-here-s">' + esc(sub) + "</span>" : "") +
+              "</button>";
+          }).join("");
+
+        box.querySelectorAll("[data-here]").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            var r = pick[parseInt(b.dataset.here, 10)];
+            if (!r) return;
+            box.querySelectorAll("[data-here]").forEach(function (x) { x.disabled = true; });
+            try {
+              // No note. invMade.label is the AGENT's private word for this
+              // customer ("the couple from Kariakoo"), and putting it in the
+              // body would send somebody a message describing them in the
+              // third person. compose() writes the neutral sentence instead.
+              await window.PMStore.send(r.thread_id, window.PMInviteCard.compose(link, ""));
+              said(t("pm_inv_here_sent", "Sent into that conversation."), true);
+              box.hidden = true;
+              refreshInbox();
+            } catch (_) {
+              said(t("pm_inv_here_fail", "That could not be sent. Try one of the other ways above."), false);
+              box.querySelectorAll("[data-here]").forEach(function (x) { x.disabled = false; });
+            }
+          });
+        });
       });
     }
   }
@@ -3853,6 +3941,17 @@
         savePlace(placeOfButton(toSave));
         toSave.disabled = true;
         toSave.textContent = t("pmp_saved", "Saved");
+        return;
+      }
+      // Same reasoning as the pin: the link rides on the button rather than an
+      // index into a log that is rewritten on every incoming message.
+      var invCopy = e.target.closest("[data-inv-copy]");
+      if (invCopy) {
+        var was = invCopy.textContent;
+        window.PMSafety.copyText(invCopy.dataset.invCopy, function (done) {
+          invCopy.textContent = done ? t("pmi_copied", "Copied") : was;
+          setTimeout(function () { invCopy.textContent = was; }, 2500);
+        });
       }
     });
 

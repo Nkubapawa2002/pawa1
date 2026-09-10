@@ -125,6 +125,62 @@
   var SIZE_BY_KEY = {};
   SIZE_BANDS.forEach(function (b) { SIZE_BY_KEY[b.key] = b; });
 
+  // A clarifying line per band, for the READER. Not for the form.
+  //
+  // The distinction is the whole reason these can exist again. On the listing
+  // form four sentences to choose between three words made the row 210px tall
+  // and agents tapped nothing, which is why they were removed. On a listing
+  // somebody is deciding about, "Medium" on its own is a word whose meaning is
+  // set by whoever typed it, and the reader is the one person who cannot ask.
+  //
+  // Deliberately about FURNITURE rather than metres. An agent in Tabata has no
+  // tape measure, and "3 by 4" is a number the reader still has to translate
+  // into "does my bed fit". These say it in the terms of the decision.
+  var SIZE_HINTS = {
+    small:  { en: "Room for a bed and a little space around it.",
+              sw: "Nafasi ya kitanda na nafasi kidogo kuzunguka." },
+    medium: { en: "A bed, a wardrobe, and space to move around them.",
+              sw: "Kitanda, kabati, na nafasi ya kupita." },
+    large:  { en: "Space for more furniture, or for a family.",
+              sw: "Nafasi ya samani zaidi, au ya familia." },
+  };
+
+  // ---------------------------------------------------------------- bathroom
+  // "Is the bathroom inside the room or outside it" settles a viewing before
+  // anybody spends a Saturday and a daladala fare, and it was already in the
+  // data — as two of thirty-three characteristic chips, carrying exactly the
+  // same weight as "Freshly painted".
+  //
+  // These read the chips back out as ONE fact with THREE possible answers, so
+  // a card can print it on its own line instead of hoping the reader spots the
+  // right chip. Nothing new is stored: this is a view over what agents have
+  // been recording all along.
+  //
+  // Order matters, and it is the order of the reader's question. Somebody who
+  // ticked both "inside" and "shared" has a room with its own bathroom in a
+  // house that also has a shared one, and the answer to "is it inside?" is yes.
+  //
+  // Each answer carries a full sentence AND a two-word form, because the same
+  // fact has to fit a card that has a paragraph of room and a tile that has
+  // about fourteen characters. Deriving the short one by truncating the long
+  // one is how "Bathroom inside the ro…" happens.
+  var BATH_ANSWERS = [
+    { key: "inside",  from: ["bath_inside", "toilet_inside"],
+      en: "Bathroom inside the room",  sw: "Bafu ndani ya chumba",
+      shortEn: "Inside the room",      shortSw: "Ndani ya chumba" },
+    { key: "shared",  from: ["bath_shared", "toilet_shared"],
+      en: "Shared bathroom",           sw: "Bafu la kushirikiana",
+      shortEn: "Shared",               shortSw: "Ya kushirikiana" },
+    { key: "outside", from: ["bath_outside"],
+      en: "Bathroom outside the room", sw: "Bafu liko nje ya chumba",
+      shortEn: "Outside",              shortSw: "Nje" },
+  ];
+
+  // The fourth state, and the one the old code could not express. A tile that
+  // said "Shared" for a listing whose agent never mentioned the bathroom was
+  // answering a question nobody had asked it.
+  var BATH_UNSAID = { en: "Not said", sw: "Hajasema" };
+
   // The line shown wherever a size is shown. It is the same sentence every
   // time, on purpose: a bracket is a bracket, and the photos are the detail.
   var SIZE_PHOTO_NOTE = {
@@ -247,6 +303,49 @@
   function sizeLabel(key) {
     var b = SIZE_BY_KEY[key];
     return b ? say(b) : "";
+  }
+
+  /** The clarifying line for a band, or "" for a listing that never set one. */
+  function sizeHint(key) {
+    var h = SIZE_HINTS[key];
+    return h ? say(h) : "";
+  }
+
+  /**
+   * Where the bathroom is, as one fact.
+   *
+   * Returns { key, label } or null. NULL IS AN ANSWER and it is not "outside":
+   * a listing that never said is a listing that never said, and printing a
+   * guess here would settle a viewing on something nobody wrote down. The
+   * caller draws "The agent has not said" instead.
+   *
+   * `ensuite` is honoured as a fallback for rows that predate the chips, since
+   * that is exactly what the old boolean meant.
+   */
+  function bathroom(room) {
+    if (!room) return null;
+    var feats = normalizeFeatures(room.features).map(function (f) {
+      return typeof f === "string" ? f : (f && f.key) || "";
+    });
+    for (var i = 0; i < BATH_ANSWERS.length; i++) {
+      var a = BATH_ANSWERS[i];
+      for (var j = 0; j < a.from.length; j++) {
+        if (feats.indexOf(a.from[j]) >= 0) return answer(a);
+      }
+    }
+    if (room.ensuite) return answer(BATH_ANSWERS[0]);
+    return null;
+  }
+
+  function answer(a) {
+    return { key: a.key, label: say(a),
+             short: say({ en: a.shortEn, sw: a.shortSw }) };
+  }
+
+  /** The two-word form, including for a listing that never said. */
+  function bathroomShort(room) {
+    var b = bathroom(room);
+    return b ? b.short : say(BATH_UNSAID);
   }
 
   // ------------------------------------------------------- free vs unknown
@@ -844,6 +943,9 @@
       return normalizeFeatures(list).map(featureLabel).filter(Boolean);
     },
     sizeLabel: sizeLabel,
+    sizeHint: sizeHint,
+    bathroom: bathroom,
+    bathroomShort: bathroomShort,
     sizeNote: function () { return say(SIZE_PHOTO_NOTE); },
     parseCost: parseCost,
     freeLabel: function () { return say(FREE_LABEL); },

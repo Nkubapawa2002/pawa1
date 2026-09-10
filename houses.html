@@ -1393,6 +1393,10 @@
   <link rel="stylesheet" href="css/houses-mobile-pro.css" />
   <!-- "From the owner": one badge, four pages. css/owner-badge.css -->
   <link rel="stylesheet" href="css/owner-badge.css" />
+  <!-- The sheet a pin opens. Late, so its own rules win over the page's
+       inline blocks above at equal specificity, the same reason
+       houses-mobile-pro.css sits here. -->
+  <link rel="stylesheet" href="css/house-map-sheet.css" />
   <style>
     /* ── Text inputs in the dark theme ──────────────────────────────────────
        premium.css paints input[type="text"] (and email/tel/search/number/date/
@@ -1842,6 +1846,9 @@
             <option value="price_desc" data-i18n="hp_sort_price_desc">Price: high to low</option>
             <option value="beds" data-i18n="hp_sort_beds">Most bedrooms</option>
             <option value="nearest" data-i18n="hp_sort_nearest">Nearest first</option>
+            <!-- The fair queue. Every other order here has a permanent bottom;
+                 this one does not. js/lib/listing-order.js. -->
+            <option value="fair" data-i18n="hp_sort_fair">Longest waiting first</option>
           </select>
         </label>
       </div>
@@ -1946,6 +1953,13 @@
        listing without one gets a claim that is not true of it. -->
   <script src="js/lib/house-spec.js"></script>
   <script src="js/lib/owner-account.js"></script>
+  <!-- "Take me there", pre-filled, and the sheet a pin opens. maps-handoff
+       loads first: the sheet asks it for the directions link as it draws. -->
+  <script src="js/lib/maps-handoff.js"></script>
+  <script src="js/lib/house-map-sheet.js"></script>
+  <!-- The fair queue behind "Longest waiting first". Pure arithmetic, no DOM,
+       and it must load before houses.js, which reads the turn once at start. -->
+  <script src="js/lib/listing-order.js"></script>
   <script src="js/pages/houses.js"></script>
   <script src="js/pages/houses-mobile.js"></script>
   <script>

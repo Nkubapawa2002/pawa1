@@ -799,13 +799,23 @@ body[data-page="house"] :focus-visible {
   flex-shrink: 0;
 }
 
+/* What the bracket covers, in furniture rather than metres. Louder than the
+   caveat below it, because it is the half that answers the question. */
+.hx-size-hint {
+  margin: var(--space-3) 0 0;
+  font: var(--fw-medium) var(--text-sm)/1.5 var(--font-app);
+  color: var(--hx-ink-soft);
+}
 /* Sizes are a bracket, not a survey. The page says so wherever one is shown,
    because a bracket presented without that line reads like a measurement. */
 .hx-size-note {
-  margin: var(--space-3) 0 0;
-  font: var(--fw-regular) var(--text-sm)/1.5 var(--font-app);
+  margin: var(--space-1) 0 0;
+  font: var(--fw-regular) var(--text-xs)/1.5 var(--font-app);
   color: var(--hx-ink-faint);
 }
+/* And when both are present the pair reads as one block, not two paragraphs
+   that happen to be adjacent. */
+.hx-size-hint + .hx-size-note { margin-top: var(--space-1); }
 
 /* A cost stated as nothing is good news, not a missing value: it must not wear
    the muted styling that means "the agent did not say". */
@@ -927,7 +937,89 @@ body[data-page="house"] :focus-visible {
   overflow: hidden;
   border: 1px solid var(--hx-line-strong);
 }
-.hd-map-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
+/* ---------------------------------------------------------------------------
+   Getting there.
+
+   One main action and two quiet ones, rather than three links of equal weight.
+   "Directions in Google Maps" is the only one of the three that ends with the
+   person actually walking somewhere, so it is the only one drawn as a button.
+   --------------------------------------------------------------------------- */
+.hd-go { margin-top: var(--space-3); }
+.hd-go__main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--hit-min);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--hx-accent-dim);
+  border: 1px solid var(--hx-accent-line);
+  color: var(--hx-ink);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.hd-go__main:hover { background: var(--hx-rail); border-color: var(--hx-line-strong); text-decoration: none; }
+.hd-go__main svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--hx-accent); }
+.hd-go__tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hd-go__t { font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app); }
+.hd-go__d { font: var(--fw-regular) var(--text-xs)/1.45 var(--font-app); color: var(--hx-ink-muted); }
+/* A listing with no pin still draws the row, so the sheet does not change
+   shape between listings, but it must not look like something to press. */
+.hd-go__main[aria-disabled="true"] { opacity: .55; pointer-events: none; }
+.hd-go__msg {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line-strong);
+  font: var(--fw-regular) var(--text-xs)/1.5 var(--font-app);
+  color: var(--hx-ink-muted);
+}
+
+/* The places this person already saved on houses.html. Two answers per row,
+   because "take me there" and "how far is it" are different questions. */
+.hd-saved { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
+.hd-saved__none { margin: 0; font: var(--fw-regular) var(--text-xs)/1.5 var(--font-app); color: var(--hx-ink-muted); }
+.hd-saved__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line-strong);
+}
+.hd-saved__who { display: flex; flex-direction: column; gap: 1px; flex: 1 1 130px; min-width: 0; }
+.hd-saved__n { font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app); color: var(--hx-ink); }
+.hd-saved__k { font: var(--fw-regular) var(--text-xs)/1.3 var(--font-app); color: var(--hx-ink-muted); }
+.hd-saved__acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.hd-saved__go,
+.hd-saved__here {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hx-line-strong);
+  background: var(--hx-panel);
+  color: var(--hx-ink);
+  font: var(--fw-medium) var(--text-xs)/1.2 var(--font-app);
+  text-decoration: none;
+  cursor: pointer;
+}
+.hd-saved__go { border-color: var(--hx-accent-line); background: var(--hx-accent-dim); }
+.hd-saved__go:hover, .hd-saved__here:hover { border-color: var(--hx-accent-line); text-decoration: none; }
+.hd-saved__go svg, .hd-saved__here svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.hd-commute-sub {
+  display: block;
+  margin-top: var(--space-2);
+  font: var(--fw-medium) var(--text-xs)/1.3 var(--font-app);
+  color: var(--hx-ink-muted);
+}
+
+.hd-map-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap; }
 .hd-map-actions a,
 .hd-map-actions button {
   flex: 1 1 150px;

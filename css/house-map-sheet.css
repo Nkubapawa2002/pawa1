@@ -1,0 +1,223 @@
+/* ===========================================================================
+   house-map-sheet.css — what a pin on the map opens.
+
+   A bottom sheet on a phone, a centred panel on a desktop. It replaced a
+   260px popup that could hold a photo, a price and two buttons, which is why
+   everything a person decides on used to live somewhere else.
+
+   Written against the --pm-* / --c-* names the pages that host it already
+   define, so it does not carry a palette of its own and cannot disagree with
+   the page it opens over. See [[pawa2-per-page-dark-reskin-trap]]: a token
+   defined here on :root would lose to the host page's body-scoped one.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   ONE PLACE WHERE THE HOST'S NAMES ARE RESOLVED.
+
+   This sheet is opened by pages that name their palette differently:
+   p-message.html and agent.html speak --pm-*, houses.html speaks --c-*. Every
+   rule below reads --hms-*, and the chain is resolved exactly once, here.
+
+   The order matters and the literals are last on purpose. A literal is a DARK
+   value, and the light theme works by out-specifying the per-page dark blocks
+   on :root[data-theme="light"] body — so a rule that fell straight through to
+   a hardcoded mint would paint a light page with dark-theme ink and nothing
+   would ever correct it. Chaining through --c-* keeps the sheet in whatever
+   theme the page is actually in. See [[pawa2-per-page-dark-reskin-trap]].
+   --------------------------------------------------------------------------- */
+.hms-back {
+  --hms-card:  var(--pm-card,  var(--c-surface,  #121815));
+  --hms-line:  var(--pm-line,  var(--c-border,   rgba(255,255,255,.10)));
+  --hms-field: var(--pm-field, var(--c-bg-elev,  rgba(255,255,255,.05)));
+  --hms-ink:   var(--pm-ink,   var(--c-text,     #E9F3EE));
+  --hms-soft:  var(--pm-ink-soft,  var(--c-text-soft,  rgba(233,243,238,.80)));
+  --hms-faint: var(--pm-ink-faint, var(--c-text-faint, rgba(233,243,238,.55)));
+  --hms-brand: var(--pm-brand, var(--c-brand, #2EE6A6));
+  --hms-brand-soft: var(--pm-brand-soft, var(--c-brand-faint, rgba(46,230,166,.14)));
+  --hms-brand-line: var(--pm-brand-line, var(--c-brand-soft,  rgba(46,230,166,.28)));
+  --hms-on-brand: var(--pm-on-brand, var(--c-text-on-brand, #06170F));
+  --hms-gold:  var(--pm-gold, var(--c-accent, #F6C45A));
+
+  position: fixed;
+  inset: 0;
+  z-index: 1200;                 /* over the map controls, under nothing else */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, .55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+.hms-back.is-on { opacity: 1; pointer-events: auto; }
+
+/* The page behind must not scroll while the sheet is up: on a phone the two
+   scrollers fight and the sheet loses, which reads as the sheet being stuck. */
+body.hms-open { overflow: hidden; }
+
+.hms {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  /* Not 100vh, and not 100dvh either while a keyboard may be up. This sheet
+     has no input in it, so the simple cap is honest here. */
+  max-height: 88vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--hms-card);
+  color: var(--hms-ink);
+  border-radius: 18px 18px 0 0;
+  border: 1px solid var(--hms-line);
+  border-bottom: 0;
+  transform: translateY(14px);
+  transition: transform .2s ease;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.hms-back.is-on .hms { transform: translateY(0); }
+
+@media (min-width: 700px) {
+  .hms-back { align-items: center; }
+  .hms { border-radius: 18px; border-bottom: 1px solid var(--hms-line);
+         max-height: 84vh; }
+}
+
+.hms-x {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 50%; cursor: pointer;
+  background: rgba(0, 0, 0, .55);
+  border: 1px solid rgba(255, 255, 255, .18);
+  color: #fff;
+}
+
+/* --- photographs ---------------------------------------------------------
+   A horizontal strip rather than a carousel with controls: the sheet is the
+   quick look, and swiping is the gesture people already use here. */
+.hms-shots {
+  display: flex; gap: 4px; overflow-x: auto; scroll-snap-type: x mandatory;
+  border-radius: 18px 18px 0 0;
+}
+.hms-shots img {
+  flex: 0 0 100%; scroll-snap-align: start;
+  width: 100%; height: 200px; object-fit: cover; display: block;
+}
+@media (min-width: 700px) { .hms-shots img { flex: 0 0 60%; } }
+
+.hms-head { padding: 14px 16px 0; }
+.hms-head h3 { margin: 0; font-size: 17px; line-height: 1.3; font-weight: 800; }
+.hms-where { margin: 3px 0 0; font-size: 12.5px; color: var(--hms-soft); }
+.hms-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.hms-badge {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .02em; padding: 3px 8px;
+  border-radius: 999px; background: var(--hms-field);
+  border: 1px solid var(--hms-line);
+}
+.hms-badge.is-ok {
+  color: var(--hms-brand);
+  background: var(--hms-brand-soft);
+  border-color: var(--hms-brand-line);
+}
+.hms-price { display: block; margin-top: 10px; font-size: 20px; font-weight: 800; }
+.hms-price.is-ask { font-size: 15px; color: var(--hms-soft); }
+.hms-from { font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--hms-faint); }
+.hms-per { font-size: 12.5px; font-weight: 600; color: var(--hms-soft); }
+
+/* --- actions -------------------------------------------------------------
+   Directions is filled and the rest are not. Getting there is the thing the
+   map could not do at all before, and the other three all existed already. */
+.hms-acts { display: flex; flex-wrap: wrap; gap: 7px; padding: 14px 16px 4px; }
+.hms-b {
+  display: inline-flex; align-items: center; gap: 6px;
+  flex: 1 1 auto; justify-content: center; min-height: 40px;
+  padding: 8px 12px; border-radius: 10px; text-decoration: none; cursor: pointer;
+  background: var(--hms-field);
+  border: 1px solid var(--hms-line);
+  color: var(--hms-ink);
+  font-size: 12.5px; font-weight: 700;
+}
+.hms-b:hover { text-decoration: none; border-color: var(--hms-brand-line); }
+.hms-b.is-go {
+  flex-basis: 100%;
+  background: var(--hms-brand);
+  color: var(--hms-on-brand);
+  border-color: transparent;
+}
+.hms-b svg { flex: 0 0 auto; }
+
+.hms-sec { padding: 14px 16px 0; }
+.hms-h {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 8px;
+  font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--hms-faint);
+}
+.hms-note { margin: 8px 0 0; font-size: 11px; line-height: 1.45;
+  color: var(--hms-faint); }
+
+/* --- one priced space ---------------------------------------------------- */
+.hms-room {
+  padding: 11px 12px; border-radius: 12px; margin-bottom: 8px;
+  background: var(--hms-field);
+  border: 1px solid var(--hms-line);
+}
+.hms-room-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.hms-room-h b { font-size: 14px; font-weight: 800; }
+.hms-room-p { font-size: 13.5px; font-weight: 800; white-space: nowrap; }
+.hms-room-p small { font-size: 11px; font-weight: 600; color: var(--hms-soft); }
+.hms-room-p.is-ask { font-size: 12px; font-weight: 700; color: var(--hms-soft); }
+.hms-free { margin-top: 4px; font-size: 11.5px; font-weight: 700; color: var(--hms-brand); }
+.hms-taken { margin-top: 4px; font-size: 11.5px; font-weight: 700; color: var(--hms-gold); }
+
+/* The two facts this sheet exists to surface, each on its own line with room
+   for the sentence that explains it. They are NOT chips: a chip is a word in a
+   row of words, and "bathroom outside" competing with "freshly painted" for
+   attention is how it went unread. */
+.hms-facts { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }
+.hms-fact { display: flex; align-items: flex-start; gap: 7px; }
+.hms-fact svg { flex: 0 0 auto; margin-top: 1px; color: var(--hms-brand); }
+.hms-fact b { display: block; font-size: 12.5px; font-weight: 700; }
+.hms-fact small { display: block; margin-top: 1px; font-size: 11.5px; line-height: 1.4;
+  color: var(--hms-soft); }
+/* A listing that never said. Drawn quiet, drawn ANYWAY: the absence is the
+   answer, and leaving the line out entirely reads as "nothing to report". */
+.hms-fact.is-unsaid svg { color: var(--hms-faint); }
+.hms-fact.is-unsaid b { font-weight: 600; color: var(--hms-soft); }
+
+/* --- costs and rules ----------------------------------------------------- */
+.hms-costs, .hms-rules { list-style: none; margin: 0; padding: 0; }
+.hms-costs li {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 0; font-size: 13px;
+  border-bottom: 1px solid var(--hms-line);
+}
+.hms-costs li:last-child { border-bottom: 0; }
+.hms-amt { font-weight: 800; white-space: nowrap; }
+.hms-amt small { font-weight: 600; font-size: 11px; color: var(--hms-soft); }
+.hms-tag {
+  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+  white-space: nowrap;
+  background: var(--hms-field);
+  border: 1px solid var(--hms-line);
+  color: var(--hms-soft);
+}
+.hms-tag.is-ok {
+  color: var(--hms-brand);
+  background: var(--hms-brand-soft);
+  border-color: var(--hms-brand-line);
+}
+.hms-tag.is-ask { color: var(--hms-gold); }
+
+.hms-rules li {
+  display: flex; flex-direction: column; gap: 2px; padding: 9px 0;
+  border-bottom: 1px solid var(--hms-line);
+}
+.hms-rules li:last-child { border-bottom: 0; }
+.hms-rules b { font-size: 11.5px; font-weight: 800; letter-spacing: .02em;
+  color: var(--hms-faint); text-transform: uppercase; }
+.hms-rules span { font-size: 13px; line-height: 1.45; }
+.hms-rules small { display: block; margin-top: 2px; font-size: 11.5px;
+  color: var(--hms-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hms-back, .hms { transition: none; }
+}
