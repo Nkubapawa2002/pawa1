@@ -57,6 +57,26 @@ the promise.
   The microphone follows the same rule in reverse: the voice button exists on
   that thread ONLY, because offering to record a sentence into an end-to-end
   encrypted conversation would be a promise this page cannot keep.
+- **A block stops new contact, not an old one.** It stops somebody adding you
+  to a room, including you in an announcement, and starting a new conversation
+  with you, and it stops either of you writing in the one to one conversation
+  you already had. It does **not** delete that conversation, does not take
+  either of you out of a room you already share, does not silence that room,
+  does not reach messages already delivered, and does not hide either of you
+  from the directory:
+  absence there would itself be a "you have been blocked" signal. **Nothing
+  notifies the other person, but they will find out if they try to write**:
+  the send is refused rather than accepted and dropped, because accepting it
+  would be the feature lying about delivery. The dialog says that rather than
+  the flatter "they are not told", which was true of notification and false of
+  what somebody would actually experience. All of that is in the dialog rather than only
+  here, because a safety control that quietly does less than people assume is
+  the kind of thing that gets acted on.
+- **Who you blocked is metadata in the clear.** `pm_blocks` is an ordinary
+  table, held as tightly as the design allows — RLS on and not one policy, so
+  nothing reads it except the functions that already decide who may reach whom
+  — but "tightly held" is not "encrypted", the same distinction this section
+  draws for presence and replies.
 
 ---
 
@@ -329,6 +349,96 @@ than no menu. A guest sees no menu anywhere.
 
 ---
 
+## Rooms and announcements, and who may aim one
+
+Both shipped admin-only, and `APP_CONFIG.ADMIN_EMAILS` holds one address, so in
+practice nobody could open a room and nobody could announce anything. Both
+belong to every real account now. What those two `if not is_admin()` lines were
+doing, crudely, was keeping strangers out of each other's inboxes, so deleting
+them was the smaller half of the work: the fence moved from **who is sending**
+to **who they may reach**, and it is per recipient.
+
+`supabase/features/message/p_message_audience.sql` writes the rule once.
+
+| | who a non-admin may include |
+|---|---|
+| a room (`pm_may_room_with`) | people you deal with, **plus** anyone who has published a shopfront: an agent, or anybody with a live listing |
+| an announcement (`pm_may_cast_to`) | people you deal with, and nobody else |
+| a first direct message | unchanged: anyone holding a key, rate-limited |
+
+**A room is wider than an announcement on purpose.** A room is two-way: the
+person can answer in it, see who else is in it, and leave. An announcement is
+one-way and the reply path is deliberately welded shut (`pm_can_announce`).
+Somebody who has published a listing is already inviting a cold direct message
+today, from anybody, through the Agents pane; being gathered into a room they
+can leave is not a larger imposition than that. Being on a stranger's
+advertising list is, and it is not something they published.
+
+**"Dealing with" somebody means a DIRECT thread you have both written in, or an
+invite one of you accepted.** Two omissions, and both are load-bearing:
+
+- **A room grants nothing.** If room membership counted, an advertiser could
+  open one silent room holding five hundred strangers and then announce to all
+  of them. The fence would hold for exactly one step and then let the country
+  through. This is the assumption most likely to be tidied back into a hole,
+  and `tests/p_message_audience_test.mjs` section 4 is the test that catches it.
+- **Both people have to have written.** `pm_start_direct` is unilateral: forty
+  an hour, without the other person ever noticing. If the mere existence of
+  that thread counted, the fence would cost an attacker one extra call per
+  victim. An accepted invite needs no such test, because accepting **is** the
+  other person's deliberate act.
+
+**People who do not pass are dropped, not raised on.** `pm_group_create` has
+always silently dropped members with no key, and naming which of twelve ids was
+refused would be a "that person blocked you" oracle. The screen already knows
+the answer — the picker asks `pm_audience_check()` before it draws a row, and
+greys the ones it may not take with a reason that is about the relationship
+rather than about the person. A **blocked** person is absent instead, which is
+the one case that must not be explained.
+
+The ceilings are split rather than lowered. `pm_group_max()` stays 1000 and the
+national announcement stays uncapped for an admin; everybody else gets
+`pm_group_max_open()` (60), `pm_cast_max_open()` (200), `pm_rooms_per_day()`
+(3) and `pm_casts_per_day()` (3). All four are one-line `immutable sql`
+functions, so throttling in an emergency is one statement and no deploy.
+
+**The admin is exempt from the reach fence and NOT from a block.** An admin who
+could step over a personal block would make the block a promise with an
+asterisk on it, and staff messages already have their own plainly-labelled
+channel (`agent_notices`, which carries no keys and is not this feature).
+
+## Choosing people rather than describing a place
+
+`js/lib/pm-people-picker.js` is the one picker, mounted by the room dialog, the
+add-people sheet and the announce dialog. The old one could only untick
+somebody a scope had already caught, and the announce dialog had no per-person
+control at all. What it adds: a search box (`pm_agent_finder` has always
+matched a name, an area, a ward and a district, and nothing asked it), two
+sources — `pm_my_people()` and the directory — ranking through
+`js/lib/pm-match.js`, which had never been wired to the picker, and a **basket
+that survives** changing the search, the filters and the source that found it.
+
+The basket is also what replaced the announce dialog's two-step preview. That
+whole machinery existed to keep the preview and the send the same question, and
+it could still be got wrong by changing a select after previewing. What is on
+screen now **is** the array that gets sealed, so the class of bug is gone
+rather than defended against.
+
+One consequence worth stating: a room's stored `region` and `category` are no
+longer written from two selects that may have had nothing to do with who was
+ticked. A label that can lie about the membership is worse than no label.
+
+**A list is a plan, not a permission.** The basket dies with the dialog, so the
+same eleven people would be eleven taps again next week; `pm_lists` is the
+third source in the picker and one button under the basket. But `pm_list_set`
+accepts anybody holding a key without asking whether you may reach them, for
+two reasons and the second is the one that matters: a permission recorded when
+the list was saved is stale by the time it is used, and refusing to save an
+unreachable id would leak, at save time, whether somebody has blocked you. So
+`pm_list_people()` answers `may_cast` and `may_room` **per row, computed now**,
+and `pm_group_create` / `pm_broadcast` re-check every id anyway. Somebody saved
+months ago who has since blocked you comes back greyed, not missing.
+
 ## The directory
 
 `agent_profiles` is not world-readable, because it carries a phone number.
@@ -494,6 +604,41 @@ supabase/features/message/p_message_announce.sql pm_can_announce; only the owner
     Run it AFTER p_message_delete.sql: it redefines pm_group_delete.
     Run it AFTER p_message_guests.sql: it redefines pm_inbox to carry my_role,
     so re-running the guests file would revert that.
+js/lib/pm-people-picker.js              the ONE people picker: sources, search, ranking, the basket.
+                                        It also holds the only copy of "where does this person work"
+                                        and "what do they deal in", which the agent list and the room
+                                        roster draw too, so p-message.js delegates rather than copying
+js/lib/pm-block.js                      blocking, and what a block does not do
+                                        (also loaded by profile.html: blocking
+                                        happens on a conversation, and UNblocking
+                                        has nowhere else to happen)
+supabase/features/message/p_message_audience.sql  pm_blocks, pm_deals_with,
+    pm_may_cast_to / pm_may_room_with, pm_audience_check, pm_my_people, the
+    four ceilings (APPLIED)
+supabase/features/message/p_message_open.sql      rooms and announcements stop
+    being admin-only (APPLIED)
+    Run it AFTER p_message_audience.sql: all four functions in it call the
+    fences defined there, and it refuses to install without them.
+supabase/features/message/p_message_hush.sql      pm_can_speak: a block reaches
+    the conversation you already have (APPLIED)
+    Run it AFTER p_message_announce.sql, whose pm_send / pm_send_sk it
+    regenerates with one guard swapped, and AFTER p_message_audience.sql.
+supabase/features/message/p_message_lists.sql     pm_lists + pm_list_members:
+    a set of people you can name and use again (APPLIED)
+    Also AFTER p_message_audience.sql: pm_list_people answers may_cast and
+    may_room per row, computed at read time rather than stored.
+
+TWO ORDERING TRAPS THAT ARE NOT ABOUT THE FILES ABOVE, recorded here because
+neither is obvious and both bite silently:
+  · p_message_sender_keys.sql CANNOT BE RE-APPLIED. Its pm_group_leave is
+    `create or replace ... returns void` with no drop in front of it, and
+    p_message_delete.sql changed that function to `returns text`. Re-running
+    the sender-keys file raises "cannot change return type of existing
+    function" and stops mid-file.
+  · p_message_rooms.sql must not be re-applied after p_message_delete.sql. It
+    recreates pm_thread_messages WITHOUT deleted_at, which the delete file
+    added, so unsending would go quietly back to doing nothing visible.
+
 js/lib/pm-identity-ui.js                the three key dialogs, shared with Profile
 css/pm-identity.css                     their styling, so it travels with them
 profile.html · js/pages/profile.js      the account tab
@@ -539,7 +684,9 @@ for the same reason.
 | `tests/qr_test.mjs` | 22 — the QR encoder against a decoder written backwards from it. No decoder exists on this platform (BarcodeDetector is a phone API and the registry is unreachable), so the oracle is Reed-Solomon: if a single module is misplaced the syndromes stop vanishing, and passing that by luck is about 2^-80 |
 | `tests/p_message_lock_test.mjs` | 33 — the device lock against Chrome's virtual authenticator, which really does implement PRF. Written around data loss rather than the happy path: is the plaintext gone, is a LOCKED device mistaken for a NEW one, does unlocking return the same key |
 | `tests/p_message_layout_test.mjs` | 14 — the conversation as a thing you type into: the composer grows with the message, and the on-screen keyboard does not end up on top of it |
-| `tests/p_message_page_test.mjs` | 233 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text** — extended to replies, where neither the answer nor the message it quotes may appear in any body — plus presence, the work kinds, the storefront and the whole guest path |
+| `tests/p_message_lists_test.mjs` | 20 — against the **real database**: another account can neither read, rename, refill nor delete your list; saving replaces rather than appends; a guest can neither keep one nor be in one; and section 4, which is the design — a list holds somebody you may not reach, says so per row, and the room built from it drops them |
+| `tests/p_message_page_test.mjs` | 303 — the page in a browser, including the assertion that matters most: **no request body the page sends contains the message text** — extended to replies, where neither the answer nor the message it quotes may appear in any body — plus presence, the work kinds, the storefront, the whole guest path, and (8n, 8o) the picker's greyed rows and the block |
+| `tests/p_message_audience_test.mjs` | 53 — against the **real database**, written as the attacks the permission change has to survive. The one worth reading twice is section 4: gather a shopfront into a room, have both of you talk in it, and they are **still** not advertisable. That is the test that fails if the fence is ever simplified back to announcements only. Also: a one-sided thread is not a relationship, a guest opens nothing, a blocked person cannot be added back, the admin is exempt from the reach fence and not from a block, and `pm_blocks` has RLS on with no policy and no SELECT grant |
 | `tests/p_message_presence_db_test.mjs` | 31 — against the **real database**: that `pm_presence` is readable through no policy at all, that the storefront refuses anon and guests and returns no phone number, and that a reply cannot name a message in another conversation |
 | `tests/p_message_guest_test.mjs` | 19 — against the real database: mostly proving the DOWNSIDE was closed (a guest cannot post a house, a service or an agent profile) rather than that the feature works |
 | `tests/profile_page_test.mjs` | 41 — Profile's three states, and that a guest is never offered a door the database will refuse |
@@ -573,6 +720,24 @@ Run the middle one only when you mean to — it writes to production.
 - **Day jobs have no detail page**, so a job card on a storefront leads to the
   jobs board rather than to the job. One line in `js/pages/agent.js`
   (`listingHref`) when they grow one.
+- **A block does not silence a shared ROOM.** It silences a direct
+  conversation (`pm_can_speak`, `p_message_hush.sql`) but not a room the two
+  of you are both in, because one member must not be able to switch off a room
+  for everybody in it. Leaving is the act that exists for that.
+- **A blocked sender learns of the block when they try to send.** The refusal
+  names no direction and no time, but a person who tries twice can infer it.
+  The alternative was accepting the message and dropping it, which would be
+  the feature lying about delivery, and this document does not do that
+  anywhere else either.
+- **The directory still shows two people who have blocked each other to each
+  other.** Deliberately: a row that disappears is a "you have been blocked"
+  oracle, which is the one thing a block must not be.
+- **There is a block but no report.** Nothing carries an abuse complaint to an
+  admin, so the only remedy is the personal one.
+- **A saved list is a set of ids.** Nothing follows somebody who replaces
+  their key, there is no sharing a list with anybody else, and a list cannot
+  be edited a person at a time: saving replaces the whole membership, because
+  the picker hands over a set rather than a diff.
 - **No attachments and no push notifications.** A photo of a room is a natural
   next thing to send, and both are real work: encrypting a blob and storing it,
   and waking a phone without leaking who is talking to whom.

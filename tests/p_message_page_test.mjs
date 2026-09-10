@@ -210,6 +210,21 @@ window.supabase = { createClient: function () {
             phone: v.phone || null };
         })
         .filter(function (r) {
+          if (!args.p_region) return true;
+          return r.region === args.p_region;
+        })
+        .filter(function (r) {
+          // The ILIKE the real function runs over the name and the three place
+          // columns. The stub used to ignore p_query altogether, which was
+          // harmless while nothing searched and is not any more: the picker's
+          // search box is the thing that makes a hand-picked room possible.
+          if (!args.p_query) return true;
+          var q = String(args.p_query).toLowerCase();
+          return [r.display_name, r.area, r.district, r.ward].some(function (v) {
+            return v && String(v).toLowerCase().indexOf(q) >= 0;
+          });
+        })
+        .filter(function (r) {
           if (!args.p_category) return true;
           // Mirrors the CASE in pm_agent_finder, including its last arm: an
           // unknown category matches NOBODY rather than quietly matching all.
@@ -445,6 +460,139 @@ window.supabase = { createClient: function () {
           other_area: (db.keys[other] || {}).area || null,
           last_at: new Date().toISOString(), unread: 0 };
       }), error: null });
+    }
+    // ---- the audience fences ------------------------------------------------
+    // Modelled rather than waved through, because the picker's whole job is
+    // drawing the answers these give. A stub that said "yes" to everything
+    // would let a screen that offers a stranger an advert pass the suite.
+    function isBlocked(u) {
+      db.blocks = db.blocks || [];
+      return db.blocks.indexOf(u) >= 0;
+    }
+    // Somebody I have actually dealt with: a DIRECT thread we are both in and
+    // we have both written in. A room grants nothing, and neither does a
+    // thread only one of us has spoken in.
+    function contacts() {
+      var out = {};
+      Object.keys(db.threads).forEach(function (id) {
+        var th = db.threads[id];
+        if (th.kind !== "direct") return;
+        var mine = db.messages.some(function (m) { return m.thread_id === id && m.sender_id === me; });
+        (th.members || []).forEach(function (u) {
+          if (u === me || isBlocked(u)) return;
+          var theirs = db.messages.some(function (m) { return m.thread_id === id && m.sender_id === u; });
+          if (mine && theirs) out[u] = true;
+        });
+      });
+      return out;
+    }
+    function listed(u) {
+      var v = db.keys[u] || {};
+      return !!v.is_agent || !!(v.n_houses || v.n_services || v.n_trucks || v.n_jobs);
+    }
+    if (name === "pm_my_people") {
+      var mineSet = contacts();
+      var q = String(args.p_query || "").toLowerCase();
+      return Promise.resolve({
+        data: Object.keys(mineSet).filter(function (k) {
+          var v = db.keys[k] || {};
+          return !q || String(v.display_name || "").toLowerCase().indexOf(q) >= 0;
+        }).map(function (k) {
+          var v = db.keys[k];
+          return { user_id: k, display_name: v.display_name, region: v.region,
+            area: v.area || null, area_kind: null, district: null, ward: null,
+            wards: [], districts: [], lat: null, lng: null,
+            is_agent: !!v.is_agent, reachable: !!v.public_key, public_key: v.public_key,
+            fingerprint: v.fingerprint || null,
+            n_houses: v.n_houses || 0, n_services: v.n_services || 0,
+            n_trucks: v.n_trucks || 0, n_jobs: v.n_jobs || 0, n_verified: 0,
+            last_listed_at: null, last_seen_at: v.last_seen_at || null,
+            kinds: v.kinds || [], phone: null, how: "thread" };
+        }), error: null });
+    }
+    if (name === "pm_audience_check") {
+      var known = contacts();
+      // The admin arm, which the real function has: is_admin() short-circuits
+      // the reach test but NOT the block. Without it every row on an admin's
+      // screen would be greyed and the sections that drive the picker would be
+      // measuring the stub rather than the page.
+      var amAdmin = ${JSON.stringify(/^pawa4761@gmail\.com$/i.test(String(email || "")))};
+      return Promise.resolve({
+        data: (args.p_users || []).map(function (u) {
+          var cast = !isBlocked(u) && (amAdmin || !!known[u]);
+          return { user_id: u, may_cast: cast, may_room: cast || (!isBlocked(u) && listed(u)) };
+        }), error: null });
+    }
+    // Saved lists. Modelled rather than waved through for the same reason the
+    // reach check is: pm_list_people answers may_cast / may_room per row, and
+    // a stub that said yes to everything would let a screen that offers a
+    // stranger an advert pass the suite.
+    if (name === "pm_list_create") {
+      db.lists = db.lists || [];
+      var lid = "list-" + (db.lists.length + 1);
+      db.lists.push({ id: lid, name: args.p_name, members: (args.p_members || []).slice() });
+      return Promise.resolve({ data: lid, error: null });
+    }
+    if (name === "pm_lists_mine") {
+      return Promise.resolve({ data: (db.lists || []).map(function (l) {
+        return { id: l.id, name: l.name, n_members: l.members.length,
+          updated_at: new Date().toISOString() };
+      }), error: null });
+    }
+    if (name === "pm_list_set") {
+      var setL = (db.lists || []).filter(function (l) { return l.id === args.p_list; })[0];
+      if (setL) setL.members = (args.p_members || []).slice();
+      return Promise.resolve({ data: setL ? setL.members.length : 0, error: null });
+    }
+    if (name === "pm_list_delete") {
+      db.lists = (db.lists || []).filter(function (l) { return l.id !== args.p_list; });
+      return Promise.resolve({ data: true, error: null });
+    }
+    if (name === "pm_list_people") {
+      var pl = (db.lists || []).filter(function (l) { return l.id === args.p_list; })[0];
+      var kn = contacts();
+      var amAdm = ${JSON.stringify(/^pawa4761@gmail\.com$/i.test(String(email || "")))};
+      return Promise.resolve({ data: (pl ? pl.members : []).map(function (u) {
+        var v = db.keys[u] || {};
+        var castOk = !isBlocked(u) && (amAdm || !!kn[u]);
+        return { user_id: u, display_name: v.display_name, region: v.region,
+          area: v.area || null, area_kind: null, district: null, ward: null,
+          wards: [], districts: [], lat: null, lng: null,
+          is_agent: !!v.is_agent, reachable: !!v.public_key, public_key: v.public_key,
+          fingerprint: v.fingerprint || null,
+          n_houses: v.n_houses || 0, n_services: v.n_services || 0,
+          n_trucks: v.n_trucks || 0, n_jobs: v.n_jobs || 0, n_verified: 0,
+          last_listed_at: null, last_seen_at: v.last_seen_at || null,
+          kinds: v.kinds || [], phone: null,
+          may_cast: castOk, may_room: castOk || (!isBlocked(u) && listed(u)) };
+      }), error: null });
+    }
+    if (name === "pm_block") {
+      db.blocks = db.blocks || [];
+      if (db.blocks.indexOf(args.p_user) < 0) db.blocks.push(args.p_user);
+      return Promise.resolve({ data: true, error: null });
+    }
+    if (name === "pm_unblock") {
+      db.blocks = (db.blocks || []).filter(function (u) { return u !== args.p_user; });
+      return Promise.resolve({ data: true, error: null });
+    }
+    if (name === "pm_blocks_mine") {
+      return Promise.resolve({ data: (db.blocks || []).map(function (u) {
+        return { user_id: u, display_name: (db.keys[u] || {}).display_name || u,
+          region: (db.keys[u] || {}).region || null, blocked_at: new Date().toISOString() };
+      }), error: null });
+    }
+    // pm_broadcast had NO entry here at all: it fell through to the null
+    // return, so every assertion about an announcement was counting a call
+    // that stored nothing. It stores a thread now, so "who did this reach"
+    // is a question the suite can actually ask.
+    if (name === "pm_broadcast") {
+      var castId = args.p_thread || ("cast-" + Object.keys(db.threads).length);
+      db.threads[castId] = {
+        kind: "broadcast", title: args.p_title || "Announcement", region: args.p_region || null,
+        members: [me].concat((args.p_keys || []).map(function (k) { return k.user_id; })),
+      };
+      return Promise.resolve({ data: castId, error: null });
     }
     if (name === "pm_mark_read") return Promise.resolve({ data: null, error: null });
     if (name === "pm_recipients") {
@@ -815,12 +963,15 @@ try {
   const aiNote = await page.$eval("#pmConvNote", (n) => n.textContent);
   ok(/PN-Zaki reads/i.test(aiNote), "with the reason stated in the composer", aiNote);
 
-  section("8. Announcing is for admins only");
-  // Asserted on what is DRAWN, not on the attribute: [hidden] is only a UA
-  // display:none and any author display rule silently beats it, so checking
-  // n.hidden alone once passed while the button sat there in plain sight.
-  ok(await page.$eval("#pmBroadcastBtn", (n) => getComputedStyle(n).display === "none"),
-     "an ordinary user gets no announce button — really none, not just hidden=true");
+  section("8. Announcing is for accounts, not for admins");
+  // This assertion is the INVERSE of what it used to be, and the inversion is
+  // the feature. Announcing was gated on one email in ADMIN_EMAILS; it is
+  // gated on the RECIPIENT now (pm_may_cast_to), so an ordinary account gets
+  // the button and the fence lives per person inside the picker and inside the
+  // database. Asserted on what is DRAWN, not on the attribute: [hidden] is
+  // only a UA display:none and any author display rule silently beats it.
+  ok(await page.$eval("#pmBroadcastBtn", (n) => getComputedStyle(n).display !== "none"),
+     "an ordinary account gets the announce button now");
   ok(errs.length === 0, "no page errors", errs.slice(0, 4).join("\n        "));
 
   // --shot leaves a picture behind. Layout is easier to judge by eye than by
@@ -845,35 +996,76 @@ try {
 
   const admin = await openPage("pawa4761@gmail.com");
   await sleep(600);
-  ok(await admin.page.$eval("#pmBroadcastBtn", (n) => getComputedStyle(n).display !== "none"), "the admin does");
+  ok(await admin.page.$eval("#pmBroadcastBtn", (n) => getComputedStyle(n).display !== "none"), "the admin does too");
   await admin.page.click("#pmBroadcastBtn");
-  await sleep(400);
-  const scopes = await admin.page.$$eval("#pmCastRegion option", (n) => n.map((o) => o.textContent));
-  ok(scopes.length > 5 && /Everyone in Tanzania/i.test(scopes[0]),
-     "and can pick the whole country or one region", scopes.slice(0, 3).join(" / "));
+  await sleep(500);
+  // The region select is now INSIDE the picker, where it narrows a search
+  // rather than defining the audience. The audience is the basket.
+  const scopes = await admin.page.$$eval("#pmPkRegion option", (n) => n.map((o) => o.textContent));
+  ok(scopes.length > 5, "the picker can still narrow to one region", scopes.slice(0, 3).join(" / "));
   ok(await admin.page.$("#pmCastBody") !== null, "with a message to write");
+  // Send is off until somebody is chosen, and there is no longer a separate
+  // "who would get this?" step that could go stale against the selects.
+  ok(await admin.page.$eval("#pmCastGo", (n) => n.disabled),
+     "and nothing can be sent until somebody is actually chosen");
+  ok(await admin.page.$("#pmCastWho") === null,
+     "the two-step preview is gone: the basket IS the preview, so it cannot disagree with the send");
   if (process.argv.includes("--shot")) {
     await admin.page.screenshot({ path: "tests/shot_pmessage_announce.png" });
   }
 
-  section("8b. Opening a room");
+  section("8b. Opening a room, one person at a time");
   await admin.page.evaluate(() => { document.getElementById("pmModalBack").classList.remove("is-on"); });
   ok(await admin.page.$eval("#pmRoomsBtn", (n) => getComputedStyle(n).display !== "none"),
-     "the admin gets a Rooms button");
+     "a Rooms button");
   await admin.page.evaluate(() => document.getElementById("pmRoomsBtn").click());
-  await sleep(400);
-  const cats = await admin.page.$$eval("#pmRoomCat option", (n) => n.map((o) => o.value));
+  await sleep(600);
+  const cats = await admin.page.$$eval("#pmPkCat option", (n) => n.map((o) => o.value));
   ok(cats.join(",") === ",houses,services,trucks,jobs",
-     "a room is scoped by what people deal in — all four categories, jobs included now that a day job has an owner to group by",
+     "the picker still narrows by what people deal in, all four categories, jobs included",
      cats.join(","));
-  // The preview is the safety rail: you must SEE who a scope caught before a
-  // room you cannot un-send exists.
+  // The safety rail moved rather than went: you cannot open a room until you
+  // have chosen the people in it, and the people are what you chose rather
+  // than whoever a scope happened to catch.
   ok(await admin.page.$eval("#pmRoomGo", (n) => n.disabled),
-     "and the room cannot be opened until its scope has been previewed");
-  await admin.page.evaluate(() => document.getElementById("pmRoomWho").click());
-  await sleep(500);
-  const preview = await admin.page.$eval("#pmRoomMsg", (n) => n.textContent);
-  ok(preview.length > 0, "asking who is in scope answers", preview.slice(0, 70));
+     "and the room cannot be opened until somebody is in it");
+  // Nobody has a published key on a fresh page, and the picker will not offer
+  // somebody there is nothing to encrypt to. Mint some first, or "All" would
+  // correctly tick nobody and the assertion would be measuring the fixture.
+  await admin.page.evaluate(async () => {
+    for (const id of ["agent_juma", "agent_neema", "agent_blank"]) {
+      const kp = await window.PMCrypto.generateIdentity();
+      window.__PM_DB.keys[id].public_key = kp.publicKey;
+    }
+  });
+  // Switch to Everyone and take all of them. This is what the old "Every
+  // agent in Tanzania" button did, and it now works against any search.
+  await admin.page.evaluate(() => document.querySelector('[data-src="all"]').click());
+  await sleep(900);
+  await admin.page.evaluate(() => document.querySelector('#pmPkHead [data-all="1"]').click());
+  await sleep(300);
+  const chosen = await admin.page.$eval("#pmPkBasket", (n) => n.textContent);
+  ok(/\d/.test(chosen), "choosing All fills the basket", chosen.slice(0, 70));
+  ok(await admin.page.$eval("#pmRoomGo", (n) => !n.disabled),
+     "and only then does Open room mean anything");
+  // Layout is easier to judge by eye than by assertion, and this run already
+  // has the picker in a realistic state: three rows, a full basket, one of
+  // them greyed with its reason.
+  if (process.argv.includes("--shot")) {
+    const theme = process.argv.includes("--light") ? "light" : "dark";
+    await admin.page.evaluate((th) => {
+      localStorage.setItem("pawa-theme", th);
+      document.documentElement.setAttribute("data-theme", th);
+    }, theme);
+    await sleep(400);
+    await admin.page.evaluate(() => {
+      const l = document.getElementById("pmPkList");
+      if (l) l.scrollTop = l.scrollHeight;
+    });
+    await sleep(200);
+    await admin.page.screenshot({ path: `tests/shot_pm_picker_${theme}.png` });
+    process.stdout.write(`  (picker screenshot written: ${theme})\n`);
+  }
 
   section("8c. Inviting a customer who has no account");
   await admin.page.evaluate(() => { document.getElementById("pmModalBack").classList.remove("is-on"); });
@@ -1282,36 +1474,53 @@ try {
     });
     ok(await ap.page.$eval("#pmRoomsBtn", (n) => !n.hidden), "an admin is offered Rooms");
     await ap.page.evaluate(() => document.getElementById("pmRoomsBtn").click());
-    await sleep(400);
-    ok(await ap.page.$("#pmRoomEveryone") !== null,
-       "with a one-tap room for every agent in the country");
+    await sleep(600);
 
-    await ap.page.evaluate(() => {
-      document.getElementById("pmRoomCat").value = "houses";
-      document.getElementById("pmRoomRegion").value = "Mwanza";
-      document.getElementById("pmRoomEveryone").click();
-    });
+    // "Every agent in Tanzania" used to be its own button, and it was the only
+    // way to reach the room an admin wanted most often: leaving both selects
+    // alone. It is now the general case of the picker rather than a special
+    // case beside it. Empty search, source Everyone, All.
+    await ap.page.evaluate(() => document.querySelector('[data-src="all"]').click());
     await sleep(900);
+    await ap.page.evaluate(() => document.querySelector('#pmPkHead [data-all="1"]').click());
+    await sleep(300);
+
     const state = await ap.page.evaluate(() => ({
-      cat: document.getElementById("pmRoomCat").value,
-      region: document.getElementById("pmRoomRegion").value,
-      title: document.getElementById("pmRoomTitle").value,
-      msg: document.getElementById("pmRoomMsg").textContent,
+      shown: document.getElementById("pmPkShown").textContent,
+      basket: document.getElementById("pmPkBasket").textContent,
+      chips: document.querySelectorAll("#pmPkBasket .pm-chip").length,
       canOpen: !document.getElementById("pmRoomGo").disabled,
+      go: document.getElementById("pmRoomGo").textContent,
     }));
-    ok(state.cat === "" && state.region === "",
-       "it widens the scope rather than quietly leaving a narrower one set", JSON.stringify(state));
-    ok(/every agent/i.test(state.title), "and names the room", state.title);
-    ok(/\d+ people/.test(state.msg),
-       "the roster is counted before the button that adds them turns on", state.msg);
-    ok(state.canOpen, "and only then can it be opened");
+    ok(/\d+ people/.test(state.shown),
+       "the roster is counted before the button that adds them turns on", state.shown);
+    ok(state.chips >= 2, "and every one of them is in the basket", JSON.stringify(state));
+    ok(state.canOpen, "so the room can be opened");
+    // The count is ON the button. A room is a thing you cannot un-send, and
+    // "Open room" says nothing about how many people that is.
+    ok(/\d/.test(state.go), "and the button says how many people that is", state.go);
+
+    // Narrowing is the other half: the same picker, one search box, and the
+    // room becomes three people instead of all of them. This is the thing the
+    // two selects could never do.
+    await ap.page.evaluate(() => {
+      document.querySelector('#pmPkHead [data-all="0"]').click();
+      const q = document.getElementById("pmPkQ");
+      q.value = "Juma";
+      q.dispatchEvent(new Event("input"));
+    });
+    await sleep(1200);
+    const narrowed = await ap.page.$$eval("#pmPkList .pm-pick .pm-mem-nm",
+      (n) => n.map((x) => x.textContent.trim()));
+    ok(narrowed.length >= 1 && narrowed.every((s) => /juma/i.test(s)),
+       "searching a name narrows the list to that person", narrowed.join(" / "));
     await ap.page.close();
   }
 
-  section("8i. The admin chooses who is in the room, not just the scope");
+  section("8i. You choose who is in the room, and the choice is the room");
   {
     // A room's membership used to BE its scope: the screen handed
-    // pm_group_create every candidate the selects returned, so an admin who
+    // pm_group_create every candidate the selects returned, so somebody who
     // wanted three of the four people in Mwanza had no way to say so. The RPC
     // has always taken an explicit list; only the screen collapsed the two.
     const ap = await openPage("pawa4761@gmail.com");
@@ -1324,21 +1533,23 @@ try {
       document.getElementById("pmModalBack").classList.remove("is-on");
       document.getElementById("pmRoomsBtn").click();
     });
-    await sleep(300);
-    await ap.page.evaluate(() => document.getElementById("pmRoomWho").click());
+    await sleep(400);
+    await ap.page.evaluate(() => document.querySelector('[data-src="all"]').click());
     await sleep(900);
 
     const picker = await ap.page.evaluate(() => ({
-      boxes: document.querySelectorAll("#pmRoomList .pm-pick input").length,
-      ticked: document.querySelectorAll("#pmRoomList .pm-pick input:checked").length,
-      count: (document.getElementById("pmRoomListCount") || {}).textContent || "",
-      areas: Array.from(document.querySelectorAll("#pmRoomList .pm-area span"))
+      boxes: document.querySelectorAll("#pmPkList .pm-pick input").length,
+      ticked: document.querySelectorAll("#pmPkList .pm-pick input:checked").length,
+      areas: Array.from(document.querySelectorAll("#pmPkList .pm-area span"))
         .map((n) => n.textContent),
     }));
-    ok(picker.boxes >= 3, "every candidate is a row that can be unticked", JSON.stringify(picker.boxes));
-    ok(picker.ticked === picker.boxes,
-       "all ticked to start with — the scope is a good default, not the only possibility");
-    ok(/\d+ of \d+/.test(picker.count), "and the screen says how many are chosen", picker.count);
+    ok(picker.boxes >= 3, "every candidate is a row", JSON.stringify(picker.boxes));
+    // This assertion INVERTS the old one, and the inversion is the point. The
+    // old picker started with everybody ticked because a scope was a good
+    // default. There is no scope now: a hand-picked room is not everyone minus
+    // three, so it starts empty and All is one tap away.
+    ok(picker.ticked === 0,
+       "and none of them is ticked to start with: the room is what you chose, not what a scope caught");
     // The reason a picker is usable at all: a list of bare names is not
     // something anybody can make a decision about.
     ok(picker.areas.some((a) => /Nyamagana|Ilemela/.test(a)),
@@ -1346,20 +1557,20 @@ try {
     ok(picker.areas.some((a) => /not set/i.test(a)),
        "and somebody who never filled it in is SAID to have not filled it in");
 
-    // Untick one, open the room, and check the one that was unticked is not
-    // in the members the RPC was given.
+    // Take all of them, put one back, open the room, and check the one that
+    // was put back is not in the members the RPC was given.
     const dropped = await ap.page.evaluate(() => {
-      const boxes = document.querySelectorAll("#pmRoomList .pm-pick input");
+      document.querySelector('#pmPkHead [data-all="1"]').click();
+      const boxes = document.querySelectorAll("#pmPkList .pm-pick input:not(:disabled)");
       boxes[0].checked = false;
       boxes[0].dispatchEvent(new Event("change", { bubbles: true }));
       document.getElementById("pmRoomTitle").value = "Mwanza rooms";
       return boxes[0].value;
     });
-    await sleep(200);
-    const after = await ap.page.evaluate(() =>
-      (document.getElementById("pmRoomListCount") || {}).textContent || "");
-    ok(/\b(\d+) of \1?/.test(after) || after !== picker.count,
-       "unticking somebody changes the count", after);
+    await sleep(300);
+    const chips = await ap.page.evaluate(() =>
+      document.querySelectorAll("#pmPkBasket .pm-chip").length);
+    ok(chips >= 1, "the basket holds the rest", String(chips));
 
     await ap.page.evaluate(() => document.getElementById("pmRoomGo").click());
     await sleep(900);
@@ -1368,8 +1579,15 @@ try {
     ok(created && created.args.p_members.indexOf(dropped) < 0,
        "and the person who was unticked is not put in the room",
        JSON.stringify(created && created.args.p_members));
-    ok(created && created.args.p_members.length === picker.boxes - 1,
-       "while everyone still ticked is");
+    ok(created && created.args.p_members.length === chips,
+       "while everyone still in the basket is, exactly and only",
+       JSON.stringify([created && created.args.p_members.length, chips]));
+    // The scope labels are no longer written from two selects that may have
+    // had nothing to do with who was ticked. A label that can lie about the
+    // membership is worse than no label.
+    ok(created && created.args.p_category === null && created.args.p_region === null,
+       "and the room is not stamped with a scope it does not actually have",
+       JSON.stringify(created && [created.args.p_category, created.args.p_region]));
     ok(ap.errs.length === 0, "no page errors while picking", ap.errs.slice(0, 3).join("\n        "));
     await ap.page.close();
   }
@@ -1445,12 +1663,12 @@ try {
     ok(shrunk === 2, "and the roster is redrawn from the database, not from the page", String(shrunk));
 
     await ap.page.evaluate(() => document.getElementById("pmMemAdd").click());
-    await sleep(400);
-    ok(await ap.page.$("#pmAddFind") !== null, "adding people opens the same picker");
-    await ap.page.evaluate(() => document.getElementById("pmAddFind").click());
+    await sleep(500);
+    ok(await ap.page.$("#pmAddPick .pm-pk") !== null, "adding people opens the same picker");
+    await ap.page.evaluate(() => document.querySelector('[data-src="all"]').click());
     await sleep(900);
     const addable = await ap.page.evaluate(() =>
-      Array.from(document.querySelectorAll("#pmAddList .pm-pick input")).map((i) => i.value));
+      Array.from(document.querySelectorAll("#pmPkList .pm-pick input")).map((i) => i.value));
     // agent_juma was the one just removed, so it SHOULD be offered again;
     // agent_neema is still in the room and should not be. Ticking somebody
     // already in it would end in "you added 4 people" and 2 actually added.
@@ -1459,6 +1677,10 @@ try {
     ok(addable.indexOf("agent_juma") >= 0,
        "while somebody who was removed can be put back");
 
+    await ap.page.evaluate(() => {
+      document.querySelector('#pmPkHead [data-all="1"]').click();
+    });
+    await sleep(300);
     await ap.page.evaluate(() => document.getElementById("pmAddGo").click());
     await sleep(900);
     const added = await ap.page.evaluate(() =>
@@ -1654,12 +1876,14 @@ try {
     await ap.page.close();
   }
 
-  section("8l. An announcement says who would get it, before it goes");
+  section("8l. An announcement goes to the people on screen, and only them");
   {
-    // An announcement cannot be taken back and cannot be edited, so it gets
-    // the same treatment a room does. The audience is resolved ONCE and handed
-    // to broadcast(): if the send re-asked the database, the preview would be
-    // a different question from the send.
+    // An announcement cannot be taken back and cannot be edited. It used to
+    // defend against that with a two-step preview and an invalidate() on every
+    // select; the basket removes the class of bug instead, because what is on
+    // screen IS the array that gets sealed. So the assertion changed from "the
+    // preview was not re-asked" to the stronger "these exact ids and no
+    // others".
     const ap = await openPage("pawa4761@gmail.com");
     await sleep(900);
     await ap.page.evaluate(async () => {
@@ -1670,53 +1894,248 @@ try {
       document.getElementById("pmModalBack").classList.remove("is-on");
       document.getElementById("pmBroadcastBtn").click();
     });
-    await sleep(400);
+    await sleep(500);
 
-    ok(await ap.page.$("#pmCastCat") !== null,
-       "an announcement can be scoped by what people deal in, not only by where they are");
-    const before = await ap.page.evaluate(() => document.getElementById("pmCastGo").disabled);
-    ok(before, "and Send is off until the audience has been looked at");
-
-    await ap.page.evaluate(() => document.getElementById("pmCastWho").click());
-    await sleep(900);
-    const shown = await ap.page.evaluate(() => ({
-      msg: document.getElementById("pmCastMsg").textContent,
-      canSend: !document.getElementById("pmCastGo").disabled,
-    }));
-    ok(/\d+ people/.test(shown.msg), "the count and some names are shown first", shown.msg);
-    ok(shown.canSend, "and only then does Send mean anything");
-
-    // Changing the scope must invalidate it: a stale "412 people" beside
-    // selects that say something else is how the wrong announcement goes out.
-    await ap.page.evaluate(() => {
-      const r = document.getElementById("pmCastRegion");
-      r.value = "Mwanza";
-      r.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await sleep(200);
+    ok(await ap.page.$("#pmPkCat") !== null,
+       "the audience can still be narrowed by what people deal in, not only by where they are");
     ok(await ap.page.evaluate(() => document.getElementById("pmCastGo").disabled),
-       "changing the scope turns Send back off rather than leaving a stale count on screen");
+       "and Send is off until somebody is in the basket");
 
-    await ap.page.evaluate(() => {
-      document.getElementById("pmCastWho").click();
+    // Pick exactly one person, by hand. This is the thing the old announce
+    // dialog could not do at all: it had no per-person control of any kind.
+    const picked = await ap.page.evaluate(async () => {
+      document.querySelector('[data-src="all"]').click();
+      await new Promise((r) => setTimeout(r, 800));
+      const box = document.querySelector('#pmPkList .pm-pick input:not(:disabled)');
+      box.checked = true;
+      box.dispatchEvent(new Event("change", { bubbles: true }));
+      return box.value;
     });
-    await sleep(900);
-    await ap.page.evaluate(() => {
-      document.getElementById("pmCastBody").value = "Bei mpya kuanzia Jumatatu.";
-      document.getElementById("pmCastGo").click();
-    });
-    await sleep(1800);
-    const sent = await ap.page.evaluate(() => ({
-      cast: (window.__PM_SENT || []).filter((c) => c.name === "pm_broadcast").length,
-      // The audience query must not have been run again by the send.
-      asked: (window.__PM_SENT || []).filter((c) => c.name === "pm_recipients").length,
-      msg: document.getElementById("pmCastMsg").textContent,
+    await sleep(400);
+    const shown = await ap.page.evaluate(() => ({
+      chips: document.querySelectorAll("#pmPkBasket .pm-chip").length,
+      canSend: !document.getElementById("pmCastGo").disabled,
+      go: document.getElementById("pmCastGo").textContent,
     }));
-    ok(sent.cast === 1, "the announcement goes once", JSON.stringify(sent));
-    ok(sent.asked === 2,
-       "and the send used the very list that was previewed, rather than asking a second question",
+    ok(shown.chips === 1, "one person chosen shows one chip", JSON.stringify(shown));
+    ok(shown.canSend, "and only then does Send mean anything");
+    ok(/\d/.test(shown.go), "with the number on the button itself", shown.go);
+
+    const secretCast = "Bei mpya kuanzia Jumatatu.";
+    await ap.page.evaluate((txt) => {
+      document.getElementById("pmCastBody").value = txt;
+      document.getElementById("pmCastGo").click();
+    }, secretCast);
+    await sleep(1800);
+    const sent = await ap.page.evaluate(() => {
+      const call = (window.__PM_SENT || []).filter((c) => c.name === "pm_broadcast").pop();
+      return {
+        n: (window.__PM_SENT || []).filter((c) => c.name === "pm_broadcast").length,
+        ids: call ? (call.args.p_keys || []).map((k) => k.user_id) : null,
+        // A non-admin has no business calling the admin's scope query, and
+        // neither does anybody else now: there is no scope to resolve.
+        asked: (window.__PM_SENT || []).filter((c) => c.name === "pm_recipients").length,
+        msg: document.getElementById("pmCastMsg").textContent,
+      };
+    });
+    ok(sent.n === 1, "the announcement goes once", JSON.stringify(sent));
+    ok(sent.ids && sent.ids.length === 1 && sent.ids[0] === picked,
+       "sealed to exactly the person in the basket, and to nobody else",
+       JSON.stringify(sent.ids));
+    ok(sent.asked === 0,
+       "and no scope was resolved at all: there is no second question that could give a different answer",
        String(sent.asked));
     ok(/sent to \d+/i.test(sent.msg), "reporting how many it reached", sent.msg);
+    // The assertion this whole suite exists for, applied to the new path.
+    ok(!ap.bodies.some((b) => b.indexOf(secretCast) >= 0),
+       "and the words of the announcement are in no request body");
+    await ap.page.close();
+  }
+
+  section("8n. An advert reaches people you deal with, and says so about the rest");
+  {
+    // The fence that replaced "Admins only". An ordinary account may announce
+    // now, and the limit moved from WHO is sending to WHO they may reach:
+    // somebody you have never written to is drawn, greyed, and told why,
+    // rather than hidden. A row that vanishes teaches nothing.
+    const ap = await openPage("ordinary@example.com");
+    await sleep(900);
+    await ap.page.evaluate(async () => {
+      for (const id of ["agent_juma", "plain_amina"]) {
+        const kp = await window.PMCrypto.generateIdentity();
+        window.__PM_DB.keys[id].public_key = kp.publicKey;
+      }
+      document.getElementById("pmBroadcastBtn").click();
+    });
+    await sleep(400);
+    await ap.page.evaluate(() => document.querySelector('[data-src="all"]').click());
+    await sleep(900);
+
+    const cold = await ap.page.evaluate(() => ({
+      rows: document.querySelectorAll("#pmPkList .pm-pick").length,
+      off: document.querySelectorAll("#pmPkList .pm-pick.is-off").length,
+      enabled: document.querySelectorAll("#pmPkList .pm-pick input:not(:disabled)").length,
+      why: (document.querySelector("#pmPkList .pm-pk-why") || {}).textContent || "",
+      canSend: !document.getElementById("pmCastGo").disabled,
+    }));
+    ok(cold.rows >= 2, "the directory is still shown in full", JSON.stringify(cold.rows));
+    ok(cold.off === cold.rows && cold.enabled === 0,
+       "but with nobody this account has dealt with, not one of them can be chosen",
+       JSON.stringify(cold));
+    ok(/written to each other/i.test(cold.why),
+       "and each row says why, as a fact about the relationship rather than about them", cold.why);
+    ok(!cold.canSend, "so there is nothing to send");
+
+    // Now make one of them a real contact: a direct thread both people have
+    // written in. That is the whole definition, and a room would not do it.
+    await ap.page.evaluate(() => {
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      const db = window.__PM_DB;
+      db.threads["known"] = { kind: "direct", members: ["user_self", "agent_juma"] };
+      db.messages.push({ id: "m1", thread_id: "known", sender_id: "user_self", iv: "x", ciphertext: "y" });
+      db.messages.push({ id: "m2", thread_id: "known", sender_id: "agent_juma", iv: "x", ciphertext: "y" });
+      document.getElementById("pmBroadcastBtn").click();
+    });
+    await sleep(400);
+    await ap.page.evaluate(() => document.querySelector('[data-src="all"]').click());
+    await sleep(900);
+    const warm = await ap.page.evaluate(() => ({
+      enabled: Array.from(document.querySelectorAll("#pmPkList .pm-pick input:not(:disabled)"))
+        .map((i) => i.value),
+    }));
+    ok(warm.enabled.length === 1 && warm.enabled[0] === "agent_juma",
+       "once you have both written, that one person can be announced to, and still nobody else",
+       JSON.stringify(warm.enabled));
+
+    // And the default source is the contacts, so the common case needs no
+    // searching at all.
+    await ap.page.evaluate(() => {
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("pmBroadcastBtn").click();
+    });
+    await sleep(1000);
+    const mine = await ap.page.evaluate(() =>
+      Array.from(document.querySelectorAll("#pmPkList .pm-pick input")).map((i) => i.value));
+    ok(mine.length === 1 && mine[0] === "agent_juma",
+       "and People you deal with is where the picker opens", JSON.stringify(mine));
+    ok(ap.errs.length === 0, "no page errors", ap.errs.slice(0, 3).join("\n        "));
+    await ap.page.close();
+  }
+
+  section("8p. Keeping the people, so next week is one tap");
+  {
+    // The basket dies with the dialog. Without lists, a room of the same
+    // eleven people next week is eleven taps again, which is the difference
+    // between a feature somebody can use and one they will.
+    const ap = await openPage("pawa4761@gmail.com");
+    await sleep(900);
+    await ap.page.evaluate(async () => {
+      for (const id of ["agent_juma", "agent_neema"]) {
+        const kp = await window.PMCrypto.generateIdentity();
+        window.__PM_DB.keys[id].public_key = kp.publicKey;
+      }
+      document.getElementById("pmRoomsBtn").click();
+    });
+    await sleep(400);
+    await ap.page.evaluate(() => document.querySelector('[data-src="all"]').click());
+    await sleep(900);
+    await ap.page.evaluate(() => document.querySelector('#pmPkHead [data-all="1"]').click());
+    await sleep(300);
+
+    // Naming it is an inline field, not window.prompt: a browser dialog
+    // carries chrome nobody here can translate.
+    await ap.page.evaluate(() => document.querySelector("[data-save]").click());
+    await sleep(200);
+    ok(await ap.page.$eval("#pmPkSaveRow", (n) => !n.hidden), "the basket can be named and kept");
+    await ap.page.evaluate(() => {
+      document.getElementById("pmPkName").value = "Mwanza regulars";
+      document.getElementById("pmPkSaveGo").click();
+    });
+    await sleep(700);
+    const saved = await ap.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_list_create").pop());
+    ok(!!saved && saved.args.p_name === "Mwanza regulars" && saved.args.p_members.length >= 2,
+       "and the ids that were on screen are what gets kept",
+       JSON.stringify(saved && saved.args));
+
+    // Reopen from the list. This is the whole point: the second room is one
+    // tab and one chip, not a re-pick.
+    await ap.page.evaluate(() => {
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("pmRoomsBtn").click();
+    });
+    await sleep(400);
+    await ap.page.evaluate(() => document.querySelector('[data-src="list"]').click());
+    await sleep(900);
+    const fromList = await ap.page.evaluate(() => ({
+      chips: Array.from(document.querySelectorAll("#pmPkLists .pm-chip")).map((c) => c.textContent.trim()),
+      rows: document.querySelectorAll("#pmPkList .pm-pick").length,
+    }));
+    ok(fromList.chips.length === 1 && /Mwanza regulars/.test(fromList.chips[0]),
+       "the list is there, with how many people are in it", JSON.stringify(fromList.chips));
+    ok(fromList.rows >= 2, "and choosing it brings those people back", JSON.stringify(fromList.rows));
+    ok(ap.errs.length === 0, "no page errors", ap.errs.slice(0, 3).join("\n        "));
+    await ap.page.close();
+  }
+
+  section("8o. Blocking, and saying what it does not do");
+  {
+    const ap = await openPage("ordinary@example.com");
+    await sleep(900);
+    await ap.page.evaluate(async () => {
+      const kp = await window.PMCrypto.generateIdentity();
+      window.__PM_DB.keys["agent_juma"].public_key = kp.publicKey;
+      window.__PM_DB.threads["known"] = { kind: "direct", members: ["user_self", "agent_juma"] };
+      // Nudge the live subscription rather than reloading: a reload would run
+      // the stub again and take the thread with it.
+      if (window.__PM_FIRE_INSERT) window.__PM_FIRE_INSERT();
+    });
+    await sleep(900);
+    await ap.page.evaluate(() => document.getElementById("segChats").click());
+    await sleep(600);
+    // A one to one conversation between two accounts had NO menu at all until
+    // now: there was nothing on offer, because neither side may delete the
+    // other's copy. There is something on offer now.
+    ok(await ap.page.$('[data-chat-menu][data-menu-kind="chat"]') !== null,
+       "an ordinary conversation carries a menu now, because there is finally something to do with it");
+    await ap.page.evaluate(() =>
+      document.querySelector('[data-chat-menu][data-menu-kind="chat"]').click());
+    await sleep(400);
+    ok(await ap.page.$("#pmCmBlock") !== null, "and the thing on offer is Block");
+    ok(await ap.page.$("#pmCmDelChat") === null,
+       "and still not Delete, because the database refuses to let one side erase the other's copy");
+
+    await ap.page.evaluate(() => document.getElementById("pmCmBlock").click());
+    await sleep(400);
+    const dialog = await ap.page.evaluate(() =>
+      document.getElementById("pmModal").textContent);
+    ok(/does not delete this conversation/i.test(dialog),
+       "the confirm says what a block does NOT do, not only what it does");
+    ok(/not told/i.test(dialog),
+       "including that the other person is not told");
+
+    await ap.page.evaluate(() => document.getElementById("pmBlYes").click());
+    await sleep(900);
+    const blocked = await ap.page.evaluate(() =>
+      (window.__PM_SENT || []).filter((c) => c.name === "pm_block").pop());
+    ok(!!blocked && blocked.args.p_user === "agent_juma",
+       "and confirming blocks that person", JSON.stringify(blocked && blocked.args));
+
+    // The point of the whole thing: they drop out of the picker.
+    await ap.page.evaluate(() => {
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("pmRoomsBtn").click();
+    });
+    await sleep(400);
+    await ap.page.evaluate(() => document.querySelector('[data-src="all"]').click());
+    await sleep(900);
+    const after = await ap.page.evaluate(() => ({
+      enabled: Array.from(document.querySelectorAll("#pmPkList .pm-pick input:not(:disabled)"))
+        .map((i) => i.value),
+    }));
+    ok(after.enabled.indexOf("agent_juma") < 0,
+       "a blocked person cannot be gathered into a room either", JSON.stringify(after.enabled));
+    ok(ap.errs.length === 0, "no page errors", ap.errs.slice(0, 3).join("\n        "));
     await ap.page.close();
   }
 

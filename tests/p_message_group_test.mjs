@@ -165,10 +165,32 @@ try {
 
   // ------------------------------------------------------------------- create
   section("2. Opening the room");
+  // This assertion is the INVERSE of what it was, and the inversion is the
+  // feature: p_message_open.sql took the "Admins only" line out of
+  // pm_group_create. What replaced it is a per-MEMBER test, so the thing to
+  // prove is no longer that an ordinary account is refused, but that it is
+  // refused exactly the people it has no business gathering.
+  //
+  // LATE has published nothing and has never written to JUMA, so JUMA may not
+  // put them in a room. ASHA has listed houses, which is a shopfront and an
+  // open invitation to a first message today.
   const denied = await threw(() => asUser({ sub: JUMA },
-    `select public.pm_group_create('pmtest hijack', null, null, ${literal(JSON.stringify([ASHA, JUMA]))}::jsonb);`));
-  ok(!!denied && /admin/i.test(denied.message),
-    "a member cannot open a room and put people in it", denied ? denied.message : "no error raised");
+    `select public.pm_group_create('pmtest hijack', null, null, ${literal(JSON.stringify([LATE]))}::jsonb);`));
+  ok(!!denied && /already deal with/i.test(denied.message),
+    "an ordinary account cannot gather somebody who has published nothing and never written to them",
+    denied ? denied.message : "no error raised");
+
+  const ownRoom = await asUser({ sub: JUMA },
+    `select public.pm_group_create('pmtest own room', null, null,
+       ${literal(JSON.stringify([ASHA]))}::jsonb) as id;`);
+  ok(!!ownRoom[0].id,
+    "but it CAN open one with somebody who has published a shopfront: that is the whole point of the change",
+    ownRoom[0].id);
+  const ownRoster = await runSql(
+    `select user_id from public.pm_members where thread_id = ${literal(ownRoom[0].id)}::uuid order by user_id;`);
+  ok(ownRoster.length === 2,
+    "and the room holds the two of them and nobody else",
+    JSON.stringify(ownRoster.map((r) => r.user_id)));
 
   const members = [ASHA, JUMA, MOLE];
   const made = await asUser(admin,

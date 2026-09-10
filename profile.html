@@ -244,6 +244,10 @@
        first. -->
   <script src="js/lib/pm-safety.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
+  <!-- Blocking happens on a conversation, in P-Message. UNblocking has to
+       happen somewhere else, because the whole point of a block is that the
+       person has stopped appearing. This is that somewhere. -->
+  <script src="js/lib/pm-block.js"></script>
   <!-- The storefront block, shared with agent.html. pm-presence.js first: the
        identity line asks it for the last-seen dot, and without it the block
        silently loses that line rather than failing. -->

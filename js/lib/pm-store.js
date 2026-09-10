@@ -209,6 +209,72 @@
     });
   }
 
+  /**
+   * The people this account has actually dealt with.
+   *
+   * Same columns as finder(), in the same order, plus `how` — so pm-match.js
+   * ranks a row from here and a row from the directory with no branch, and one
+   * renderer draws both. That sameness is the whole reason the RPC is a filter
+   * over pm_agent_finder rather than a second query shaped like it.
+   */
+  function myPeople(opts) {
+    opts = opts || {};
+    return rpc("pm_my_people", {
+      p_query: opts.query || null,
+      p_limit: opts.limit || 300,
+    }).then(function (rows) {
+      (rows || []).forEach(function (r) { if (r.public_key) keyCache[r.user_id] = r.public_key; });
+      return rows || [];
+    });
+  }
+
+  /**
+   * May this account put each of these people in a room, and advertise to
+   * them? One round trip for a screen of rows.
+   *
+   * The answer comes from the server rather than being worked out here on the
+   * evidence to hand. The picker greys a row and says why, and a second
+   * opinion computed in the browser would eventually disagree with the
+   * function that actually decides — at which point the screen is lying about
+   * a permission, which is the worst kind of thing to be lying about.
+   */
+  function audienceCheck(ids) {
+    if (!ids || !ids.length) return Promise.resolve({});
+    return rpc("pm_audience_check", { p_users: ids }).then(function (rows) {
+      var out = {};
+      (rows || []).forEach(function (r) {
+        out[r.user_id] = { room: !!r.may_room, cast: !!r.may_cast };
+      });
+      return out;
+    });
+  }
+
+  /**
+   * Saved sets of people.
+   *
+   * A list is ids and a name. It is a PLAN, not a permission: it will hold
+   * somebody you may not currently reach, and listPeople() answers may_cast /
+   * may_room per row, computed now. pm_group_create and pm_broadcast re-check
+   * every id anyway, so a stale list cannot become a stale permission.
+   */
+  function lists()                 { return rpc("pm_lists_mine").then(function (r) { return r || []; }); }
+  function listCreate(name, ids)   { return rpc("pm_list_create", { p_name: name, p_members: ids || [] }); }
+  function listSet(id, ids)        { return rpc("pm_list_set", { p_list: id, p_members: ids || [] }); }
+  function listRename(id, name)    { return rpc("pm_list_rename", { p_list: id, p_name: name }); }
+  function listDelete(id)          { return rpc("pm_list_delete", { p_list: id }); }
+  function listPeople(id) {
+    return rpc("pm_list_people", { p_list: id }).then(function (rows) {
+      (rows || []).forEach(function (r) { if (r.public_key) keyCache[r.user_id] = r.public_key; });
+      return rows || [];
+    });
+  }
+
+  // Blocking. There is no "has this person blocked me" call and there must not
+  // be: that is the one question a block exists in order not to answer.
+  function blockAdd(userId)    { return rpc("pm_block",   { p_user: userId }); }
+  function blockRemove(userId) { return rpc("pm_unblock", { p_user: userId }); }
+  function blocksMine()        { return rpc("pm_blocks_mine").then(function (r) { return r || []; }); }
+
   function inbox() { return rpc("pm_inbox").then(function (r) { return r || []; }); }
 
   // ---- presence -------------------------------------------------------------
@@ -818,6 +884,17 @@
     current: current,
     directory: directory,
     finder: finder,
+    myPeople: myPeople,
+    audienceCheck: audienceCheck,
+    lists: lists,
+    listCreate: listCreate,
+    listSet: listSet,
+    listRename: listRename,
+    listDelete: listDelete,
+    listPeople: listPeople,
+    blockAdd: blockAdd,
+    blockRemove: blockRemove,
+    blocksMine: blocksMine,
     inbox: inbox,
     peer: peer,
     touchSeen: touchSeen,

@@ -191,6 +191,18 @@ try {
     const notAdmin = await asUser({ sub: MOLE }, `select count(*)::int as n from public.pm_recipients(null);`);
     ok(notAdmin[0].n === 0, "a normal user asking for the recipient list gets nothing");
 
+    // The sender of an announcement has to hold a key of their own. It is the
+    // same rule pm_group_create has enforced since rooms shipped and for the
+    // same reason: pm_broadcast joins them as OWNER, and only the owner may
+    // ever add to a broadcast or delete it, so an owner with no key owns a
+    // thread they can never touch again. p_message_open.sql extended the check
+    // to this path, which is why the fixture now publishes one.
+    const adminKey = await PM.generateIdentity();
+    const adminFp = await PM.fingerprint(adminKey.publicKey);
+    await asUser({ sub: "pmtest_admin", email: adminEmail },
+      `select public.pm_publish_key(${literal(adminKey.publicKey)},
+        ${literal(adminFp)}, 'Test admin', 'Mwanza');`);
+
     const announcement = "pmtest — huduma itasimama kesho saa 2 usiku.";
     // The sender chooses the thread id, so a broadcast body is sealed against
     // the real thread exactly as a direct message is — one open() path, not a
@@ -221,10 +233,17 @@ try {
       `select count(*)::int as n from public.pm_thread_messages(${literal(bthread)}::uuid, 10);`);
     ok(notInIt[0].n === 0, "somebody outside the region was not sent it and cannot read it");
 
+    // This used to read "a normal user cannot broadcast" and check for
+    // "Admins only". p_message_open.sql took that line out: an ordinary
+    // account may announce now, and the fence moved onto the RECIPIENTS. So
+    // the thing to prove is that it still cannot reach the country. The ids
+    // here are strangers MOLE has never written to, which is every id in
+    // practice, and every one of them is dropped.
     const notAdminBlast = await threw(() => asUser({ sub: MOLE },
       `select public.pm_broadcast('pmtest evil', null, 'a', 'b', '[{"user_id":"x","epk":"e","wrapped_key":"w"}]'::jsonb);`));
-    ok(notAdminBlast !== null && /admins only/i.test(notAdminBlast.message),
-       "and a normal user cannot broadcast to the country", notAdminBlast && notAdminBlast.message);
+    ok(notAdminBlast !== null && /already deal with/i.test(notAdminBlast.message),
+       "and a normal user still cannot broadcast to the country: an advert reaches people they have dealt with, and a stranger is not one",
+       notAdminBlast && notAdminBlast.message);
   }
 } catch (err) {
   // Without this the finally block's process.exit() swallows the exception

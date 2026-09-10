@@ -98,6 +98,13 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+
+  // The picker draws people, and drawing a person means saying where they work
+  // and what they deal in. Those two answers now live in one module, shared
+  // with the picker, the roster and the agent list, so it is handed this
+  // page's own t() and esc() rather than growing a second copy of either.
+  if (window.PMPeoplePicker) window.PMPeoplePicker.attach({ t: t, esc: esc });
+
   // --------------------------------------------------------------------------
   //  The keyboard problem.
   //
@@ -204,11 +211,17 @@
       // are drawn inside, where there is room for the grid both people have to
       // compare.
       if (el.pmFpBtn) el.pmFpBtn.hidden = false;
-      if (me.isAdmin && el.pmBroadcastBtn) el.pmBroadcastBtn.hidden = false;
-      // Rooms are the admin's to open. Invites belong to anyone with a real
-      // account -- an agent inviting a customer is the whole point -- but not
-      // to a guest, who would just be minting links from an anonymous tab.
-      if (me.isAdmin && el.pmRoomsBtn) el.pmRoomsBtn.hidden = false;
+      // Rooms and announcements belong to every real account now, not to the
+      // one address in ADMIN_EMAILS. What used to be a fence on WHO may send
+      // is a fence on WHO they may reach: pm_may_room_with() and
+      // pm_may_cast_to() decide per person, in the database, and the picker
+      // asks the same two questions before it draws a row.
+      //
+      // A guest is still refused, here and in both functions. A guest session
+      // is a browser tab: the room it opened would outlive the identity that
+      // opened it, and there would be nobody left to own it.
+      if (!me.isGuest && el.pmBroadcastBtn) el.pmBroadcastBtn.hidden = false;
+      if (!me.isGuest && el.pmRoomsBtn) el.pmRoomsBtn.hidden = false;
       if (!me.isGuest && el.pmInviteBtn) el.pmInviteBtn.hidden = false;
       // A brand new device is the moment to say that the key lives HERE, while
       // there is still nothing to lose. Saying it after a lost phone is useless.
@@ -505,6 +518,7 @@
         (menu
           ? '<button class="pm-row-more" type="button" data-chat-menu="' + esc(r.thread_id) + '"' +
             ' data-menu-kind="' + esc(menu) + '" data-name="' + esc(name) + '"' +
+            ' data-other="' + esc(r.other_id || "") + '"' +
             ' data-role="' + esc(r.my_role || "member") + '"' +
             ' aria-label="' + esc(t("pm_chat_more", "What to do with this conversation")) + '">' +
             MORE_SVG + "</button></div>"
@@ -550,7 +564,14 @@
     if (r.kind !== "direct") return "";
     if (orphan) return "gone";
     if (r.other_guest) return "guest";
-    return "";
+    // "chat" is new, and it exists because rooms and announcements stopped
+    // being one admin's to send. A conversation between two accounts still has
+    // nothing to DELETE from this menu, for the reason above, but it now has
+    // something to stop: whoever is on the other side can gather you into a
+    // room and can advertise to you, and the block is the way out of both.
+    // A guest is excluded by the first line: blocking a browser tab that will
+    // not exist tomorrow is a control that does nothing.
+    return r.other_id ? "chat" : "";
   }
 
   // ---- directory -----------------------------------------------------------
@@ -688,13 +709,11 @@
     return t("pm_no_people", "Nobody matches that yet.");
   }
 
-  function catName(cat) {
-    return cat === "houses" ? t("pm_cat_houses", "Rooms & houses")
-         : cat === "services" ? t("pm_cat_services", "Daily services")
-         : cat === "trucks" ? t("pm_cat_trucks", "Moving trucks")
-         : cat === "jobs" ? t("pm_cat_jobs", "Day jobs")
-         : t("pm_cat_any", "Anyone");
-  }
+  // Moved to js/lib/pm-people-picker.js, which draws people on three screens
+  // and needed every one of these. Delegating rather than copying: a category
+  // added in one place and not the other is how a room ends up scoped to
+  // something an announcement cannot reach.
+  function catName(cat) { return window.PMPeoplePicker.catName(cat); }
 
   /**
    * "Write to these three and one of them can probably help."
@@ -738,83 +757,13 @@
     return names.slice(0, -1).join(", ") + " " + t("pm_and", "and") + " " + names[names.length - 1];
   }
 
-  var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-    '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z" stroke="currentColor" stroke-width="2"/>' +
-    '<circle cx="12" cy="10" r="2.4" stroke="currentColor" stroke-width="2"/></svg>';
-
-  /**
-   * Where somebody works, in the one shape it is drawn everywhere.
-   *
-   * The agent list, the room roster, the admin's picker and the conversation
-   * header all answer the same question, and until this existed only the first
-   * of them answered it at all. Four copies of the markup would have drifted
-   * within a week — and drifting here means the area is prominent in one place
-   * and a grey afterthought in another, which is exactly the bug that was
-   * fixed in the list and never fixed anywhere else.
-   *
-   * `p` is { area, ward, district, region }. Returns { html, line }: the
-   * marked-up version for a list, and the plain one for a header or a
-   * data-attribute, so the two cannot say different things.
-   */
-  /**
-   * Every ward, not the first one.
-   *
-   * An agent covering Mikocheni, Msasani and Kijitonyama used to read as
-   * covering Mikocheni, so the agent somebody was actually looking for looked
-   * like the wrong agent. agent_profiles carries the set now
-   * (agent_multi_area.sql) and the directory RPCs return it, so the list can
-   * say all of it. The singular column is folded in for any agent who has only
-   * ever set that one.
-   */
-  function areaSet(list, one) {
-    var seen = {};
-    return [].concat(list || [], one ? [one] : []).map(function (v) {
-      return String(v == null ? "" : v).trim();
-    }).filter(function (v) {
-      var k = v.toLowerCase();
-      if (!v || seen[k]) return false;
-      seen[k] = 1;
-      return true;
-    });
-  }
-
-  function whereOf(p, opts) {
-    var area = String((p && p.area) || "").trim();
-    // The broader places, minus whatever already appears as the area — an
-    // agent whose area IS "Nyamagana" should not read "Nyamagana · Nyamagana".
-    // The wards are NOT sliced: dropping the third ward is dropping the reason
-    // somebody would pick this agent. The district and region are context and
-    // still yield to the area when they repeat it.
-    var wards = areaSet(p && p.wards, p && p.ward);
-    var wardTxt = wards.filter(function (v) {
-      return v.toLowerCase() !== area.toLowerCase();
-    }).join(" · ");
-    var rest = [p && p.district, p && p.region].filter(function (v) {
-      return v && String(v).trim() && String(v).trim().toLowerCase() !== area.toLowerCase();
-    }).slice(0, 2).join(" · ");
-    rest = [wardTxt, rest].filter(Boolean).join(" · ");
-
-    // An AGENT who has not set one is SAID to have not set one: a blank line
-    // reads as "operates nowhere in particular", which is a claim about them
-    // rather than about our data. Somebody who is not an agent has no area of
-    // operation to set, so telling them theirs is missing would be inventing
-    // an omission — `quiet` says which of the two this is.
-    var quiet = opts && opts.quiet;
-    var html = area
-      ? '<span class="pm-area" title="' + esc(t("pm_area_of", "Area of operation")) + '">' +
-          PIN_SVG + "<span>" + esc(area) + "</span></span>"
-      : quiet
-      ? ""
-      : '<span class="pm-area is-none"><span>' +
-          esc(t("pm_area_none", "Area not set")) + "</span></span>";
-
-    return {
-      area: area,
-      rest: rest,
-      html: html + (rest ? '<span class="pm-where">' + esc(rest) + "</span>" : ""),
-      line: [area, rest].filter(Boolean).join(" · "),
-    };
-  }
+  // Where somebody works, and every ward rather than the first one. Both moved
+  // to js/lib/pm-people-picker.js, which draws a person on three screens now:
+  // the agent list, the room roster and the picker. Four copies of that markup
+  // would have drifted within a week, and drifting here means the area is
+  // prominent in one place and a grey afterthought in another.
+  function areaSet(list, one) { return window.PMPeoplePicker.areaSet(list, one); }
+  function whereOf(p, opts) { return window.PMPeoplePicker.whereOf(p, opts); }
 
   /**
    * One agent, and above all WHERE THEY WORK.
@@ -1422,8 +1371,12 @@
     var kind = btn.dataset.menuKind;
     var name = btn.dataset.name || t("pm_someone", "Someone");
     var role = btn.dataset.role || "member";
+    var other = btn.dataset.other || "";
     var cast = kind === "cast";
     var room = kind === "room" || cast;
+    // A conversation between two accounts: nothing to delete, one thing to
+    // stop. See rowMenuKind().
+    var plain = kind === "chat";
     // The owner of the room, or an admin: the same test pm_group_delete makes,
     // asked here so the button is not offered to somebody the database will
     // turn away. my_role comes down with the row from pm_inbox.
@@ -1449,6 +1402,11 @@
                 : t("pm_chat_delroom_d", "Closes it for everyone in it and deletes every message from the server.")) +
               "</span></button>"
             : "")
+        : plain
+        ? '<button class="pm-sheet-b is-danger" type="button" id="pmCmBlock">' +
+            "<b>" + esc(t("pm_block", "Block this person")) + "</b><span>" +
+            esc(t("pm_block_d", "They stop being able to add you to a room, announce to you, or start a new conversation. This one stays.")) +
+            "</span></button>"
         : '<button class="pm-sheet-b is-danger" type="button" id="pmCmDelChat">' +
             "<b>" + esc(t("pm_chat_del", "Delete this conversation")) + "</b><span>" +
             esc(kind === "gone"
@@ -1483,6 +1441,12 @@
     if (chat) chat.addEventListener("click", function () {
       closeModal();
       askDeleteChat(threadId, name, kind === "gone");
+    });
+
+    var block = document.getElementById("pmCmBlock");
+    if (block) block.addEventListener("click", function () {
+      closeModal();
+      window.PMBlock.ask(other, name);
     });
 
     var leave = document.getElementById("pmCmLeave");
@@ -1683,42 +1647,27 @@
 
     modal("<h2>" + esc(t("pm_mem_add", "Add people")) + "</h2>" +
       "<p>" + esc(t("pm_mem_add_d", "They will see what is said from now on. Nothing said before they join is readable to them.")) + "</p>" +
-      "<label>" + esc(t("pm_room_cat", "What they deal in")) + "</label>" + catSelect("pmAddCat") +
-      "<label>" + esc(t("pm_room_where", "Where")) + "</label>" + regionSelect("pmAddRegion") +
+      '<div id="pmAddPick"></div>' +
       '<div class="pm-modal-acts">' +
-        '<button class="pm-btn ghost" id="pmAddFind">' + esc(t("pm_room_who", "Who is in scope?")) + "</button>" +
         '<button class="pm-btn" id="pmAddGo" disabled>' + esc(t("pm_mem_add_go", "Add selected")) + "</button>" +
         '<button class="pm-btn ghost" id="pmAddCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
-      "</div><div class=\"pm-msg-out\" id=\"pmAddMsg\"></div><div id=\"pmAddList\"></div>");
+      "</div><div class=\"pm-msg-out\" id=\"pmAddMsg\"></div>");
 
     var out = document.getElementById("pmAddMsg");
     var go = document.getElementById("pmAddGo");
     document.getElementById("pmAddCancel").addEventListener("click", function () { showMembers(); });
 
-    document.getElementById("pmAddFind").addEventListener("click", async function (e) {
-      var btn = e.currentTarget;      // captured, never read after an await
-      btn.disabled = true;
-      out.className = "pm-msg-out";
-      out.textContent = t("pm_room_looking", "Looking…");
-      try {
-        var found = (await window.PMStore.groupCandidates(
-          document.getElementById("pmAddCat").value || null,
-          document.getElementById("pmAddRegion").value || null))
-          // Somebody already in the room is not a candidate to add. Leaving
-          // them in the list with a tick beside them invites an admin to
-          // "add" eleven people and be told four were added.
-          .filter(function (p) { return !already[p.user_id]; });
-        out.textContent = "";
-        renderPicker("pmAddList", found, go, out, t("pm_mem_add_nobody",
-          "Everybody in that scope is already in this room."));
-      } catch (err) {
-        out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
-      } finally { btn.disabled = false; }
+    // Somebody already in the room is not a candidate to add. Leaving them in
+    // the list with a tick beside them invites an owner to "add" eleven people
+    // and be told four were added.
+    var picker = window.PMPeoplePicker.mount(document.getElementById("pmAddPick"), {
+      mode: "room",
+      exclude: Object.keys(already),
+      onChange: function (n) { go.disabled = n === 0; },
     });
 
     go.addEventListener("click", async function (e) {
-      var picked = pickedIds("pmAddList");
+      var picked = picker.chosen();
       if (!picked.length) return;
       var btn = e.currentTarget;      // captured, never read after an await
       btn.disabled = true;
@@ -1737,103 +1686,17 @@
     });
   }
 
-  // ---- picking people ------------------------------------------------------
-  //
-  //  A room's membership used to BE its scope: the screen handed pm_group_create
-  //  every candidate the category and region returned, so an admin who wanted
-  //  eleven of the fourteen people in Mwanza had no way to say so. The RPC has
-  //  always taken an explicit list; only the screen was collapsing the two.
-  //
-  //  Everyone is ticked to start with, because the scope is a good default and
-  //  un-ticking three is less work than ticking eleven. What changes is that
-  //  it is now a default rather than the only possibility.
-  function renderPicker(boxId, found, goBtn, out, emptyMsg) {
-    var box = document.getElementById(boxId);
-    if (!box) return;
-    if (!found.length) {
-      box.innerHTML = '<div class="pm-empty">' +
-        esc(emptyMsg || t("pm_room_nobody", "Nobody in that scope uses P-Message yet.")) + "</div>";
-      goBtn.disabled = true;
-      return;
-    }
+  // The old scope-shaped picker lived here: it drew whoever a category and a
+  // region caught, with everybody ticked, and it could not search. It is now
+  // js/lib/pm-people-picker.js, which the room dialog, the add-people sheet
+  // and the announce dialog all mount, and which keeps a basket so a choice
+  // survives changing the search that found it.
 
-    box.innerHTML =
-      '<div class="pm-pick-h"><span id="' + boxId + 'Count"></span>' +
-        '<button class="pm-btn ghost" type="button" data-all="1">' + esc(t("pm_pick_all", "All")) + "</button>" +
-        '<button class="pm-btn ghost" type="button" data-all="0">' + esc(t("pm_pick_none", "None")) + "</button>" +
-      "</div>" +
-      '<div class="pm-scroll">' + found.map(function (p) {
-        var w = whereOf({ area: p.area, ward: p.ward, district: p.district, region: p.region },
-                        { quiet: !p.is_agent });
-        var deals = [
-          { n: p.n_houses | 0, label: t("pm_deal_houses", "{n} rooms") },
-          { n: p.n_services | 0, label: t("pm_deal_services", "{n} services") },
-          { n: p.n_trucks | 0, label: t("pm_deal_trucks", "{n} trucks") },
-        ].filter(function (d) { return d.n > 0; });
-        return '<label class="pm-pick"><input type="checkbox" checked value="' + esc(p.user_id) + '" />' +
-          '<span class="pm-mem-tx"><span class="pm-mem-nm">' +
-            esc(p.display_name || p.user_id) +
-            (p.is_agent ? ' <span class="pm-badge off">' + esc(t("pm_badge_agent", "Agent")) + "</span>" : "") +
-          "</span>" +
-          '<span class="pm-sub">' + w.html + "</span>" +
-          (deals.length ? '<span class="pm-deals">' + deals.map(function (d) {
-            return '<span class="pm-deal">' + esc(d.label.replace("{n}", d.n)) + "</span>";
-          }).join("") + "</span>" : "") +
-          "</span></label>";
-      }).join("") + "</div>";
+  function regionSelect(id, allLabel) { return window.PMPeoplePicker.regionSelect(id, allLabel); }
+  function catSelect(id) { return window.PMPeoplePicker.catSelect(id); }
 
-    var count = function () {
-      var n = pickedIds(boxId).length;
-      var c = document.getElementById(boxId + "Count");
-      if (c) c.textContent = t("pm_pick_n", "{n} of {total} chosen", { n: n, total: found.length });
-      goBtn.disabled = n === 0;
-      if (out && n === 0) {
-        out.className = "pm-msg-out";
-        out.textContent = t("pm_pick_none_msg", "Choose at least one person.");
-      } else if (out) { out.textContent = ""; }
-    };
-    box.addEventListener("change", count);
-    box.addEventListener("click", function (e) {
-      var b = e.target.closest("[data-all]");
-      if (!b) return;
-      e.preventDefault();
-      var on = b.dataset.all === "1";
-      Array.prototype.forEach.call(box.querySelectorAll('input[type="checkbox"]'),
-        function (i) { i.checked = on; });
-      count();
-    });
-    count();
-  }
-
-  function pickedIds(boxId) {
-    var box = document.getElementById(boxId);
-    if (!box) return [];
-    return Array.prototype.slice.call(box.querySelectorAll('input[type="checkbox"]'))
-      .filter(function (i) { return i.checked; })
-      .map(function (i) { return i.value; });
-  }
-
-  function regionSelect(id, allLabel) {
-    var names = (window.TZ_REGION_CENTERS || []).map(function (r) { return r.name; })
-      .filter(Boolean).sort(function (a, b) { return a.localeCompare(b); });
-    return '<select id="' + id + '"><option value="">' +
-      esc(allLabel || t("pm_cast_all", "Everyone in Tanzania")) + "</option>" +
-      names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("") +
-      "</select>";
-  }
-
-  // One list, four entries, used by the room scope, the announce scope and the
-  // add-member picker. They were three separate literals saying the same thing
-  // before; a category added to one of them and not the others is how a room
-  // ends up scoped to something the announcement cannot reach.
-  var CATS = ["houses", "services", "trucks", "jobs"];
-
-  function catSelect(id) {
-    return '<select id="' + id + '"><option value="">' + esc(t("pm_room_anycat", "Anything")) + "</option>" +
-      CATS.map(function (c) {
-        return '<option value="' + c + '">' + esc(catName(c)) + "</option>";
-      }).join("") + "</select>";
-  }
+  // One list, four entries, shared with the picker.
+  var CATS = window.PMPeoplePicker.CATS;
 
   function closeThread() {
     open = null;
@@ -3132,85 +2995,81 @@
   });
   var showBackup = function () { window.PMIdentityUI.backup(); };
 
+  // The block dialogs. Handed this page's modal rather than opening one of
+  // their own, so there is one backdrop on the screen and one thing that
+  // closes it.
+  if (window.PMBlock) window.PMBlock.attach({
+    t: t, esc: esc, modal: modal, closeModal: closeModal,
+    after: async function (msg) { say(msg); await refreshInbox(); },
+  });
+
   // An announcement is the one thing on this screen that cannot be taken back
-  // and cannot be edited. So it gets the same treatment a room does: say who
-  // it would reach, from the SAME query that will send it, before the send
-  // button means anything. PMStore.broadcast() takes the resolved list for
-  // exactly that reason — if it re-asked the database, the preview would be a
-  // different question from the send, and the one thing a preview has to be is
-  // the same question.
+  // and cannot be edited, so it has always shown who it would reach before the
+  // send button meant anything.
+  //
+  // It used to do that in two steps: choose a scope, press "Who would get
+  // this?", read a count. The whole of that machinery existed to keep the
+  // preview and the send the same question, and it could still be got wrong —
+  // change a select after previewing and the screen said one thing while the
+  // array said another, which is what invalidate() was defending against.
+  //
+  // The basket removes the class of bug rather than defending against it. What
+  // is on screen IS the array: there is no scope to re-resolve, nothing to go
+  // stale, and no button to forget to press.
   function showBroadcast() {
-    var audience = null;
+    var picker = null;
 
     modal("<h2>" + esc(t("pm_cast_t", "Announce")) + "</h2>" +
-      "<p>" + esc(t("pm_cast_d", "Goes to everyone in the scope who uses P-Message. It is encrypted to each of them individually — one sealed copy per person — so it stays unreadable to everyone else, including us.")) + "</p>" +
-      "<label>" + esc(t("pm_cast_scope", "Where")) + "</label>" + regionSelect("pmCastRegion") +
-      // Scoping by what people deal in was missing entirely: a price change
-      // that only affects truck owners went to every person in the country,
-      // and the way to avoid that was not to send it.
-      "<label>" + esc(t("pm_cast_cat", "What they deal in")) + "</label>" + catSelect("pmCastCat") +
+      "<p>" + esc(t("pm_cast_d2", "One message to the people you choose. It is encrypted to each of them individually, one sealed copy per person, so it stays unreadable to everyone else including us. They cannot reply into it.")) + "</p>" +
       "<label>" + esc(t("pm_cast_title", "Title")) + '</label><input id="pmCastTitle" maxlength="80" />' +
       "<label>" + esc(t("pm_cast_body", "Message")) + '</label><textarea id="pmCastBody"></textarea>' +
+      "<label>" + esc(t("pm_cast_who2", "Who it goes to")) + "</label>" +
+      '<div id="pmCastPick"></div>' +
       '<div class="pm-modal-acts">' +
-        '<button class="pm-btn ghost" id="pmCastWho">' + esc(t("pm_cast_who", "Who would get this?")) + "</button>" +
         '<button class="pm-btn" id="pmCastGo" disabled>' + esc(t("pm_cast_send", "Send")) + "</button>" +
         '<button class="pm-btn ghost" id="pmCastCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
       "</div><div class=\"pm-msg-out\" id=\"pmCastMsg\"></div>");
 
     var out = document.getElementById("pmCastMsg");
     var go = document.getElementById("pmCastGo");
-    var reg = document.getElementById("pmCastRegion");
-    var cat = document.getElementById("pmCastCat");
 
-    function invalidate() {
-      audience = null; go.disabled = true;
-      out.className = "pm-msg-out"; out.textContent = "";
-    }
-    reg.addEventListener("change", invalidate);
-    cat.addEventListener("change", invalidate);
-    document.getElementById("pmCastCancel").addEventListener("click", closeModal);
-
-    document.getElementById("pmCastWho").addEventListener("click", async function (e) {
-      var btn = e.currentTarget;      // captured, never read after an await
-      btn.disabled = true;
-      out.className = "pm-msg-out";
-      out.textContent = t("pm_room_looking", "Looking…");
-      try {
-        audience = (await window.PMStore.audience({
-          region: reg.value || null, category: cat.value || null,
-        })).filter(function (p) { return p.public_key; });
-        if (!audience.length) {
-          out.className = "pm-msg-out bad";
-          out.textContent = t("pm_cast_nobody", "Nobody in that scope uses P-Message yet.");
-          go.disabled = true;
-        } else {
-          out.className = "pm-msg-out good";
-          out.textContent = t("pm_cast_found", "{n} people: {who}", {
-            n: audience.length,
-            who: audience.slice(0, 6).map(function (p) { return p.display_name || p.user_id; }).join(", ") +
-                 (audience.length > 6 ? "…" : ""),
-          });
-          go.disabled = false;
-        }
-      } catch (err) {
-        out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
-      } finally { btn.disabled = false; }
+    picker = window.PMPeoplePicker.mount(document.getElementById("pmCastPick"), {
+      mode: "cast",
+      onChange: function (n) {
+        go.disabled = n === 0;
+        go.textContent = n
+          ? t("pm_cast_send_n", "Send to {n}", { n: n })
+          : t("pm_cast_send", "Send");
+      },
     });
 
+    document.getElementById("pmCastCancel").addEventListener("click", closeModal);
+
     go.addEventListener("click", async function (e) {
-      var btn = e.currentTarget;
+      var btn = e.currentTarget;      // captured, never read after an await
       var body = document.getElementById("pmCastBody").value.trim();
-      if (!body) { out.className = "pm-msg-out bad"; out.textContent = t("pm_cast_empty", "Write something first."); return; }
-      if (!audience || !audience.length) return;
+      if (!body) {
+        out.className = "pm-msg-out bad";
+        out.textContent = t("pm_cast_empty", "Write something first.");
+        return;
+      }
+      // Everyone in the basket who can actually be sealed to. A row with no
+      // public key is drawn and explained rather than hidden, so it can be in
+      // the basket and still not be a recipient.
+      var audience = picker.rows().filter(function (p) { return p.public_key; });
+      if (!audience.length) {
+        out.className = "pm-msg-out bad";
+        out.textContent = t("pm_cast_nokeys", "Nobody you chose has set up P-Message on a device yet.");
+        return;
+      }
       btn.disabled = true;
       out.className = "pm-msg-out";
       try {
         var res = await window.PMStore.broadcast({
-          region: reg.value || null,
           title: document.getElementById("pmCastTitle").value.trim() || null,
           text: body,
-          // The very list that was previewed, not the scope that produced it.
+          // The very list that is on screen, not a scope that would be asked
+          // about a second time.
           members: audience,
           // Sealing a thousand copies is seconds of CPU; a screen that looks
           // frozen gets tapped again, and then it is sent twice.
@@ -3226,96 +3085,56 @@
       } catch (err) {
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) === "NOBODY_REACHABLE"
-          ? t("pm_cast_nobody", "Nobody in that scope uses P-Message yet.")
+          ? t("pm_cast_nokeys", "Nobody you chose has set up P-Message on a device yet.")
           : ((err && err.message) || String(err));
         btn.disabled = false;
       }
     });
   }
 
-  // ---- rooms (admin) -------------------------------------------------------
-  // Two steps on purpose: pick a scope, SEE who it caught, then open it. A
-  // room is a thing you cannot un-send to people, so the preview is not a
-  // nicety — it is the difference between "Mwanza house agents" and "everyone,
-  // because I left the category blank".
+  // ---- rooms ---------------------------------------------------------------
+  //
+  //  A room used to be described rather than chosen: a category, a region, and
+  //  whoever that caught. pm_group_create has ALWAYS taken an explicit list of
+  //  ids and never re-checked them against either select, so the database was
+  //  ready for a hand-picked room long before the screen was. Only the screen
+  //  was collapsing scope and membership into one thing.
+  //
+  //  The two selects are still here, inside the picker, where they belong: as
+  //  a way of NARROWING a search, not as the definition of the room. Which is
+  //  also why the room's stored region and category are no longer written from
+  //  them. They were a label that could quietly disagree with the membership,
+  //  and a label that can lie is worse than no label.
   function showRooms() {
-    var found = [];
+    var picker = null;
 
     modal("<h2>" + esc(t("pm_room_t", "Open a room")) + "</h2>" +
       "<p>" + esc(t("pm_room_d", "Everyone you put in the room can talk to each other, encrypted to each member individually. Announcements are one-way; a room is not.")) + "</p>" +
-      "<label>" + esc(t("pm_room_cat", "What they deal in")) + "</label>" + catSelect("pmRoomCat") +
-      "<label>" + esc(t("pm_room_where", "Where")) + "</label>" + regionSelect("pmRoomRegion") +
       "<label>" + esc(t("pm_room_name", "Name of the room")) + '</label><input id="pmRoomTitle" maxlength="80" />' +
-      // The room the admin wants most of the time is "all of them", and it was
-      // reachable only by knowing that leaving both selects alone meant that.
-      // One button says it out loud and fills the name in too.
-      '<p style="margin-top:12px"><button class="pm-btn ghost" id="pmRoomEveryone" style="width:100%">' +
-        esc(t("pm_room_everyone", "Every agent in Tanzania")) + "</button></p>" +
+      "<label>" + esc(t("pm_room_people", "Who is in it")) + "</label>" +
+      '<div id="pmRoomPick"></div>' +
       '<div class="pm-modal-acts">' +
-        '<button class="pm-btn ghost" id="pmRoomWho">' + esc(t("pm_room_who", "Who is in scope?")) + "</button>" +
         '<button class="pm-btn" id="pmRoomGo" disabled>' + esc(t("pm_room_open", "Open room")) + "</button>" +
         '<button class="pm-btn ghost" id="pmRoomCancel">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
-      "</div><div class=\"pm-msg-out\" id=\"pmRoomMsg\"></div><div id=\"pmRoomList\"></div>");
+      "</div><div class=\"pm-msg-out\" id=\"pmRoomMsg\"></div>");
 
     var out = document.getElementById("pmRoomMsg");
     var go = document.getElementById("pmRoomGo");
-    var cat = document.getElementById("pmRoomCat");
-    var reg = document.getElementById("pmRoomRegion");
 
-    // Changing the scope invalidates the preview. Leaving a stale list of
-    // twelve ticked names on screen while the selects say something else is
-    // how the wrong room gets opened, and a room cannot be un-sent.
-    function invalidate() {
-      found = []; go.disabled = true;
-      document.getElementById("pmRoomList").innerHTML = "";
-      out.className = "pm-msg-out"; out.textContent = "";
-    }
-    cat.addEventListener("change", invalidate);
-    reg.addEventListener("change", invalidate);
+    picker = window.PMPeoplePicker.mount(document.getElementById("pmRoomPick"), {
+      mode: "room",
+      onChange: function (n) {
+        go.disabled = n === 0;
+        go.textContent = n
+          ? t("pm_room_open_n", "Open a room with {n}", { n: n })
+          : t("pm_room_open", "Open room");
+      },
+    });
 
     document.getElementById("pmRoomCancel").addEventListener("click", closeModal);
-    document.getElementById("pmRoomEveryone").addEventListener("click", function () {
-      cat.value = "";
-      reg.value = "";
-      var title = document.getElementById("pmRoomTitle");
-      if (!title.value.trim()) title.value = t("pm_room_everyone", "Every agent in Tanzania");
-      invalidate();
-      // Run the preview straight away: the roster is what makes this safe to
-      // press, and an admin should see who is about to be added before the
-      // button that adds them becomes available.
-      document.getElementById("pmRoomWho").click();
-    });
 
-    document.getElementById("pmRoomWho").addEventListener("click", async function (e) {
-      var btn = e.currentTarget;      // captured, never read after an await
-      btn.disabled = true;
-      out.className = "pm-msg-out";
-      out.textContent = t("pm_room_looking", "Looking…");
-      try {
-        found = await window.PMStore.groupCandidates(cat.value || null, reg.value || null);
-        if (!found.length) {
-          out.className = "pm-msg-out bad";
-          out.textContent = t("pm_room_nobody", "Nobody in that scope uses P-Message yet.");
-          go.disabled = true;
-        } else {
-          out.className = "pm-msg-out good";
-          out.textContent = t("pm_room_found2",
-            "{n} people are in scope. Untick anyone who should not be in the room.", { n: found.length });
-          // The scope proposes; the admin decides. Everyone starts ticked
-          // because the scope is a good default, and un-ticking three is less
-          // work than ticking eleven.
-          renderPicker("pmRoomList", found, go, null);
-        }
-      } catch (err) {
-        out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
-    document.getElementById("pmRoomGo").addEventListener("click", async function (e) {
-      var picked = pickedIds("pmRoomList");
+    go.addEventListener("click", async function (e) {
+      var picked = picker.chosen();
       if (!picked.length) {
         out.className = "pm-msg-out bad";
         out.textContent = t("pm_pick_none_msg", "Choose at least one person.");
@@ -3328,8 +3147,8 @@
       try {
         await window.PMStore.groupCreate({
           title: document.getElementById("pmRoomTitle").value.trim() || t("pm_room", "Room"),
-          category: cat.value || null,
-          region: reg.value || null,
+          category: null,
+          region: null,
           members: picked,
         });
         closeModal();

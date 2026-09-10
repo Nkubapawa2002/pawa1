@@ -721,6 +721,83 @@
     .pm-pick-h span { flex: 1; min-width: 0; }
     .pm-pick-h .pm-btn { padding: 5px 10px; font-size: 11.5px; }
 
+    /* The people picker (js/lib/pm-people-picker.js), mounted inside a modal
+       by the room dialog, the add-people sheet and the announce dialog.
+       pm-pk-*, deliberately not pm-pick-*: those belong to the PLACE picker
+       further up this file and two meanings under one prefix is how a rule
+       lands on the wrong screen. */
+    .pm-pk { margin-top: var(--space-1); }
+    .pm-pk-src { display: flex; gap: 6px; margin-bottom: var(--space-2); }
+    /* Three of them across a 390px phone, so the type is tighter than the
+       rest of the dialog: "People you deal with" has to stay one line or the
+       whole strip grows a second row. */
+    .pm-pk-tab { flex: 1 1 0; min-width: 0; background: var(--pm-field);
+      border: 1px solid var(--c-border); border-radius: var(--radius-pill);
+      color: var(--pm-ink-soft); font: inherit; font-size: 11px; font-weight: 700;
+      padding: 8px 4px; cursor: pointer; line-height: 1.25; }
+    .pm-pk-tab.is-on { background: var(--pm-brand-soft); border-color: var(--pm-brand-line);
+      color: var(--pm-brand); }
+    .pm-pk-q { width: 100%; background: var(--pm-field); border: 1px solid var(--c-border);
+      border-radius: 12px; color: var(--pm-ink); font: inherit; font-size: 13.5px;
+      padding: 10px 12px; }
+    .pm-pk-f { display: flex; gap: 6px; margin-top: 6px; }
+    .pm-pk-f select { flex: 1 1 0; min-width: 0; background: var(--pm-field);
+      border: 1px solid var(--c-border); border-radius: 12px; color: var(--pm-ink);
+      font: inherit; font-size: 12.5px; padding: 8px 10px; }
+
+    /* The basket. It is the whole point of the picker: what is in here has
+       survived changing the search, the filters and the source that found it,
+       and for an announcement it IS the array that gets sent. */
+    .pm-pk-basket { display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+      margin-top: var(--space-2); padding-top: var(--space-2);
+      border-top: 1px solid var(--pm-line); }
+    .pm-pk-count { font-size: 12px; font-weight: 800; color: var(--pm-brand);
+      margin-right: 2px; }
+    /* min-height:0 undoes css/mobile.css, which gives EVERY button 44px. A
+       chip is a shortcut, not the target: the 44px row and its tick box are
+       still the way to take somebody out. */
+    .pm-chip { min-height: 0; display: inline-flex; align-items: center; gap: 5px;
+      background: var(--pm-brand-soft); border: 1px solid var(--pm-brand-line);
+      border-radius: var(--radius-pill); color: var(--pm-brand);
+      font: inherit; font-size: 11.5px; font-weight: 700; padding: 5px 9px;
+      cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; }
+    .pm-chip span { font-size: 13px; opacity: .7; }
+    /* Quiet on purpose. The chips are the content and this is a control on
+       them, so it does not get a box that competes with what it removes.
+       Both class names on the selector: .pm-btn.ghost sets a background and a
+       border, and one class cannot outrank two. */
+    .pm-btn.ghost.pm-pk-clear { min-height: 0; padding: 5px 4px; font-size: 11.5px;
+      font-weight: 700; background: none; border-color: transparent;
+      color: var(--pm-ink-faint); margin-left: auto; }
+    .pm-btn.ghost.pm-pk-clear:hover { color: var(--pm-ink); }
+    /* The saved lists, as a strip above the rows. A list is a set, so it gets
+       chips rather than a select: the count is the thing you pick on. */
+    .pm-pk-lists { display: flex; flex-wrap: wrap; gap: 5px; margin-top: var(--space-2); }
+    .pm-chip.is-on { background: var(--pm-brand); color: var(--pm-on-brand);
+      border-color: var(--pm-brand); }
+    .pm-chip.is-on span { opacity: .85; }
+    .pm-pk-nolist { font-size: 12.5px; color: var(--pm-ink-soft); line-height: 1.55; }
+    .pm-pk-saverow { display: flex; gap: 6px; margin-top: var(--space-2); }
+    .pm-pk-saverow input { flex: 1 1 auto; min-width: 0; background: var(--pm-field);
+      border: 1px solid var(--c-border); border-radius: 12px; color: var(--pm-ink);
+      font: inherit; font-size: 13px; padding: 9px 11px; }
+    .pm-pk-saverow .pm-btn { flex: 0 0 auto; padding: 9px 12px; font-size: 12.5px; }
+    .pm-btn.ghost.pm-pk-save { min-height: 0; padding: 5px 10px; font-size: 11.5px;
+      border-radius: var(--radius-pill); }
+    .pm-pk-msg { font-size: 12.5px; color: var(--pm-ink-soft); margin-top: var(--space-2);
+      min-height: 1em; }
+    .pm-pk-msg.bad { color: var(--danger); }
+    .pm-pk-list { max-height: 40vh; overflow-y: auto; }
+
+    /* Somebody an announcement cannot reach is drawn and explained rather than
+       hidden: a row that vanishes teaches nothing, and the reason is about the
+       relationship rather than about them. A BLOCKED person is absent instead,
+       which is the one case that must not be explained. */
+    .pm-modal .pm-pick.is-off { opacity: .62; cursor: default; }
+    .pm-pk-why { display: block; margin-top: 3px; font-size: 11.5px; line-height: 1.5;
+      color: var(--pm-ink-faint); }
+
     .pm-note { font-size: 12.5px; color: var(--pm-ink-soft); line-height: 1.55;
       background: var(--pm-field); border: 1px solid var(--c-border);
       border-radius: 14px; padding: 13px; margin-bottom: 12px; }
@@ -1079,6 +1156,16 @@
        first. -->
   <script src="js/lib/pm-safety.js"></script>
   <script src="js/lib/pm-identity-ui.js"></script>
+  <!-- The one people picker: opening a room, adding to one, addressing an
+       announcement. It holds the only copy of "where does this person work"
+       and "what do they deal in", which the page and the roster also draw, so
+       it must load BEFORE js/pages/p-message.js, which delegates to it and
+       hands it t() and esc() on the way past. It asks PMStore for rows and
+       PMMatch for an order, so both of those load first too. -->
+  <script src="js/lib/pm-people-picker.js"></script>
+  <!-- The way out of everything the picker makes possible: a block, enforced
+       in the database and merely offered here. -->
+  <script src="js/lib/pm-block.js"></script>
   <!-- PN-Zaki. Order matters: ai-tools registers window.AITools, which
        pn-zaki folds into its system prompt at load; gemini-chat and
        gemini-voice are the primary text and voice transports. Each of the

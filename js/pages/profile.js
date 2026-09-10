@@ -362,6 +362,13 @@
               desc: t("pf_backup_d", "The only copy of this key is on this device. A code lets you restore it on another.") }),
         row({ act: "restore", icon: ICON.key, tint: "ic-gold", title: t("pf_restore", "Restore from a backup code"),
               desc: t("pf_restore_d", "Replaces the key on this device with one from another.") }),
+        // The other side of blocking. Blocking happens where it makes sense,
+        // on the conversation itself; UNblocking has nowhere to happen, since
+        // the whole point is that the person has stopped appearing. Without
+        // this row a block is a one-way door.
+        row({ act: "blocked", icon: ICON.shield, tint: "ic-violet",
+              title: t("pf_blocked", "People you blocked"),
+              desc: t("pf_blocked_d", "They cannot add you to a room, announce to you, or start a new conversation. You can let any of them back.") }),
       ]);
     }
 
@@ -490,6 +497,7 @@
       // own buttons, wired at the end of render().
       if (act === "backup") return window.PMIdentityUI.backup();
       if (act === "restore") return window.PMIdentityUI.restore();
+      if (act === "blocked") return window.PMBlock && window.PMBlock.list();
 
       if (act === "agentbio") {
         var sb = window.DataStore && window.DataStore.sb;
@@ -656,6 +664,14 @@
       fingerprint: function () { return fingerprint; },
       userId: function () { return me && me.userId; },
       onChange: async function (res) { fingerprint = res.fingerprint; await render(); },
+    });
+
+    // The blocked-people sheet, drawn in PMIdentityUI's modal rather than one
+    // of its own: this page already has a backdrop and one thing that closes
+    // it, and a second would fight it.
+    if (window.PMBlock) window.PMBlock.attach({
+      t: t, esc: esc,
+      modal: window.PMIdentityUI.open, closeModal: window.PMIdentityUI.close,
     });
 
     me = await window.PMStore.me();
