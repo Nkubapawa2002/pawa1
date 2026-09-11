@@ -1,14 +1,14 @@
-// ============================================================================
-// agent_notices_test.mjs — what the admin does, and what the agent is told.
+﻿// ============================================================================
+// agent_notices_test.mjs â€” what the admin does, and what the agent is told.
 //
 // supabase/features/agent/agent_notices.sql exists because everything an admin
 // did in the tracker happened silently. The rules it has to keep:
 //
-//   · every change writes the agent a sentence, from the DATABASE, so nothing
+//   Â· every change writes the agent a sentence, from the DATABASE, so nothing
 //     depends on the panel remembering to send it;
-//   · the renewal sweep can run every morning and still say one thing;
-//   · a notice reaches its recipient and NOBODY else;
-//   · and my_notices() computes days_left on the server, because a phone with
+//   Â· the renewal sweep can run every morning and still say one thing;
+//   Â· a notice reaches its recipient and NOBODY else;
+//   Â· and my_notices() computes days_left on the server, because a phone with
 //     the wrong date would get the one number this feature exists for wrong.
 //
 // It writes to production, so every row it creates is prefixed `notitest_` and
@@ -60,7 +60,7 @@ async function cleanup() {
 }
 
 const notices = async (uid) => runSql(
-  `select title, kind, severity, dedupe_key, read_at from public.agent_messages
+  `select title, body, kind, severity, dedupe_key, read_at from public.agent_messages
     where to_user_id = ${literal(uid)} order by created_at;`);
 const titles = async (uid) => (await notices(uid)).map((r) => r.title);
 
@@ -88,7 +88,17 @@ try {
                  where agent_key = ${literal(KEY)}; select 1 as done;`);
   const paid = (await notices(AGENT)).find((r) => /payment recorded/i.test(r.title));
   ok(!!paid, "recording a payment tells them", JSON.stringify(await titles(AGENT)));
-  ok(!!paid && /10,000/.test(paid.title), "with the amount, which is the half they can check", paid && paid.title);
+  // The title used to read "Payment recorded (TZS 10,000)". The figure was the
+  // one part of the sentence this app has no business repeating: it is not the
+  // same number for every account, it is between that account and the admin who
+  // recorded it, and a notice is read over somebody's shoulder on a shared
+  // phone. What the agent has to ACT on is the date their cover runs to.
+  ok(!!paid && !/\d[\d,]*/.test(paid.title),
+     "and says so without the amount, which is nobody else's business on a shared phone",
+     paid && paid.title);
+  ok(!!paid && /\d{1,2} \w{3} \d{4}/.test(paid.body),
+     "the date it bought is in the body, because that is the half they can plan against",
+     paid && paid.body);
 
   await runSql(`update public.agent_billing set active = false, note = 'Owes for March'
                  where agent_key = ${literal(KEY)}; select 1 as done;`);
@@ -183,7 +193,68 @@ try {
      "while the subscription state stays, because it is a fact and not a message",
      JSON.stringify(after.billing));
 
-  section("5. On a clock");
+  section("5. Throwing one away, for good");
+
+  // Read is not gone. Marking a notice read hides it from my_notices(), which
+  // is enough for the bell; the row stays, and "clear these and never show them
+  // to me again" has no answer in an update. These two delete, and the only
+  // rows they can ever reach are the caller's own: agent_messages has a
+  // self-SELECT and a self-UPDATE policy and deliberately no self-DELETE, so a
+  // SECURITY DEFINER function scoped to app_uid() is the whole door.
+  await runSql(`delete from public.agent_messages where to_user_id = ${literal(AGENT)};
+                select public.agent_notice_send(${literal(AGENT)}, 'notitest_ bin me',
+                  'One to throw away.', 'individual', 'info') as id;`);
+  const doomed = (await asUser(AGENT, `select public.my_notices() as n;`))[0].n.notices;
+  ok(doomed.length === 1, "one notice to work with", String(doomed.length));
+
+  const notYours = (await asUser(OTHER, `select public.notice_delete(${literal(doomed[0].id)}::uuid) as r;`))[0].r;
+  ok(notYours === false, "somebody else cannot delete it");
+  const stillThere = await runSql(
+    `select count(*)::int as n from public.agent_messages where id = ${literal(doomed[0].id)}::uuid;`);
+  ok(stillThere[0].n === 1, "and saying so did not quietly take it anyway", JSON.stringify(stillThere[0]));
+
+  const killed = (await asUser(AGENT, `select public.notice_delete(${literal(doomed[0].id)}::uuid) as r;`))[0].r;
+  ok(killed === true, "the agent deletes their own");
+  const row = await runSql(
+    `select count(*)::int as n from public.agent_messages where id = ${literal(doomed[0].id)}::uuid;`);
+  ok(row[0].n === 0, "and it is gone from the table, not just hidden from the bell",
+     JSON.stringify(row[0]));
+  const twiceGone = (await asUser(AGENT, `select public.notice_delete(${literal(doomed[0].id)}::uuid) as r;`))[0].r;
+  ok(twiceGone === false, "deleting it twice reports that nothing went, rather than lying");
+
+  // The whole sweep, and the safe half of it. They are different requests: one
+  // tidies up what has already been dealt with, the other takes the unopened
+  // ones too, which is why the panel asks before sending it.
+  await runSql(`insert into public.agent_messages (to_user_id, created_by, title, body, kind, severity, read_at)
+                values (${literal(AGENT)}, 'system', 'notitest_ already read', 'x', 'individual', 'info', now()),
+                       (${literal(AGENT)}, 'system', 'notitest_ never opened', 'x', 'individual', 'info', null);
+                select 1 as done;`);
+  const tidied = (await asUser(AGENT, `select public.notices_clear(true) as n;`))[0].n;
+  ok(Number(tidied) === 1, "a tidy-up takes only what has been read", String(tidied));
+  const left = await runSql(
+    `select title from public.agent_messages where to_user_id = ${literal(AGENT)};`);
+  ok(left.length === 1 && /never opened/.test(left[0].title),
+     "and leaves the one nobody has opened yet", JSON.stringify(left.map((x) => x.title)));
+
+  const wiped = (await asUser(AGENT, `select public.notices_clear(false) as n;`))[0].n;
+  ok(Number(wiped) === 1, "clearing everything takes the unread one as well", String(wiped));
+  const none = await runSql(
+    `select count(*)::int as n from public.agent_messages where to_user_id = ${literal(AGENT)};`);
+  ok(none[0].n === 0, "and the account holds no notices at all", JSON.stringify(none[0]));
+
+  // dedupe_key lives on the row, so deleting one lets the automatic writers say
+  // that thing once more. That is correct, and it is the price of a real
+  // delete: a reminder about a deadline that has NOT passed is not a duplicate,
+  // and a tombstone table would be this app disarming its own alarm.
+  await runSql(`update public.agent_billing set paid_until = current_date + 4, active = true, status = 'paid'
+                 where agent_key = ${literal(KEY)}; select 1 as done;`);
+  await runSql(`select public.agent_notices_remind(7) as n;`);
+  const back = (await asUser(AGENT, `select public.my_notices() as n;`))[0].n;
+  ok((back.notices || []).some((x) => /ends in 4 days/i.test(x.title)),
+     "and a deadline that has not passed is allowed to speak up again tomorrow",
+     JSON.stringify((back.notices || []).map((x) => x.title)));
+
+  section("6. On a clock");
 
   // The button is the right thing to have and the wrong thing to depend on:
   // the point of a reminder is that it arrives on the Tuesday nobody was
@@ -210,7 +281,7 @@ try {
   ok((await titles(AGENT)).some((t) => /ends in 4 days/i.test(t)),
      "with the reminder they will actually read", JSON.stringify(await titles(AGENT)));
 
-  section("6. What is not on offer");
+  section("7. What is not on offer");
 
   const forge = await threw(() => asUser(OTHER,
     `select public.agent_notice_send(${literal(AGENT)}, 'You owe us money', 'Pay this number', 'billing', 'urgent', null);`));

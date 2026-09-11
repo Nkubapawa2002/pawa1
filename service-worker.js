@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v332-2026-09-10-take-me-there-and-a-queue-that-moves";
+const VERSION = "v333-2026-09-11-a-notice-can-be-thrown-away";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -67,6 +67,12 @@ const APP_SHELL = [
   "./js/core/notify.js",
   "./css/notify.css",
   "./js/lib/notify-ui.js",
+  // The bell's writer. It is the only module allowed to mark a notice read or
+  // delete one, and notify-ui.js guards every call on it, so a cached install
+  // without it has a bin that quietly does nothing: the row leaves the screen
+  // and is still there on the next load. The other three are already here;
+  // this one was missed when the panel gained those buttons.
+  "./js/lib/notices.js",
   // The bell's two readers. Without house-alerts.js it counts every new room
   // in the country instead of the ones this device asked about, and without
   // pm-trust.js it never mentions a changed safety number at all. Both fail

@@ -14,6 +14,20 @@
 //  Every mark here is a Lucide-style stroke SVG, so it takes the colour of the
 //  text beside it and follows the theme without being told to. Every string
 //  goes through i18n. Every colour, radius and space is a token.
+//
+//  WHAT AN ADMIN NOTICE DOES WHEN YOU TAP IT, AND WHY IT CHANGED
+//  ------------------------------------------------------------
+//  It used to be a link to profile.html#notices, and marking it read happened
+//  over there. So a notice tapped HERE was never marked, the two-minute poll
+//  brought it straight back, and the same four sentences arrived every day
+//  until somebody made the second trip. The panel already has the title and
+//  the body in hand, so the tap now OPENS the notice in place and marks it
+//  read on the server, and reading it is the last time it appears.
+//
+//  Every notice also carries a bin. Read is a state; deleted is gone, and
+//  "clear these and never show them to me again" is a request that only a
+//  delete can answer. See notice_delete / notices_clear in
+//  supabase/features/agent/agent_notices.sql.
 // ============================================================================
 (function () {
   "use strict";
@@ -46,6 +60,12 @@
     clock:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.4l3.4 2"/>',
     stamp:   '<path d="M5 20h14M7 16h10v1.5H7z"/><path d="M9 16c0-2-2.5-3-2.5-6a5.5 5.5 0 0 1 11 0c0 3-2.5 4-2.5 6"/>',
     close:   '<path d="M6 6l12 12M18 6L6 18"/>',
+    // A bin, not a cross. The cross on the subscription row HIDES a state that
+    // is still true; this one deletes a row for good, and the two must not
+    // look like the same promise.
+    trash:   '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/>' +
+             '<path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/>' +
+             '<path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
     check:   '<path d="M4 12.5l5 5L20 6.5"/>',
     empty:   '<circle cx="12" cy="12" r="9"/><path d="M8.5 13.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/>',
     // Somebody with their hand up: a person asking, not a thing posted.
@@ -183,6 +203,13 @@
   // ---- the bell -------------------------------------------------------------
   var bell = null, badge = null, panel = null, backdrop = null;
 
+  // Set by anything that changed the server's mind about what is unread:
+  // opening a notice, binning one, or emptying the lot. The panel deliberately
+  // does NOT re-render on those, because a render would pull the row out from
+  // under the reader, so the badge is left saying a number that is no longer
+  // true. This is the note that it owes a correction, and closePanel() pays it.
+  var stale = false;
+
   function buildBell() {
     if (document.getElementById("pawa-notify-bell")) return;
     bell = document.createElement("button");
@@ -228,12 +255,36 @@
    * one more thing to get through rather than the one thing to stop for.
    */
   function alarmHtml(g) {
-    return '<a class="nt-alarm" href="' + esc(g.href) + '" data-key="' + esc(g.key) + '">' +
+    return withPut(g,
+      '<a class="nt-alarm" href="' + esc(g.href) + '" data-key="' + esc(g.key) + '">' +
       icon(g.icon) +
       '<span class="nt-alarm-tx">' +
         '<span class="nt-alarm-h">' + esc(headline(g)) + "</span>" +
         '<span class="nt-alarm-d">' + esc(subline(g)) + "</span>" +
-      "</span></a>";
+      "</span></a>");
+  }
+
+  /**
+   * A row, and the button that puts it away.
+   *
+   * Only two things here can be put away, and they are put away differently.
+   * A notice is a ROW: the bin deletes it, and it is gone from the bell, the
+   * Profile tab and the database at once. The subscription is a STATE: nothing
+   * wrote a row for it, so there is nothing to delete and the cross hides the
+   * state as it stands today. js/core/notify.js keys that dismissal on the
+   * reason and the date, so a subscription that moves speaks up again and one
+   * that has not stays quiet. Two marks, because they are two promises.
+   *
+   * Everything else has no button at all, for the reason it never had one: a
+   * customer waiting for a call is answered, an unread message is read, and a
+   * changed safety number is compared. None of those is a thing to tidy away.
+   */
+  function withPut(g, inner) {
+    if (g.key !== "renew") return inner;
+    return '<div class="nt-line">' + inner +
+      '<button type="button" class="nt-put" data-put="billing" aria-label="' +
+        esc(tx("nt_hide_sub", "Hide this subscription notice")) + '">' +
+        icon("close") + "</button></div>";
   }
 
   /**
@@ -246,19 +297,33 @@
   function noticeHtml(g, it) {
     var sev = it.severity === "urgent" ? " is-urgent"
       : it.severity === "warn" ? " is-warn" : "";
-    return '<a class="nt-item' + sev + '" href="' + esc(g.href) +
-      '" data-key="' + esc(g.key) + '" data-id="' + esc(it.id || "") + '">' +
-      '<span class="nt-item-ic">' + icon(g.icon) + "</span>" +
-      '<span class="nt-item-tx">' +
-        '<span class="nt-item-h">' + esc(it.title || "") + "</span>" +
-        (it.body ? '<span class="nt-item-b">' + esc(it.body) + "</span>" : "") +
-      "</span>" +
-      '<span class="nt-item-when"><span class="nt-item-dot"></span>' +
-        esc(when(it.at)) + "</span></a>";
+    var id = esc(it.id || "");
+    // A button, not an anchor. It used to be a link to profile.html#notices,
+    // where the notice was read and, only there, marked read — so tapping it
+    // here left it unread and the poll brought it back. The whole notice is
+    // already in `it`; opening it in place is both the shorter route and the
+    // one that can mark it read.
+    return '<div class="nt-line" data-row="' + id + '">' +
+      '<button type="button" class="nt-item' + sev + '" data-open="' + id + '">' +
+        '<span class="nt-item-ic">' + icon(g.icon) + "</span>" +
+        '<span class="nt-item-tx">' +
+          '<span class="nt-item-h">' + esc(it.title || "") + "</span>" +
+          (it.body ? '<span class="nt-item-b">' + esc(it.body) + "</span>" : "") +
+        "</span>" +
+        '<span class="nt-item-when"><span class="nt-item-dot"></span>' +
+          esc(when(it.at)) + "</span>" +
+      "</button>" +
+      '<button type="button" class="nt-put nt-put--kill" data-put="notice:' + id + '" aria-label="' +
+        esc(tx("nt_del_one", "Delete this notification")) + '">' +
+        icon("trash") + "</button></div>";
   }
 
   /** Merely new in the catalogue: a count and a door, which is its right shape. */
   function doorHtml(g) {
+    return withPut(g, doorInner(g));
+  }
+
+  function doorInner(g) {
     var items = (g.items || []).filter(function (i) { return i.title; }).slice(0, 3);
     var preview = items.length
       ? '<span class="nt-row-eg">' +
@@ -327,14 +392,16 @@
   }
 
   // ---- the panel ------------------------------------------------------------
+  function emptyHtml() {
+    return '<div class="nt-empty">' + icon("empty", "nt-empty-ic") +
+      "<b>" + esc(tx("nt_none_t", "Nothing new")) + "</b>" +
+      "<span>" + esc(tx("nt_none_d",
+        "Nothing has been posted since you last looked. Check back later.")) + "</span></div>";
+  }
+
   function bodyHtml(st) {
     var live = (st.groups || []).filter(function (g) { return g.count > 0; });
-    if (!live.length) {
-      return '<div class="nt-empty">' + icon("empty", "nt-empty-ic") +
-        "<b>" + esc(tx("nt_none_t", "Nothing new")) + "</b>" +
-        "<span>" + esc(tx("nt_none_d",
-          "Nothing has been posted since you last looked. Check back later.")) + "</span></div>";
-    }
+    if (!live.length) return emptyHtml();
     // An alarm leaves its section and goes to the rail. Trust is always one;
     // the subscription becomes one only when it is urgent, which is why this
     // reads the flag rather than the key.
@@ -346,26 +413,49 @@
     return out;
   }
 
+  /**
+   * The two footer buttons, and whether either still has anything to act on.
+   *
+   * It asks the PANEL what is on screen, not the engine what it last counted,
+   * and that is the point: a notice binned in place is gone from the screen
+   * while the engine's cached count still holds it, because the count is only
+   * put right when the panel closes. Reading the DOM is the one question whose
+   * answer is true at both moments — otherwise binning the last notice leaves
+   * "Delete all" sitting over nothing, offering to delete it again.
+   *
+   * The catalogue half still comes from the engine, because "12 new rooms" is
+   * one row whose count no tap in here changes.
+   */
+  function syncFoot(st) {
+    if (!panel) return;
+    var hasNotice  = !!panel.querySelector(".nt-line[data-row]");
+    var hasBilling = !!panel.querySelector('[data-put="billing"]');
+    var read = panel.querySelector('[data-foot="read"]');
+    var wipe = panel.querySelector('[data-foot="wipe"]');
+    var foot = panel.querySelector(".nt-foot");
+
+    // "Mark all as read" covers what a LOCAL mark can retire plus the notices,
+    // which are marked on the server instead. That second half was the one
+    // missing: the button hid itself whenever notices were all that was left.
+    if (read) read.hidden = !(hasNotice || ((st && st.groups) || []).some(function (g) {
+      return g.count > 0 && (!window.Notify || window.Notify.isDismissible(g.key));
+    }));
+
+    // "Delete all" is only offered for the two things that can actually be put
+    // away for good: the notices, which are rows, and the subscription state,
+    // which is hidden until it moves. Offering it over twelve new rooms would
+    // promise a delete this app cannot perform.
+    if (wipe) wipe.hidden = !(hasNotice || hasBilling);
+
+    if (foot) foot.hidden = (!read || read.hidden) && (!wipe || wipe.hidden);
+  }
+
   function render() {
     if (!panel) return;
     var st = window.Notify ? window.Notify.state() : { total: 0, news: 0, groups: [] };
     panel.querySelector(".nt-body").innerHTML = bodyHtml(st);
-    var clear = panel.querySelector(".nt-clear");
-    // The engine owns the list of rows this button cannot touch; asking it
-    // beats keeping a second copy here, which is how the button ends up
-    // offered for an alarm it will not clear.
-    if (clear) clear.hidden = !(st.groups || []).some(function (g) {
-      return g.count > 0 && (!window.Notify || window.Notify.isDismissible(g.key));
-    });
-    // A row is a door AND a dismissal: opening the page is the same as saying
-    // "I have seen these", so the badge does not still claim them on the way
-    // back. A customer request carries no data-key and is skipped here: it is
-    // answered by the Call button on it, or it passes its date.
-    panel.querySelectorAll("[data-key]").forEach(function (a) {
-      a.addEventListener("click", function () {
-        if (window.Notify) window.Notify.markSeen(a.dataset.key);
-      });
-    });
+    askOff();
+    syncFoot(st);
   }
 
   function buildPanel() {
@@ -387,16 +477,196 @@
           icon("close") + "</button>" +
       "</div>" +
       '<div class="nt-body"></div>' +
-      '<button type="button" class="nt-clear" hidden>' + icon("check") +
-        "<span>" + esc(tx("nt_mark_all", "Mark all as read")) + "</span></button>";
+      '<div class="nt-foot" hidden>' +
+        '<button type="button" class="nt-clear" data-foot="read" hidden>' + icon("check") +
+          "<span>" + esc(tx("nt_mark_all", "Mark all as read")) + "</span></button>" +
+        '<button type="button" class="nt-clear nt-clear--kill" data-foot="wipe" hidden>' +
+          icon("trash") +
+          "<span>" + esc(tx("nt_clear_all", "Delete all")) + "</span></button>" +
+        // The question lives in the panel rather than in a window.confirm.
+        // The panel is already a modal, and stacking a browser dialog on it is
+        // the one thing on this screen a phone renders worse than the screen
+        // itself. Hidden, not absent: nothing is rebuilt on the way to a
+        // destructive answer.
+        '<div class="nt-ask" hidden role="group" aria-label="' +
+            esc(tx("nt_clear_all", "Delete all")) + '">' +
+          '<p class="nt-ask-q">' + esc(tx("nt_clear_q",
+            "Delete every notification? This cannot be undone.")) + "</p>" +
+          '<div class="nt-ask-acts">' +
+            '<button type="button" class="nt-ask-b" data-foot="cancel">' +
+              esc(tx("nt_clear_no", "Cancel")) + "</button>" +
+            '<button type="button" class="nt-ask-b is-kill" data-foot="yes">' +
+              esc(tx("nt_clear_yes", "Yes, delete")) + "</button>" +
+          "</div>" +
+        "</div>" +
+      "</div>";
 
     panel.querySelector(".nt-x").addEventListener("click", closePanel);
-    panel.querySelector(".nt-clear").addEventListener("click", function () {
-      if (window.Notify) window.Notify.markAllSeen();
-      render();
-    });
+    // One delegated listener, bound once. Re-binding per row after every
+    // render is how a 120 second poll ends up with six listeners on a row that
+    // has only been drawn once.
+    panel.addEventListener("click", onPanelClick);
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
+  }
+
+  // ---- what a tap in the panel means ---------------------------------------
+  /** The question, up or down, with the two buttons out of the way while it is. */
+  function askOn(on) {
+    if (!panel) return;
+    var ask = panel.querySelector(".nt-ask");
+    if (!ask) return;
+    ask.hidden = !on;
+    // The buttons go away while the question is up, so the answer is the only
+    // thing on the strip and "Delete all" cannot be tapped a second time.
+    panel.querySelectorAll('[data-foot="read"], [data-foot="wipe"]').forEach(function (b) {
+      b.classList.toggle("is-away", !!on);
+    });
+    if (on) {
+      var yes = ask.querySelector('[data-foot="yes"]');
+      if (yes) yes.focus();
+    }
+  }
+  function askOff() { askOn(false); }
+
+  /** An id is a uuid out of our own database, but never build a selector on trust. */
+  function cssId(id) {
+    return String(id == null ? "" : id).replace(/[^A-Za-z0-9_-]/g, "");
+  }
+
+  function lineOf(id) {
+    var key = cssId(id);
+    return key && panel ? panel.querySelector('.nt-line[data-row="' + key + '"]') : null;
+  }
+
+  /**
+   * A notice, opened where it already is.
+   *
+   * The row carries the whole thing, so there is nothing to fetch and nowhere
+   * to go: the body un-clamps in place and the notice is marked read on the
+   * server. It is deliberately NOT re-rendered afterwards, because a render
+   * would drop the row the reader is halfway through: my_notices() stops
+   * returning what it has just been told was read. The badge catches up when
+   * the panel closes.
+   */
+  function openNotice(id) {
+    var line = lineOf(id);
+    if (!line) return;
+    line.classList.toggle("is-open");
+    if (line.dataset.read === "1") return;
+    line.dataset.read = "1";
+    var dot = line.querySelector(".nt-item-dot");
+    if (dot) dot.remove();
+    stale = true;
+    if (window.Notices && window.Notices.markRead) window.Notices.markRead(id);
+  }
+
+  /**
+   * Take one row off the panel without redrawing the rest.
+   *
+   * A redraw is NOT an option here, and this is the trap worth naming. The
+   * engine keeps its own copy of what it last counted and only puts it right
+   * on a refresh, so calling render() after binning a row would ask it to draw
+   * the panel from a cache that still holds that row, and the notice would
+   * reappear on the screen it was just deleted from. Everything that puts a
+   * row away does this instead, and the badge is reconciled once, on close.
+   */
+  function dropLine(line) {
+    if (!line || !panel) return;
+    var sec = line.closest(".nt-sec");
+    line.remove();
+    // A heading over nothing is worse than no heading, and the count beside
+    // it is already wrong, so the whole section goes when it empties.
+    if (sec && !sec.querySelector(".nt-line, .nt-row, .dm-row")) sec.remove();
+    if (!panel.querySelector(".nt-sec, .nt-alarm, .nt-line")) {
+      panel.querySelector(".nt-body").innerHTML = emptyHtml();
+    }
+    syncFoot(window.Notify ? window.Notify.state() : null);
+  }
+
+  /** Delete one notice, and take its row out without redrawing the others. */
+  function killNotice(id) {
+    // A deleted notice is one the badge is still counting, and unlike a read
+    // one it leaves no opened row behind to notice on the way out. Without
+    // this, binning four notices and closing the panel left the bell claiming
+    // four until the two-minute poll, which is the same "it came back" the
+    // whole change exists to end.
+    stale = true;
+    dropLine(lineOf(id));
+    if (window.Notices && window.Notices.remove) window.Notices.remove(id);
+  }
+
+  /**
+   * Everything, gone.
+   *
+   * The rows first, because that is what was asked for. markAllSeen() then
+   * retires the catalogue marks, and hideBilling() silences the subscription
+   * state, which has no row to delete and would otherwise be the one thing
+   * still sitting on a panel the reader has just emptied.
+   */
+  async function wipeAll() {
+    if (window.Notices && window.Notices.clearAll) await window.Notices.clearAll(false);
+    if (window.Notify) {
+      if (window.Notify.hideBilling) window.Notify.hideBilling();
+      window.Notify.markAllSeen();
+      await window.Notify.refresh();
+    }
+    // Refreshed and redrawn here, so the badge is already right and closing
+    // owes nothing.
+    stale = false;
+    render();
+  }
+
+  /** Read, not gone: the rows stay in the database and leave the bell. */
+  async function readAll() {
+    if (window.Notices && window.Notices.markAll) await window.Notices.markAll();
+    if (window.Notify) {
+      window.Notify.markAllSeen();
+      await window.Notify.refresh();
+    }
+    stale = false;
+    render();
+  }
+
+  function onPanelClick(e) {
+    if (!panel) return;
+
+    var put = e.target.closest("[data-put]");
+    if (put && panel.contains(put)) {
+      e.preventDefault();
+      var what = put.dataset.put;
+      if (what === "billing") {
+        // hideBilling() zeroes the subscription in the engine's cache, so a
+        // render would draw this panel right — but it would also redraw any
+        // notice binned a moment ago, because nothing told the engine about
+        // those. The same surgery, for the same reason. See dropLine().
+        if (window.Notify && window.Notify.hideBilling) window.Notify.hideBilling();
+        dropLine(put.closest(".nt-line"));
+      } else if (what.indexOf("notice:") === 0) {
+        killNotice(what.slice(7));
+      }
+      return;
+    }
+
+    var open = e.target.closest("[data-open]");
+    if (open && panel.contains(open)) { openNotice(open.dataset.open); return; }
+
+    var foot = e.target.closest("[data-foot]");
+    if (foot && panel.contains(foot)) {
+      var act = foot.dataset.foot;
+      if (act === "read") { readAll(); return; }
+      if (act === "wipe") { askOn(true); return; }
+      if (act === "cancel") { askOff(); return; }
+      if (act === "yes") { askOff(); wipeAll(); return; }
+      return;
+    }
+
+    // A row is a door AND a dismissal: opening the page is the same as saying
+    // "I have seen these", so the badge does not still claim them on the way
+    // back. A customer request carries no data-key and is skipped here: it is
+    // answered by the Call button on it, or it passes its date.
+    var link = e.target.closest("[data-key]");
+    if (link && panel.contains(link) && window.Notify) window.Notify.markSeen(link.dataset.key);
   }
 
   function openPanel() {
@@ -412,6 +682,13 @@
 
   function closePanel() {
     if (!panel) return;
+    askOff();
+    // Notices read or binned in place were left on screen on purpose, so the
+    // badge is still counting rows the server no longer has. Closing is the
+    // moment it is allowed to catch up, because nobody is reading a row that
+    // a re-render would now pull away.
+    if (stale && window.Notify) window.Notify.refresh();
+    stale = false;
     panel.classList.remove("is-on");
     document.removeEventListener("keydown", onEsc);
     // Wait for the slide-out before hiding, or it vanishes instead of leaving.

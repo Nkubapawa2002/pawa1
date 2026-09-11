@@ -36,8 +36,9 @@
 //      summarize(panel) { return "4 photos" | "" },   // optional
 //      onStep(panel, i) { map.resize(); },            // optional
 //    });
-//    ws.refresh();     // re-read every tile (after loading a listing in)
-//    ws.toBoard();     // show the board
+//    ws.refresh();       // re-read every tile (after loading a listing in)
+//    ws.toBoard();       // show the board
+//    ws.reveal(el);      // open whichever step holds `el`, and return its index
 // ============================================================================
 (function () {
   "use strict";
@@ -379,10 +380,34 @@
 
     toBoard();
 
+    /**
+     * Open whichever step holds this element.
+     *
+     * The page owns validation, and validation is the one thing that has to
+     * be able to move the view: the listing title is a required field, it
+     * lives in part 2, and the board hides all eight parts. So the browser
+     * refused the submit against a control it could not put a bubble on, and
+     * the Save button did nothing at all with nothing to read. Naming the
+     * part is not enough, because a person still has to find it.
+     *
+     * Returns the panel index, or -1 when the element is not in a panel (in
+     * which case the caller has nowhere to send anybody and should just say
+     * what is wrong).
+     */
+    function reveal(el) {
+      if (!el) return -1;
+      const panel = el.closest(opts.panels || ".ap-panel");
+      const i = panel ? panels.indexOf(panel) : -1;
+      if (i < 0) return -1;
+      if (i !== current) go(i);
+      return i;
+    }
+
     return {
       refresh,
       toBoard,
       go,
+      reveal,
       panels,
       get index() { return current; },
     };

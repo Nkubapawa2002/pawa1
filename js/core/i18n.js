@@ -1778,6 +1778,12 @@ window.I18N = {
     ah_err_no_geo: "Geolocation isn't supported on this device.",
     ah_err_geo: "Couldn't get your location: ",
     ah_err_no_pin: "Drop the pin on the map first. Buyers need to know where the property is.",
+    // What the Save button says when it cannot save. It used to say nothing at
+    // all: the title is a required field inside a part the board hides, so the
+    // browser refused the submit against a control it could not put a bubble
+    // on, and the tap did nothing. The part is named because on a board of
+    // eight tiles "fill in the missing field" is not an instruction.
+    ah_err_missing: "{part} still needs an answer.",
     ah_section_nearby: "What's nearby",
 
     ah_section_amenities: "Amenities and furnishing",
@@ -2240,6 +2246,15 @@ window.I18N = {
     nt_open: "Notifications, {n} new",
     nt_open_none: "Notifications, nothing new",
     nt_mark_all: "Mark all as read",
+    // Putting one away. The bin DELETES a notice, for good and everywhere; the
+    // cross on the subscription row only hides a state that is still true, and
+    // the two words have to keep that difference or one of them is a lie.
+    nt_del_one: "Delete this notification",
+    nt_hide_sub: "Hide this subscription notice",
+    nt_clear_all: "Delete all",
+    nt_clear_q: "Delete every notification? This cannot be undone.",
+    nt_clear_no: "Cancel",
+    nt_clear_yes: "Yes, delete",
     nt_none_t: "Nothing new",
     nt_none_d: "Nothing has been posted since you last looked. Check back later.",
     // Nothing here is news. Somebody's key is not the one this device wrote
@@ -3284,7 +3299,9 @@ window.I18N = {
     anx_sub_expired_t: "Your subscription has run out",
     anx_sub_expired_b: "Your listings are off the board until it is renewed. Pay the admin and they will extend it.",
     anx_sub_due_t: "Payment is due to keep this account open",
-    anx_sub_due_b: "A new agent pays the {fee} monthly subscription within {h} hours of registering.",
+    // No amount. What an account pays is between it and the admin, it is not
+    // the same figure for everybody, and a notice is read over shoulders.
+    anx_sub_due_b: "A new agent pays the monthly subscription within {h} hours of registering. The admin will tell you what it comes to.",
     anx_sub_gracex_t: "The free period has ended",
     anx_sub_gracex_b: "Your listings are off the board until the monthly subscription is paid.",
     anx_sub_cancelled_t: "This subscription is cancelled",
@@ -5426,6 +5443,7 @@ window.I18N = {
     ah_err_no_geo: "Kifaa hiki hakitumii GPS.",
     ah_err_geo: "Imeshindikana kupata eneo lako: ",
     ah_err_no_pin: "Weka alama kwenye ramani kwanza. Wanunuzi wanahitaji kujua mali ipo wapi.",
+    ah_err_missing: "{part} bado inahitaji jibu.",
     ah_section_nearby: "Vilivyo karibu",
 
     ah_section_amenities: "Huduma zilizopo na samani",
@@ -5862,6 +5880,12 @@ window.I18N = {
     nt_open: "Taarifa, mpya {n}",
     nt_open_none: "Taarifa, hakuna kipya",
     nt_mark_all: "Weka zote kama zimesomwa",
+    nt_del_one: "Futa arifa hii",
+    nt_hide_sub: "Ficha taarifa hii ya usajili",
+    nt_clear_all: "Futa zote",
+    nt_clear_q: "Futa arifa zote? Hili haliwezi kutenduliwa.",
+    nt_clear_no: "Ghairi",
+    nt_clear_yes: "Ndiyo, futa",
     nt_none_t: "Hakuna kipya",
     nt_none_d: "Hakuna kilichowekwa tangu ulipoangalia mwisho. Rudi baadaye.",
     nt_trust_1: "Namba 1 ya usalama imebadilika",
@@ -6865,7 +6889,7 @@ window.I18N = {
     anx_sub_expired_t: "Usajili wako umeisha",
     anx_sub_expired_b: "Matangazo yako hayapo kwenye ubao mpaka uhuishwe. Mlipe msimamizi naye ataongeza muda.",
     anx_sub_due_t: "Malipo yanahitajika ili akaunti hii ibaki wazi",
-    anx_sub_due_b: "Wakala mpya hulipa usajili wa {fee} kwa mwezi ndani ya saa {h} tangu kujisajili.",
+    anx_sub_due_b: "Wakala mpya hulipa usajili wa mwezi ndani ya saa {h} tangu kujisajili. Msimamizi atakuambia kiasi chake.",
     anx_sub_gracex_t: "Kipindi cha bure kimeisha",
     anx_sub_gracex_b: "Matangazo yako hayapo kwenye ubao mpaka usajili wa mwezi ulipwe.",
     anx_sub_cancelled_t: "Usajili huu umefutwa",

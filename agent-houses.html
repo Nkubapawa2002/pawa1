@@ -872,7 +872,12 @@
           </ul>
         </nav>
 
-        <form id="ahForm" autocomplete="off">
+        <!-- novalidate, and the page validates instead. The title is required and
+           lives in part 2, which the board takes out of the layout, so the browser
+           refused the submit against a control it could not put a bubble on and the
+           Save button did nothing with nothing to read. See the submit handler in
+           js/pages/agent-houses.js: it opens the part that is missing an answer. -->
+        <form id="ahForm" autocomplete="off" novalidate>
           <h2 id="ahFormTitle" class="ap-title" data-i18n="ah_form_title_new">Add a new listing</h2>
 
           <div class="ap-note ap-note--warn" role="note">

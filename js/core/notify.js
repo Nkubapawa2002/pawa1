@@ -31,6 +31,7 @@
 //    Notify.refresh()          -> re-read everything, returns state()
 //    Notify.markSeen(key)      -> one category is no longer news
 //    Notify.markAllSeen()
+//    Notify.hideBilling(b)     -> stop showing THIS subscription state
 //    Notify.on(fn)             -> called with state() whenever it changes
 //  Fires `pawa:notify` on window as well, for anything that would rather listen
 //  than register.
@@ -204,8 +205,53 @@
    * appear together rather than a week apart.
    */
   var RENEW_DAYS = 7;
+
+  /**
+   * The one thing in this panel that is a STATE rather than a row, named so it
+   * can be put away.
+   *
+   * Not the day count: "ends in 5 days" and "ends in 4 days" are the same fact
+   * on two mornings, and keying on the number would bring a dismissed reminder
+   * back every day, which is the bug this whole change exists to end. Keying on
+   * the reason and the date it is about means a dismissal survives until the
+   * subscription actually moves — paid, extended, lapsed, paused — and then the
+   * new state is genuinely new and says so.
+   *
+   * This is the honest limit of "never show it again" for the subscription:
+   * there is no row to delete, because nothing wrote one. What can be promised
+   * is that this exact state stays quiet.
+   */
+  function billingKey(b) {
+    if (!b || !b.reason) return "";
+    return b.reason + "|" + (b.paid_until || "") + "|" + (b.status || "");
+  }
+
+  function billingHidden(b) {
+    var k = billingKey(b);
+    if (!k) return false;
+    var s = seen();
+    return !!(s && s.billingOff === k);
+  }
+
+  function hideBilling(b) {
+    var k = billingKey(b || (cache && cache._billing));
+    if (!k) return false;
+    var m = mark();
+    m.billingOff = k;
+    saveSeen(m);
+    if (cache) {
+      cache.groups.forEach(function (g) {
+        if (g.key === "renew") { g.count = 0; g.alarm = false; g.state = null; }
+      });
+      Object.assign(cache, tally(cache.groups));
+    }
+    emit();
+    return true;
+  }
+
   function billingAlert(b) {
     if (!b) return null;
+    if (billingHidden(b)) return null;
     var left = (b.days_left === null || b.days_left === undefined) ? null : Number(b.days_left);
     // Off the board already. The three reasons differ in why, and the panel
     // says which, because "pay" and "talk to the admin" are different actions.
@@ -442,7 +488,9 @@
 
     // Remembered so markAllSeen can retire the threads it just showed without
     // fetching the inbox a second time.
-    cache = Object.assign(tally(groups), { groups: groups, _threads: pm.threads });
+    cache = Object.assign(tally(groups), {
+      groups: groups, _threads: pm.threads, _billing: acct.billing,
+    });
     return cache;
   }
 
@@ -574,6 +622,7 @@
     refresh: refresh,
     markSeen: markSeen,
     markAllSeen: markAllSeen,
+    hideBilling: hideBilling,
     // Asked by notify-ui.js so "Mark all as read" hides when the only thing
     // left is an alarm that button cannot touch. A second copy of the list
     // over there would drift into offering a button that does nothing.

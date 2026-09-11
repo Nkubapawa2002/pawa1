@@ -385,7 +385,13 @@ window.agentBillingNotice = (billing) => {
     return s;
   };
   const cfg = window.APP_CONFIG || {};
-  const fee = window.formatTZS ? window.formatTZS(cfg.AGENT_MONTHLY_FEE_TZS || 10000) : "TZS 10,000";
+  // NO FIGURE IN A NOTICE. This used to read "pays the TZS 10,000 monthly
+  // subscription", off AGENT_MONTHLY_FEE_TZS, and it was wrong twice over: the
+  // amount is not the same for every account (the admin records what was
+  // actually paid, and the tracker prices accounts differently), and a notice
+  // is read over somebody's shoulder on a shared phone. What an account pays is
+  // between that account and the admin, so the notice says there is a
+  // subscription and the admin's own contact block says the rest.
   const graceH = cfg.AGENT_GRACE_HOURS || 48;
   const days = cfg.AGENT_APPROVAL_DAYS || 7;
   const admin = window.agentAdminAction();
@@ -422,8 +428,8 @@ window.agentBillingNotice = (billing) => {
     case "grace": {
       const h = b.deadline ? Math.max(0, Math.ceil((new Date(b.deadline) - new Date()) / 3600000)) : graceH;
       return one("warn", t("anx_sub_due_t", "Payment is due to keep this account open"),
-        t("anx_sub_due_b", "A new agent pays the {fee} monthly subscription within {h} hours of registering.",
-          { fee, h }));
+        t("anx_sub_due_b", "A new agent pays the monthly subscription within {h} hours of registering. The admin will tell you what it comes to.",
+          { h }));
     }
     case "grace_expired":
       return one("blocking", t("anx_sub_gracex_t", "The free period has ended"),

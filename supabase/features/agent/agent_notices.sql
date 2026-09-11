@@ -129,7 +129,6 @@ create or replace function public.agent_billing_notice()
 as $fn$
 declare
   v_uid text;
-  v_fee text;
 begin
   if new.agent_key not like 'uid:%' then return new; end if;
   v_uid := substring(new.agent_key from 5);
@@ -174,14 +173,17 @@ begin
   -- A payment recorded, and what it bought. The DATE is the useful half: an
   -- agent who knows when their cover ends can plan the next payment, and one
   -- who is only told "thank you" cannot.
+  --
+  -- NO AMOUNT. It used to read 'Payment recorded (TZS 25,000)', and the figure
+  -- was the one part of the sentence this app has no business repeating: what
+  -- an account pays is between that account and the admin who recorded it, it
+  -- is not the same number for every agent, and a notice is read over people's
+  -- shoulders on a shared phone. The date is what the agent has to act on.
   if new.paid_until is not null
      and (tg_op = 'INSERT' or old.paid_until is null or new.paid_until > old.paid_until) then
-    v_fee := case when new.amount_tzs > 0
-                  then ' (TZS ' || to_char(new.amount_tzs, 'FM999,999,999') || ')'
-                  else '' end;
     perform public.agent_notice_send(
       v_uid,
-      'Payment recorded' || v_fee,
+      'Payment recorded',
       'Your subscription now runs to ' || to_char(new.paid_until, 'FMDD Mon YYYY') ||
         '. You will get a reminder here before it ends.',
       'billing', 'info',
@@ -384,7 +386,78 @@ begin
 end $fn$;
 
 -- ---------------------------------------------------------------------------
--- 6. Grants
+-- 6. Throwing one away, for good
+-- ---------------------------------------------------------------------------
+-- Marking a notice read hides it from my_notices(), which is enough for the
+-- bell and was the only thing on offer. It is not enough for a person, for two
+-- reasons that came straight off a phone:
+--
+--   · nothing marks the row read except opening it on the Profile tab, so a
+--     notice tapped in the bell panel came back on the next 120 second poll,
+--     and the same four sentences arrived every day;
+--   · a read row is still a row. "Clear these and do not show them to me
+--     again" has no answer in an update.
+--
+-- So this deletes. There is no archive and no undo, which is the whole point:
+-- a notice is the platform talking to one account about itself, the account is
+-- the only reader it will ever have, and an account that has read it and does
+-- not want it is the end of that sentence.
+--
+-- SECURITY DEFINER and scoped to app_uid() on the way in. agent_messages has a
+-- self-SELECT and a self-UPDATE policy and deliberately no self-DELETE, so this
+-- function is the only door, and it can only ever open onto the caller's own
+-- rows.
+--
+-- WHAT A DELETE COSTS, AND WHY IT IS THE RIGHT PRICE. dedupe_key is what stops
+-- a notice being said twice, and it lives on the row. Delete the row and the
+-- automatic writers can say that thing once more: the morning sweep will
+-- re-send "your subscription ends in 5 days" if it is still true tomorrow.
+-- That is correct. A reminder about a deadline that has not passed is not a
+-- duplicate, and the alternative — a tombstone table so a cleared warning can
+-- never come back — would be this app quietly disarming its own alarm.
+create or replace function public.notice_delete(p_id uuid)
+  returns boolean
+  language plpgsql
+  security definer
+  set search_path = public
+as $fn$
+declare
+  v_uid text := public.app_uid();
+  v_n   int;
+begin
+  if v_uid is null or p_id is null then return false; end if;
+  delete from public.agent_messages
+   where id = p_id and to_user_id = v_uid;
+  get diagnostics v_n = row_count;
+  return v_n > 0;
+end $fn$;
+
+-- Every notice this account holds, gone. Returns how many there were.
+--
+-- p_read_only exists because the two are different requests. "Tidy up what I
+-- have already dealt with" is the safe one and is what the panel's own button
+-- sends; "clear everything, including the four I have not opened" is a thing a
+-- person can mean, and it is offered separately with the count in the question.
+create or replace function public.notices_clear(p_read_only boolean default false)
+  returns int
+  language plpgsql
+  security definer
+  set search_path = public
+as $fn$
+declare
+  v_uid text := public.app_uid();
+  v_n   int;
+begin
+  if v_uid is null then return 0; end if;
+  delete from public.agent_messages
+   where to_user_id = v_uid
+     and (coalesce(p_read_only, false) is false or read_at is not null);
+  get diagnostics v_n = row_count;
+  return v_n;
+end $fn$;
+
+-- ---------------------------------------------------------------------------
+-- 7. Grants
 -- ---------------------------------------------------------------------------
 -- agent_notice_send is NOT granted to anybody. It is the database's own writer,
 -- reached through the trigger and the sweep, and a client that could call it
@@ -394,6 +467,8 @@ revoke all on function public.agent_notice_send(text, text, text, text, text, te
 grant execute on function public.my_notices()                to anon, authenticated;
 grant execute on function public.notice_mark_read(uuid)      to anon, authenticated;
 grant execute on function public.notices_mark_all_read()     to anon, authenticated;
+grant execute on function public.notice_delete(uuid)         to anon, authenticated;
+grant execute on function public.notices_clear(boolean)      to anon, authenticated;
 grant execute on function public.agent_notices_remind(int)   to authenticated;
 
 commit;

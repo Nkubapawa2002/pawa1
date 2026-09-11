@@ -1,5 +1,5 @@
-// ============================================================================
-// notices_ui_test.mjs — the bell, and the Profile tab, carrying what the admin
+﻿// ============================================================================
+// notices_ui_test.mjs â€” the bell, and the Profile tab, carrying what the admin
 // said and how long the subscription has left.
 //
 // agent_notices_test.mjs proves the database side. This proves the two places
@@ -48,13 +48,23 @@ function stub(opts = {}) {
     : opts.notices;
   return `window.supabase={createClient:function(){
 var s=${JSON.stringify(session)};
-window.__marked=[];
+window.__marked=[];window.__deleted=[];window.__cleared=[];
+// The server's own copy, kept here rather than answered from a frozen literal.
+// A stub that returns the full list however often it is asked cannot tell a
+// panel that really removed a row from one that only looked like it did, and
+// "it came back on the next poll" is the entire bug this feature exists to end.
+// my_notices() returns the UNREAD, so marking one read takes it out too.
+var st={unread:0,notices:[],billing:null};
+(function(p){st.unread=p.unread;st.notices=(p.notices||[]).slice();st.billing=p.billing||null})(${JSON.stringify(payload)});
+function drop(id){st.notices=st.notices.filter(function(x){return x.id!==id});st.unread=st.notices.length}
 function tbl(){var b={};["select","eq","neq","gt","gte","lt","lte","is","or","order","limit","in","maybeSingle","single","update","insert"].forEach(function(m){b[m]=function(){return b}});
 b.then=function(r,j){return Promise.resolve({data:[],error:null}).then(r,j)};return b}
 return{rpc:function(n,a){
- if(n==="my_notices")return Promise.resolve({data:${JSON.stringify(payload)},error:null});
- if(n==="notice_mark_read"){window.__marked.push(a&&a.p_id);return Promise.resolve({data:true,error:null})}
- if(n==="notices_mark_all_read")return Promise.resolve({data:2,error:null});
+ if(n==="my_notices")return Promise.resolve({data:{unread:st.unread,notices:st.notices,billing:st.billing},error:null});
+ if(n==="notice_mark_read"){window.__marked.push(a&&a.p_id);drop(a&&a.p_id);return Promise.resolve({data:true,error:null})}
+ if(n==="notices_mark_all_read"){var m=st.notices.length;st.notices=[];st.unread=0;return Promise.resolve({data:m,error:null})}
+ if(n==="notice_delete"){window.__deleted.push(a&&a.p_id);drop(a&&a.p_id);return Promise.resolve({data:true,error:null})}
+ if(n==="notices_clear"){window.__cleared.push(!!(a&&a.p_read_only));var k=st.notices.length;st.notices=[];st.unread=0;return Promise.resolve({data:k,error:null})}
  if(n==="pm_inbox")return Promise.resolve({data:[],error:null});
  if(n==="my_agent_subscription")return Promise.resolve({data:[],error:null});
  return Promise.resolve({data:[],error:null})},
@@ -142,23 +152,31 @@ try {
     ok(counts === false, "and the subscription row carries no count chip", String(counts));
 
     const admin = await p.evaluate(() => {
-      const rows = [...document.querySelectorAll('.nt-item[data-key="admin"]')];
+      const rows = [...document.querySelectorAll(".nt-line[data-row]")];
       return {
         n: rows.length,
-        href: rows[0] ? rows[0].getAttribute("href") : "",
+        tag: rows[0] ? (rows[0].querySelector(".nt-item") || {}).tagName : "",
+        href: rows[0] ? !!rows[0].querySelector("a[href]") : null,
         when: rows.map((r) => (r.querySelector(".nt-item-when") || {}).textContent || ""),
-        ids: rows.map((r) => r.dataset.id).filter(Boolean).length,
+        ids: rows.map((r) => r.dataset.row).filter(Boolean).length,
+        opens: rows.map((r) => (r.querySelector("[data-open]") || {}).dataset?.open).filter(Boolean).length,
       };
     });
     ok(admin.n === 2, "one row per notice, not one row for all of them", String(admin.n));
-    ok(/profile\.html#notices/.test(admin.href),
-       "and each leads to where it can be read and marked", admin.href);
+    // It used to be an <a> to profile.html#notices, and marking it read only
+    // happened over there â€” so a notice tapped HERE was never marked and the
+    // two-minute poll brought it straight back. The row already holds the whole
+    // notice, so there is nothing to go and fetch and nowhere to send anybody.
+    ok(admin.tag === "BUTTON", "the row opens the notice rather than linking away", admin.tag);
+    ok(admin.href === false, "so there is no trip to another page to forget to make", String(admin.href));
     // A notice with no time on it is why one from this morning and one from
     // five weeks ago used to look identical.
-    ok(admin.when.every((w) => w.trim() !== ""), "each carries when it arrived", admin.when.join(" | "));
+    ok(admin.when.length === 2 && admin.when.every((w) => w.trim() !== ""),
+       "each carries when it arrived", admin.when.join(" | "));
     ok(admin.when[0] !== admin.when[1],
        "and two notices of different ages do not read the same", admin.when.join(" | "));
-    ok(admin.ids === 2, "and the id of the notice it stands for", String(admin.ids));
+    ok(admin.ids === 2 && admin.opens === 2,
+       "and the id of the notice it stands for", admin.ids + "/" + admin.opens);
 
     const sections = await p.evaluate(() =>
       [...document.querySelectorAll(".nt-sec")].map((x) => x.dataset.sec));
@@ -169,7 +187,144 @@ try {
   }
 
   // -------------------------------------------------------------------------
-  section("2. Nobody else is shown any of it");
+  // Read is a state and delete is a row, and the panel has to keep those two
+  // promises apart: the bin takes a notice away everywhere, while the cross on
+  // the subscription only hides a fact that is still true.
+  section("2. Putting one away, from the bell itself");
+  {
+    const p = await open(stub({ session: ACCOUNT }));
+    await p.goto("http://localhost:8080/index.html", { waitUntil: "domcontentloaded" });
+    await wait(3000);
+    await p.evaluate(() => document.getElementById("pawa-notify-bell")?.click());
+    await wait(600);
+
+    // Opening one, where it already is. The body un-clamps and the notice is
+    // marked read on the server, which is the half the old link never did.
+    const first = await p.evaluate(() => {
+      const b = document.querySelector("[data-open]");
+      const id = b && b.dataset.open;
+      b && b.click();
+      return id;
+    });
+    await wait(500);
+    ok(await p.evaluate(() => !!document.querySelector(".nt-line.is-open")),
+       "tapping a notice opens it where it is, rather than sending anybody anywhere");
+    ok(await p.evaluate((id) => window.__marked.indexOf(id) >= 0, first),
+       "and marks it read on the server, so the next poll does not bring it back",
+       JSON.stringify(await p.evaluate(() => window.__marked)));
+    // Deliberately still on screen: a re-render would drop the row out from
+    // under whoever is halfway through reading it.
+    ok(await p.evaluate((id) => !!document.querySelector('.nt-line[data-row="' + id + '"]'), first),
+       "and leaves it on screen, because a reader is in the middle of it");
+    ok(await p.evaluate(() => !document.querySelector(".nt-line.is-open .nt-item-dot")),
+       "with the unread dot gone, because it has just been read");
+
+    // The bin. A row, deleted, and gone from the panel without redrawing the
+    // rest â€” a redraw would ask the engine for a list that still holds it.
+    const binned = await p.evaluate(() => {
+      const b = document.querySelector('[data-put^="notice:"]');
+      const id = b && b.dataset.put.slice(7);
+      b && b.click();
+      return id;
+    });
+    await wait(500);
+    ok(await p.evaluate((id) => window.__deleted.indexOf(id) >= 0, binned),
+       "the bin deletes the notice on the server, not just on this screen",
+       JSON.stringify(await p.evaluate(() => window.__deleted)));
+    ok(await p.evaluate((id) => !document.querySelector('.nt-line[data-row="' + id + '"]'), binned),
+       "and its row leaves the panel");
+    ok(await p.evaluate(() => !!document.querySelector(".nt-line[data-row]")),
+       "while the other notice stays exactly where it was");
+
+    // The subscription is a STATE. Nothing wrote a row for it, so there is
+    // nothing to delete and the cross hides it as it stands today.
+    ok(await p.evaluate(() => !!document.querySelector('[data-put="billing"]')),
+       "the subscription row carries a cross of its own");
+    await p.evaluate(() => document.querySelector('[data-put="billing"]')?.click());
+    await wait(400);
+    ok(await p.evaluate(() => !document.querySelector('[data-put="billing"]')),
+       "which puts it away");
+    ok(await p.evaluate(() => !/ends in 5 days/i.test(document.querySelector(".nt-panel").textContent)),
+       "and the sentence goes with it");
+    // Keyed on the reason and the date, not the day count, or a dismissal would
+    // come back every morning as "ends in 4 days".
+    await p.evaluate(() => window.Notify && window.Notify.refresh());
+    await wait(700);
+    ok(await p.evaluate(() => !/ends in 5 days/i.test(document.querySelector(".nt-panel").textContent)),
+       "and it stays away across a refresh, because the subscription has not moved",
+       (await panelText(p)).slice(0, 140));
+    await p.close();
+  }
+
+  // -------------------------------------------------------------------------
+  section("3. Delete all asks first, and then means it");
+  {
+    const p = await open(stub({ session: ACCOUNT }));
+    await p.goto("http://localhost:8080/index.html", { waitUntil: "domcontentloaded" });
+    await wait(3000);
+    await p.evaluate(() => document.getElementById("pawa-notify-bell")?.click());
+    await wait(600);
+
+    ok(await p.evaluate(() => {
+      const b = document.querySelector('[data-foot="wipe"]');
+      return !!b && !b.hidden;
+    }), "the panel offers to delete the lot");
+
+    await p.evaluate(() => document.querySelector('[data-foot="wipe"]')?.click());
+    await wait(350);
+    // The question is a strip inside the panel, not a window.confirm: the panel
+    // is already a modal and a browser dialog stacked on it is the one thing a
+    // phone draws worse than the screen itself.
+    ok(await p.evaluate(() => {
+      const a = document.querySelector(".nt-ask");
+      return !!a && !a.hidden && /cannot be undone/i.test(a.textContent);
+    }), "and asks first, saying that it cannot be undone");
+    ok(await p.evaluate(() => window.__cleared.length === 0),
+       "having deleted nothing yet", JSON.stringify(await p.evaluate(() => window.__cleared)));
+    ok(await p.evaluate(() => {
+      const b = document.querySelector('[data-foot="wipe"]');
+      return !!b && getComputedStyle(b).display === "none";
+    }), "with the button itself out of the way, so it cannot be tapped twice");
+
+    await p.evaluate(() => document.querySelector('[data-foot="cancel"]')?.click());
+    await wait(300);
+    ok(await p.evaluate(() => document.querySelector(".nt-ask").hidden &&
+         window.__cleared.length === 0),
+       "cancelling puts the question away and leaves everything alone");
+
+    await p.evaluate(() => document.querySelector('[data-foot="wipe"]')?.click());
+    await wait(250);
+    await p.evaluate(() => document.querySelector('[data-foot="yes"]')?.click());
+    await wait(900);
+    ok(await p.evaluate(() => window.__cleared.length === 1 && window.__cleared[0] === false),
+       "answering yes clears everything, unread ones included",
+       JSON.stringify(await p.evaluate(() => window.__cleared)));
+    ok(await p.evaluate(() => !document.querySelector(".nt-line[data-row]")),
+       "no notice is left on the panel");
+    ok(await p.evaluate(() => !!document.querySelector(".nt-empty")),
+       "which says so, rather than showing a heading over nothing", (await panelText(p)).slice(0, 120));
+    // The subscription has no row to delete, so it would otherwise be the one
+    // thing still sitting on a panel the reader has just emptied.
+    ok(await p.evaluate(() => !/ends in 5 days/i.test(document.querySelector(".nt-panel").textContent)),
+       "and the subscription state goes quiet with them");
+
+    // The bell is the whole point: a badge still claiming four after the panel
+    // was emptied is the same lie as a notice coming back.
+    await p.evaluate(() => document.querySelector(".nt-x")?.click());
+    await wait(900);
+    ok(await p.evaluate(() => {
+      const b = document.querySelector(".pawa-notify-badge");
+      return !b || b.hidden || b.classList.contains("is-dot");
+    }), "and the badge stops counting what is no longer there",
+       await p.evaluate(() => {
+         const b = document.querySelector(".pawa-notify-badge");
+         return b ? (b.hidden ? "hidden" : b.textContent) : "none";
+       }));
+    await p.close();
+  }
+
+  // -------------------------------------------------------------------------
+  section("4. Nobody else is shown any of it");
   {
     const p = await open(stub({ session: null, notices: { unread: 0, notices: [], billing: null } }));
     await p.goto("http://localhost:8080/index.html", { waitUntil: "domcontentloaded" });
@@ -191,7 +346,7 @@ try {
   }
 
   // -------------------------------------------------------------------------
-  section("3. The Profile tab, which is where the bell points");
+  section("5. The Profile tab, which is where the bell points");
   {
     const p = await open(stub({ session: ACCOUNT }));
     await p.goto("http://localhost:8080/profile.html", { waitUntil: "domcontentloaded" });
@@ -228,7 +383,7 @@ try {
     await p.close();
   }
 
-  section("4. No errors");
+  section("6. No errors");
   ok(errors.length === 0, "no page threw anything", errors.slice(0, 3).join(" | "));
 } finally {
   await browser.close();

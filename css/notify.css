@@ -234,9 +234,15 @@
 
    Used for an admin notice. It carries the title the admin wrote, the first
    line of the body and when it arrived, so the panel answers "what did they
-   say" without being opened. It is an <a> to profile.html#notices, which is
-   where a notice is read in full and marked read; the resets below are what
-   stop an anchor inheriting link styling and let it lay out as a row.
+   say" without being opened.
+
+   It is a <button>, and it used to be an <a> to profile.html#notices. That was
+   the bug: a notice is marked read where it is READ, so one tapped here was
+   never marked, the two-minute poll brought it straight back, and the same
+   four sentences arrived every morning until somebody made the second trip.
+   The row already holds the whole notice, so the tap opens it in place and
+   marks it read; .nt-line.is-open below is what un-clamps the body. The resets
+   here are what stop a button looking like one and let it lay out as a row.
    --------------------------------------------------------------------------- */
 .nt-item {
   display: flex; align-items: flex-start; gap: var(--space-3);
@@ -404,11 +410,66 @@ a.dm-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   line-height: var(--lh-normal); max-width: 26ch;
 }
 
-.nt-clear {
+/* ---------------------------------------------------------------------------
+   8b. Putting a row away
+
+   Two things in this panel can be put away, and they are put away
+   differently: a notice is a ROW and the bin deletes it for good, while the
+   subscription is a STATE with no row behind it and the cross only hides it
+   until it moves. Same shape, two marks, because they are two promises.
+
+   The wrapper exists because a button cannot live inside an anchor. The row
+   keeps its own class and all of its own styling; this only puts something
+   beside it.
+   --------------------------------------------------------------------------- */
+.nt-line { display: flex; align-items: stretch; gap: var(--space-1); }
+.nt-line > .nt-item,
+.nt-line > .nt-row,
+.nt-line > .nt-alarm { flex: 1 1 auto; min-width: 0; }
+/* The alarm carries its own outer margin. Inside a line that margin belongs to
+   the line, or the button beside it sits on the rule rather than next to it. */
+.nt-line:has(> .nt-alarm) { margin: 0 var(--space-1) var(--space-2); }
+.nt-line > .nt-alarm { margin: 0; }
+
+.nt-put {
+  flex: 0 0 auto; align-self: center;
+  width: var(--hit-min); min-height: var(--hit-min);
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius); cursor: pointer;
+  background: transparent; color: inherit; opacity: .45;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.nt-put:hover { opacity: 1; background: var(--hover-tint); }
+.nt-put:focus-visible { outline: none; box-shadow: var(--focus-ring); opacity: 1; }
+.nt-put .nt-ic { width: 16px; height: 16px; }
+.nt-put--kill:hover { color: var(--danger); }
+
+/* An opened notice. The clamp is what keeps the closed row two lines tall; it
+   is the only thing that has to go for the whole message to be readable, so it
+   is the only thing that does. */
+.nt-line.is-open .nt-item-b {
+  display: block; -webkit-line-clamp: none; overflow: visible; opacity: .8;
+}
+.nt-line.is-open .nt-item { background: var(--hover-tint); }
+
+/* ---------------------------------------------------------------------------
+   8c. The footer, and the one question it asks
+
+   Read and delete are different promises and get different buttons. The
+   question is a strip inside the panel rather than a window.confirm, because
+   the panel is already a modal and a browser dialog stacked on it is the one
+   thing on this screen a phone draws worse than the screen itself.
+   --------------------------------------------------------------------------- */
+.nt-foot {
   flex: 0 0 auto;
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  padding: 0 var(--space-2) var(--space-3);
+}
+.nt-foot[hidden] { display: none; }
+
+.nt-clear {
+  flex: 1 1 140px;
   display: flex; align-items: center; justify-content: center; gap: var(--space-2);
-  width: calc(100% - 16px);
-  margin: 0 var(--space-2) var(--space-3);
   min-height: var(--hit-min);
   border: 1px solid var(--border-strong);
   background: transparent; color: inherit;
@@ -416,12 +477,38 @@ a.dm-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   font: inherit; font-size: var(--text-sm); font-weight: var(--fw-semibold);
 }
 .nt-clear[hidden] { display: none; }
+/* Out of the way while the question is up, so the answer is the only thing on
+   the strip and "Delete all" cannot be tapped a second time. */
+.nt-clear.is-away { display: none; }
 .nt-clear:hover { background: var(--hover-tint); }
 .nt-clear:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .nt-clear .nt-ic { width: 17px; height: 17px; }
+.nt-clear--kill {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.nt-clear--kill:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+.nt-ask { flex: 1 1 100%; }
+.nt-ask[hidden] { display: none; }
+.nt-ask-q {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs); line-height: var(--lh-snug); opacity: .8;
+}
+.nt-ask-acts { display: flex; gap: var(--space-2); }
+.nt-ask-b {
+  flex: 1 1 0; min-height: var(--hit-min);
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: transparent; color: inherit; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); font-weight: var(--fw-semibold);
+}
+.nt-ask-b:hover { background: var(--hover-tint); }
+.nt-ask-b:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.nt-ask-b.is-kill { border-color: var(--danger); color: var(--danger); }
+.nt-ask-b.is-kill:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 
 @media (prefers-reduced-motion: reduce) {
-  .pawa-notify-bell, .nt-panel, .nt-row, .nt-item { transition: none; }
+  .pawa-notify-bell, .nt-panel, .nt-row, .nt-item, .nt-put { transition: none; }
   .pawa-notify-bell.has-news .nt-ic { animation: none; }
 }
 

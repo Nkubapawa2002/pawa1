@@ -19,10 +19,17 @@
 //  next week when it ended yesterday, and that is the one number this whole
 //  feature exists to get right.
 //
+//  READ IS NOT GONE. Marking a notice read hides it from the bell; the row
+//  stays, and "clear these and never show them to me again" has no answer in an
+//  update. remove() and clearAll() DELETE, through an RPC that can only ever
+//  reach the caller's own rows. There is no undo, which is the point.
+//
 //  Public API:
 //    Notices.load(force)     -> { unread, notices: [...], billing }
 //    Notices.markRead(id)    -> true when a row was actually marked
 //    Notices.markAll()       -> how many were marked
+//    Notices.remove(id)      -> true when a row was actually deleted
+//    Notices.clearAll(readOnly) -> how many were deleted
 //    Notices.billingLine(b)  -> one sentence about where the subscription is
 //    Notices.severityTint(s) -> the action-card tint class for a severity
 // ============================================================================
@@ -92,6 +99,51 @@
       }
       return !!res.data;
     } catch (_) { return false; }
+  }
+
+  /**
+   * Gone, not hidden.
+   *
+   * The cache is trimmed the same way markRead() trims it, so the Profile tab
+   * that just deleted a row does not draw it again on its next render while a
+   * refetch is in flight. `unread` is only decremented when the row that left
+   * was actually unread: deleting something already read must not make the
+   * badge count down past what is there.
+   */
+  async function remove(id) {
+    var c = sb();
+    if (!c || !id) return false;
+    try {
+      var res = await c.rpc("notice_delete", { p_id: id });
+      if (res.error) return false;
+      if (cache) {
+        var gone = cache.notices.filter(function (n) { return n.id === id; }).length;
+        cache.notices = cache.notices.filter(function (n) { return n.id !== id; });
+        if (gone) cache.unread = Math.max(0, cache.unread - gone);
+      }
+      return !!res.data;
+    } catch (_) { return false; }
+  }
+
+  /**
+   * Every notice this account holds, deleted.
+   *
+   * readOnly keeps the ones that have not been opened yet, which is the safe
+   * half of the request and what the panel's own button sends. The whole sweep
+   * is a separate thing to ask for, and the caller asks for it explicitly.
+   */
+  async function clearAll(readOnly) {
+    var c = sb();
+    if (!c) return 0;
+    try {
+      var res = await c.rpc("notices_clear", { p_read_only: !!readOnly });
+      if (res.error) return 0;
+      // my_notices() only ever returns the UNREAD, so a tidy-up deletes rows
+      // that were never in this cache and there is nothing here to trim. A
+      // full clear takes the ones that are.
+      if (cache && !readOnly) { cache.notices = []; cache.unread = 0; }
+      return Number(res.data) || 0;
+    } catch (_) { return 0; }
   }
 
   async function markAll() {
@@ -174,6 +226,8 @@
     load: load,
     markRead: markRead,
     markAll: markAll,
+    remove: remove,
+    clearAll: clearAll,
     billingLine: billingLine,
     needsAttention: needsAttention,
     severityTint: severityTint,

@@ -556,9 +556,38 @@
     window.PMIdentityUI.open("<h2>" + esc(n.title || t("pf_notice", "A message about your account")) + "</h2>" +
       (when ? '<p class="pf-modal-at">' + esc(when) + "</p>" : "") +
       "<p>" + esc(n.body || "") + "</p>" +
-      '<div class="pm-modal-acts"><button class="pm-btn" id="pfNoticeX">' +
-      esc(t("pm_close", "Close")) + "</button></div>");
+      '<div class="pm-modal-acts">' +
+        '<button class="pm-btn ghost" id="pfNoticeDel">' +
+          esc(t("nt_del_one", "Delete this notification")) + "</button>" +
+        '<button class="pm-btn" id="pfNoticeX">' + esc(t("pm_close", "Close")) + "</button>" +
+      "</div>");
     document.getElementById("pfNoticeX").addEventListener("click", window.PMIdentityUI.close);
+    // Read hides it from the bell; the row stays, and stays on this list. A
+    // notice somebody has read and does not want is the end of that sentence,
+    // so the dialog that shows it in full is where it can be thrown away. No
+    // second confirmation: opening the notice WAS the deliberate step, and the
+    // list it leaves is rebuilt from the server on the next load either way.
+    document.getElementById("pfNoticeDel").addEventListener("click", function () {
+      window.PMIdentityUI.close();
+      dropNotice(n.id);
+    });
+  }
+
+  /** One notice, gone from the server and from what this page is holding. */
+  function dropNotice(id) {
+    if (!window.Notices || !window.Notices.remove) return;
+    window.Notices.remove(id).then(function () {
+      if (notices) {
+        var gone = (notices.notices || []).filter(function (n) { return n.id === id; }).length;
+        notices = {
+          unread: Math.max(0, (notices.unread || 0) - gone),
+          notices: (notices.notices || []).filter(function (n) { return n.id !== id; }),
+          billing: notices.billing,
+        };
+      }
+      render();
+      if (window.Notify && window.Notify.refresh) window.Notify.refresh();
+    });
   }
 
   /**

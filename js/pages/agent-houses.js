@@ -3458,23 +3458,98 @@ create policy "house-photos upload" on storage.objects for insert
   });
 
   // ---- Save listing (create or update) ------------------------------------
+  /**
+   * Say something, where the agent is looking.
+   *
+   * #ahFormMsg is the last thing in the form, and the board moved the action
+   * bar off the end of the form and onto itself — so a message written here
+   * landed under eight collapsed panels, behind the fixed tab bar, on a
+   * scroll position nobody was at. Centring it is what makes it a message
+   * rather than a paragraph.
+   *
+   * `focus` is passed for the field that caused it, because on a phone the
+   * keyboard opening on the right box says more than any sentence.
+   */
+  function sayInForm(text, kind, focus) {
+    formMsg.className = "ah-msg " + (kind || "error");
+    formMsg.textContent = text;
+    formMsg.hidden = false;
+    if (focus) { try { focus.focus({ preventScroll: true }); } catch (_) { focus.focus(); } }
+    try { formMsg.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    catch (_) { formMsg.scrollIntoView(); }
+  }
+
+  /**
+   * The first answer the form is still missing, and where it lives.
+   *
+   * The browser used to do this, and it did it invisibly: the listing title is
+   * `required` and sits in part 2, the board takes all eight parts out of the
+   * layout, and Chrome will not show a validation bubble on a control it
+   * cannot focus. So it blocked the submit, logged a line to a console no
+   * agent has open, and the Save button looked broken. The form is `novalidate`
+   * now and this runs instead.
+   *
+   * A control the PAGE has hidden is skipped: the minimum-months row and the
+   * "specify the kind" box are hidden when they do not apply, and neither is
+   * an answer anybody owes.
+   */
+  function firstMissing() {
+    const controls = form.querySelectorAll("input, select, textarea");
+    for (const c of controls) {
+      if (!c.willValidate || c.disabled || c.type === "hidden") continue;
+      if (c.closest("[hidden]")) continue;
+      if (!c.checkValidity()) return c;
+    }
+    return null;
+  }
+
+  /** The name of the part a control lives in, as the panel's own heading says it. */
+  function partName(el) {
+    const panel = el && el.closest(".ap-panel");
+    const h = panel && panel.querySelector(".ap-panel__tx h3");
+    return h ? h.textContent.trim() : "";
+  }
+
+  /**
+   * Put the agent in front of the problem.
+   *
+   * Opening the step is the useful half. The board hides every part, so a
+   * message naming one is a message about somewhere the reader cannot see;
+   * with the step open the field is on screen with the cursor already in it.
+   */
+  function stopAt(el, text) {
+    if (el && formWs && formWs.reveal) formWs.reveal(el);
+    sayInForm(text, "error", el);
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     formMsg.hidden = true;
+
+    // Required fields first, because this is the one that silently did nothing.
+    const missing = firstMissing();
+    if (missing) {
+      // An EMPTY required field gets the part's own name, because "The basics
+      // still needs an answer" is something a person can act on from a board
+      // of eight tiles. Anything else -- a number typed as words, a date that
+      // is not one -- gets the browser's own sentence, which already says what
+      // is wrong with the value and says it in the reader's language.
+      const part = partName(missing);
+      stopAt(missing, (missing.validity.valueMissing && part)
+        ? trf("ah_err_missing", "{part} still needs an answer.").replace("{part}", part)
+        : (missing.validationMessage || tr("ah_msg_save_fail")));
+      return;
+    }
+
     if (!pickedLatLng) {
-      formMsg.className = "ah-msg error";
-      formMsg.textContent = tr("ah_err_no_pin");
-      formMsg.hidden = false;
+      stopAt(fArea || document.getElementById("ahSecWhere"), tr("ah_err_no_pin"));
       return;
     }
     // The overall price stopped being compulsory the moment a listing could
     // price its rooms individually — but SOME price has to exist, or the card
     // says nothing a person can decide on. One or the other, never neither.
     if (!(Number(fPrice.value) > 0) && !(HS && HS.priceFrom({ details: { rooms: collectRooms() } }))) {
-      formMsg.className = "ah-msg error";
-      formMsg.textContent = tr("ah_err_no_price");
-      formMsg.hidden = false;
-      fPrice.focus();
+      stopAt(fPrice, tr("ah_err_no_price"));
       return;
     }
     saveBtn.disabled = true;
@@ -3591,10 +3666,9 @@ create policy "house-photos upload" on storage.objects for insert
       // didn't silently get filtered out by RLS or a write-only schema.
       // An edit that has lost its id is not a new listing. See openForm().
       if (openedForEdit && !editingId) {
-        formMsg.hidden = false;
-        formMsg.className = "ah-msg error";
-        formMsg.textContent = trf("ah_edit_lost",
-          "This listing lost track of which one it was editing. Close the form and open it again from the list. Saving now would post a second listing.");
+        sayInForm(trf("ah_edit_lost",
+          "This listing lost track of which one it was editing. Close the form and open it again from the list. Saving now would post a second listing."),
+          "error");
         return;
       }
 
@@ -3672,12 +3746,10 @@ create policy "house-photos upload" on storage.objects for insert
         );
       }
 
-      formMsg.className = "ah-msg success";
-      formMsg.textContent = editingId ? tr("ah_msg_saved_edit") : tr("ah_msg_saved_new");
+      sayInForm(editingId ? tr("ah_msg_saved_edit") : tr("ah_msg_saved_new"), "success");
       // One of the three posts has just been spent, so the panel and the New
       // listing button have to say so before the owner reaches for either.
       refreshOwnerQuota();
-      formMsg.hidden = false;
 
       // The clip(s) saved, but the optimiser couldn't reach/process them, so
       // they may stutter on playback. Tell the agent so they can re-save once
@@ -3709,9 +3781,7 @@ create policy "house-photos upload" on storage.objects for insert
       }, 700);
     } catch (err) {
       console.warn("save listing", err);
-      formMsg.className = "ah-msg error";
-      formMsg.textContent = err.message || tr("ah_msg_save_fail");
-      formMsg.hidden = false;
+      sayInForm(err.message || tr("ah_msg_save_fail"), "error");
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = tr("ah_save");
