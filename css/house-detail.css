@@ -810,7 +810,7 @@ body[data-page="house"] :focus-visible {
    because a bracket presented without that line reads like a measurement. */
 .hx-size-note {
   margin: var(--space-1) 0 0;
-  font: var(--fw-regular) var(--text-xs)/1.5 var(--font-app);
+  font: var(--fw-normal) var(--text-xs)/1.5 var(--font-app);
   color: var(--hx-ink-faint);
 }
 /* And when both are present the pair reads as one block, not two paragraphs
@@ -937,6 +937,151 @@ body[data-page="house"] :focus-visible {
   overflow: hidden;
   border: 1px solid var(--hx-line-strong);
 }
+
+/* ---------------------------------------------------------------------------
+   NOTHING SITS ON THE TOP OF THIS MAP.
+
+   Four things used to land in the top strip of a 320px square: the shared
+   Maximize pill, eleven sideways-scrolling category chips, the zoom stepper and
+   the Map / Satellite toggle. The pill covered the first chip, and between them
+   they hid the neighbourhood directly above the pin, which is the part somebody
+   opens a map to look at.
+
+   The chips left the map altogether (.hd-poi, below). The rest hang off the
+   foot: Maximize bottom-left, zoom and basemap bottom-right, attribution
+   compact under them.
+
+   MapLibre's own stylesheet paints an opaque white block with black icons. The
+   glass here is deliberately NOT themed: the satellite imagery under it is the
+   same picture in light mode as in dark, so map chrome that followed the page
+   would turn pale-on-pale on half the listings. --black and --white are base
+   tokens that theme-light.css does not redefine, which is why they are the two
+   it is built from.
+   --------------------------------------------------------------------------- */
+.hd-map .maplibregl-ctrl-group,
+.hd-map .maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--black) 74%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+/* The inline `background:#fff; color:#1a1915` on the basemap toggle is written
+   by pawaGlBasemapToggle() in js/core/config.js, which is shared with the agent
+   pin-picker. An inline style can only be beaten with !important, and beating
+   it here is cheaper than forking the control for one page. */
+.hd-map .maplibregl-ctrl-group button {
+  background: transparent !important;
+  color: var(--white) !important;
+  border-radius: 0;
+}
+.hd-map .maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--glass-border);
+}
+.hd-map .maplibregl-ctrl-group button:hover {
+  background: color-mix(in srgb, var(--white) 14%, transparent) !important;
+}
+/* The +/- glyphs are black background-image SVGs, so colour cannot reach them. */
+.hd-map .maplibregl-ctrl-icon { filter: invert(1); opacity: .92; }
+.hd-map .maplibregl-ctrl-attrib,
+.hd-map .maplibregl-ctrl-attrib a {
+  color: var(--white);
+  font-size: var(--text-xs);
+}
+.hd-map .maplibregl-ctrl-attrib-button { filter: invert(1); opacity: .8; }
+/* MapLibre gives every control a 10px margin of its own, which stacks with the
+   column gap and spreads three small controls over two thirds of the right
+   edge. One padding on the corner, one gap between them, nothing on each. */
+.hd-map .maplibregl-ctrl-bottom-right,
+.hd-map .maplibregl-ctrl-bottom-left { gap: 6px; padding: 10px; }
+.hd-map .maplibregl-ctrl-bottom-right > .maplibregl-ctrl,
+.hd-map .maplibregl-ctrl-bottom-left > .maplibregl-ctrl { margin: 0; }
+
+/* The shared Maximize pill (js/lib/map-expand.js) is top-left on every other
+   map in the app. Here the top is empty on purpose, so it moves to the foot and
+   takes the same glass as the controls opposite it. */
+#hdMap .pawa-map-expand-btn {
+  top: auto;
+  bottom: 10px;
+  left: 10px;
+  padding: 7px var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--black) 74%, transparent);
+  color: var(--white);
+  font: var(--fw-semibold) var(--text-xs)/1 var(--font-app);
+  box-shadow: var(--shadow-1);
+}
+#hdMap .pawa-map-expand-btn:hover {
+  background: color-mix(in srgb, var(--black) 86%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   Places around this home.
+
+   The eleven categories, out from over the map and under it, where the whole
+   row is readable at once instead of eight of them living off the right edge.
+   They still do exactly what they did: a tap fetches that category from
+   OpenStreetMap once and paints its pins.
+   --------------------------------------------------------------------------- */
+.hd-poi { margin-top: var(--space-3); }
+.hd-poi__label {
+  margin: 0 0 var(--space-2);
+  font: var(--fw-semibold) var(--text-xs)/1.3 var(--font-app);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--hx-ink-muted);
+}
+.hd-poi-toolbar { display: flex; flex-wrap: wrap; gap: 5px; }
+/* 32px, not --hit-min. Eleven 44px pills is a 300px wall between the map and
+   "Directions in Google Maps", which is the one thing on this screen somebody
+   is certain to want. A filter chip is a secondary control and reads as one. */
+.hd-poi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--hx-rail);
+  border: 1px solid var(--hx-line-strong);
+  color: var(--hx-ink-soft);
+  font: var(--fw-semibold) var(--text-xs)/1.3 var(--font-app);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.hd-poi-chip:hover { border-color: var(--hx-accent-line); color: var(--hx-ink); }
+.hd-poi-chip:active { transform: scale(.96); }
+.hd-poi-chip.active {
+  background: var(--hx-accent);
+  color: var(--text-on-brand);
+  border-color: var(--hx-accent);
+}
+.hd-poi-chip svg { flex: 0 0 auto; width: 12px; height: 12px; opacity: .9; }
+.hd-poi-chip.loading::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: 2px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: hd-spin .8s linear infinite;
+}
+@keyframes hd-spin { to { transform: rotate(360deg); } }
+/* A permanent row rather than a pill that appears over the imagery and vanishes
+   on a timer: the block keeps one height, and with nothing chosen it says what
+   the chips are for, which is the state it is in most of the time. */
+.hd-poi-status {
+  margin: var(--space-2) 0 0;
+  min-height: 1.5em;
+  font: var(--fw-normal) var(--text-xs)/1.5 var(--font-app);
+  color: var(--hx-ink-muted);
+}
 /* ---------------------------------------------------------------------------
    Getting there.
 
@@ -963,7 +1108,7 @@ body[data-page="house"] :focus-visible {
 .hd-go__main svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--hx-accent); }
 .hd-go__tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .hd-go__t { font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app); }
-.hd-go__d { font: var(--fw-regular) var(--text-xs)/1.45 var(--font-app); color: var(--hx-ink-muted); }
+.hd-go__d { font: var(--fw-normal) var(--text-xs)/1.45 var(--font-app); color: var(--hx-ink-muted); }
 /* A listing with no pin still draws the row, so the sheet does not change
    shape between listings, but it must not look like something to press. */
 .hd-go__main[aria-disabled="true"] { opacity: .55; pointer-events: none; }
@@ -973,14 +1118,14 @@ body[data-page="house"] :focus-visible {
   border-radius: var(--radius-sm);
   background: var(--hx-rail);
   border: 1px solid var(--hx-line-strong);
-  font: var(--fw-regular) var(--text-xs)/1.5 var(--font-app);
+  font: var(--fw-normal) var(--text-xs)/1.5 var(--font-app);
   color: var(--hx-ink-muted);
 }
 
 /* The places this person already saved on houses.html. Two answers per row,
    because "take me there" and "how far is it" are different questions. */
 .hd-saved { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
-.hd-saved__none { margin: 0; font: var(--fw-regular) var(--text-xs)/1.5 var(--font-app); color: var(--hx-ink-muted); }
+.hd-saved__none { margin: 0; font: var(--fw-normal) var(--text-xs)/1.5 var(--font-app); color: var(--hx-ink-muted); }
 .hd-saved__row {
   display: flex;
   flex-wrap: wrap;
@@ -993,7 +1138,7 @@ body[data-page="house"] :focus-visible {
 }
 .hd-saved__who { display: flex; flex-direction: column; gap: 1px; flex: 1 1 130px; min-width: 0; }
 .hd-saved__n { font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app); color: var(--hx-ink); }
-.hd-saved__k { font: var(--fw-regular) var(--text-xs)/1.3 var(--font-app); color: var(--hx-ink-muted); }
+.hd-saved__k { font: var(--fw-normal) var(--text-xs)/1.3 var(--font-app); color: var(--hx-ink-muted); }
 .hd-saved__acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .hd-saved__go,
 .hd-saved__here {
@@ -1046,69 +1191,6 @@ body[data-page="house"] :focus-visible {
   text-decoration: none;
 }
 .hd-map-actions svg { width: 15px; height: 15px; flex: 0 0 auto; }
-
-/* POI toggle chips floating over the map */
-.hd-poi-toolbar {
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
-  right: 62px;
-  z-index: 10;
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 4px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.hd-poi-toolbar::-webkit-scrollbar { display: none; }
-.hd-poi-chip {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px var(--space-2);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--bg-app) 78%, transparent);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border);
-  color: var(--hx-ink);
-  font: var(--fw-semibold) var(--text-xs)/1.4 var(--font-app);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-              transform var(--dur-fast) var(--ease);
-}
-.hd-poi-chip:active { transform: scale(.95); }
-.hd-poi-chip.active { background: var(--hx-accent); color: var(--text-on-brand); border-color: var(--hx-accent); }
-.hd-poi-chip svg { flex: 0 0 auto; opacity: .85; }
-.hd-poi-chip.loading::after {
-  content: "";
-  width: 8px;
-  height: 8px;
-  margin-left: 3px;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: hd-spin .8s linear infinite;
-}
-@keyframes hd-spin { to { transform: rotate(360deg); } }
-.hd-poi-status {
-  position: absolute;
-  bottom: var(--space-2);
-  left: var(--space-2);
-  z-index: 10;
-  padding: 4px var(--space-3);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--bg-app) 86%, transparent);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  color: var(--hx-ink);
-  font-size: var(--text-xs);
-  pointer-events: none;
-}
 
 /* POI marker pins */
 .hd-poi-marker {
@@ -1227,6 +1309,36 @@ body[data-page="house"] :focus-visible {
   cursor: pointer;
 }
 .hd-commute-btn:disabled { opacity: .6; cursor: default; }
+/* Google Maps for the area that was just typed, with this home and that place
+   already in it. Drawn as the answer to the box above it, so it reads as the
+   next step rather than as a third button competing with Measure. */
+.hd-commute-open {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  min-height: var(--hit-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--hx-accent-dim);
+  border: 1px solid var(--hx-accent-line);
+  color: var(--hx-ink);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.hd-commute-open[hidden] { display: none; }
+.hd-commute-open:hover {
+  background: var(--hx-rail);
+  border-color: var(--hx-line-strong);
+  text-decoration: none;
+}
+.hd-commute-open svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--hx-accent); }
+.hd-commute-open__tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hd-commute-open__t { font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app); }
+.hd-commute-open__d {
+  font: var(--fw-normal) var(--text-xs)/1.45 var(--font-app);
+  color: var(--hx-ink-muted);
+}
 .hd-commute-msg {
   margin-top: var(--space-3);
   padding: var(--space-2) var(--space-3);
@@ -1683,7 +1795,7 @@ body[data-page="house"] {
 .hcc-aside {
   display: flex; align-items: flex-start; gap: var(--space-3);
   margin-top: var(--space-3);
-  font: var(--fw-regular) var(--text-sm)/1.4 var(--font-app);
+  font: var(--fw-normal) var(--text-sm)/1.4 var(--font-app);
   color: var(--hx-ink-soft);
 }
 .hcc-pill {
@@ -1710,7 +1822,7 @@ body[data-page="house"] {
 .hcc-table th, .hcc-table td {
   text-align: left; padding: var(--space-2) 0;
   border-bottom: 1px solid var(--hx-line);
-  font: var(--fw-regular) var(--text-sm)/1.3 var(--font-app);
+  font: var(--fw-normal) var(--text-sm)/1.3 var(--font-app);
   color: var(--hx-ink-soft);
 }
 .hcc-table td:last-child, .hcc-table th:last-child {

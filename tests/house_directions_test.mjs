@@ -215,9 +215,15 @@ console.log("\n6. All of it speaks Swahili");
   const { page, errs } = await render({ lang: "sw", places: MY_PLACES });
   const txt = await page.$eval("#sec-place", (e) => e.innerText);
   const ENGLISH = [
-    "Directions in Google Maps", "Show the route on this map", "Live meet with agent",
+    "Directions in Google Maps", "See the whole route in Google Maps", "Live meet with agent",
     "How far is this home", "Workplace", "Open in Google Maps", "Draw it on this map",
     "Somewhere else", "Measure", "Where it is",
+    // The category chips under the map. They were eleven hardcoded English
+    // words until they came out from over the imagery, so they are named here
+    // rather than trusted: a chip is the easiest thing on this screen to add
+    // without remembering it is read in two languages.
+    "Places around this home", "Tap a kind of place", "Schools", "Hospitals",
+    "Banks and ATMs", "Mosques and churches", "Post and government",
   ];
   const leaked = ENGLISH.filter((s) => txt.includes(s));
   ok(leaked.length === 0, "no English left in the place section", leaked.join(" | "));

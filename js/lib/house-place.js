@@ -35,15 +35,42 @@ function mountMap(h) {
 
   // Hybrid base (satellite + roads + street names) with a Map / Satellite
   // toggle, so a buyer can always read which street the home sits on.
+  //
+  // EVERY CONTROL HANGS OFF THE BOTTOM. Four things used to land in the top
+  // strip of a 320px map: the Maximize pill, eleven scrolling category chips,
+  // the zoom stepper and the basemap toggle. The pill covered the first chip,
+  // and between them they hid the part of the neighbourhood directly above the
+  // pin, which is the part somebody is reading the map for. The chips moved out
+  // of the map entirely (see attachNearbyOverlay); the rest moved down here.
+  //
+  // The attribution is added by hand only so it can be `compact`: the default
+  // paints a full-width white bar of credits across the foot of the imagery.
   const map = new maplibregl.Map({
     container: "hdMap",
     style: window.pawaGlHybridStyle ? window.pawaGlHybridStyle() : { version: 8, sources: {}, layers: [] },
     center: [h.lng, h.lat],
     zoom: 15,
-    maxBounds: [[29.34, -11.75], [40.45, -0.99]]
+    maxBounds: [[29.34, -11.75], [40.45, -0.99]],
+    attributionControl: false
   });
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-  if (window.pawaGlBasemapToggle) map.addControl(window.pawaGlBasemapToggle(), "top-right");
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+  // MapLibre renders the compact attribution OPEN on first paint, which is a
+  // 254px bar of credits lying across the foot of the imagery and straight
+  // through the Maximize button at 390px. Closed, it is the (i) that compact
+  // mode exists to be, and the credit is one tap away, which is what the tile
+  // terms ask for. Re-closed on load because the control reopens itself when
+  // the style finishes and the attributions are recounted.
+  const shutAttrib = () => {
+    const d = mapEl.querySelector("details.maplibregl-ctrl-attrib");
+    if (d) d.open = false;
+  };
+  shutAttrib();
+  map.once("load", shutAttrib);
+  map.once("idle", shutAttrib);
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+  if (window.pawaGlBasemapToggle) map.addControl(window.pawaGlBasemapToggle(), "bottom-right");
+  // Bottom-LEFT, so it never stacks under the three above. The shared button is
+  // top-left everywhere else in the app; css/house-detail.css moves this one.
   window.pawaMapExpand && window.pawaMapExpand("hdMap", () => map);
 
   const pin = document.createElement("div");
@@ -57,7 +84,6 @@ function mountMap(h) {
     .setLngLat([h.lng, h.lat])
     .addTo(map);
 
-  wireRouteButton(map, h);
   attachNearbyOverlay(map, h.lat, h.lng);
   attachCommuteTool(map, h.lat, h.lng);
   showNearestMainRoad(h.lat, h.lng);
@@ -71,84 +97,19 @@ function mountMap(h) {
  * fix and THEN navigating is a popup the browser blocks and a href rewritten
  * after the click has already been followed. So the link is always valid and
  * gets better in the background instead.
+ *
+ * TWO links, one destination. The main one is for going; the second is for
+ * looking, which is the job the hand-drawn OSRM line used to do here and did
+ * badly: a road on a 320px square, bought with a location prompt and several
+ * seconds of waiting. Google Maps already has the whole route, the traffic on
+ * it and a screen to spread it over, and both boxes are filled in either way.
  */
 function wireDirections(h) {
-  const btn = document.getElementById("hdDirBtn");
-  if (!btn || !window.PawaMaps) return;
-  window.PawaMaps.bindDirections(btn, { lat: h.lat, lng: h.lng }, { mode: "car" });
-}
-
-/**
- * Draw the REAL driving route from the visitor to this house, so the distance
- * is the actual road rather than a straight line.
- *
- * This is the measuring answer, not the navigating one. Google Maps is one tap
- * away above it and always was the right tool for "get me there"; what OSRM is
- * for is telling somebody how far a place is without making them leave the
- * listing they are reading.
- */
-function wireRouteButton(map, h) {
-  const routeBtn = document.getElementById("hdRouteBtn");
-  routeBtn?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    if (!window.pawaLocate || !window.pawaRoute) return;
-    const idle = routeBtn.innerHTML;
-    routeBtn.textContent = T("hs_locating", "Finding you…");
-    try {
-      const fix = await window.pawaLocate.best({ targetAccuracy: 80, hardTimeout: 12000 });
-      const r = await window.pawaRoute.route({ lat: fix.lat, lng: fix.lng }, { lat: h.lat, lng: h.lng });
-      if (!r || !r.geojson) { routeBtn.textContent = T("hs_route_none", "No road route found just now"); return; }
-      const ensure = () => map.isStyleLoaded() ? Promise.resolve() : new Promise((res) => map.once("load", res));
-      await ensure();
-
-      // When more than one road reaches the area, draw the alternatives too
-      // (lighter dashed lines under the main route). White casing under each
-      // coloured line keeps them visible on the satellite-hybrid base; casings
-      // share the line's source, so drop both layers before the source.
-      const alts = (r.alts || []).filter((a) => a.geojson && Array.isArray(a.geojson.coordinates));
-      ["hd-route-alts-casing", "hd-route-alts"].forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-      if (map.getSource("hd-route-alts")) map.removeSource("hd-route-alts");
-      if (alts.length) {
-        map.addSource("hd-route-alts", { type: "geojson", data: {
-          type: "FeatureCollection",
-          features: alts.map((a) => ({ type: "Feature", geometry: a.geojson }))
-        } });
-        map.addLayer({ id: "hd-route-alts-casing", type: "line", source: "hd-route-alts",
-          paint: { "line-color": ROUTE_CASING, "line-width": 6, "line-opacity": 0.5 } });
-        map.addLayer({ id: "hd-route-alts", type: "line", source: "hd-route-alts",
-          paint: { "line-color": ROUTE_LINE, "line-width": 4, "line-opacity": 0.6, "line-dasharray": [2, 1.5] } });
-      }
-      ["hd-route-casing", "hd-route"].forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-      if (map.getSource("hd-route")) map.removeSource("hd-route");
-      map.addSource("hd-route", { type: "geojson", data: { type: "Feature", geometry: r.geojson } });
-      map.addLayer({ id: "hd-route-casing", type: "line", source: "hd-route",
-        paint: { "line-color": ROUTE_CASING, "line-width": 8, "line-opacity": 0.9 } });
-      map.addLayer({ id: "hd-route", type: "line", source: "hd-route",
-        paint: { "line-color": ROUTE_LINE, "line-width": 5, "line-opacity": 0.95 } });
-      new maplibregl.Marker({ color: ROUTE_LINE }).setLngLat([fix.lng, fix.lat]).addTo(map);
-
-      // Fit around every road that reaches the home, not just the fastest one.
-      const cs = [].concat(r.geojson.coordinates || [], ...alts.map((a) => a.geojson.coordinates));
-      if (cs.length) {
-        const b = cs.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(cs[0], cs[0]));
-        map.fitBounds(b, { padding: 50, duration: 600 });
-      }
-      showGoMsg("");
-      routeBtn.textContent = fillT(T("hs_route_read", "{km} km by road, about {min} min"),
-                                   { km: r.km.toFixed(1), min: Math.round(r.durationMin) });
-      if (alts.length) {
-        routeBtn.title = fillT(T("hs_route_alt", "Other road: {list}"),
-                               { list: alts.map((a) => a.km.toFixed(1) + " km").join(", ") });
-      }
-    } catch (err) {
-      // Never window.alert(): it is untranslated, it cannot be styled, and it
-      // steals the tap that the Google Maps link above would have answered
-      // anyway. The refusal is a state of this section, so it is drawn in it.
-      routeBtn.innerHTML = idle;
-      showGoMsg((window.pawaLocate && window.pawaLocate.message
-        ? window.pawaLocate.message(err)
-        : (err && err.message)) || T("hs_route_none", "No road route found just now"));
-    }
+  if (!window.PawaMaps) return;
+  const to = { lat: h.lat, lng: h.lng };
+  ["hdDirBtn", "hdRouteBtn"].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) window.PawaMaps.bindDirections(btn, to, { mode: "car" });
   });
 }
 
@@ -241,11 +202,10 @@ function renderSavedPlaces(lat, lng, onMeasure) {
 }
 
 // maplibre paints into a <canvas>, which cannot read a CSS custom property, so
-// these two are the only place on this page where the brand green and its
-// casing are written as values. They are read from the design system at load
-// time rather than typed, so a token change still reaches the map.
-const ROUTE_LINE   = cssToken("--green-emerald", "#2EE6A6");
-const ROUTE_CASING = cssToken("--bg-app", "#070C0A");
+// this is the only place on this page where a brand colour is written as a
+// value. It is read from the design system at load time rather than typed, so a
+// token change still reaches the map.
+//
 // The commute measure draws over satellite imagery, where the neon accent
 // disappears — so it uses the deeper foundation green, again read from the
 // design system rather than typed. The amber is not a brand colour: it exists
@@ -268,33 +228,46 @@ function cssToken(name, fallback) {
 // fetched live from OpenStreetMap via the Overpass API. Categories are
 // loaded lazily on first chip-tap (and the first two are auto-loaded
 // when the map opens so the buyer gets immediate context).
+// `label` is the English fallback only. What a person reads comes from `k`
+// through catLabel(), resolved at render time so switching language repaints
+// the chips instead of leaving eleven English words on a Swahili page.
 const POI_CATS = [
-  { key: "school",     label: "Schools",     icon: ico(ICO.building, 12), color: "var(--info)",
+  { key: "school",     k: "hs_poi_school",    label: "Schools",              icon: ico(ICO.building, 12), color: "var(--info)",
     q: 'node["amenity"~"school|university|college|kindergarten"](around:RADIUS,LAT,LNG);way["amenity"~"school|university|college|kindergarten"](around:RADIUS,LAT,LNG);' },
-  { key: "hospital",   label: "Hospitals",   icon: ico(ICO.cross, 12), color: "var(--danger)",
+  { key: "hospital",   k: "hs_poi_hospital",  label: "Hospitals",            icon: ico(ICO.cross, 12), color: "var(--danger)",
     q: 'node["amenity"~"hospital|clinic|doctors|pharmacy"](around:RADIUS,LAT,LNG);way["amenity"~"hospital|clinic"](around:RADIUS,LAT,LNG);' },
-  { key: "market",     label: "Markets",     icon: ico(ICO.cart, 12), color: "var(--warn)",
+  { key: "market",     k: "hs_poi_market",    label: "Markets",              icon: ico(ICO.cart, 12), color: "var(--warn)",
     q: 'node["amenity"="marketplace"](around:RADIUS,LAT,LNG);node["shop"~"supermarket|mall|convenience"](around:RADIUS,LAT,LNG);way["amenity"="marketplace"](around:RADIUS,LAT,LNG);way["shop"~"supermarket|mall"](around:RADIUS,LAT,LNG);' },
-  { key: "transport",  label: "Transport",   icon: ico(ICO.bus, 12), color: "var(--green-bright)",
+  { key: "transport",  k: "hs_poi_transport", label: "Transport",            icon: ico(ICO.bus, 12), color: "var(--green-bright)",
     q: 'node["highway"="bus_stop"](around:RADIUS,LAT,LNG);node["amenity"~"bus_station|taxi"](around:RADIUS,LAT,LNG);node["railway"="station"](around:RADIUS,LAT,LNG);' },
-  { key: "bank",       label: "Banks / ATMs", icon: ico(ICO.bank, 12), color: "var(--green-neon)",
+  { key: "bank",       k: "hs_poi_bank",      label: "Banks and ATMs",       icon: ico(ICO.bank, 12), color: "var(--green-neon)",
     q: 'node["amenity"~"bank|atm|bureau_de_change"](around:RADIUS,LAT,LNG);' },
-  { key: "food",       label: "Restaurants", icon: ico(ICO.fork, 12), color: "var(--gold-warm)",
+  { key: "food",       k: "hs_poi_food",      label: "Restaurants",          icon: ico(ICO.fork, 12), color: "var(--gold-warm)",
     q: 'node["amenity"~"restaurant|cafe|fast_food|food_court|bar"](around:RADIUS,LAT,LNG);way["amenity"~"restaurant|cafe"](around:RADIUS,LAT,LNG);' },
-  { key: "worship",    label: "Mosques · Churches", icon: ico(ICO.pray, 12), color: "var(--gold)",
+  { key: "worship",    k: "hs_poi_worship",   label: "Mosques and churches", icon: ico(ICO.pray, 12), color: "var(--gold)",
     q: 'node["amenity"="place_of_worship"](around:RADIUS,LAT,LNG);way["amenity"="place_of_worship"](around:RADIUS,LAT,LNG);' },
-  { key: "leisure",    label: "Parks · Gyms", icon: ico(ICO.tree, 12), color: "var(--green-emerald)",
+  { key: "leisure",    k: "hs_poi_leisure",   label: "Parks and gyms",       icon: ico(ICO.tree, 12), color: "var(--green-emerald)",
     q: 'node["leisure"~"park|fitness_centre|sports_centre|playground"](around:RADIUS,LAT,LNG);way["leisure"~"park|fitness_centre|sports_centre|stadium"](around:RADIUS,LAT,LNG);' },
-  { key: "fuel",       label: "Fuel",        icon: ico(ICO.fuel, 12), color: "var(--text-muted)",
+  { key: "fuel",       k: "hs_poi_fuel",      label: "Fuel",                 icon: ico(ICO.fuel, 12), color: "var(--text-muted)",
     q: 'node["amenity"="fuel"](around:RADIUS,LAT,LNG);' },
-  { key: "safety",     label: "Police · Fire", icon: ico(ICO.shield, 12), color: "var(--text-info)",
+  { key: "safety",     k: "hs_poi_safety",    label: "Police and fire",      icon: ico(ICO.shield, 12), color: "var(--text-info)",
     q: 'node["amenity"~"police|fire_station"](around:RADIUS,LAT,LNG);way["amenity"~"police|fire_station"](around:RADIUS,LAT,LNG);' },
-  { key: "post",       label: "Post · Government", icon: ico(ICO.bank, 12), color: "var(--gold-dark)",
+  { key: "post",       k: "hs_poi_post",      label: "Post and government",  icon: ico(ICO.bank, 12), color: "var(--gold-dark)",
     q: 'node["amenity"~"post_office|townhall|courthouse|embassy"](around:RADIUS,LAT,LNG);way["amenity"~"post_office|townhall|courthouse|embassy"](around:RADIUS,LAT,LNG);' }
 ];
 
 const POI_RADIUS_M     = 1500;            // 1.5 km around the property
 const POI_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// What this kind of place is called, in the language being read.
+//
+// `k` is optional on purpose: poiLabel() below is shared with house-area.js,
+// whose NEARBY_META carries a label and no key at all, and a category with no
+// key still has to come back with its word rather than an empty chip.
+function catLabel(cat) {
+  if (!cat) return T("hs_place_other", "Place");
+  return cat.k ? T(cat.k, cat.label) : (cat.label || T("hs_place_other", "Place"));
+}
 
 // ---------------------------------------------------------------------------
 // Who put this pin here?
@@ -353,24 +326,34 @@ function provLine(text) {
     </p>`;
 }
 
+/**
+ * The kinds of place around this home, as chips that paint pins on the map.
+ *
+ * These used to float across the TOP of the map, eleven of them in a strip that
+ * scrolled sideways under the Maximize button, which covered the first one. On
+ * a 320px map that is most of the sky above the pin spent on a toolbar. They
+ * live under the map now, in `#hdPoi`, where they can be read without being in
+ * the way of the thing they act on and where the whole row fits on two lines
+ * instead of hiding eight chips off the right edge.
+ *
+ * Nothing else changed: a chip still fetches its category from Overpass on the
+ * first tap, and only on a tap.
+ */
 function attachNearbyOverlay(map, lat, lng) {
-  const mapEl = document.getElementById("hdMap");
-  if (!mapEl) return;
+  const host = document.getElementById("hdPoi");
+  if (!host) return;
 
-  // Build the floating toolbar of category chips.
-  const toolbar = document.createElement("div");
-  toolbar.className = "hd-poi-toolbar";
-  toolbar.innerHTML = POI_CATS.map(c =>
-    `<button type="button" class="hd-poi-chip" data-cat="${c.key}">
-       <span>${c.icon}</span><span>${c.label}</span>
-     </button>`
-  ).join("");
-  mapEl.appendChild(toolbar);
+  host.hidden = false;
+  host.innerHTML = `
+    <p class="hd-poi__label">${esc(T("hs_poi_t", "Places around this home"))}</p>
+    <div class="hd-poi-toolbar">${POI_CATS.map((c) =>
+      `<button type="button" class="hd-poi-chip" data-cat="${c.key}">
+         ${c.icon}<span>${esc(catLabel(c))}</span>
+       </button>`).join("")}</div>
+    <p class="hd-poi-status" role="status" aria-live="polite">${esc(T("hs_poi_hint", "Tap a kind of place to see it on the map."))}</p>`;
 
-  const status = document.createElement("div");
-  status.className = "hd-poi-status";
-  status.hidden = true;
-  mapEl.appendChild(status);
+  const toolbar = host.querySelector(".hd-poi-toolbar");
+  const status  = host.querySelector(".hd-poi-status");
 
   // Build the stores from POI_CATS so we always have an entry for every
   // category — the old hardcoded literal only listed the original four
@@ -383,57 +366,60 @@ function attachNearbyOverlay(map, lat, lng) {
     chip.addEventListener("click", async () => {
       const cat = chip.dataset.cat;
       const meta = POI_CATS.find(c => c.key === cat);
+      const what = catLabel(meta);
       const on  = !chip.classList.contains("active");
-      if (on) {
-        chip.classList.add("active");
-        if (!dataByCat[cat]) {
-          chip.classList.add("loading");
-          showStatus(`Loading nearby ${meta.label}…`);
-          try {
-            dataByCat[cat] = await fetchPois(cat, lat, lng);
-          } catch (e) {
-            console.warn("overpass", cat, e);
-            chip.classList.remove("loading", "active");
-            showStatus(`Couldn't load nearby ${meta.label}.`, 2500);
-            return;
-          }
-          chip.classList.remove("loading");
-        }
-        renderCat(map, cat, dataByCat[cat], markersByCat, { lat, lng });
-        const n = dataByCat[cat].length;
-        showStatus(n
-          ? `${n} result${n === 1 ? "" : "s"} · ${meta.label} within ${POI_RADIUS_M/1000} km`
-          : `No ${meta.label} found nearby`, 2200);
-      } else {
+      if (!on) {
         chip.classList.remove("active");
         (markersByCat[cat] || []).forEach(m => m.remove());
         markersByCat[cat] = [];
-        hideStatus();
+        showHint();
+        return;
       }
+      chip.classList.add("active");
+      if (!dataByCat[cat]) {
+        chip.classList.add("loading");
+        showStatus(fillT(T("hs_poi_load", "Loading {what}…"), { what }));
+        try {
+          dataByCat[cat] = await fetchPois(cat, lat, lng);
+        } catch (e) {
+          console.warn("overpass", cat, e);
+          chip.classList.remove("loading", "active");
+          showStatus(fillT(T("hs_poi_fail", "Could not load {what}."), { what }));
+          return;
+        }
+        chip.classList.remove("loading");
+      }
+      renderCat(map, cat, dataByCat[cat], markersByCat, { lat, lng });
+      const n = dataByCat[cat].length;
+      showStatus(n
+        ? fillT(T("hs_poi_found", "{n} {what} within {km} km"),
+                { n, what: what.toLowerCase(), km: POI_RADIUS_M / 1000 })
+        : fillT(T("hs_poi_none", "No {what} found nearby"), { what: what.toLowerCase() }));
     });
   });
 
-  // Tip the user that the chips are tappable — they only fire Overpass on demand.
-  showStatus("Tap a category to see nearby places", 4000);
-
-  function showStatus(text, autoHideMs) {
-    status.textContent = text;
-    status.hidden = false;
-    if (autoHideMs) setTimeout(() => { status.hidden = true; }, autoHideMs);
+  // The status line is a permanent row rather than a pill that appears over the
+  // imagery and vanishes on a timer, so the block never changes height and the
+  // map never has anything sitting on it. With nothing chosen it says what the
+  // chips are for, which is the state it spends most of its life in.
+  function showStatus(text) { status.textContent = text; }
+  function showHint() {
+    const anyOn = !!toolbar.querySelector(".hd-poi-chip.active");
+    if (!anyOn) showStatus(T("hs_poi_hint", "Tap a kind of place to see it on the map."));
   }
-  function hideStatus() { status.hidden = true; }
 }
 
 // Popup HTML for a nearby place. Distance is REAL road km only (never crow-flies):
 // "measuring…" until the matrix answers, then "X km by road", or unavailable.
 function poiPopupHtml(name, catMeta, km, state) {
   const dist = state === "road"
-    ? `${km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(km < 10 ? 2 : 1) + " km"} by road`
-    : state === "measuring" ? "measuring road distance…"
-    : "road distance unavailable";
+    ? fillT(T("hs_far_by_road", "{km} by road"),
+            { km: km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(km < 10 ? 2 : 1) + " km" })
+    : state === "measuring" ? T("hs_poi_measuring", "measuring road distance…")
+    : T("hs_poi_nodist", "road distance unavailable");
   return `<div class="hd-poi-popup">
     <strong>${esc(name)}</strong>
-    <div class="pp-meta">${catMeta.icon} ${esc(catMeta.label)} · ${dist}</div>
+    <div class="pp-meta">${catMeta.icon} ${esc(catLabel(catMeta))} · ${esc(dist)}</div>
   </div>`;
 }
 
@@ -526,7 +512,7 @@ function poiLabel(el, catMeta) {
   if (real) return real;
   const kind = t.amenity || t.shop || t.leisure || t.healthcare || t.office || t.tourism || "";
   if (kind) { const s = String(kind).replace(/_/g, " "); return s.charAt(0).toUpperCase() + s.slice(1); }
-  return catMeta.label;
+  return catLabel(catMeta);
 }
 
 // ============================================================================
@@ -552,11 +538,39 @@ function attachCommuteTool(map, lat, lng) {
   const btn   = document.getElementById("hdCommuteBtn");
   const msgEl = document.getElementById("hdCommuteMsg");
   const resEl = document.getElementById("hdCommuteResults");
+  const openEl = document.getElementById("hdCommuteOpen");
   if (!wrap || !input || !btn || !window.pawaGeo) return;
   wrap.hidden = false;
   renderSavedPlaces(lat, lng, (p) => selectPlace(p));
 
   let workMarker = null, lineReady = false, measureSeq = 0;
+
+  // ---- the typed area, as a Google Maps link -----------------------------
+  //
+  // The box answers "how far", and the answer was a number and a line on a
+  // 320px map. What somebody does next with that answer is look at the route,
+  // and there was nothing here to look at it with, so the area they had just
+  // typed had to be typed a second time into Google Maps.
+  //
+  // It is an ANCHOR, painted the moment a name resolves to a point, and never a
+  // window.open() from the Measure handler: that runs after the geocoder has
+  // been awaited, and a popup opened seconds after the tap is blocked by every
+  // browser. The same rule as js/lib/maps-handoff.js, for the same reason.
+  //
+  // The origin is THIS HOME, not the visitor: the question in the label above
+  // is how far the home is from the place, not how far the reader is.
+  function paintOpen(p) {
+    if (!openEl || !window.PawaMaps) return;
+    const href = p && window.PawaMaps.usable(p)
+      ? window.PawaMaps.directions(p, { from: { lat, lng }, mode: "car" })
+      : "";
+    if (!href) { openEl.hidden = true; openEl.removeAttribute("href"); return; }
+    openEl.href = href;
+    const d = openEl.querySelector(".hd-commute-open__d");
+    if (d) d.innerHTML = fillT(T("hs_far_open_d", "This home to {name}, both already filled in."),
+                               { name: `<strong>${esc(p.name || "")}</strong>` });
+    openEl.hidden = false;
+  }
 
   function emptyLine() { return { type: "Feature", geometry: { type: "LineString", coordinates: [] } }; }
   function emptyFC()   { return { type: "FeatureCollection", features: [] }; }
@@ -632,6 +646,7 @@ function attachCommuteTool(map, lat, lng) {
     }
     workMarker.setLngLat([p.lng, p.lat]).addTo(map);
     if (rows) rows.forEach((r) => r.el.classList.toggle("active", r.place === p));
+    paintOpen(p);
 
     const ctx = p.context ? ` <span class="hd-commute-ctx">(${esc(p.context)})</span>` : "";
     const seq = ++measureSeq;
@@ -717,7 +732,8 @@ function attachCommuteTool(map, lat, lng) {
     const q = input.value.trim();
     if (q === previewedFor) return;
     previewedFor = q;
-    if (q.length < 2 || !window.pawaPlaceMatch) { return; }
+    if (q.length < 2) { paintOpen(null); return; }
+    if (!window.pawaPlaceMatch) return;
     // `near` is this listing's own pin: of two places with the same name, the
     // one a person commuting to this house could plausibly mean is the near one.
     const hits = window.pawaPlaceMatch.search(q, { near: { lat, lng }, limit: 5 });
@@ -728,34 +744,41 @@ function attachCommuteTool(map, lat, lng) {
       local: true, score: h.score, exact: h.exact,
     }));
     renderResults(places);
+    // Google Maps is now one tap away from the word that was just typed, with
+    // this home and that place both already in it. Nothing is measured and no
+    // network is touched to get here; the link is simply correct as soon as the
+    // name resolves to a point.
+    paintOpen(places[0]);
     // "Found" only for a place whose name was actually typed. A high score on a
     // misspelling is still a guess at a letter nobody typed, so the box asks
     // instead of asserting — the same line pawaGeo.suggest draws with `fuzzy`.
     const sure = hits[0].exact;
+    const who  = `<strong>${esc(hits[0].name)}</strong>`;
     showMsg(
       sure
-        ? `Found <strong>${esc(hits[0].name)}</strong>. Tap it to measure the road distance, or press Measure to search wider.`
-        : `Did you mean <strong>${esc(hits[0].name)}</strong>? Tap a place to measure it, or press Measure to search everywhere.`,
+        ? fillT(T("hs_far_found", "Found {name}. Tap it to measure the road distance, or press Measure to search wider."), { name: who })
+        : fillT(T("hs_far_didyou", "Did you mean {name}? Tap a place to measure it, or press Measure to search everywhere."), { name: who }),
       sure ? "ok" : "warn"
     );
   }
 
   async function run() {
     const q = input.value.trim();
-    if (q.length < 2) { showMsg("Type your workplace, office area or a place on your daily route.", "warn"); return; }
-    btn.disabled = true; btn.textContent = "Locating…";
-    showMsg(`Searching for “${esc(q)}”…`, "");
+    if (q.length < 2) {
+      showMsg(T("hs_far_type", "Type your workplace, office area or a place on your daily route."), "warn");
+      return;
+    }
+    btn.disabled = true; btn.textContent = T("hs_far_busy", "Looking…");
+    showMsg(fillT(T("hs_far_searching", "Searching for “{q}”…"), { q: esc(q) }), "");
     resEl.innerHTML = "";
     let places = [];
     try { places = await window.pawaGeo.suggest(q, { limit: 6, near: { lat, lng } }); } catch (_) { places = []; }
-    btn.disabled = false; btn.textContent = "Measure";
+    btn.disabled = false; btn.textContent = T("hs_far_go", "Measure");
 
     if (!places.length) {
-      showMsg(
-        `We couldn't find “<strong>${esc(q)}</strong>”. Try a <strong>famous area, market, school or road near your workplace</strong> ` +
-        `(a well-known landmark close by), then measure again.`,
-        "warn"
-      );
+      showMsg(fillT(T("hs_far_none",
+        "We could not find “{q}”. Try a famous area, market, school or road near your workplace, then measure again."),
+        { q: `<strong>${esc(q)}</strong>` }), "warn");
       return;
     }
     const rows = renderResults(places);
@@ -763,8 +786,12 @@ function attachCommuteTool(map, lat, lng) {
     // Auto-measuring a guess draws a confident green route to a place the person
     // never asked for, which is the one outcome worse than not knowing.
     if (places[0].fuzzy) {
-      showMsg(`No exact match for “<strong>${esc(q)}</strong>” — these are the closest places we know. ` +
-              `Tap the right one to measure it.`, "warn");
+      // The link goes with it: a Google Maps route to a guess is the same wrong
+      // answer, just harder to take back once the other app has opened.
+      paintOpen(null);
+      showMsg(fillT(T("hs_far_fuzzy",
+        "No exact match for “{q}”. These are the closest places we know. Tap the right one to measure it."),
+        { q: `<strong>${esc(q)}</strong>` }), "warn");
       return;
     }
     selectPlace(places[0], rows);   // preview the top match; tap another to refine
@@ -777,7 +804,7 @@ function attachCommuteTool(map, lat, lng) {
           if (!Number.isFinite(km) || !rows[i]) return;
           places[i].roadKm = km;
           const kmEl = rows[i].el.querySelector(".hd-cr-km");
-          if (kmEl) kmEl.textContent = fmtKm(km) + " by road";
+          if (kmEl) kmEl.textContent = fillT(T("hs_far_by_road", "{km} by road"), { km: fmtKm(km) });
         }))
         .catch(() => {});
     }

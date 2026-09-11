@@ -306,10 +306,17 @@ try {
     const askedBefore5 = geocodes.length;
     await page.click("#hdCommuteBtn");
     await until(async () => geocodes.length > askedBefore5, 15000, "the geocoder to be asked (section 5)");
+    // THE WAIT MUST NOT MATCH THE LINE IT IS WAITING TO REPLACE.
+    //
+    // This was `/no exact match|closest|mikoceni|mikocheni/i`, and the state it
+    // was waiting past is "Searching for “Mikoceni”…" — which contains
+    // "Mikoceni". So it returned true on its very first poll, against the
+    // searching caption, and the assertion below then reported that caption as
+    // the answer. Same trap as sections 3 and 5 above, one regex further on.
     await until(async () => {
       const m = await msg();
-      return /no exact match|closest|mikoceni|mikocheni/i.test(m || "");
-    });
+      return !!m && !/searching/i.test(m) && /no exact match|closest|mikocheni/i.test(m);
+    }, 15000, "the Measure caption for Mikoceni");
     const after = await msg();
     ok(/no exact match|closest/i.test(after),
        "pressing Measure still captions it as approximate", after);
