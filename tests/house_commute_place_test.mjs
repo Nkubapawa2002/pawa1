@@ -255,16 +255,32 @@ try {
     // section passed or failed on how fast the machine was. Nothing about the
     // page was wrong either time.
     //
-    // So: the geocoder must actually have been asked, and the box must have
-    // stopped showing a PREVIEW line, which is the one state only the
-    // post-Measure path can produce.
+    // So: the geocoder must actually have been asked, and then the LIST must
+    // have grown past what the preview drew.
+    //
+    // WAIT FOR THE LIST, NOT FOR A CAPTION, AND NEVER SILENTLY. The caption is
+    // written LAST: run() draws the rows the moment the geocoder answers and
+    // only then measures the road, three routing engines deep. So a wait on the
+    // message is a wait on the slowest thing on the page for an assertion about
+    // one of the fastest, and on a busy machine it lost. Worse, that wait was
+    // unlabelled, so `until` gave up SILENTLY and the assertions below read the
+    // preview's two rows and reported the missing Tabora row as a product bug.
+    // It was never one: the merge in pawaGeo.suggest returns all three.
+    //
+    // btn.disabled is not the signal either — it is false before the click and
+    // cleared again within one tick, so a poller can miss the window entirely
+    // and race ahead into the next section.
+    //
+    // The row COUNT is the honest signal. The preview can only ever draw what
+    // the local gazetteer knows; a longer list is the geocoder's row arriving,
+    // which is the one thing only the post-Measure path can produce. If the
+    // merge ever breaks this times out — loudly, by label, as a failure.
     const askedBefore = geocodes.length;
+    const previewCount = (await rows()).length;
     await page.click("#hdCommuteBtn");
     await until(async () => geocodes.length > askedBefore, 15000, "the geocoder to be asked (section 3)");
-    await until(async () => {
-      const m = await msg();
-      return !!m && !/found|did you mean|searching/i.test(m);
-    });
+    await until(async () => (await rows()).length > previewCount,
+                20000, "Measure to add the geocoder's row to the list (section 3)");
     const shown = await rows();
     ok(shown.length > 0, "results came back",
        JSON.stringify(shown) + " msg=" + (await msg()) + " asked=" + JSON.stringify(geocodes));
