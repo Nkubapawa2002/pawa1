@@ -35,10 +35,11 @@ was about to happen.
 ```
 
 `supabase/features/agent/agent_notices.sql` and `agent_notices_cron.sql` —
-**both APPLIED to production.** Proof: `node tests/agent_notices_test.mjs`
-(30 assertions, RLS on, including that the schedule exists and that running it
-exactly as pg_cron does reaches the agent), `node tests/notices_ui_test.mjs`
-(15, browser).
+**both APPLIED to production**, the delete pair included. Proof:
+`node tests/agent_notices_test.mjs` (42 assertions, RLS on, including that the
+schedule exists, that running it exactly as pg_cron does reaches the agent, and
+that one account cannot delete another's notices),
+`node tests/notices_ui_test.mjs` (44, browser).
 
 ---
 
@@ -92,8 +93,8 @@ could write to any account and sign it `system`.
 
 | where | what |
 |---|---|
-| the bell, on the home page, the directory, Profile and all three agent dashboards | two rows: **what the admin said** (a count) and **the subscription** (a state, with no count chip, because an account has one subscription and the question is which state it is in) |
-| Profile ▸ From the admin | the list the bell links to (`profile.html#notices`). Opening one reads it. There is no second "mark as read" to forget |
+| the bell, on the home page, the directory, Profile and all three agent dashboards | a row per notice, carrying **what the admin actually wrote** and when it arrived, plus **the subscription** (a state, with no count chip, because an account has one subscription and the question is which state it is in). A notice opens **in place** and is marked read there; each carries a bin, and the panel a "Delete all" |
+| Profile ▸ From the admin | the list the bell links to (`profile.html#notices`). Opening one reads it, and the dialog that shows it in full can throw it away. There is no second "mark as read" to forget |
 | an agent dashboard | the existing card, now leading with the notice's title and edged by its severity |
 
 `js/lib/notices.js` is the only reader. Three surfaces show the same facts and
@@ -103,10 +104,46 @@ must not be able to disagree about them.
 otherwise tell somebody their cover ends next week when it ended yesterday, and
 that is the one number this whole feature exists to get right.
 
-**Neither row can be dismissed from the bell.** They clear by being dealt with:
-a notice when it is read, a subscription warning when the subscription is
-renewed. A badge that can be tapped away is a badge that lets somebody dismiss
-the reminder that their listings come off the board on Friday.
+**Read is not gone, and the two are put away differently.** Marking a notice
+read hides it from the bell; the row stays, and "clear these and never show them
+to me again" has no answer in an update. So a notice is a ROW and the bin
+DELETES it — `notice_delete(uuid)` and `notices_clear(boolean)`, SECURITY
+DEFINER and scoped to `app_uid()`. That scoping is the whole fence:
+`agent_messages` has a self-SELECT and a self-UPDATE policy and deliberately no
+self-DELETE, so those two functions are the only door onto a delete, and it can
+only ever open onto the caller's own rows.
+
+Deleting a row frees its `dedupe_key`, so the sweep may say that thing once more
+tomorrow. That is correct and it is the price of a real delete: a reminder about
+a deadline that has **not** passed is not a duplicate, and a tombstone table so
+a cleared warning could never come back would be this app disarming its own
+alarm.
+
+**The subscription is a STATE, and gets a cross rather than a bin.** Nothing
+wrote a row for it, so there is nothing to delete; the cross hides the state as
+it stands today. `js/core/notify.js` keys that dismissal on the reason and the
+DATE, never the day count — keying on the number would bring a dismissed
+reminder back every morning as "ends in 4 days", which is the bug the whole
+change exists to end. A subscription that actually moves (paid, extended,
+lapsed, paused) is genuinely new and says so.
+
+**Nothing else in the panel has a button at all**, for the reason it never had
+one: a customer waiting for a call is answered, an unread message is read, and a
+changed safety number is compared. None of those is a thing to tidy away, and a
+badge that can be tapped away is a badge that lets somebody dismiss the reminder
+that their listings come off the board on Friday.
+
+**The panel must not re-render after putting a row away.** `js/core/notify.js`
+keeps its own count of what it last read and only corrects it on a refresh, so
+asking it to redraw after a bin puts the notice back on the screen it was just
+deleted from. `notify-ui.js` removes the row itself (`dropLine`) and reconciles
+the badge once, when the panel closes.
+
+**No figure goes in a notice.** "Payment recorded (TZS 25,000)" and "pays the
+TZS 10,000 monthly subscription" are both gone. The amount is not the same for
+every account, what an account pays is between it and the admin who recorded it,
+and a notice is read over somebody's shoulder on a shared phone. The DATE the
+payment bought is the half an agent can plan against, and that is what stays.
 
 ---
 
