@@ -125,11 +125,29 @@ try {
   const errs = [];
   const oneLine = (s) => String(s).split(/\r?\n/).slice(0, 3).join(" | ");
   page.on("pageerror", (e) => errs.push(oneLine((e && e.stack) || e)));
-  page.on("console", (m) => { if (m.type() === "error") errs.push("console: " + m.text()); });
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    // The refusals below are this test's own doing. Chrome logs a console error
+    // for every subresource it could not load, so the routing and Overpass hosts
+    // we deliberately abort come back as net::ERR_FAILED noise. Filtering it is
+    // not weakening the guard: uncaught exceptions arrive on "pageerror", which
+    // is untouched, and any console error that is not one of our own refusals
+    // still fails section 6.
+    if (/Failed to load resource/.test(m.text()) && /net::ERR_FAILED/.test(m.text())) return;
+    errs.push("console: " + m.text());
+  });
 
   // Every query the page sends to LocationIQ, so the COST of an answer is
   // measurable and not just its correctness.
   const geocodes = [];
+  // A LocationIQ call that was ASKED but never answered in time. geo.js turns an
+  // aborted fetch into [], which is indistinguishable downstream from "the
+  // geocoder knows nothing" — so the one place that distinction still exists is
+  // here, and an assertion that fails for this reason should say so.
+  const starved = [];
+  page.on("requestfailed", (r) => {
+    if (/locationiq\.com/.test(r.url())) starved.push(r.failure()?.errorText || "failed");
+  });
 
   await page.setRequestInterception(true);
   page.on("request", (req) => {
@@ -166,6 +184,26 @@ try {
     }
     if (/arcgisonline|basemaps\.cartocdn|api\.mapbox|tile\.openstreetmap|unsplash|supabase\.co\/storage/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "image/png" }, body: PNG });
+    }
+    // THE ROUTING AND OVERPASS HOSTS ARE REFUSED, NOT ANSWERED.
+    //
+    // Interception is a queue: every request the page makes is a round trip out
+    // to this handler and back, and they are served in order. Pressing Measure
+    // fires the geocoder call into the back of a queue that already holds two
+    // OSRM endpoints, Valhalla, the nearest-main-road lookup and the nearby-POI
+    // categories. On a loaded machine that queue took longer to drain than
+    // geo.js's own 8 s fetch timeout, so fetchTimeout() aborted the LocationIQ
+    // call, rawSearch() correctly returned [], and the merged list came back
+    // with the two local rows and no Tabora row. That is a starved request, not
+    // a broken merge, and it is what made this section look like a product bug.
+    //
+    // abort() costs no body and returns immediately, and every one of these
+    // callers already treats a refusal as "could not measure" — which is the
+    // state sections 3 and 5 assert anyway. So refusing them keeps the queue
+    // short enough that the one request this test is actually about is served
+    // well inside its timeout.
+    if (/project-osrm|routing\.openstreetmap|valhalla|overpass|nominatim/.test(url)) {
+      return req.abort();
     }
     // Everything else that is not this dev server is answered locally. Letting
     // even one request reach the real internet makes the whole run erratic — the
@@ -241,6 +279,13 @@ try {
        "the Kigamboni campus is offered before Measure is ever pressed", JSON.stringify(shown));
     ok(geocodes.length === before,
        `and it cost zero geocoder calls — made ${geocodes.length - before}`, JSON.stringify(geocodes.slice(before)));
+    // The caption settles a beat after the row does. preview() re-runs as the
+    // last keystrokes land, and with the routing hosts refused the queue is now
+    // short enough that this assertion can read the box mid-transition and see
+    // the "did you mean" wording that belongs to a partial query. Waiting for
+    // the settled caption is labelled, so a box that genuinely never says
+    // "found" is still a loud failure rather than a slow one.
+    await until(async () => /found/i.test(await msg()), 10000, "the Found caption (section 2)");
     ok(/found/i.test(await msg()), "the box says it found something", await msg());
   }
 
@@ -279,15 +324,22 @@ try {
     const previewCount = (await rows()).length;
     await page.click("#hdCommuteBtn");
     await until(async () => geocodes.length > askedBefore, 15000, "the geocoder to be asked (section 3)");
+    // 45 s, not 20. The geocoder answers well inside geo.js's own 8 s fetch
+    // timeout once it is actually issued, but on a loaded machine the request
+    // can sit in the interception queue for tens of seconds before that clock
+    // even starts. A run was observed where this gave up at 20 s and the very
+    // next read found all three rows — a timeout that reports a result the page
+    // had already produced is the worst of both.
     await until(async () => (await rows()).length > previewCount,
-                20000, "Measure to add the geocoder's row to the list (section 3)");
+                45000, "Measure to add the geocoder's row to the list (section 3)");
     const shown = await rows();
     ok(shown.length > 0, "results came back",
        JSON.stringify(shown) + " msg=" + (await msg()) + " asked=" + JSON.stringify(geocodes));
     ok(/Mwalimu Nyerere Memorial Academy/i.test(shown[0] || ""),
        "the Dar campus is first, not the institute 800 km away in Tabora", JSON.stringify(shown));
     ok(shown.some((r) => /Taasisi ya Mwl\. Nyerere/i.test(r)),
-       "the geocoder's row is still there to pick, just not first", JSON.stringify(shown));
+       "the geocoder's row is still there to pick, just not first",
+       JSON.stringify(shown) + (starved.length ? " — STARVED geocoder call: " + starved.join(", ") : ""));
   }
 
   section("4. The place LocationIQ cannot geocode at all");
