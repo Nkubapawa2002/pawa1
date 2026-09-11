@@ -3492,12 +3492,21 @@ create policy "house-photos upload" on storage.objects for insert
    * A control the PAGE has hidden is skipped: the minimum-months row and the
    * "specify the kind" box are hidden when they do not apply, and neither is
    * an answer anybody owes.
+   *
+   * That skip is scoped to hidden ancestors INSIDE the form, and it has to be.
+   * A bare closest("[hidden]") is the wrong question, for the reason
+   * agent-workspace.js spells out beside hiddenInPanel(): #ahFormSection is
+   * itself hidden until the agent opens the form, so every control on the page
+   * answers yes to it and this returns null for a form with nothing filled in
+   * at all. Only a hidden ancestor between the control and the form says
+   * anything about that control.
    */
   function firstMissing() {
     const controls = form.querySelectorAll("input, select, textarea");
     for (const c of controls) {
       if (!c.willValidate || c.disabled || c.type === "hidden") continue;
-      if (c.closest("[hidden]")) continue;
+      const box = c.closest("[hidden]");
+      if (box && form.contains(box)) continue;
       if (!c.checkValidity()) return c;
     }
     return null;
