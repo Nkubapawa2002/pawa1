@@ -1191,6 +1191,10 @@ body[data-page="house"] :focus-visible {
   text-decoration: none;
 }
 .hd-map-actions svg { width: 15px; height: 15px; flex: 0 0 auto; }
+/* A listing with no pin keeps the row, so the sheet does not change shape
+   between listings, but the route link must not look like something to press.
+   Same treatment as .hd-go__main above it, which it now shares a job with. */
+.hd-map-actions a[aria-disabled="true"] { opacity: .55; pointer-events: none; }
 
 /* POI marker pins */
 .hd-poi-marker {

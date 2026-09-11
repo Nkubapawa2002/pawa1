@@ -292,7 +292,7 @@ function pinProvenance(h) {
   if (!pin || typeof pin !== "object" || pin.exact !== true) return "";
 
   const acc = Number(pin.acc);
-  const within = Number.isFinite(acc) && acc > 0 ? ` \u2014 to within ${Math.round(acc)} m` : "";
+  const within = Number.isFinite(acc) && acc > 0 ? `, to within ${Math.round(acc)} m` : "";
 
   // The agent's own phone has no third party in it, so it gets its own
   // sentence rather than being forced through one written about somebody else.
@@ -835,7 +835,7 @@ async function showNearestMainRoad(lat, lng) {
   if (r) {
     const d = r.meters < 1000 ? `${r.meters} m` : `${(r.meters / 1000).toFixed(1)} km`;
     el.innerHTML = ` <strong>${d}</strong> from the nearest main road` +
-      (r.name ? ` — <strong>${esc(r.name)}</strong>` : "");
+      (r.name ? `, <strong>${esc(r.name)}</strong>` : "");
   } else {
     el.innerHTML = ` More than 3 km from the nearest main road`;
   }
