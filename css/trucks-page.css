@@ -1,0 +1,329 @@
+/* ============================================================================
+   trucks-page.css — the moving-trucks directory (trucks.html)
+
+   WHY THIS FILE EXISTS
+   The page used to carry ~230 lines of inline <style> in three blocks: a
+   component sheet written in raw hexes, a hand-written "Twilight" dark palette
+   of more raw hexes, and a third block fighting premium.css over the colour of
+   a text input. Every brand value on the screen was a literal that no design
+   change could reach, and the card markup it styled was a second, private
+   description of a truck that disagreed with the one on house.html.
+
+   Now: the CARDS come from css/truck-move.css, shared with the property sheet
+   and the detail sheet, and everything below is what is left, rebuilt on the
+   Maisha na Lifeza tokens.
+
+   THE THREE THINGS THAT MUST NOT BE UNDONE (all learned the hard way, and the
+   old inline comments are kept with them):
+
+   1. The dark palette is scoped `:root:not([data-theme="light"])`. Custom
+      properties resolve to the nearest ancestor that sets them, so an
+      unconditional palette on <body> sits where css/theme-light.css cannot
+      reach it and light mode keeps the whole dark palette, printing near-white
+      ink on cream.
+   2. Layout rules (where things sit) are NOT inside that guard. They belong to
+      both themes.
+   3. premium.css paints input[type="text"] rgba(255,255,255,.78) with
+      !important, and its attribute selector outranks neon-pro's plain `input`.
+      Only !important answers !important, which is why the input block at the
+      foot of this file carries one.
+
+   LOAD ORDER: linked after css/theme-light.css on trucks.html.
+   ========================================================================== */
+
+/* ===========================================================================
+   1. THE PAGE
+   =========================================================================== */
+body[data-page="trucks"] {
+  font-family: var(--font-app);
+  min-height: var(--app-vh, 100vh);
+}
+body[data-page="trucks"] .page-hero {
+  min-height: auto !important;
+  padding: var(--space-6) var(--space-4) var(--space-3) !important;
+}
+body[data-page="trucks"] .container { padding-bottom: var(--space-16); }
+/* Pure app shell: the bottom tab bar is the navigation here. */
+body[data-page="trucks"] #nav-slot,
+body[data-page="trucks"] #footer-slot { display: none !important; }
+
+/* ---- the dark skin (see rule 1 in the header) ---------------------------- */
+:root:not([data-theme="light"]) body[data-page="trucks"] {
+  --c-surface:   var(--surface-app);
+  --c-surface-2: color-mix(in srgb, var(--white) 5%, transparent);
+  --c-bg-elev:   color-mix(in srgb, var(--white) 4%, transparent);
+  --c-border:    var(--border-strong);
+  --c-text:      var(--text);
+  --c-text-soft: var(--text-soft);
+  --c-muted:     var(--text-muted);
+  --c-text-muted:var(--text-muted);
+  --c-brand:     var(--green-emerald);
+  --c-brand-deep:var(--green-emerald);
+  --c-brand-on:  var(--text-on-brand);
+  --c-accent:    var(--gold-warm);
+  --c-success:   var(--green-emerald);
+
+  background:
+    radial-gradient(1100px 760px at 50% -10%,
+      color-mix(in srgb, var(--green-neon) 12%, transparent) 0%,
+      var(--bg) 60%, var(--bg-app) 100%);
+  color: var(--text);
+}
+:root:not([data-theme="light"]) body[data-page="trucks"] .page-hero {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-app)) !important;
+}
+:root:not([data-theme="light"]) body[data-page="trucks"] .page-title { color: var(--white); }
+:root:not([data-theme="light"]) body[data-page="trucks"] .page-subtitle { color: var(--text-soft); }
+
+/* ===========================================================================
+   2. THE MOVE PLANNER
+   The page's new spine. Somebody who arrived from a property sheet finds it
+   already filled in; somebody who arrived cold finds three questions, and
+   answering none of them still leaves a working directory underneath.
+   =========================================================================== */
+.tk-plan {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+.tk-plan__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.tk-plan__head svg { width: 20px; height: 20px; color: var(--c-brand); flex: none; }
+.tk-plan__h {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--fw-extra);
+  color: var(--c-text);
+}
+.tk-plan__sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--c-muted);
+}
+/* Two columns on a desk, one on a phone: the legs and the load picker are
+   read together, not one after the other. */
+.tk-plan__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+@media (max-width: 760px) { .tk-plan__cols { grid-template-columns: 1fr; } }
+
+/* ===========================================================================
+   3. THE FILTERS
+   =========================================================================== */
+.tk-filters {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+.tk-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+.tk-filters select,
+.tk-filters input[type="text"],
+.tk-filters input[type="number"] {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-surface-2, var(--white));
+  color: var(--c-text);
+  font-family: inherit;
+  font-size: 16px;   /* under 16px iOS zooms the page on focus */
+}
+
+/* ---- the yes/no options, as toggles ------------------------------------- */
+.tk-toggles { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.tk-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text-soft, var(--c-text));
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+.tk-toggle svg { width: 13px; height: 13px; }
+.tk-toggle:hover { border-color: color-mix(in srgb, var(--c-brand) 40%, transparent); }
+.tk-toggle[aria-pressed="true"] {
+  background: var(--c-brand);
+  border-color: var(--c-brand);
+  color: var(--c-brand-on, var(--text-on-brand));
+}
+
+/* ---- everything else, folded -------------------------------------------- */
+.tk-more { border-top: 1px dashed var(--c-border); padding-top: var(--space-2); }
+.tk-more > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  color: var(--c-brand);
+  padding: var(--space-2) 0;
+  min-height: var(--hit-min);
+}
+.tk-more > summary::-webkit-details-marker { display: none; }
+.tk-more > summary svg {
+  width: 16px; height: 16px;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.tk-more[open] > summary svg { transform: rotate(180deg); }
+.tk-group { margin-top: var(--space-3); }
+.tk-group__h {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+/* The bar under the filters: reset, and the door for owners. */
+.tk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.tk-actions .tk-spacer { margin-left: auto; }
+.tk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--hit-min);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--c-text);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  text-decoration: none;
+  cursor: pointer;
+}
+.tk-btn svg { width: 16px; height: 16px; }
+.tk-btn--gps { background: var(--c-brand); border-color: var(--c-brand); color: var(--c-brand-on, var(--text-on-brand)); }
+.tk-btn--gps:disabled { opacity: .6; cursor: default; }
+.tk-btn--list { background: var(--c-accent); border-color: var(--c-accent); color: var(--text-on-brand); }
+
+/* ===========================================================================
+   4. RESULTS AND MAP
+   =========================================================================== */
+.trucks-result-count {
+  font-size: var(--text-sm);
+  color: var(--c-muted);
+  margin: var(--space-2) var(--space-1) var(--space-3);
+}
+
+.trucks-mobile-tabs { display: none; gap: var(--space-2); margin-bottom: var(--space-3); }
+.trucks-mobile-tabs button {
+  flex: 1;
+  min-height: var(--hit-min);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface-2, var(--white));
+  color: var(--c-text);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.trucks-mobile-tabs button.active {
+  background: var(--c-brand);
+  border-color: transparent;
+  color: var(--c-brand-on, var(--text-on-brand));
+}
+
+.trucks-stage {
+  display: grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+.trucks-map-wrap { position: sticky; top: var(--space-4); }
+.trucks-map {
+  height: 72vh;
+  min-height: 420px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+}
+/* The map legend: what the three kinds of pin mean. Without it a second and a
+   third marker colour is decoration rather than information. */
+.tk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-2) var(--space-1) 0;
+  font-size: var(--text-xs);
+  color: var(--c-muted);
+}
+.tk-legend span { display: inline-flex; align-items: center; gap: var(--space-1); }
+.tk-legend i {
+  width: 10px; height: 10px; border-radius: var(--radius-pill);
+  display: inline-block; flex: none;
+}
+.tk-legend i.is-you   { background: var(--c-brand); }
+.tk-legend i.is-to    { background: var(--c-accent); }
+.tk-legend i.is-truck { background: var(--info); }
+
+@media (max-width: 860px) {
+  .trucks-stage { grid-template-columns: 1fr; }
+  .trucks-mobile-tabs { display: flex; }
+  .trucks-stage[data-view="list"] .trucks-map-wrap { display: none; }
+  .trucks-stage[data-view="map"] .trucks-list-col { display: none; }
+  .trucks-map-wrap { position: static; }
+  .trucks-map { height: 64vh; }
+  .tk-actions .tk-spacer { margin-left: 0; }
+}
+
+/* ===========================================================================
+   5. TEXT INPUTS IN THE DARK THEME  (see rule 3 in the header)
+
+   premium.css paints input[type="text"] and its siblings rgba(255,255,255,.78)
+   with !important. Measured over a dark card that is alpha .78 of white, which
+   reads as a DISABLED control rather than an empty one. Only !important can
+   answer !important. Scoped to this page and to non-light, so the pages that
+   are cream by design keep premium's fill: there, white is correct.
+   =========================================================================== */
+:root:not([data-theme="light"]) body[data-page="trucks"] input[type="text"],
+:root:not([data-theme="light"]) body[data-page="trucks"] input[type="search"],
+:root:not([data-theme="light"]) body[data-page="trucks"] input[type="tel"],
+:root:not([data-theme="light"]) body[data-page="trucks"] input[type="number"],
+:root:not([data-theme="light"]) body[data-page="trucks"] input:not([type]) {
+  background: color-mix(in srgb, var(--white) 5%, transparent) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+}
+:root:not([data-theme="light"]) body[data-page="trucks"] input::placeholder {
+  color: var(--text-muted) !important;
+}
+:root:not([data-theme="light"]) body[data-page="trucks"] select {
+  background: color-mix(in srgb, var(--white) 5%, transparent);
+  color: var(--text);
+  border-color: var(--border-strong);
+}

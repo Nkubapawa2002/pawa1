@@ -32,6 +32,9 @@
   <link rel="stylesheet" href="css/house-detail.css" />
   <!-- "From the owner": one badge, four pages. css/owner-badge.css -->
   <link rel="stylesheet" href="css/owner-badge.css" />
+  <!-- The move planner and the truck match card, shared with trucks.html and
+       truck.html so a lorry is described the same way wherever it is met. -->
+  <link rel="stylesheet" href="css/truck-move.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
        and the app/web shell switch. Loads last so it can correct the sheets
        above it. Pairs with js/core/viewport.js. -->
@@ -155,6 +158,13 @@
        decisions around it (the URL shape, the guard, the wording) live in
        one place so all four catalogues offer the same thing. -->
   <script src="js/lib/pm-reach.js"></script>
+  <!-- "Move my things here". truck-match.js works out which lorry suits this
+       move and why; truck-move-ui.js draws it; truck-move-panel.js is the
+       section on this page. All three are shared with trucks.html, and the
+       plan they build is what rides in the query string to it. -->
+  <script src="js/lib/truck-match.js"></script>
+  <script src="js/lib/truck-move-ui.js"></script>
+  <script src="js/lib/truck-move-panel.js"></script>
 
   <!-- The property screen itself, in four files. THE ORDER IS LOAD-BEARING:
        house-ui.js publishes esc/ico/ICO, and house-place.js calls ico() while

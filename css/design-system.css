@@ -34,6 +34,9 @@
 /* The agent profile's listing prices. Same omission as .house-card-price:
    the class existed, the rule did not know about it. */
 .ag-price,
+/* The truck match card (css/truck-move.css), which is the one place a price is
+   read while comparing several lorries side by side for the same move. */
+.tm-price,
 .td-price {
   /* Canonical brand rule — prices are ALWAYS the tabular mono face. !important
      so it wins over page-level price rules that set a serif/sans display font

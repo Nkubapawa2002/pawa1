@@ -50,6 +50,9 @@ const ICO = {
   trash:    "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6",
   lock:     "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
   car:      "M5 17H3v-5l2-5h14l2 5v5h-2M5 17a2 2 0 1 0 4 0M15 17a2 2 0 1 0 4 0M5 17h10M3 12h18",
+  // The move. One path because ico() draws exactly one: the two wheels are
+  // arcs rather than <circle>, which is what a Lucide truck is anyway.
+  truck:    "M3 16V7a1 1 0 0 1 1-1h9v10M13 9h4l4 4v3h-2M9 17h4M9 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0M19 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0",
   tv:       "M2 7h20v12H2zM8 3l4 4 4-4",
   tool:     "M14.7 6.3a4 4 0 0 1-5 5L4 17v3h3l5.7-5.7a4 4 0 0 0 5-5l-2 2-2.6-.7-.7-2.6z",
   building: "M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h2a2 2 0 0 1 2 2v10M9 7h2M9 11h2M9 15h2",

@@ -106,8 +106,43 @@
     // Omitted deliberately when unknown. An origin of "" or "current+location"
     // is not a documented value and Google treats it as a place name to search.
     if (usable(o.from)) url += "&origin=" + encodeURIComponent(coords(o.from));
+    // Stops along the way, in order. Google's api=1 takes them pipe-separated
+    // and silently ignores the parameter when there is no origin to leave
+    // from, so an unusable point is dropped here rather than sent and lost.
+    var via = (o.via ? (Array.isArray(o.via) ? o.via : [o.via]) : []).filter(usable);
+    if (via.length) {
+      url += "&waypoints=" + encodeURIComponent(via.map(coords).join("|"));
+    }
     url += "&travelmode=" + travelMode(o.mode);
     return url;
+  }
+
+  /**
+   * The move itself, as one link.
+   *
+   * A house move is not a journey between two points, it is three: the lorry
+   * leaves its base, collects the load, and drives it to the new home. Handing
+   * Google only the last leg is what made every "directions" link in this app
+   * an invitation to type the other two in by hand.
+   *
+   *   truck  -> the lorry's base, used as the ORIGIN when we have it, so the
+   *             link is the driver's whole day
+   *   from   -> where the load is now
+   *   to     -> the new home
+   *
+   * Whichever of the three is missing, the link still works and still carries
+   * everything we do know, because a partly-filled route is a working route
+   * and a blank box is not.
+   */
+  function move(plan) {
+    var p = plan || {};
+    if (!usable(p.to)) return "";
+    // Origin preference: the lorry's base (the driver's own starting point),
+    // else where the load is, else nothing, which lets Google use the device.
+    if (usable(p.truck)) {
+      return directions(p.to, { from: p.truck, via: p.from, mode: "car" });
+    }
+    return directions(p.to, { from: p.from || knownOrigin(), mode: "car" });
   }
 
   /**
@@ -237,6 +272,7 @@
 
   window.PawaMaps = {
     directions: directions,
+    move: move,
     pin: pin,
     knownOrigin: knownOrigin,
     warmOrigin: warmOrigin,

@@ -31,6 +31,7 @@ const SECTION_EN = {
   "sec-costs":     "Bills",
   "sec-amenities": "Amenities",
   "sec-place":     "Location",
+  "sec-move":      "Moving in",
   "sec-nearby":    "Nearby",
   "sec-agent":     "Agent",
 };
@@ -42,6 +43,7 @@ const SECTION_KEY = {
   "sec-costs":     "hs_tab_costs",
   "sec-amenities": "hs_tab_amenities",
   "sec-place":     "hs_tab_place",
+  "sec-move":      "hs_tab_move",
   "sec-nearby":    "hs_tab_nearby",
   "sec-agent":     "hs_tab_agent",
 };
@@ -54,7 +56,7 @@ const SECTION_LABELS = new Proxy({}, {
 });
 const SECTION_ORDER = [
   "sec-money", "sec-rooms", "sec-about", "sec-rules", "sec-costs",
-  "sec-amenities", "sec-place", "sec-nearby", "sec-agent",
+  "sec-amenities", "sec-place", "sec-move", "sec-nearby", "sec-agent",
 ];
 
 // ============================================================================
@@ -442,9 +444,14 @@ function amenitiesSectionHtml(h) {
  * something the app already knew.
  *
  * So the hand-off is now the main action, drawn as one, and it carries its own
- * promise underneath. Drawing the road on our own map is still here, because
- * measuring is a different question from navigating and OSRM answers it without
- * leaving the page; it is simply no longer competing for the same tap.
+ * promise underneath. The second action is the same two points seen rather than
+ * followed, and it is a Google Maps link too: a road drawn as a thin line on a
+ * 320px square is a worse answer to "which way is it" than the app everyone
+ * already has, and it cost a location prompt to draw.
+ *
+ * NOTHING FLOATS OVER THE TOP OF THE MAP. The category chips that used to sit
+ * across it live in `#hdPoi` underneath now, next to the map they drive. A map
+ * this size has room for the map or for a toolbar, not both.
  *
  * `mapsUrl` arrives already built by PawaMaps (js/pages/house.js) so the link
  * works before a single line of JavaScript on this page has run. house-place.js
@@ -469,11 +476,19 @@ function placeSectionHtml(h, mapsUrl, meetCode, pinLine) {
         </span>
       </a>
       <div class="hd-map-actions">
-        <a href="#" id="hdRouteBtn" role="button">${ico(ICO.route, 15)} ${esc(T("hs_dir_draw", "Show the route on this map"))}</a>
+        <a id="hdRouteBtn"${mapsUrl ? ` href="${mapsUrl}"` : hasPin} target="_blank" rel="noopener"
+           title="${esc(T("hs_dir_route_d", "The same two points, laid out end to end with the traffic on them."))}">
+          ${ico(ICO.route, 15)} ${esc(T("hs_dir_route", "See the whole route in Google Maps"))}</a>
         <a href="meet.html?${meetCode}" target="_blank" rel="noopener">${ico(ICO.video, 15)} ${esc(T("hs_meet", "Live meet with agent"))}</a>
       </div>
       <div class="hd-go__msg" id="hdGoMsg" role="status" aria-live="polite" hidden></div>
     </div>
+    <!-- The nearby-category chips mount here: under the map, never over it, and
+         under the Google Maps hand-off rather than above it. Eleven wrapped
+         chips are 180px, and 180px between the map and the one action on this
+         screen somebody is certain to want is the wrong thing to spend them on.
+         Here, the map is still on screen when a chip is tapped. -->
+    <div class="hd-poi" id="hdPoi" hidden></div>
 
     ${pinLine}
     <!-- How far is this home from the nearest main (tarmac) road? -->
@@ -490,9 +505,43 @@ function placeSectionHtml(h, mapsUrl, meetCode, pinLine) {
           placeholder="${esc(T("hs_far_ph", "Your workplace, school, or an area you know"))}" />
         <button type="button" id="hdCommuteBtn" class="hd-commute-btn">${esc(T("hs_far_go", "Measure"))}</button>
       </div>
+      <!-- Google Maps, as soon as the typed area resolves to a point. A real
+           anchor with a real href, never a window.open() after an await: the
+           second one is a popup the browser blocks. -->
+      <a class="hd-commute-open" id="hdCommuteOpen" target="_blank" rel="noopener" hidden>
+        ${ico(ICO.nav, 16)}
+        <span class="hd-commute-open__tx">
+          <span class="hd-commute-open__t">${esc(T("hs_far_open", "Open in Google Maps"))}</span>
+          <small class="hd-commute-open__d"></small>
+        </span>
+      </a>
       <div id="hdCommuteMsg" class="hd-commute-msg" hidden></div>
       <div id="hdCommuteResults" class="hd-commute-results"></div>
     </div>
+  </section>`;
+}
+
+/**
+ * "Now get your things here."
+ *
+ * The join between the two catalogues this app has always had and never
+ * introduced to each other. Everything the panel needs is already on this
+ * page: the pin is the destination, the bedroom count is a first guess at how
+ * much there is to carry, and the only thing missing is where the reader is
+ * standing, which is exactly what the one button buys.
+ *
+ * The panel itself is js/lib/truck-move-panel.js, mounted after this renders.
+ * The card is drawn even on a listing with no pin: the length of the move
+ * cannot be measured then, but "which lorries are near me and big enough" is
+ * still a question worth answering, and the panel says which half it lost.
+ */
+function moveSectionHtml(h) {
+  if (!window.TruckMovePanel) return "";
+  return `<section class="hx-card" id="sec-move">
+    <div class="hx-card__head">${ico(ICO.truck)}<h3>${esc(T("hs_h_move", "Moving your things here"))}</h3></div>
+    <p class="hx-sub">${esc(T("hs_move_sub",
+      "One press finds the lorries that can do this move, closest to you first. Nothing to type."))}</p>
+    <div id="hdMovePanel" class="tm"></div>
   </section>`;
 }
 

@@ -169,6 +169,7 @@ function render(h) {
     "sec-costs":     billsSectionHtml(h),
     "sec-amenities": amenitiesSectionHtml(h),
     "sec-place":     placeSectionHtml(h, mapsUrl, meetCode, pinLine),
+    "sec-move":      moveSectionHtml(h),
     "sec-nearby":    nearbySectionHtml(h),
     "sec-agent":     agentSectionHtml(h, { agentName, agentPhone, agentPhoneClean, waHref, meetCode, initials }),
   };
@@ -193,6 +194,7 @@ function render(h) {
         ${sections["sec-costs"] || ""}
         ${sections["sec-amenities"] || ""}
         ${sections["sec-place"] || ""}
+        ${sections["sec-move"] || ""}
         ${sections["sec-nearby"] || ""}
       </div>
     </div>
@@ -229,6 +231,11 @@ function render(h) {
   wireFavShare(h, price);
   wireSticky(h, stickyEl, { agentPhone, agentPhoneClean, waHref, meetCode });
   mountMap(h);
+  // "Move my things here". Mounted rather than rendered, because the panel
+  // owns a plan (load size, pickup, the measured trip) that outlives a single
+  // draw, and that plan is what it hands on to trucks.html.
+  const moveEl = document.getElementById("hdMovePanel");
+  if (moveEl && window.TruckMovePanel) window.TruckMovePanel.mount(moveEl, h);
   // The area readout is NOT part of the map. A listing whose survey was saved
   // when it was posted can answer "what is nearby" with no pin, no tiles and no
   // network at all — so it is asked here rather than from inside mountMap,

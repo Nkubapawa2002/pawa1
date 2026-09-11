@@ -22,98 +22,17 @@
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
   <!-- The read side of the listing form's characteristics list: the .of-list
-       block at the foot of the sheet. js/lib/offer-spec.js turns the stored
-       keys and the provider's own words into the same kind of line. -->
+       blocks at the foot of the sheet. js/lib/offer-spec.js turns the stored
+       keys and the owner's own words into the same kind of line. -->
   <link rel="stylesheet" href="css/pick-list.css" />
-
-  <style>
-    .td-wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
-    .td-back { display: inline-flex; align-items: center; gap: 6px; color: var(--c-brand,#0a6f4d); text-decoration: none; font-weight: 700; font-size: .9rem; margin-bottom: 12px; }
-    .td-grid { display: grid; grid-template-columns: 1.3fr .7fr; gap: 18px; align-items: start; }
-    .td-gallery-main {
-      aspect-ratio: 16/10; border-radius: 16px; overflow: hidden; background: #dfe7e2 center/cover no-repeat;
-      display: flex; align-items: center; justify-content: center; font-size: 4rem;
-    }
-    .td-thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .td-thumb { width: 72px; height: 56px; border-radius: 10px; background: #dfe7e2 center/cover no-repeat; cursor: pointer; border: 2px solid transparent; }
-    .td-thumb.active { border-color: var(--c-brand,#0a6f4d); }
-    /* Force dark card text — neon-pro.css loads last and sets a light body
-       text colour, which would otherwise render these white-on-white inside
-       the light panels (invisible). */
-    .td-panel { background: var(--c-surface,#fff); border: 1px solid var(--c-border,#e7e4dd); border-radius: 16px; padding: 18px; margin-bottom: 14px; color: var(--c-text,#2a2a26); }
-    .td-panel .td-title, .td-panel .td-owner, .td-spec .v { color: var(--c-text,#2a2a26); }
-    .td-price { font-size: 1.5rem; font-weight: 800; color: var(--c-brand,#0a6f4d); }
-    .td-price small { font-size: .8rem; font-weight: 600; color: var(--c-muted,#6b6960); }
-    .td-title { font-size: 1.15rem; font-weight: 700; margin: 6px 0 4px; }
-    .td-loc { color: var(--c-muted,#6b6960); font-size: .92rem; }
-    .td-badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; }
-    .td-badge { font-size: .72rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--c-surface-2,#f3f1ea); color: #555; }
-    .td-badge.verified { background: var(--c-success,#0d8050); color: #fff; }
-    .td-specs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px; }
-    .td-spec { background: var(--c-surface-2,#f6f5f0); border-radius: 12px; padding: 10px 12px; }
-    .td-spec .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; color: var(--c-muted,#888); }
-    .td-spec .v { font-weight: 700; font-size: .95rem; margin-top: 2px; }
-    .td-desc { line-height: 1.6; color: var(--c-text,#2a2a26); white-space: pre-line; }
-    .td-cta { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
-    .td-cta a { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px; border-radius: 12px; font-weight: 700; text-decoration: none; }
-    /* The encrypted door. Quieter than Call, above it, and carrying the one
-       line that says why: no phone number changes hands. --c-surface-2 and
-       --c-brand are both set in the :root:not([data-theme="light"]) body[data-page="truck"] palette below,
-       which is what keeps this dark on the only skin this page has. */
-    .td-cta-msg {
-      background: var(--c-surface-2, #f3f1ec);
-      color: var(--c-brand, var(--green));
-      border: 1px solid var(--c-brand, var(--green));
-      flex-wrap: wrap;
-    }
-    .td-cta-msg small {
-      flex-basis: 100%; text-align: center; font-weight: 500;
-      font-size: .74rem; color: var(--c-muted, #6b6960); margin-top: 2px;
-    }
-    .td-cta-call { background: var(--c-brand,#0a6f4d); color: #fff; }
-    .td-cta-wa { background: var(--wa-green, #25d366); color: var(--wa-on, #06170F); }
-    .td-cta-move { background: var(--c-accent,#bc5c00); color: #fff; }
-    .td-owner { font-weight: 700; }
-    .td-minimap { height: 220px; border-radius: 14px; overflow: hidden; border: 1px solid var(--c-border,#e7e4dd); margin-top: 10px; }
-    .td-h { font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: var(--c-muted,#888); margin: 0 0 8px; }
-    .td-missing { text-align: center; padding: 60px 16px; color: var(--c-muted,#6b6960); }
-    @media (max-width: 820px) { .td-grid { grid-template-columns: 1fr; } }
-  </style>
-
-  <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
-  <style>
-    /* Twilight dark re-skin (Claude design) — moving-truck detail.
-       Pushed-detail view: no top nav / tab bar, just the back button + inline CTAs. */
-    /* The palette below is DARK-ONLY.
-
-       The body ground was never the problem here: css/theme-light.css does win
-       that one. What leaked were the two ELEMENT rules further down, which
-       repaint the badge text and the gallery placeholder in dark colours. A
-       :root palette cannot reach back into a body[data-page] rule, so in light
-       mode the badges rendered white on white and an empty gallery was a solid
-       black block on a cream page.
-
-       So the guard goes on the paint and not on the layout: the wrap width and
-       the hidden nav are what make this a pushed-detail view in BOTH themes.
-       Same guard as css/agent-portal.css. Checked by
-       tests/detail_sheet_i18n_test.mjs, which renders a real sheet in light
-       mode and measures the badge contrast. */
-    :root:not([data-theme="light"]) body[data-page="truck"] {
-      --c-surface: #141A18; --c-surface-2: rgba(255,255,255,.05); --c-border: rgba(255,255,255,.08);
-      --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
-      --c-brand: #2EE6A6; --c-brand-deep: #2EE6A6; --c-accent: #F6C45A; --c-success: #2EE6A6;
-      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
-    }
-    body[data-page="truck"] .td-wrap { max-width: 560px; padding-bottom: 48px; }
-    :root:not([data-theme="light"]) body[data-page="truck"] .td-back { color: #2EE6A6; }
-    :root:not([data-theme="light"]) body[data-page="truck"] .td-gallery-main, :root:not([data-theme="light"]) body[data-page="truck"] .td-thumb { background: #0f1714 center/cover no-repeat; }
-    :root:not([data-theme="light"]) body[data-page="truck"] .td-badge { color: rgba(233,243,238,.7); }
-    :root:not([data-theme="light"]) body[data-page="truck"] .td-cta-call, :root:not([data-theme="light"]) body[data-page="truck"] .td-cta-move, :root:not([data-theme="light"]) body[data-page="truck"] .td-badge.verified { color: #06170F; }
-    body[data-page="truck"] #nav-slot, body[data-page="truck"] #footer-slot { display: none !important; }
-  </style>
   <link rel="stylesheet" href="css/theme-light.css" />
+  <!-- The move planner and the match card, shared with house.html and
+       trucks.html. -->
+  <link rel="stylesheet" href="css/truck-move.css" />
+  <!-- LAST on purpose: this sheet's whole skin, in design-system tokens,
+       scoped to body[data-page="truck"]. Its header says why the theme guard
+       sits on the paint and not on the layout. -->
+  <link rel="stylesheet" href="css/truck-detail.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
        and the app/web shell switch. Loads last so it can correct the sheets
        above it. Pairs with js/core/viewport.js. -->
@@ -122,9 +41,9 @@
 <body data-houses-pro data-page="truck">
   <div id="nav-slot"></div>
 
-  <main class="td-wrap">
-    <a href="trucks.html" class="td-back">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+  <main class="td-wrap tm">
+    <a href="trucks.html" class="td-back" id="tdBack">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
       <span data-i18n="truck_back">Back to trucks</span>
     </a>
     <div id="tdBody" aria-live="polite" aria-busy="true">
@@ -145,6 +64,12 @@
   <script src="js/core/data.js"></script>
   <script src="js/core/auth.js"></script>
   <script src="js/core/nav.js"></script>
+  <!-- Real road distances, so "how far is this lorry" is a drive and not a
+       straight line. geolocate.js before maps-handoff.js: the hand-off reads
+       the fix that file remembers. -->
+  <script src="js/lib/geo.js"></script>
+  <script src="js/lib/geolocate.js"></script>
+  <script src="js/lib/maps-handoff.js"></script>
   <!-- The encrypted door to whoever posted this listing. One link, but the
        decisions around it (the URL shape, the guard, the wording) live in
        one place so all four catalogues offer the same thing. -->
@@ -154,6 +79,10 @@
   <script src="js/lib/listing-kinds.js"></script>
   <!-- The catalogue behind "what comes with it". -->
   <script src="js/lib/offer-spec.js"></script>
+  <!-- The match engine and the shared card, so this sheet can answer the one
+       question a reader actually has: will THIS lorry do MY move? -->
+  <script src="js/lib/truck-match.js"></script>
+  <script src="js/lib/truck-move-ui.js"></script>
   <script src="js/pages/truck.js"></script>
   <script>
     // Pure app-shell: native pushed-detail view — no top nav / footer / tab bar,

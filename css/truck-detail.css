@@ -1,0 +1,262 @@
+/* ============================================================================
+   truck-detail.css — one moving truck (truck.html)
+
+   WHY THIS FILE EXISTS
+   The same reason css/house-detail.css does. The page carried ~90 lines of
+   inline component CSS written against a second design system's --c-* names
+   with raw hexes as the fallback for every one of them, plus a hand-written
+   "Twilight" palette of more raw hexes. None of it could follow a brand
+   change, and the truck it described did not look like the same product as the
+   property sheet next door.
+
+   Rebuilt here on the Maisha na Lifeza tokens. The class names are unchanged
+   (.td-*) because tests/detail_sheet_i18n_test.mjs renders this sheet with a
+   real listing on it and reads .td-specs, .td-badge and .td-gallery-main back.
+
+   THE GUARD, AND WHY IT IS ON THE PAINT RATHER THAN THE LAYOUT
+   The body ground was never the problem: css/theme-light.css does win that
+   one. What leaked were the ELEMENT rules, which repaint the badge text and
+   the gallery placeholder in dark colours. A :root palette cannot reach back
+   into a body[data-page] rule, so in light mode the badges rendered white on
+   white and an empty gallery was a solid black block on a cream page.
+
+   So `:root:not([data-theme="light"])` guards the COLOURS. The wrap width and
+   the hidden nav are what make this a pushed-detail view, and they belong to
+   both themes. Same shape as css/agent-portal.css.
+
+   LOAD ORDER: linked last on truck.html, after css/theme-light.css.
+   ========================================================================== */
+
+/* ===========================================================================
+   1. PAGE
+   =========================================================================== */
+body[data-page="truck"] {
+  font-family: var(--font-app);
+  min-height: var(--app-vh, 100vh);
+}
+/* A pushed detail screen: no top nav, no footer, no tab bar. Both themes. */
+body[data-page="truck"] #nav-slot,
+body[data-page="truck"] #footer-slot { display: none !important; }
+
+:root:not([data-theme="light"]) body[data-page="truck"] {
+  --c-surface:   var(--surface-app);
+  --c-surface-2: color-mix(in srgb, var(--white) 5%, transparent);
+  --c-border:    var(--border-strong);
+  --c-text:      var(--text);
+  --c-text-soft: var(--text-soft);
+  --c-muted:     var(--text-muted);
+  --c-text-muted:var(--text-muted);
+  --c-brand:     var(--green-emerald);
+  --c-brand-deep:var(--green-emerald);
+  --c-brand-on:  var(--text-on-brand);
+  --c-accent:    var(--gold-warm);
+  --c-success:   var(--green-emerald);
+
+  background:
+    radial-gradient(1100px 760px at 50% -10%,
+      color-mix(in srgb, var(--green-neon) 12%, transparent) 0%,
+      var(--bg) 60%, var(--bg-app) 100%);
+  color: var(--text);
+}
+
+/* ===========================================================================
+   2. FRAME
+   =========================================================================== */
+.td-wrap {
+  max-width: var(--app-width);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-12);
+}
+@media (min-width: 1024px) { .td-wrap { max-width: 980px; } }
+
+.td-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--hit-min);
+  color: var(--c-brand);
+  text-decoration: none;
+  font-weight: var(--fw-bold);
+  font-size: var(--text-sm);
+}
+
+.td-grid { display: grid; gap: var(--space-4); align-items: start; }
+@media (min-width: 1024px) { .td-grid { grid-template-columns: 1.3fr .7fr; } }
+
+.td-panel {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  color: var(--c-text);
+}
+.td-h {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-wide);
+  color: var(--c-muted);
+  margin: 0 0 var(--space-2);
+}
+
+/* ===========================================================================
+   3. GALLERY
+   The placeholder ground is a TOKEN in both themes: the light one has to stay
+   light or the empty-gallery check in tests/detail_sheet_i18n_test.mjs fails,
+   and it fails for a real reason (a black block on a cream page).
+   =========================================================================== */
+.td-gallery-main {
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--gray-mid) center / cover no-repeat;
+  display: grid;
+  place-items: center;
+}
+.td-gallery-main svg { width: 56px; height: 56px; color: var(--gray); opacity: .6; }
+.td-thumbs { display: flex; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap; }
+.td-thumb {
+  width: 72px; height: 56px;
+  border-radius: var(--radius-sm);
+  background: var(--gray-mid) center / cover no-repeat;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+.td-thumb.active { border-color: var(--c-brand); }
+:root:not([data-theme="light"]) body[data-page="truck"] .td-gallery-main,
+:root:not([data-theme="light"]) body[data-page="truck"] .td-thumb {
+  background-color: var(--bg-2);
+}
+
+/* ===========================================================================
+   4. IDENTITY
+   =========================================================================== */
+.td-price { font-size: var(--text-lg); font-weight: var(--fw-extra); color: var(--c-brand); }
+.td-price small { font-size: var(--text-xs); font-weight: var(--fw-semibold); color: var(--c-muted); }
+.td-title {
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
+  margin: var(--space-2) 0 var(--space-1);
+  color: var(--c-text);
+}
+.td-loc { color: var(--c-muted); font-size: var(--text-sm); }
+
+.td-badges { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-top: var(--space-3); }
+.td-badge {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface-2);
+  /* --c-text-soft, not --c-muted: measured against the light surface this sits
+     on, muted came in under 3:1 and the badge is a fact, not a whisper. */
+  color: var(--c-text-soft, var(--c-text));
+  border: 1px solid var(--c-border);
+}
+.td-badge.verified {
+  background: var(--c-success);
+  color: var(--text-on-brand);
+  border-color: transparent;
+}
+:root:not([data-theme="light"]) body[data-page="truck"] .td-badge { color: var(--text-soft); }
+
+/* ===========================================================================
+   5. SPECS
+   =========================================================================== */
+.td-specs { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+.td-spec {
+  background: var(--c-surface-2);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+.td-spec .k {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-wide);
+  color: var(--c-muted);
+}
+.td-spec .v {
+  font-weight: var(--fw-bold);
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
+  color: var(--c-text);
+}
+/* A figure is a figure: capacity and price read in the tabular face. */
+.td-spec .v.is-figure {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+}
+
+.td-desc {
+  line-height: var(--lh-relaxed);
+  color: var(--c-text);
+  white-space: pre-line;
+  font-size: var(--text-sm);
+}
+
+/* ---- what comes with it, by group --------------------------------------- */
+/* The list itself is css/pick-list.css (.of-list), shared with the service
+   sheet. The grouping is this page's: five headed lists read as five answers,
+   where one flat list of eighteen ticks reads as a wall. */
+.td-kit-group + .td-kit-group { margin-top: var(--space-4); }
+.td-kit-group h4 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--c-brand);
+}
+
+/* ===========================================================================
+   6. CONTACT
+   =========================================================================== */
+.td-owner { font-weight: var(--fw-bold); color: var(--c-text); margin-bottom: var(--space-3); }
+.td-cta { display: flex; flex-direction: column; gap: var(--space-2); }
+.td-cta a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--hit-min);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+/* The encrypted door. Quieter than Call, above it, and carrying the one line
+   that says why: no phone number changes hands. */
+.td-cta-msg {
+  background: var(--c-surface-2);
+  color: var(--c-brand);
+  border: 1px solid var(--c-brand);
+  flex-wrap: wrap;
+}
+.td-cta-msg small {
+  flex-basis: 100%;
+  text-align: center;
+  font-weight: var(--fw-medium);
+  font-size: var(--text-xs);
+  color: var(--c-muted);
+  margin-top: var(--space-1);
+}
+.td-cta-call { background: var(--c-brand); color: var(--c-brand-on, var(--white)); }
+.td-cta-wa   { background: var(--whatsapp); color: var(--text-on-brand); }
+.td-cta-move { background: var(--c-accent); color: var(--text-on-brand); }
+
+.td-minimap {
+  height: 220px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  margin-top: var(--space-3);
+}
+
+.td-missing {
+  text-align: center;
+  padding: var(--space-16) var(--space-4);
+  color: var(--c-muted);
+}
+.td-missing a { color: var(--c-brand); font-weight: var(--fw-bold); }

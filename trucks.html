@@ -22,209 +22,14 @@
   <link rel="stylesheet" href="css/houses-pro.css" />
   <link rel="stylesheet" href="css/neon-pro.css" />
   <link rel="stylesheet" href="css/design-system.css" />
-
-  <style>
-    /* Filter toolbar */
-    .trucks-toolbar {
-      background: var(--c-surface, #fff);
-      border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 14px;
-      padding: 12px;
-      margin-bottom: 14px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 8px;
-    }
-    .trucks-toolbar select,
-    .trucks-toolbar input {
-      width: 100%; padding: 10px 12px;
-      border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 10px; font-size: 16px; font-family: inherit;
-      background: #fff; color: var(--c-text, #1a1915);
-    }
-    .tt-actions { display: flex; gap: 8px; grid-column: 1 / -1; flex-wrap: wrap; }
-    .trucks-near-me {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 10px 16px; border: none; border-radius: 10px; cursor: pointer;
-      background: var(--c-brand, #0a6f4d); color: #fff; font-weight: 700; font-size: .9rem;
-    }
-    .trucks-near-me svg { width: 18px; height: 18px; }
-    .trucks-near-me:disabled { opacity: .6; cursor: default; }
-    .trucks-list-cta {
-      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
-      padding: 10px 16px; border-radius: 10px; font-weight: 700; font-size: .9rem;
-      background: var(--c-accent, #bc5c00); color: #fff; text-decoration: none;
-    }
-
-    .trucks-result-count { font-size: .9rem; color: var(--c-muted, #6b6960); margin: 6px 2px 10px; }
-
-    /* Mobile list/map tabs */
-    .trucks-mobile-tabs { display: none; gap: 8px; margin-bottom: 10px; }
-    .trucks-mobile-tabs button {
-      flex: 1; padding: 10px; border: 1px solid var(--c-border, #e7e4dd);
-      background: #fff; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915);
-    }
-    .trucks-mobile-tabs button.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: transparent; }
-
-    /* Split list + map */
-    .trucks-stage { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; align-items: start; }
-    .trucks-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-    .trucks-map-wrap { position: sticky; top: 14px; }
-    .trucks-map { height: 72vh; min-height: 420px; border-radius: 14px; overflow: hidden; border: 1px solid var(--c-border, #e7e4dd); }
-
-    /* Truck card */
-    .truck-card {
-      background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
-      border-radius: 14px; overflow: hidden;
-      color: var(--c-text, #1a1915);
-      display: flex; flex-direction: column; transition: transform .12s ease, box-shadow .12s ease;
-    }
-    /* ── The card is a row, not a tower ───────────────────────────────────
-       The photo was a full-width 4:3 box, which on a 358px phone card is 268
-       PIXELS of image area. Most listings carry no photo yet, so that was 268
-       pixels of empty coloured block per card, and the "placeholder" inside it
-       was an empty <div style="font-size:2.4rem"> — the space an emoji left
-       behind when it was stripped. Six trucks came to 3,620px of page, and a
-       reader scrolled past four screens to see six things.
-
-       It is a thumbnail beside the words now: the same shape houses.html and
-       explore.html already use, so the three catalogues finally look like one
-       product. A photoless card is the height of its own text. */
-    .truck-card-link {
-      display: grid; grid-template-columns: 120px 1fr; gap: 0;
-      text-decoration: none; color: inherit; cursor: pointer; flex: 1;
-    }
-    @media (max-width: 430px) { .truck-card-link { grid-template-columns: 104px 1fr; } }
-    .truck-card-title { color: var(--c-text, #1a1915); }
-    .truck-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); }
-
-    /* Quick actions: Call / WhatsApp / draw the real road Route */
-    .truck-card-actions { display: flex; gap: 6px; padding: 0 11px 12px; margin-top: auto; }
-    .tca-btn {
-      flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-      padding: 8px 6px; border-radius: 9px; font-weight: 700; font-size: .76rem;
-      text-decoration: none; border: none; cursor: pointer; white-space: nowrap;
-      transition: filter .12s ease;
-    }
-    .tca-btn:hover { filter: brightness(1.08); }
-    .tca-btn.call  { background: var(--c-brand, #0a6f4d); color: #fff; }
-    .tca-btn.wa    { background: #1fa855; color: #fff; }
-    .tca-btn.route { background: var(--c-surface-2, #f3f1ea); color: var(--c-text, #1a1915); border: 1px solid var(--c-border, #e7e4dd); }
-    .truck-card-photo {
-      position: relative; background: #eceae4 center/cover no-repeat;
-      min-height: 100%; display: grid; place-items: center;
-    }
-    /* The glyph a photoless truck gets. A stroke SVG, so it takes the theme
-       and scales with the card instead of being a font-size on an empty box. */
-    .truck-card-photo .tc-ph { width: 30px; height: 30px; opacity: .5; }
-    .truck-card-badges { position: absolute; top: 6px; left: 6px; right: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
-    .tc-badge {
-      font-size: .68rem; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px;
-      color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
-    }
-    .tc-badge.verified { background: var(--c-success, #0d8050); }
-    .tc-badge.dist { background: rgba(0,0,0,.55); }
-    .tc-badge.dist.road { background: var(--c-brand, #0a6f4d); }   /* exact road km + min */
-    .truck-card-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 5px; }
-    .truck-card-price { font-weight: 800; color: var(--c-brand, #0a6f4d); font-size: 1.02rem; }
-    .truck-card-price small { font-weight: 600; color: var(--c-muted, #6b6960); font-size: .72rem; }
-    .truck-card-title { font-weight: 700; font-size: .92rem; line-height: 1.25; }
-    .truck-card-meta { font-size: .8rem; color: var(--c-muted, #6b6960); display: flex; flex-wrap: wrap; gap: 4px 10px; }
-    .truck-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-    .truck-card-tags span {
-      font-size: .68rem; font-weight: 600; padding: 2px 7px; border-radius: 999px;
-      background: var(--c-surface-2, #f3f1ea); color: var(--c-muted, #555);
-    }
-    .trucks-empty { padding: 40px 16px; text-align: center; color: var(--c-muted, #6b6960); }
-
-    @media (max-width: 860px) {
-      .trucks-stage { grid-template-columns: 1fr; }
-      .trucks-mobile-tabs { display: flex; }
-      /* compact 2-col toolbar so filters don't tower over the list */
-      .trucks-toolbar { grid-template-columns: 1fr 1fr; padding: 10px; gap: 7px; }
-      .trucks-toolbar select, .trucks-toolbar input { padding: 9px 10px; font-size: 15px; }
-      #filterSearch { grid-column: 1 / -1; }
-      .trucks-stage[data-view="list"] .trucks-map-wrap { display: none; }
-      .trucks-stage[data-view="map"] .trucks-list { display: none; }
-      .trucks-map-wrap { position: static; }
-      .trucks-map { height: 64vh; }
-      .trucks-list-cta { margin-left: 0; }
-    }
-  </style>
-
-  <!-- Plus Jakarta Sans — the Twilight-design app typeface -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
-  <style>
-    /* ── Layout, both themes ───────────────────────────────────────────────
-       These say WHERE things sit, not what colour they are, so they must not
-       be scoped to a theme. */
-    body[data-page="trucks"] {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif; min-height: var(--app-vh, 100vh);
-    }
-    body[data-page="trucks"] .page-hero { min-height: auto !important; padding: 26px 16px 10px !important; }
-    body[data-page="trucks"] .container { padding-bottom: 96px; }
-    body[data-page="trucks"] #nav-slot, body[data-page="trucks"] #footer-slot { display: none !important; }
-
-    /* ── Twilight dark re-skin (Claude design) for the Trucks directory ────
-       Scoped to the dark theme. Custom properties resolve to the nearest
-       ancestor that sets them, so an UNCONDITIONAL palette here sits on
-       <body> where css/theme-light.css cannot reach it — light mode would
-       keep the whole dark palette and print near-white ink on cream.
-       `:not([data-theme="light"])` covers both the explicit dark attribute
-       and the no-attribute default. */
-    :root:not([data-theme="light"]) body[data-page="trucks"] {
-      --c-surface: var(--surface-app); --c-surface-2: rgba(255,255,255,.05); --c-bg-elev: rgba(255,255,255,.04);
-      --c-border: rgba(255,255,255,.08);
-      --c-text: #E9F3EE; --c-muted: rgba(233,243,238,.55);
-      --c-brand: var(--green-emerald); --c-brand-deep: var(--green-emerald); --c-accent: #F6C45A; --c-success: var(--green-emerald);
-      background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
-      color: #E9F3EE;
-    }
-    :root:not([data-theme="light"]) body[data-page="trucks"] .page-hero { background: linear-gradient(180deg, #10231b, #0a120e) !important; }
-    :root:not([data-theme="light"]) body[data-page="trucks"] .page-title { color: #fff; }
-    :root:not([data-theme="light"]) body[data-page="trucks"] .page-subtitle { color: rgba(233,243,238,.7); }
-    :root:not([data-theme="light"]) body[data-page="trucks"] .trucks-toolbar select,
-    :root:not([data-theme="light"]) body[data-page="trucks"] .trucks-toolbar input { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14); }
-    :root:not([data-theme="light"]) body[data-page="trucks"] .trucks-toolbar input::placeholder { color: rgba(233,243,238,.4); }
-    :root:not([data-theme="light"]) body[data-page="trucks"] .trucks-mobile-tabs button:not(.active) { background: rgba(255,255,255,.05); color: #E9F3EE; border-color: rgba(255,255,255,.14); }
-    :root:not([data-theme="light"]) body[data-page="trucks"] .truck-card-photo { background: #0f1714 center/cover no-repeat; }
-    /* Dark ink on the BRIGHT green/gold fills the dark palette above paints.
-       Light mode fills the same controls with a deep green (--c-brand
-       #0a6f4d) and needs white ink, which the base sheet already gives it —
-       so this rule must not escape the dark theme. */
-    :root:not([data-theme="light"]) body[data-page="trucks"] .trucks-near-me,
-    :root:not([data-theme="light"]) body[data-page="trucks"] .trucks-list-cta,
-    :root:not([data-theme="light"]) body[data-page="trucks"] .trucks-mobile-tabs button.active,
-    :root:not([data-theme="light"]) body[data-page="trucks"] .tca-btn.call,
-    :root:not([data-theme="light"]) body[data-page="trucks"] .tc-badge.verified,
-    :root:not([data-theme="light"]) body[data-page="trucks"] .tc-badge.dist.road { color: #06170F; }
-  </style>
   <link rel="stylesheet" href="css/theme-light.css" />
-  <style>
-    /* ── Text inputs in the dark theme ──────────────────────────────────────
-       premium.css paints input[type="text"] (and email/tel/search/number/date/
-       password) rgba(255, 255, 255, .78) with !important. That is a light
-       "glass" style, and its attribute selector outranks neon-pro's plain
-       `input`, so on this dark page the search and area boxes rendered as
-       near-white slabs: measured alpha .78 over a dark card, which reads as a
-       disabled control rather than an empty one.
-
-       Only !important can answer !important, and this is scoped to the page
-       and to non-light so the pages that are cream by design keep premium's
-       fill. Light mode is left alone: there, white is correct. */
-    :root:not([data-theme="light"]) body[data-page="trucks"] input[type="text"],
-    :root:not([data-theme="light"]) body[data-page="trucks"] input[type="search"],
-    :root:not([data-theme="light"]) body[data-page="trucks"] input[type="tel"],
-    :root:not([data-theme="light"]) body[data-page="trucks"] input[type="number"],
-    :root:not([data-theme="light"]) body[data-page="trucks"] input:not([type]) {
-      background: rgba(255, 255, 255, .05) !important;
-      color: var(--text) !important;
-      border: 1px solid rgba(255, 255, 255, .14) !important;
-    }
-    :root:not([data-theme="light"]) body[data-page="trucks"] input::placeholder {
-      color: rgba(233, 243, 238, .45) !important;
-    }
-  </style>
+  <!-- The move planner and the truck card, shared with house.html and
+       truck.html. Loaded before the page sheet so the page sheet can correct
+       it, not the other way round. -->
+  <link rel="stylesheet" href="css/truck-move.css" />
+  <!-- Everything that is only this page: the planner frame, the filters, the
+       split stage, and the two cascade fights its own header documents. -->
+  <link rel="stylesheet" href="css/trucks-page.css" />
   <!-- Adaptive layer: safe areas, the real viewport height, density,
        and the app/web shell switch. Loads last so it can correct the sheets
        above it. Pairs with js/core/viewport.js. -->
@@ -236,11 +41,11 @@
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/trucks-hero.jpg')">
     <div class="page-hero-inner">
       <h1 class="page-title" data-i18n="trucks_title">Moving trucks for hire</h1>
-      <p class="page-subtitle" data-i18n="trucks_sub">Find a truck near you to move your goods to your new home. Filter by size and area, or sort by distance.</p>
+      <p class="page-subtitle" data-i18n="trucks_sub">Tell us what you are moving and where it is going. We rank every truck that can do it, closest to you first.</p>
     </div>
   </section>
 
-  <main id="trucksMain" class="container" style="padding-top:18px;">
+  <main id="trucksMain" class="container tm" style="padding-top:18px;">
 
     <!-- Find-mode prompt: near me (GPS) vs a specific/far area (type it) -->
     <div class="find-mode" id="fmTrucks" data-near="truckNearMeBtn" data-area="filterArea" style="display:none">
@@ -252,46 +57,108 @@
       </div>
     </div>
 
-    <!-- Filter bar -->
-    <div class="trucks-toolbar">
-      <select id="filterType">
-        <option value="" data-i18n="tk_type_any">Truck type: any</option>
-        <option value="pickup" data-i18n="tk_t_pickup">Pickup</option>
-        <option value="canter" data-i18n="tk_t_canter">Canter</option>
-        <option value="3ton" data-i18n="tk_t_3t">3-tonne</option>
-        <option value="7ton" data-i18n="tk_t_7t">7-tonne lorry</option>
-        <option value="10ton_plus" data-i18n="tk_t_10t">10-tonne+ lorry</option>
-        <option value="other" data-i18n="tk_t_other">Other</option>
-      </select>
-      <input type="text" id="filterArea" list="filterAreaList" autocomplete="off"
-             data-i18n-placeholder="cat_area_ph" placeholder="Area, e.g. Mikocheni, Sakina…"
-             data-i18n-title="cat_area_title" title="Type any area, ward or neighbourhood" />
-      <datalist id="filterAreaList"></datalist>
-      <select id="filterService">
-        <option value="" data-i18n="cat_cov_any">Coverage: any</option>
-        <option value="within_city" data-i18n="cat_cov_city">Within city</option>
-        <option value="region_wide" data-i18n="cat_cov_region">Region-wide</option>
-        <option value="cross_region" data-i18n="cat_cov_cross">Cross-region</option>
-      </select>
-      <select id="filterCapacity">
-        <option value="" data-i18n="tk_cap_any">Capacity: any</option>
-        <option value="1" data-i18n="tk_cap_1">1+ tonne</option>
-        <option value="3" data-i18n="tk_cap_3">3+ tonnes</option>
-        <option value="7" data-i18n="tk_cap_7">7+ tonnes</option>
-        <option value="10" data-i18n="tk_cap_10">10+ tonnes</option>
-      </select>
-      <input type="text" id="filterSearch" data-i18n-placeholder="tk_search_ph" placeholder="Search title, area or owner…" />
-      <select id="truckSort" title="Sort trucks">
-        <option value="nearest" data-i18n="cat_sort_near">Sort: nearest</option>
-        <option value="cheapest" data-i18n="cat_sort_cheap">Sort: cheapest</option>
-        <option value="newest" data-i18n="cat_sort_new">Sort: newest</option>
-      </select>
-      <div class="tt-actions">
-        <button id="truckNearMeBtn" class="trucks-near-me" data-i18n-title="cat_gps_title" title="Use my GPS location">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    <!-- ===================================================================
+         THE MOVE PLANNER
+         The spine of the page. Arriving from a property sheet, every field
+         below is already answered and the list underneath is already ranked;
+         arriving cold, it is three questions, and answering none of them
+         still leaves a working directory.
+         js/pages/trucks.js fills both columns.
+         =================================================================== -->
+    <section class="tk-plan" id="tkPlan" aria-labelledby="tkPlanH">
+      <div class="tk-plan__head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V7a1 1 0 0 1 1-1h9v10M13 9h4l4 4v3h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></svg>
+        <h2 class="tk-plan__h" id="tkPlanH" data-i18n="tk_plan_h">Plan your move</h2>
+      </div>
+      <p class="tk-plan__sub" id="tkPlanSub" data-i18n="tk_plan_sub">Say what you are moving and where it is going, and every truck below is measured against it.</p>
+
+      <div class="tk-plan__cols">
+        <div>
+          <p class="tm-load__hint" data-i18n="tm_load_q">What are you moving?</p>
+          <div id="tkLoads"></div>
+        </div>
+        <div class="tm-legs" id="tkLegs"></div>
+      </div>
+
+      <div class="tm-trip" id="tkTrip" hidden></div>
+      <p class="tm-msg" id="tkPlanMsg" role="status" aria-live="polite" hidden></p>
+    </section>
+
+    <!-- ===================================================================
+         THE FILTERS
+         Everything an owner can say about a lorry is something a customer can
+         filter on. The handful that end a phone call sit in the open; the rest
+         are one tap behind "More options", which is the same rule the listing
+         form itself follows (js/lib/pick-list.js).
+         =================================================================== -->
+    <div class="tk-filters">
+      <div class="tk-row">
+        <select id="filterType" data-i18n-title="tk_type_any" title="Truck type: any">
+          <option value="" data-i18n="tk_type_any">Truck type: any</option>
+          <option value="pickup" data-i18n="tk_t_pickup">Pickup</option>
+          <option value="canter" data-i18n="tk_t_canter">Canter</option>
+          <option value="3ton" data-i18n="tk_t_3t">3-tonne</option>
+          <option value="7ton" data-i18n="tk_t_7t">7-tonne lorry</option>
+          <option value="10ton_plus" data-i18n="tk_t_10t">10-tonne+ lorry</option>
+          <option value="other" data-i18n="tk_t_other">Other</option>
+        </select>
+        <select id="filterCapacity">
+          <option value="" data-i18n="tk_cap_any">Capacity: any</option>
+          <option value="1" data-i18n="tk_cap_1">1+ tonne</option>
+          <option value="3" data-i18n="tk_cap_3">3+ tonnes</option>
+          <option value="7" data-i18n="tk_cap_7">7+ tonnes</option>
+          <option value="10" data-i18n="tk_cap_10">10+ tonnes</option>
+        </select>
+        <select id="filterService">
+          <option value="" data-i18n="cat_cov_any">Coverage: any</option>
+          <option value="within_city" data-i18n="cat_cov_city">Within city</option>
+          <option value="region_wide" data-i18n="cat_cov_region">Region-wide</option>
+          <option value="cross_region" data-i18n="cat_cov_cross">Cross-region</option>
+        </select>
+        <select id="truckSort" data-i18n-title="tk_sort_title" title="Order the trucks">
+          <option value="best" data-i18n="tk_sort_best">Sort: best match</option>
+          <option value="nearest" data-i18n="cat_sort_near">Sort: nearest</option>
+          <option value="cheapest" data-i18n="cat_sort_cheap">Sort: cheapest</option>
+          <option value="biggest" data-i18n="tk_sort_big">Sort: biggest</option>
+          <option value="newest" data-i18n="cat_sort_new">Sort: newest</option>
+        </select>
+      </div>
+
+      <div class="tk-row">
+        <input type="text" id="filterArea" list="filterAreaList" autocomplete="off"
+               data-i18n-placeholder="cat_area_ph" placeholder="Area, e.g. Mikocheni, Sakina…"
+               data-i18n-title="cat_area_title" title="Type any area, ward or neighbourhood" />
+        <datalist id="filterAreaList"></datalist>
+        <input type="text" id="filterSearch" data-i18n-placeholder="tk_search_ph" placeholder="Search title, area or owner…" />
+        <input type="number" id="filterPrice" min="0" step="5000" inputmode="numeric"
+               data-i18n-placeholder="tk_price_ph" placeholder="Most I will pay, TZS" />
+      </div>
+
+      <div class="tk-toggles" role="group" aria-label="Quick filters" data-i18n-aria-label="tk_quick">
+        <button type="button" class="tk-toggle" data-tk-flag="driver" aria-pressed="false" data-i18n="tk_f_driver">Driver included</button>
+        <button type="button" class="tk-toggle" data-tk-flag="loaders" aria-pressed="false" data-i18n="tk_f_loaders">Loaders included</button>
+        <button type="button" class="tk-toggle" data-tk-flag="verified" aria-pressed="false" data-i18n="tk_f_verified">Verified only</button>
+        <button type="button" class="tk-toggle" data-tk-flag="photo" aria-pressed="false" data-i18n="tk_f_photo">Has photos</button>
+        <button type="button" class="tk-toggle" data-tk-flag="negotiable" aria-pressed="false" data-i18n="tk_f_negotiable">Price negotiable</button>
+      </div>
+
+      <details class="tk-more" id="tkMore">
+        <summary>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          <span data-i18n="tk_more">More options</span>
+        </summary>
+        <!-- Filled from js/lib/offer-spec.js, so the words here are the same
+             words the owner ticked on the listing form. -->
+        <div id="tkSpecGroups"></div>
+      </details>
+
+      <div class="tk-actions">
+        <button id="truckNearMeBtn" class="tk-btn tk-btn--gps" type="button" data-i18n-title="cat_gps_title" title="Use my GPS location">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
           <span data-i18n="trucks_near_me">Near me</span>
         </button>
-        <a href="agent-trucks.html" class="trucks-list-cta" data-i18n="trucks_list_cta">+ List your truck</a>
+        <button id="tkReset" class="tk-btn" type="button" data-i18n="tk_reset">Clear filters</button>
+        <a href="agent-trucks.html" class="tk-btn tk-btn--list tk-spacer" data-i18n="trucks_list_cta">+ List your truck</a>
       </div>
     </div>
 
@@ -305,9 +172,16 @@
 
     <!-- Split list + map -->
     <div class="trucks-stage" id="trucksStage" data-view="list">
-      <div id="trucksList" class="trucks-list" aria-busy="true"></div>
+      <div class="trucks-list-col">
+        <div id="trucksList" class="tm-list" aria-busy="true"></div>
+      </div>
       <div class="trucks-map-wrap">
         <div id="trucksMap" class="trucks-map"></div>
+        <div class="tk-legend">
+          <span><i class="is-you"></i><span data-i18n="tk_leg_you">Where you are</span></span>
+          <span><i class="is-to"></i><span data-i18n="tk_leg_to">Where it is going</span></span>
+          <span><i class="is-truck"></i><span data-i18n="tk_leg_truck">A truck</span></span>
+        </div>
       </div>
     </div>
 
@@ -328,8 +202,20 @@
   <script src="js/core/auth.js"></script>
   <script src="js/core/nav.js"></script>
   <script src="js/lib/geolocate.js"></script>
+  <!-- "Take me there", handed to the app that actually navigates, with the
+       origin, the stop and the destination already filled in. After
+       geolocate.js, because it reads the fix that file remembers. -->
+  <script src="js/lib/maps-handoff.js"></script>
   <script src="js/lib/find-mode.js"></script>
   <script src="js/lib/listing-kinds.js"></script>
+  <!-- The catalogue of everything an owner can say about a lorry. It is the
+       listing form's vocabulary, and now the filter's too. -->
+  <script src="js/lib/offer-spec.js"></script>
+  <!-- The encrypted door to whoever posted a listing. -->
+  <script src="js/lib/pm-reach.js"></script>
+  <!-- The match engine and the shared card. -->
+  <script src="js/lib/truck-match.js"></script>
+  <script src="js/lib/truck-move-ui.js"></script>
   <script src="js/pages/trucks.js"></script>
   <script>
     // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js) — "Explore" tab.

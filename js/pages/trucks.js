@@ -1,387 +1,692 @@
-// Moving-trucks directory — browse hire trucks, filter by type / area /
-// coverage / capacity, and sort by distance to find the truck nearest you.
+// ============================================================================
+//  trucks.js — the moving-trucks directory (trucks.html)
 //
-// The "move my goods to the new home" companion to the houses listings. Same
-// shape as houses.js but scoped to trucks: a split list + Leaflet map, public
-// (no auth needed to browse), data from DataStore.getTrucks() with a JSON
-// fallback so the page always works even before the `trucks` table is applied.
+//  WHAT THIS SCREEN IS NOW
+//  It used to be a list of lorries with four filters on top, and it answered
+//  exactly one question: "what trucks exist?". The question people actually
+//  arrive with is "who can move my things from here to there, and what will it
+//  cost me" — and after this pass the page is built around that:
+//
+//    plan      what you are moving, where it is now, where it is going
+//    filters   everything an owner can say about a lorry, as something you can
+//              filter on: the body, the crew, the kit, the trip, the paperwork
+//    results   every truck measured against YOUR move, best match first, each
+//              one saying why it is ranked where it is
+//    map       your pickup, your destination, the lorries, and the road
+//
+//  ARRIVING FROM A PROPERTY
+//  house.html now carries the same planner (js/lib/truck-move-panel.js) and
+//  hands the whole plan over in the query string. Somebody who pressed "find
+//  a truck" on a listing lands here with the destination, the load size and
+//  their own position already filled in, and a ranked list already on screen.
+//  Nothing is asked twice. js/lib/truck-match.js `encode`/`decode` own that
+//  format so neither page can drift from it.
+//
+//  WHERE THE WORK LIVES
+//    js/lib/truck-match.js    the ranking, the distances, the coverage read
+//    js/lib/truck-move-ui.js  the planner legs, the load chips, the card
+//    js/lib/offer-spec.js     the vocabulary the filters and the form share
+//    js/lib/maps-handoff.js   the Google Maps link, origin and stop filled in
+//    css/trucks-page.css      this page's frame; css/truck-move.css the cards
+//
+//  GOOGLE MAPS IS THE NAVIGATOR. The route drawn on the Leaflet map below is
+//  the PROOF of a distance, and it is measured by our own routing engines. The
+//  moment somebody actually wants to drive it they get a Google Maps link with
+//  the origin, the stop and the destination already in it. See the rule at the
+//  top of js/lib/maps-handoff.js for why that link is never built after an
+//  await.
+// ============================================================================
 
 (function () {
   "use strict";
 
-  // The map moved to js/lib/listing-kinds.js so the truck page, the agent
-  // list and an agent's storefront cannot end up calling the same lorry two
-  // different things. A free-text custom kind ("tipper") is title-cased there
-  // and shown as typed rather than collapsed into "Other".
-  const typeLabel = (tt) => window.ListingKinds.label("trucks", tt) || "Truck";
-  const SERVICE_LABEL = {
-    within_city: "Within city", region_wide: "Region-wide", cross_region: "Cross-region",
-  };
+  var UI, TM;   // window.TruckMoveUI / window.TruckMove, resolved in init()
 
-  let trucks = [];        // all loaded trucks
-  let map = null;
-  let markers = new Map();   // id -> Leaflet marker
-  let userLoc = null;        // {lat,lng} once "Near me" used
-  let userMarker = null;
-  // Real road distances (OSRM table) keyed by truck id: km | null (no route).
-  // Filled in batches after "Near me"; until then cards show direct distance.
-  const roadKm = new Map();
-  let enriching = false;
-  let routeLayer = null;          // the currently drawn road route
-  let sortMode = "nearest";       // nearest | cheapest | newest
-
-  // DOM refs (filled in init)
-  let listEl, mapEl, countEl, stageEl;
-  let fType, fArea, fService, fCapacity, fSearch, areaList, nearBtn, sortSel;
-
+  function T(k, en) {
+    var v = window.t ? window.t(k) : k;
+    return (v === k && en != null) ? en : v;
+  }
+  function fill(s, vars) {
+    return String(s).replace(/\{(\w+)\}/g, function (m, k) {
+      return (vars && k in vars) ? vars[k] : m;
+    });
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
   function $(id) { return document.getElementById(id); }
 
-  function esc(s) {
-    return String(s == null ? "" : s)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-
-  // These two pages had no translation helper at all, which is the mechanical
-  // reason every string they render was English: there was nothing to call.
-  const T = (k) => (window.t ? window.t(k) : k);
-
-
-  function haversineKm(aLat, aLng, bLat, bLng) {
-    const R = 6371, toRad = (d) => (d * Math.PI) / 180;
-    const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
-    const x = Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(x));
-  }
-
-  function photoUrl(t) {
-    const p = t.photo || (Array.isArray(t.photos) && t.photos[0]) || "";
-    return p && window.DataStore ? window.DataStore.truckPhotoUrl(p) : "";
-  }
-
-  // "from TZS 80k / trip"
-  function formatPrice(t) {
-    const p = t.price_tzs || 0;
-    let value;
-    if (p >= 1_000_000) value = (p / 1_000_000).toFixed(p % 1_000_000 === 0 ? 0 : 1) + "M";
-    else if (p >= 1_000) value = (p / 1_000).toFixed(0) + "k";
-    else value = String(p);
-    return { value, unit: `TZS / ${t.period || "trip"}` };
-  }
-
-  // ~24 km/h average city driving → honest "about N min" estimate for cards;
-  // the EXACT minutes come from OSRM when the user draws the route.
-  function driveMin(km) { return Math.max(1, Math.round((km / 24) * 60)); }
-  function kmText(km) {
-    if (km < 1) return Math.round(km * 1000) + " m";
-    return (km < 10 ? km.toFixed(1) : String(Math.round(km))) + " km";
-  }
-  function distanceLabel(t) {
-    if (Number.isFinite(t._roadKm)) return ` ${kmText(t._roadKm)} by road · ~${driveMin(t._roadKm)} min`;
-    // Never show a crow-flies "direct" number — say we're measuring the real road.
-    if (Number.isFinite(t._km)) return `measuring road…`;
-    return "";
-  }
-
-  // Batch-resolve REAL road km (one OSRM table call) for rows that still
-  // show the straight-line number, then re-render with the exact figures.
-  async function enrichRoadDistances(rows) {
-    if (!userLoc || !window.pawaRoute || enriching) return;
-    const missing = rows.filter((t) =>
-      Number.isFinite(+t.lat) && Number.isFinite(+t.lng) && !roadKm.has(t.id)
-    ).slice(0, 99);
-    if (!missing.length) return;
-    enriching = true;
+  /**
+   * A design-system colour, read from the page rather than written here.
+   *
+   * Leaflet takes colours as strings, so a route line cannot be a var() in a
+   * stylesheet. Reading the token off the body at draw time is the next best
+   * thing: the lines follow a brand change like everything else, and there is
+   * no hex in this file to go stale. The fallback is only ever reached if the
+   * token sheet did not load, in which case the map is the least of it.
+   */
+  function cssVar(name, fallback) {
     try {
-      const kms = await window.pawaRoute.table(
-        userLoc, missing.map((t) => ({ lat: +t.lat, lng: +t.lng })));
-      missing.forEach((t, i) =>
-        roadKm.set(t.id, Number.isFinite(kms[i]) ? kms[i] : null));
-      render();   // swap "direct" badges for road km + minutes
+      var v = getComputedStyle(document.body).getPropertyValue(name).trim();
+      return v || fallback;
+    } catch (_) { return fallback; }
+  }
+
+  // ==========================================================================
+  //  STATE
+  // ==========================================================================
+
+  var trucks = [];          // everything the catalogue returned
+  var rows = [];            // what is on screen, ranked
+  var ctx = null;           // the move: from, to, load, tripKm, roadKm
+  var sortMode = "best";
+
+  var filters = {
+    type: "", capacity: "", service: "", area: "", q: "", priceMax: 0,
+    flags: {},              // driver / loaders / verified / photo / negotiable
+    specs: {},              // keys from js/lib/offer-spec.js TRUCK
+  };
+
+  var map = null, markers = new Map(), userMarker = null, toMarker = null;
+  var routeLayer = null, tripLayer = null;
+  var measuring = false;
+
+  // DOM, filled in init()
+  var listEl, mapEl, countEl, stageEl, legsEl, loadsEl, tripEl, planMsgEl, specEl;
+
+  // ==========================================================================
+  //  THE PLAN
+  // ==========================================================================
+
+  function paintLegs() {
+    if (!legsEl) return;
+    var fromKnown = !!(ctx.from && TM.usable(ctx.from));
+    var toKnown = !!(ctx.to && TM.usable(ctx.to));
+    legsEl.innerHTML =
+      UI.legHtml({
+        icon: "gps",
+        label: T("tm_leg_from", "Your things are in"),
+        value: fromKnown ? (ctx.fromLabel || T("tm_from_here", "Where you are now"))
+                         : T("tm_from_unknown", "Not set yet"),
+        empty: !fromKnown,
+        id: "tkFromValue",
+        action: fromKnown ? T("tm_change", "Change") : T("tm_use_gps", "Use my location"),
+        actionId: "tkFromBtn",
+      }) +
+      UI.legHtml({
+        icon: "home",
+        label: T("tm_leg_to", "Moving to"),
+        value: toKnown ? (ctx.toLabel || T("tm_to_pin", "The place you picked"))
+                       : T("tm_to_unknown", "Not set yet"),
+        empty: !toKnown,
+        id: "tkToValue",
+        action: T("tm_type", "Type it"),
+        actionId: "tkToBtn",
+      }) +
+      '<div class="tm-where" id="tkWhere" hidden>' +
+        '<input type="text" id="tkWhereInput" autocomplete="off" placeholder="' +
+          esc(T("tm_where_ph", "A town, ward or area, anywhere in Tanzania")) + '" />' +
+        '<button type="button" id="tkWhereGo">' + esc(T("tm_where_go", "Use this")) + "</button>" +
+      "</div>";
+
+    $("tkFromBtn").addEventListener("click", function () { locate(true); });
+    $("tkToBtn").addEventListener("click", function () { openWhere("to"); });
+    $("tkWhereGo").addEventListener("click", resolveWhere);
+    $("tkWhereInput").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); resolveWhere(); }
+    });
+  }
+
+  var whereTarget = "to";
+  function openWhere(which) {
+    whereTarget = which;
+    var box = $("tkWhere");
+    if (!box) return;
+    box.hidden = false;
+    $("tkWhereInput").focus();
+  }
+
+  /**
+   * Turn a typed place into a point.
+   *
+   * pawaGeo.suggest() matches our own gazetteer first and only then asks the
+   * geocoder, which is why a ward somebody typed from memory resolves without
+   * a round trip. Its top row is the answer; we do not draw a picker here,
+   * because the plan is re-editable and a wrong pin costs one more tap.
+   */
+  async function resolveWhere() {
+    var input = $("tkWhereInput");
+    var q = (input.value || "").trim();
+    if (q.length < 2 || !window.pawaGeo) return;
+    say(T("tm_looking", "Looking that place up."));
+    try {
+      var hits = await window.pawaGeo.suggest(q, { limit: 5, near: ctx.to || ctx.from });
+      var hit = (hits || []).find(function (h) { return TM.usable(h); });
+      if (!hit) { say(T("tm_where_miss", "We could not find that place. Try the ward or the town."), true); return; }
+      var p = { lat: Number(hit.lat), lng: Number(hit.lng) };
+      var label = [hit.name, hit.context].filter(Boolean).join(", ");
+      if (whereTarget === "to") { ctx.to = p; ctx.toLabel = label; ctx.toRegion = hit.region || ctx.toRegion; }
+      else { ctx.from = p; ctx.fromLabel = label; }
+      $("tkWhere").hidden = true;
+      input.value = "";
+      say("");
+      paintLegs();
+      render();
+      measureTrip();
+      measurePickups();
     } catch (_) {
-      missing.forEach((t) => roadKm.set(t.id, null));
-    } finally {
-      enriching = false;
+      say(T("tm_where_miss", "We could not find that place. Try the ward or the town."), true);
     }
   }
 
-  // Draw the actual driving route(s) to a truck on the map — the visible
-  // proof of the distance. When OSRM knows MORE THAN ONE sensible road, every
-  // option is drawn and the user taps the line they prefer: the chosen one
-  // goes solid green with its exact km + minutes, the rest stay dashed.
-  async function drawRouteTo(t) {
-    if (!userLoc || !window.pawaRoute || !map) return;
-    const dest = { lat: +t.lat, lng: +t.lng };
-    if (!Number.isFinite(dest.lat) || !Number.isFinite(dest.lng)) return;
-    switchView("map");
-    setTimeout(() => map.invalidateSize(), 80);
-    const r = await window.pawaRoute.route(userLoc, dest);
-    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
-    if (!r || !r.geojson) {
-      // No routing engine (OSRM ×2 + Valhalla) could measure it — show the honest
-      // state on the marker instead of drawing a misleading straight line.
-      const mk = markers.get(t.id);
-      if (mk) {
-        mk.bindPopup(
-          `<strong>${esc(t.title || "Moving truck")}</strong>` +
-          `<br><small>Couldn’t measure the road distance right now — please try again.</small>`).openPopup();
-      }
-      return;
-    }
-    const options = [
-      { km: r.km, durationMin: r.durationMin, geojson: r.geojson },
-      ...(r.alts || []).filter((a) => a && a.geojson),
-    ];
-    roadKm.set(t.id, options[0].km);   // exact figure beats the table estimate
-    render();                          // refresh badges first — render re-fits
-                                       // to all markers, route zoom comes after
-    routeLayer = L.layerGroup().addTo(map);
-    const title = esc(t.title || "Moving truck");
-    const lines = [];
-    const styleFor = (chosen) => chosen
-      ? { color: "#0a6f4d", weight: 6, opacity: .95, dashArray: null }
-      : { color: "#5e8a79", weight: 4, opacity: .75, dashArray: "7 7" };
-    const popupFor = (o, i) =>
-      `<strong>${title}</strong><br>` +
-      (options.length > 1 ? `Road option ${i + 1} of ${options.length}${o.via ? " —  via " + esc(o.via) : ""}<br>` : (o.via ? ` via ${esc(o.via)}<br>` : "")) +
-      ` ${o.km.toFixed(1)} km by road · ${Math.round(o.durationMin)} min drive` +
-      (options.length > 1 ? `<br><small>Tap another line to choose that road</small>` : "");
-    const choose = (idx) => {
-      lines.forEach((ln, i) => ln.setStyle(styleFor(i === idx)));
-      lines[idx].bringToFront();
-      roadKm.set(t.id, options[idx].km);          // the user's preferred road
-      renderList(applyFilters());                  // update the card badge
-    };                                             // (no marker re-fit — keep view)
-    // White casing under every line first, so the coloured roads stay visible on
-    // any basemap (the dark satellite tiles otherwise swallow the green lines).
-    options.forEach((o) =>
-      L.geoJSON(o.geojson, { interactive: false, style: { color: "#fff", weight: 9, opacity: .9 } }).addTo(routeLayer));
-    options.forEach((o, i) => {
-      const ln = L.geoJSON(o.geojson, { style: styleFor(i === 0) }).addTo(routeLayer);
-      ln.bindPopup(popupFor(o, i));
-      ln.on("click", () => choose(i));
-      lines.push(ln);
-    });
-    lines[0].bringToFront();
-    try {
-      const all = L.featureGroup(lines);
-      map.fitBounds(all.getBounds(), { padding: [46, 46] });
-    } catch (_) {}
-    lines[0].openPopup();
+  function paintLoads() {
+    if (!loadsEl) return;
+    loadsEl.innerHTML = UI.loadsHtml(ctx.load);
   }
 
-  // ---- filtering -----------------------------------------------------------
-  function applyFilters() {
-    const type = fType.value;
-    const area = fArea.value.trim().toLowerCase();
-    const service = fService.value;
-    const minCap = parseFloat(fCapacity.value) || 0;
-    const q = fSearch.value.trim().toLowerCase();
+  function say(text, warn) {
+    if (!planMsgEl) return;
+    planMsgEl.hidden = !text;
+    planMsgEl.textContent = text || "";
+    planMsgEl.classList.toggle("is-warn", !!warn);
+  }
 
-    let out = trucks.filter((t) => {
-      if (type && t.truck_type !== type) return false;
-      if (service && t.service_area !== service) return false;
-      if (minCap && !(parseFloat(t.capacity_tonnes) >= minCap)) return false;
-      if (area && !([t.area, t.address, t.region, t.district, t.ward]
-                    .some((v) => (v || "").toLowerCase().includes(area)))) return false;
-      if (q) {
-        const hay = `${t.title || ""} ${t.area || ""} ${t.region || ""} ${t.district || ""} ${t.ward || ""} ${t.address || ""} ${(t.owner && t.owner.name) || ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
+  function paintTrip() {
+    if (!tripEl) return;
+    if (ctx.tripKm == null) { tripEl.hidden = true; return; }
+    tripEl.hidden = false;
+    tripEl.innerHTML =
+      '<span class="tm-trip__n">' + esc(TM.kmText(ctx.tripKm)) + "</span>" +
+      "<span>" + esc(fill(T("tm_trip", "by road from where you are, about {min} minutes of driving"),
+                          { min: TM.driveMin(ctx.tripKm) })) + "</span>" +
+      '<span class="tm-trip__note">' +
+        esc(T("tm_trip_note", "The owner quotes the price. This is the distance they will be quoting for.")) +
+      "</span>";
+  }
+
+  // ==========================================================================
+  //  THE FILTERS
+  // ==========================================================================
+
+  /**
+   * The spec chips, built from the same catalogue the listing form writes.
+   *
+   * js/lib/offer-spec.js is the single vocabulary: an owner ticks "Tarpaulin
+   * over the load" there and a customer filters on the same words here. A
+   * second, private list of filter words is how a directory ends up unable to
+   * find the thing an agent just listed.
+   */
+  function buildSpecFilters() {
+    if (!specEl || !window.TruckSpec) return;
+    var say_ = window.OfferSpec ? window.OfferSpec.say : function (p) { return p && (p.en || p); };
+    specEl.innerHTML = window.TruckSpec.GROUPS.map(function (g) {
+      return '<div class="tk-group"><p class="tk-group__h">' + esc(say_(g.title)) + "</p>" +
+        '<div class="tk-toggles">' + g.items.map(function (it) {
+          return '<button type="button" class="tk-toggle" data-tk-spec="' + esc(it.key) +
+            '" aria-pressed="false">' + esc(say_(it)) + "</button>";
+        }).join("") + "</div></div>";
+    }).join("");
+  }
+
+  /** One delegated handler for every pill on the page. */
+  function wireToggles(root, attr, bag) {
+    if (!root) return;
+    root.addEventListener("click", function (e) {
+      var b = e.target.closest("[" + attr + "]");
+      if (!b) return;
+      var key = b.getAttribute(attr);
+      var on = b.getAttribute("aria-pressed") !== "true";
+      b.setAttribute("aria-pressed", String(on));
+      if (on) bag[key] = true; else delete bag[key];
+      render();
     });
+  }
 
-    // When the user has located themselves, annotate with direct + road km.
-    if (userLoc) {
-      out = out.map((t) => {
-        const has = Number.isFinite(+t.lat) && Number.isFinite(+t.lng);
-        const direct = has ? haversineKm(userLoc.lat, userLoc.lng, +t.lat, +t.lng) : Infinity;
-        const rk = has ? roadKm.get(t.id) : undefined;
-        return { ...t, _km: direct, _roadKm: Number.isFinite(rk) ? rk : undefined };
+  function kitOf(t) {
+    return (t && t.details && Array.isArray(t.details.kit)) ? t.details.kit : [];
+  }
+
+  function matchesFilters(t) {
+    if (filters.type && t.truck_type !== filters.type) return false;
+    if (filters.service && t.service_area !== filters.service) return false;
+    if (filters.capacity && !(parseFloat(t.capacity_tonnes) >= parseFloat(filters.capacity))) return false;
+    if (filters.priceMax && Number(t.price_tzs) > filters.priceMax) return false;
+
+    if (filters.flags.driver && !t.driver_included) return false;
+    if (filters.flags.loaders && !t.loaders_included) return false;
+    if (filters.flags.verified && !t.verified) return false;
+    if (filters.flags.negotiable && !t.negotiable) return false;
+    if (filters.flags.photo && !(t.photo || (Array.isArray(t.photos) && t.photos.length))) return false;
+
+    var wanted = Object.keys(filters.specs);
+    if (wanted.length) {
+      var kit = kitOf(t);
+      // Every chosen characteristic must be present. "Any of them" would let a
+      // truck with a tarpaulin answer a search for a tail lift, which is the
+      // kind of result that teaches people the filters do not work.
+      for (var i = 0; i < wanted.length; i++) {
+        if (kit.indexOf(wanted[i]) < 0) {
+          // driver and loaders live in their own columns as well as in the
+          // characteristics list. The form writes both; an older row may carry
+          // only the column.
+          if (wanted[i] === "driver" && t.driver_included) continue;
+          if (wanted[i] === "loaders" && t.loaders_included) continue;
+          return false;
+        }
+      }
+    }
+
+    if (filters.area) {
+      var fields = [t.area, t.address, t.region, t.district, t.ward];
+      if (!fields.some(function (v) { return String(v || "").toLowerCase().includes(filters.area); })) return false;
+    }
+    if (filters.q) {
+      var hay = [t.title, t.area, t.region, t.district, t.ward, t.address,
+                 t.description, t.owner && t.owner.name].join(" ").toLowerCase();
+      if (!hay.includes(filters.q)) return false;
+    }
+    return true;
+  }
+
+  function readFilters() {
+    filters.type = $("filterType").value;
+    filters.service = $("filterService").value;
+    filters.capacity = $("filterCapacity").value;
+    filters.area = $("filterArea").value.trim().toLowerCase();
+    filters.q = $("filterSearch").value.trim().toLowerCase();
+    filters.priceMax = parseInt($("filterPrice").value, 10) || 0;
+  }
+
+  function resetFilters() {
+    ["filterType", "filterService", "filterCapacity", "filterArea", "filterSearch", "filterPrice"]
+      .forEach(function (id) { $(id).value = ""; });
+    filters.flags = {};
+    filters.specs = {};
+    document.querySelectorAll("[data-tk-flag],[data-tk-spec]").forEach(function (b) {
+      b.setAttribute("aria-pressed", "false");
+    });
+    readFilters();
+    render();
+  }
+
+  // ==========================================================================
+  //  RENDER
+  // ==========================================================================
+
+  function sortRows(list) {
+    var kmOf = function (t) {
+      return t._pickupKm != null ? t._pickupKm
+           : (t._directKm != null ? t._directKm : Infinity);
+    };
+    if (sortMode === "nearest") return list.slice().sort(function (a, b) { return kmOf(a) - kmOf(b); });
+    if (sortMode === "cheapest") return list.slice().sort(function (a, b) {
+      return (Number(a.price_tzs) || 1e15) - (Number(b.price_tzs) || 1e15);
+    });
+    if (sortMode === "biggest") return list.slice().sort(function (a, b) {
+      return (Number(b.capacity_tonnes) || 0) - (Number(a.capacity_tonnes) || 0);
+    });
+    if (sortMode === "newest") {
+      // The order DataStore returns is created_at desc, so rebuild it by
+      // walking the original array rather than by re-reading a timestamp the
+      // JSON fallback does not always carry.
+      var order = new Map();
+      trucks.forEach(function (t, i) { order.set(t.id, i); });
+      return list.slice().sort(function (a, b) {
+        return (order.get(a.id) || 0) - (order.get(b.id) || 0);
       });
     }
+    return list;   // "best": the order TruckMove.rank() already put them in
+  }
 
-    // Sort: road km when known, else direct km; cheapest; or newest.
-    const sortKm = (t) => (Number.isFinite(t._roadKm) ? t._roadKm : (t._km ?? Infinity));
-    if (sortMode === "cheapest") out.sort((a, b) => (+a.price_tzs || 1e15) - (+b.price_tzs || 1e15));
-    else if (sortMode === "nearest" && userLoc) out.sort((a, b) => sortKm(a) - sortKm(b));
-    // newest = the order DataStore returns (created_at desc)
-    return out;
+  function countText(n) {
+    if (!n) return "";
+    var word = fill(T(n === 1 ? "tk_n_one" : "tk_n_many", n === 1 ? "{n} truck" : "{n} trucks"), { n: n });
+    if (sortMode === "best" && (ctx.from || ctx.load)) {
+      return word + ". " + T("tk_n_best", "Best match for your move is first.");
+    }
+    if (sortMode === "nearest" && ctx.from) {
+      return word + ". " + T("tk_n_near", "Nearest to you is first.");
+    }
+    return word + ".";
   }
 
   function render() {
-    const rows = applyFilters();
-    const enriched = userLoc && rows.some((t) => Number.isFinite(t._roadKm));
-    countEl.textContent = rows.length
-      ? `${rows.length} truck${rows.length === 1 ? "" : "s"}` +
-        (userLoc && sortMode === "nearest"
-          ? (enriched ? " — nearest first, by real road distance" : " — nearest first")
-          : "")
-      : "";
-    renderList(rows);
-    renderMarkers(rows);
-    if (userLoc) enrichRoadDistances(rows);
+    if (!listEl) return;
+    var kept = trucks.filter(matchesFilters);
+    rows = sortRows(TM.rank(kept, ctx));
+    countEl.textContent = countText(rows.length);
+    renderList();
+    renderMarkers();
   }
 
-  function cardHtml(t) {
-    const img = photoUrl(t);
-    const price = formatPrice(t);
-    const badges = [];
-    const dist = distanceLabel(t);
-    if (dist) badges.push(`<span class="tc-badge dist${Number.isFinite(t._roadKm) ? " road" : ""}">${esc(dist)}</span>`);
-    if (t.verified) badges.push(`<span class="tc-badge verified"> Verified</span>`);
-    const tags = [];
-    tags.push(typeLabel(t.truck_type));
-    if (t.capacity_tonnes) tags.push(`${t.capacity_tonnes}t`);
-    if (t.driver_included) tags.push("Driver");
-    if (t.loaders_included) tags.push("Loaders");
-    tags.push(SERVICE_LABEL[t.service_area] || "");
-    const loc = [t.area, t.region].filter(Boolean).join(", ");
-    // See services.js: an inline fallback outranks the stylesheet, so the
-    // page's dark-mode placeholder never got a chance and a photoless card
-    // showed a cream block on a dark page.
-    const photoStyle = img
-      ? `background-image:url('${esc(img)}')`
-      : "";
-    // Quick actions: contact is the public owner jsonb shown on the page.
-    const phone = (t.owner && (t.owner.phone || t.owner.whatsapp)) || t.phone || "";
-    const wa = String((t.owner && (t.owner.whatsapp || t.owner.phone)) || "").replace(/[^\d]/g, "");
-    const canRoute = userLoc && Number.isFinite(+t.lat) && Number.isFinite(+t.lng);
-    const actions = [
-      phone ? `<a class="tca-btn call" href="tel:${esc(phone)}"> Call</a>` : "",
-      wa ? `<a class="tca-btn wa" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : "",
-      canRoute ? `<button class="tca-btn route" type="button" data-route="${esc(t.id)}" title="Draw the real road route on the map"> Route</button>` : "",
-    ].filter(Boolean).join("");
-    return `
-      <div class="truck-card">
-        <a class="truck-card-link" href="truck.html?id=${encodeURIComponent(t.id)}">
-          <div class="truck-card-photo" style="${photoStyle}">
-            ${img ? "" : `<svg class="tc-ph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V7a1 1 0 0 1 1-1h9v10M13 9h4l4 4v3h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></svg>`}
-            <div class="truck-card-badges">${badges.join("")}</div>
-          </div>
-          <div class="truck-card-body">
-            <div class="truck-card-price">from ${price.value} <small>${esc(price.unit)}</small>${t.negotiable ? ' <small>· negotiable</small>' : ""}</div>
-            <div class="truck-card-title">${esc(t.title || "Moving truck")}</div>
-            <div class="truck-card-meta">${loc ? `<span> ${esc(loc)}</span>` : ""}</div>
-            <div class="truck-card-tags">${tags.filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join("")}</div>
-          </div>
-        </a>
-        ${actions ? `<div class="truck-card-actions">${actions}</div>` : ""}
-      </div>`;
-  }
-
-  function renderList(rows) {
+  function renderList() {
     listEl.removeAttribute("aria-busy");
     if (!rows.length) {
-      listEl.innerHTML = `<div class="trucks-empty">${esc(T("tk_empty"))} <a href="agent-trucks.html">${esc(T("tk_empty_cta"))}</a>.</div>`;
+      listEl.innerHTML =
+        '<div class="tm-empty">' + esc(T("tk_empty", "No trucks match your filters yet. Try widening the area or coverage, or")) +
+        ' <a href="agent-trucks.html">' + esc(T("tk_empty_cta", "list your own truck")) + "</a>.</div>";
       return;
     }
-    listEl.innerHTML = rows.map(cardHtml).join("");
+    listEl.innerHTML = UI.listHtml(rows, ctx, {
+      // The crown is a claim about a MOVE. With no plan at all it would be a
+      // claim about nothing, so it is only drawn once the reader has said
+      // something about what they are moving or where they are.
+      crown: sortMode === "best" && !!(ctx.from || ctx.to || ctx.load),
+      extra: function (r) {
+        if (!TM.usable(r)) return "";
+        return '<button type="button" class="tm-act" data-tk-map="' + esc(r.id) + '">' +
+          UI.ico("route", 14) + "<span>" + esc(T("tk_show_map", "Show on this map")) + "</span></button>";
+      },
+    });
   }
 
-  // ---- map -----------------------------------------------------------------
+  // ==========================================================================
+  //  THE MAP
+  // ==========================================================================
+
   function initMap() {
     if (!window.L || !mapEl) return;
-    map = L.map(mapEl, { scrollWheelZoom: true }).setView([-6.4, 35.0], 6); // Tanzania
-    window.addSatelliteHybrid(map);
+    map = L.map(mapEl, { scrollWheelZoom: true }).setView([-6.4, 35.0], 6);  // Tanzania
+    if (window.addSatelliteHybrid) window.addSatelliteHybrid(map);
   }
 
-  function renderMarkers(rows) {
+  function renderMarkers() {
     if (!map) return;
-    markers.forEach((m) => map.removeLayer(m));
+    markers.forEach(function (m) { map.removeLayer(m); });
     markers.clear();
-    const pts = [];
-    rows.forEach((t) => {
-      const lat = +t.lat, lng = +t.lng;
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      const price = formatPrice(t);
-      const m = L.marker([lat, lng]).addTo(map);
-      const dist = distanceLabel(t);
-      const phone = (t.owner && (t.owner.phone || t.owner.whatsapp)) || t.phone || "";
-      m.bindPopup(
-        `<strong>${esc(t.title || "Moving truck")}</strong><br>` +
-        `from ${price.value} ${esc(price.unit)}<br>` +
-        (dist ? `${esc(dist)}<br>` : "") +
-        (phone ? `<a href="tel:${esc(phone)}"> ${esc(phone)}</a><br>` : "") +
-        `<a href="truck.html?id=${encodeURIComponent(t.id)}">View truck →</a>`
-      );
+    var pts = [];
+
+    rows.forEach(function (t) {
+      if (!TM.usable(t)) return;
+      var lat = Number(t.lat), lng = Number(t.lng);
+      var m = L.marker([lat, lng]).addTo(map);
+      m.bindPopup(popupHtml(t));
       markers.set(t.id, m);
       pts.push([lat, lng]);
     });
-    if (userLoc) pts.push([userLoc.lat, userLoc.lng]);
+
+    if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
+    if (ctx.from && TM.usable(ctx.from)) {
+      var green = cssVar("--c-brand", "#10b981");
+      userMarker = L.circleMarker([ctx.from.lat, ctx.from.lng], {
+        radius: 9, color: green, fillColor: green, fillOpacity: .9, weight: 2,
+      }).addTo(map).bindPopup(esc(T("tk_leg_you", "Where you are")));
+      pts.push([ctx.from.lat, ctx.from.lng]);
+    }
+
+    if (toMarker) { map.removeLayer(toMarker); toMarker = null; }
+    if (ctx.to && TM.usable(ctx.to)) {
+      var gold = cssVar("--c-accent", "#fcd116");
+      toMarker = L.circleMarker([ctx.to.lat, ctx.to.lng], {
+        radius: 9, color: gold, fillColor: gold, fillOpacity: .9, weight: 2,
+      }).addTo(map).bindPopup(esc(ctx.toLabel || T("tk_leg_to", "Where it is going")));
+      pts.push([ctx.to.lat, ctx.to.lng]);
+    }
+
     if (pts.length) {
       try { map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 }); } catch (_) {}
     }
   }
 
-  // ---- "Near me" -----------------------------------------------------------
-  async function locateMe() {
-    const idle = nearBtn.innerHTML;
-    nearBtn.disabled = true;
-    nearBtn.querySelector("span").textContent = "Locating…";
-    try {
-      const fix = await window.pawaLocate.bestOrApprox({ targetAccuracy: 50, maxWaitMs: 12000 });
-      userLoc = { lat: fix.lat, lng: fix.lng };
-      sortMode = "nearest";
-      if (sortSel) sortSel.value = "nearest";
-      nearBtn.querySelector("span").textContent = fix.approximate ? "Approx. location" : "Sorted by distance";
-      if (map) {
-        if (userMarker) map.removeLayer(userMarker);
-        userMarker = L.circleMarker([userLoc.lat, userLoc.lng], {
-          radius: 8, color: "#0a6f4d", fillColor: "#0a6f4d", fillOpacity: .9, weight: 2,
-        }).addTo(map).bindPopup("You are here");
+  /**
+   * The pin's own card.
+   *
+   * It carries the Google Maps link too, because a map pin is exactly where
+   * somebody decides to actually go, and making them scroll back to the list
+   * to find the link would be the old "type the address again" problem in a
+   * new place.
+   */
+  function popupHtml(t) {
+    var maps = UI.mapsHref(t, ctx);
+    var dist = t._pickupKm != null
+      ? fill(T("tm_away_min", "{km} away, about {min} min"),
+             { km: TM.kmText(t._pickupKm), min: TM.driveMin(t._pickupKm) })
+      : "";
+    return "<strong>" + esc(t.title || T("td_truck", "Moving truck")) + "</strong><br>" +
+      (dist ? esc(dist) + "<br>" : "") +
+      (maps ? '<a href="' + esc(maps) + '" target="_blank" rel="noopener">' +
+        esc(ctx.to ? T("tm_act_route", "Route in Google Maps") : T("tm_act_dir", "Directions in Google Maps")) +
+        "</a><br>" : "") +
+      '<a href="truck.html?id=' + encodeURIComponent(t.id) +
+        (TM.encode(ctx) ? "&" + TM.encode(ctx) : "") + '">' +
+        esc(T("tk_open", "Open this truck")) + "</a>";
+  }
+
+  /**
+   * Draw the real road from the pickup to one lorry.
+   *
+   * This is the PROOF of the number on the card, not the way anybody drives
+   * it: the Google Maps button beside it is that. When the engines know more
+   * than one road, all of them are drawn and the reader taps the one they
+   * would take; the chosen one goes solid and its km replaces the estimate.
+   */
+  async function drawRouteTo(t) {
+    if (!map || !window.pawaRoute || !TM.usable(t)) return;
+    var origin = ctx.from;
+    if (!origin) { origin = await locate(true); if (!origin) return; }
+    switchView("map");
+    setTimeout(function () { map.invalidateSize(); }, 80);
+
+    var r = await window.pawaRoute.route(origin, { lat: Number(t.lat), lng: Number(t.lng) });
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    if (!r || !r.geojson) {
+      var mk = markers.get(t.id);
+      if (mk) {
+        mk.bindPopup("<strong>" + esc(t.title || T("td_truck", "Moving truck")) + "</strong><br><small>" +
+          esc(T("tk_route_fail", "We could not measure that road just now. Please try again.")) +
+          "</small>").openPopup();
       }
-      render();
+      return;
+    }
+    var options = [{ km: r.km, durationMin: r.durationMin, geojson: r.geojson, via: r.via }]
+      .concat((r.alts || []).filter(function (a) { return a && a.geojson; }));
+
+    if (!(ctx.roadKm instanceof Map)) ctx.roadKm = new Map();
+    ctx.roadKm.set(t.id, options[0].km);
+    render();
+
+    routeLayer = L.layerGroup().addTo(map);
+    var chosen = cssVar("--c-brand", "#10b981");
+    var other = cssVar("--c-text-muted", cssVar("--c-muted", "#8a9c92"));
+    var lines = [];
+    var styleFor = function (isChosen) {
+      return isChosen
+        ? { color: chosen, weight: 6, opacity: .95, dashArray: null }
+        : { color: other, weight: 4, opacity: .75, dashArray: "7 7" };
+    };
+    var popupFor = function (o, i) {
+      return "<strong>" + esc(t.title || T("td_truck", "Moving truck")) + "</strong><br>" +
+        (options.length > 1
+          ? esc(fill(T("tk_road_n", "Road {i} of {n}"), { i: i + 1, n: options.length })) + "<br>"
+          : "") +
+        esc(fill(T("tk_road_len", "{km} by road, {min} minutes of driving"),
+                 { km: TM.kmText(o.km), min: Math.round(o.durationMin) })) +
+        (options.length > 1
+          ? "<br><small>" + esc(T("tk_road_pick", "Tap another line to choose that road.")) + "</small>"
+          : "");
+    };
+    // A white casing under every line first, so a coloured road stays visible
+    // on the dark satellite tiles, which otherwise swallow it.
+    options.forEach(function (o) {
+      L.geoJSON(o.geojson, { interactive: false, style: { color: "#ffffff", weight: 9, opacity: .9 } })
+        .addTo(routeLayer);
+    });
+    options.forEach(function (o, i) {
+      var ln = L.geoJSON(o.geojson, { style: styleFor(i === 0) }).addTo(routeLayer);
+      ln.bindPopup(popupFor(o, i));
+      ln.on("click", function () {
+        lines.forEach(function (x, j) { x.setStyle(styleFor(j === i)); });
+        ln.bringToFront();
+        ctx.roadKm.set(t.id, options[i].km);
+        renderList();
+      });
+      lines.push(ln);
+    });
+    lines[0].bringToFront();
+    try { map.fitBounds(L.featureGroup(lines).getBounds(), { padding: [46, 46] }); } catch (_) {}
+    lines[0].openPopup();
+  }
+
+  /** The move itself, drawn once, as a dashed gold line under everything. */
+  async function drawTrip() {
+    if (!map || !window.pawaRoute || !ctx.from || !ctx.to) return;
+    try {
+      var r = await window.pawaRoute.route(ctx.from, ctx.to);
+      if (!r || !r.geojson) return;
+      if (tripLayer) { map.removeLayer(tripLayer); }
+      tripLayer = L.geoJSON(r.geojson, {
+        interactive: false,
+        style: { color: cssVar("--c-accent", "#fcd116"), weight: 4, opacity: .8, dashArray: "3 8" },
+      }).addTo(map);
+    } catch (_) { /* the readout above the map already says we could not. */ }
+  }
+
+  // ==========================================================================
+  //  MEASUREMENT
+  // ==========================================================================
+
+  async function locate(loud) {
+    if (!window.pawaLocate) return null;
+    var btn = $("truckNearMeBtn");
+    if (btn) btn.disabled = true;
+    say(T("tm_locating", "Getting your location."));
+    try {
+      var fix = await window.pawaLocate.bestOrApprox({ targetAccuracy: 50, maxWaitMs: 12000 });
+      ctx.from = { lat: fix.lat, lng: fix.lng };
+      ctx.fromLabel = fix.approximate
+        ? T("tm_from_approx", "Near you, roughly")
+        : T("tm_from_here", "Where you are now");
+      say("");
+      paintLegs();
+      if (sortMode === "best" || sortMode === "nearest") render();
+      measurePickups();
+      measureTrip();
+      return ctx.from;
     } catch (e) {
-      nearBtn.innerHTML = idle;
-      alert((e && e.message) ? e.message : "Couldn't get your location. Check location permission and try again.");
+      if (loud) {
+        say((e && e.message) || T("tm_gps_fail",
+          "We could not get your location. The trucks below are still ranked by size and coverage."), true);
+      } else { say(""); }
+      return null;
     } finally {
-      nearBtn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   }
 
-  // ---- area suggestions ----------------------------------------------------
-  function fillAreaDatalist() {
-    // Suggest every admin level agents have registered: region, district, ward, area.
-    const areas = Array.from(new Set(
-      trucks.flatMap((t) => [t.region, t.district, t.ward, t.area]).filter(Boolean)
-    )).sort();
-    areaList.innerHTML = areas.map((a) => `<option value="${esc(a)}"></option>`).join("");
+  /** Real road km from the pickup to the lorries actually on screen. */
+  async function measurePickups() {
+    if (!ctx.from || measuring || !rows.length) return;
+    measuring = true;
+    try {
+      var head = rows.slice(0, 40);
+      var got = await TM.pickupKm(head, ctx.from);
+      if (!(ctx.roadKm instanceof Map)) ctx.roadKm = new Map();
+      got.forEach(function (v, k) { ctx.roadKm.set(k, v); });
+      render();
+    } finally { measuring = false; }
   }
 
-  // ---- wiring --------------------------------------------------------------
-  let debTimer = null;
+  async function measureTrip() {
+    if (!ctx.from || !ctx.to) { ctx.tripKm = null; paintTrip(); return; }
+    ctx.tripKm = await TM.roadKm(ctx.from, ctx.to);
+    paintTrip();
+    renderList();     // the WhatsApp text carries the trip length
+    drawTrip();
+  }
+
+  // ==========================================================================
+  //  WIRING
+  // ==========================================================================
+
+  function switchView(view) {
+    stageEl.dataset.view = view;
+    $("tabList").classList.toggle("active", view === "list");
+    $("tabMap").classList.toggle("active", view === "map");
+  }
+
+  function fillAreaDatalist() {
+    var list = $("filterAreaList");
+    var areas = Array.from(new Set(
+      trucks.reduce(function (acc, t) {
+        return acc.concat([t.region, t.district, t.ward, t.area]);
+      }, []).filter(Boolean)
+    )).sort();
+    list.innerHTML = areas.map(function (a) { return '<option value="' + esc(a) + '"></option>'; }).join("");
+  }
+
+  var debTimer = null;
   function debounced(fn) { clearTimeout(debTimer); debTimer = setTimeout(fn, 180); }
 
   async function init() {
-    listEl = $("trucksList"); mapEl = $("trucksMap"); countEl = $("trucksCount"); stageEl = $("trucksStage");
-    fType = $("filterType"); fArea = $("filterArea"); fService = $("filterService");
-    fCapacity = $("filterCapacity"); fSearch = $("filterSearch"); areaList = $("filterAreaList");
-    nearBtn = $("truckNearMeBtn"); sortSel = $("truckSort");
+    UI = window.TruckMoveUI;
+    TM = window.TruckMove;
+    if (!UI || !TM) return;   // the two libraries are this page's floor
+
+    listEl = $("trucksList"); mapEl = $("trucksMap"); countEl = $("trucksCount");
+    stageEl = $("trucksStage"); legsEl = $("tkLegs"); loadsEl = $("tkLoads");
+    tripEl = $("tkTrip"); planMsgEl = $("tkPlanMsg"); specEl = $("tkSpecGroups");
+
+    // The plan, as it arrived. A person who pressed "find a truck" on a
+    // property sheet has already answered all of this.
+    ctx = TM.decode(location.search);
+    ctx.roadKm = new Map();
+
+    // "How do you want to find a truck? Near me, or a specific area." A good
+    // question to open a directory with, and a contradiction to put in front of
+    // somebody who answered both halves on the previous screen. js/lib/
+    // find-mode.js reveals that block on DOMContentLoaded, which has not fired
+    // yet while this runs, so removing the node now is enough: it never looks
+    // for it again.
+    if (ctx.from || ctx.to) {
+      const fm = $("fmTrucks");
+      if (fm) fm.remove();
+    }
 
     initMap();
+    paintLoads();
+    paintLegs();
+    buildSpecFilters();
 
-    // Filters
-    [fType, fService, fCapacity].forEach((el) => el.addEventListener("change", render));
-    [fArea, fSearch].forEach((el) => el.addEventListener("input", () => debounced(render)));
-    nearBtn.addEventListener("click", locateMe);
-    sortSel?.addEventListener("change", () => { sortMode = sortSel.value; render(); });
+    loadsEl.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-tm-load]");
+      if (!b) return;
+      ctx.load = ctx.load === b.dataset.tmLoad ? null : b.dataset.tmLoad;
+      paintLoads();
+      render();
+    });
 
-    // "Route" buttons live inside cards — one delegated handler.
-    listEl.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-route]");
-      if (!btn) return;
+    ["filterType", "filterService", "filterCapacity"].forEach(function (id) {
+      $(id).addEventListener("change", function () { readFilters(); render(); });
+    });
+    ["filterArea", "filterSearch", "filterPrice"].forEach(function (id) {
+      $(id).addEventListener("input", function () { debounced(function () { readFilters(); render(); }); });
+    });
+    wireToggles(document.querySelector(".tk-toggles"), "data-tk-flag", filters.flags);
+    wireToggles(specEl, "data-tk-spec", filters.specs);
+    $("tkReset").addEventListener("click", resetFilters);
+    $("truckNearMeBtn").addEventListener("click", function () { locate(true); });
+    $("truckSort").addEventListener("change", function () {
+      sortMode = $("truckSort").value;
+      render();
+    });
+
+    // "Show on this map" lives inside the cards, so one delegated handler.
+    listEl.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-tk-map]");
+      if (!b) return;
       e.preventDefault();
-      const t = trucks.find((x) => String(x.id) === btn.dataset.route);
+      var t = rows.find(function (x) { return String(x.id) === b.dataset.tkMap; });
       if (t) drawRouteTo(t);
     });
 
-    // Mobile list/map tabs
-    $("tabList")?.addEventListener("click", () => switchView("list"));
-    $("tabMap") ?.addEventListener("click", () => { switchView("map"); setTimeout(() => map && map.invalidateSize(), 60); });
+    $("tabList").addEventListener("click", function () { switchView("list"); });
+    $("tabMap").addEventListener("click", function () {
+      switchView("map");
+      setTimeout(function () { map && map.invalidateSize(); }, 60);
+    });
 
-    // Load data
     try {
       trucks = await window.DataStore.getTrucks();
     } catch (e) {
@@ -389,13 +694,18 @@
       trucks = [];
     }
     fillAreaDatalist();
+    readFilters();
     render();
-  }
 
-  function switchView(view) {
-    stageEl.dataset.view = view;
-    $("tabList").classList.toggle("active", view === "list");
-    $("tabMap").classList.toggle("active", view === "map");
+    // A plan that arrived with a pickup already in it gets measured straight
+    // away: that person did not come here to press another button.
+    if (ctx.from) { measurePickups(); measureTrip(); }
+    else if (ctx.to) {
+      // They told us where it is going but not where they are. That is the one
+      // case where asking is worth it without being asked, because the whole
+      // ranking below turns on it.
+      locate(false);
+    }
   }
 
   window.initTrucksPage = init;
