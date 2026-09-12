@@ -80,20 +80,10 @@ window.initAgentHousesPage = async () => {
   const fGroupSuggest    = document.getElementById("ahGroupSuggest");
   const fGroupsList      = document.getElementById("ahGroupsList");
 
-  // Pinning from a location somebody already shared (code, paste, or the
-  // device's own book of places — js/lib/place-book.js).
-  const fLocCode         = document.getElementById("ahLocCode");
-  const fLocOpen         = document.getElementById("ahLocOpen");
-  const fLocPaste        = document.getElementById("ahLocPaste");
-  const fLocPasteGo      = document.getElementById("ahLocPasteGo");
-  const fLocMsg          = document.getElementById("ahLocMsg");
-  const fPlaceList       = document.getElementById("ahPlaceList");
-
-  // Pins people sent this agent inside encrypted P-Message threads and rooms
-  // — read straight out of the conversations, never retyped (js/lib/pm-places.js).
-  const fPmScan          = document.getElementById("ahPmScan");
-  const fPmList          = document.getElementById("ahPmList");
-  const fPmMsg           = document.getElementById("ahPmMsg");
+  // The three doors onto a location somebody already shared are
+  // js/lib/place-doors.js now, and that module owns its own elements. The
+  // one thing this page adds on top of them is the seal; see the mount near
+  // the bottom of this file.
 
   // The seal: "this pin is exactly where somebody put it", and the withdrawal
   // of that claim the moment it stops being true.
@@ -998,9 +988,6 @@ create policy "house-photos upload" on storage.objects for insert
     if (fTypeOther) fTypeOther.value = "";
     syncTypeOther();
     resetSpec();
-    if (fLocCode)  fLocCode.value = "";
-    if (fLocPaste) fLocPaste.value = "";
-    locMsg("");
 
     if (row) {
       fTitle.value       = row.title || "";
@@ -1080,8 +1067,10 @@ create policy "house-photos upload" on storage.objects for insert
 
     renderMediaGrids();
     renderCostQuick();   // build the one-tap preset chips for additional costs
-    renderPlaceBook();   // locations already shared with this device
-    scanPmPlaces();      // and the ones still sitting in a conversation
+    if (placeDoors) {
+      placeDoors.refresh();   // locations already shared with this device
+      placeDoors.scan();      // and the ones still sitting in a conversation
+    }
     toggleMinMonths();   // show/hide the rent-only "minimum months" field
 
     // Switch UI
@@ -2049,76 +2038,6 @@ create policy "house-photos upload" on storage.objects for insert
     } finally { fPinAi.disabled = false; fPinAi.textContent = label0; }
   });
 
-  // ---- Remote location: someone at the house shares their GPS to this form --
-  // Reuses the meet room + live_locations realtime infra. The agent generates a
-  // share link; the person there taps "Share my location" (share-location.html);
-  // the pin drops here automatically — so a house can be registered off-site.
-  function randomMeetCode() {
-    const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let s = ""; for (let i = 0; i < 6; i++) s += A[Math.floor(Math.random() * A.length)];
-    return s;
-  }
-  const reqBtn = document.getElementById("ahReqLoc");
-  let reqChannel = null, reqPoll = null;
-  function reqCleanup() {
-    if (reqChannel) { try { sb.removeChannel(reqChannel); } catch (_) {} reqChannel = null; }
-    if (reqPoll) { clearInterval(reqPoll); reqPoll = null; }
-  }
-  function reqApply(row) {
-    if (!row || !Number.isFinite(+row.lat) || !Number.isFinite(+row.lng)) return;
-    // Somebody stood at that gate and sent this, so it goes through the one
-    // door every chosen location goes through: usePlace() drops the pin,
-    // seals it to what they sent, files it in the book beside the codes and
-    // the chat pins, and redraws the list. Doing those four things here by
-    // hand is how one of them ends up forgotten.
-    usePlace({
-      lat: +row.lat, lng: +row.lng, acc: row.accuracy_m || null,
-      label: fTitle && fTitle.value.trim() ? fTitle.value.trim() : "",
-      source: "request", from: row.display_name || "",
-    });
-    const st = document.getElementById("ahReqLocStatus");
-    if (st) st.textContent = tr("ah_remote_got");
-    reqCleanup();
-  }
-  reqBtn?.addEventListener("click", async () => {
-    if (!sb) return;
-    reqBtn.disabled = true;
-    const st = document.getElementById("ahReqLocStatus");
-    try {
-      const code = randomMeetCode();
-      const { error } = await sb.from("meet_rooms").insert({ code, purpose: "house_pin", created_by: "agent" });
-      if (error) throw error;
-      const base = location.origin + location.pathname.replace(/[^/]*$/, "");
-      const link = `${base}share-location.html?c=${code}`;
-      document.getElementById("ahReqLocBox").hidden = false;
-      document.getElementById("ahReqLocLink").value = link;
-      document.getElementById("ahReqLocWa").href =
-        `https://wa.me/?text=${encodeURIComponent("Please share the house location for the listing: " + link)}`;
-      if (st) st.textContent = "Waiting for the location… keep this open.";
-      reqCleanup();
-      reqChannel = sb.channel(`house_pin_${code}`)
-        .on("postgres_changes",
-          { event: "*", schema: "public", table: "live_locations", filter: `room_code=eq.${code}` },
-          ({ new: row }) => reqApply(row))
-        .subscribe();
-      // Poll fallback in case realtime isn't enabled.
-      reqPoll = setInterval(async () => {
-        const { data } = await sb.from("live_locations")
-          .select("lat,lng,accuracy_m").eq("room_code", code)
-          .order("last_seen", { ascending: false }).limit(1);
-        if (data && data[0]) reqApply(data[0]);
-      }, 4000);
-    } catch (e) {
-      if (st) st.textContent = "Couldn't start the request: " + (e.message || e);
-    } finally { reqBtn.disabled = false; }
-  });
-  document.getElementById("ahReqLocCopy")?.addEventListener("click", () => {
-    const inp = document.getElementById("ahReqLocLink");
-    inp.select(); navigator.clipboard?.writeText(inp.value).catch(() => {});
-    const b = document.getElementById("ahReqLocCopy"); const t = b.textContent;
-    b.textContent = "Copied "; setTimeout(() => (b.textContent = t), 1500);
-  });
-
   // ---- Overpass nearby POI lookup -----------------------------------------
   let NEARBY_RADIUS_M = 1500;
   function setNearbyStatus(text) { if (fNearbyStatus) fNearbyStatus.textContent = text || ""; }
@@ -2489,7 +2408,7 @@ create policy "house-photos upload" on storage.objects for insert
           label: fTitle && fTitle.value.trim() ? fTitle.value.trim() : "",
           source: "gps",
         });
-        renderPlaceBook();
+        if (placeDoors) placeDoors.refresh();
       }
     } catch (err) {
       if (err.code !== "aborted") alert(tr("ah_err_geo") + pawaLocate.message(err));
@@ -3161,26 +3080,32 @@ create policy "house-photos upload" on storage.objects for insert
   //  usually already exists — somebody stood at that gate and shared it, as
   //  nine characters down a phone call or a map link in a P-Message thread.
   //
-  //  Three doors, one destination. js/lib/place-book.js keeps whatever came
-  //  through any of them, on this device only, so a location shared on Monday
-  //  is still one tap away on Friday.
+  //  Three doors, one destination, and they are js/lib/place-doors.js — the
+  //  same module agent-services and agent-trucks mount. This page used to keep
+  //  its own copy of all three: about 330 lines of JavaScript, 90 of markup and
+  //  31 of CSS, with `ah-` spellings of the same classes and the same i18n keys
+  //  read twice. The algorithms were identical, including the meet-room code
+  //  generator and the poll behind the realtime socket.
+  //
+  //  WHAT KEPT THE FORK ALIVE was that this page's pin does more than move: it
+  //  is SEALED to what arrived (sealPin) and it draws an accuracy circle, which
+  //  a service or a truck has no equivalent of. That is what onPick is for, and
+  //  it is the only reason a callback was needed rather than a plain swap.
+  //
+  //  The module owns the book (js/lib/place-book.js) and redraws it itself, so
+  //  onPick must NOT file the place a second time.
   // ==========================================================================
-  function locMsg(text, kind) {
-    if (!fLocMsg) return;
-    fLocMsg.textContent = text || "";
-    fLocMsg.className = "ah-place-msg" + (kind ? " " + kind : "");
-  }
 
   /**
    * The one place a chosen location becomes the pin.
    *
-   * A code, a paste and a row in the book all end here, so "the pin moved"
-   * means exactly one thing however it happened — and the accuracy circle, the
-   * readout and the reverse-geocode all follow from a single call site instead
-   * of three that each forget a different one.
+   * A code, a paste, a pin out of a conversation and somebody standing at the
+   * gate all end here, so "the pin moved" means exactly one thing however it
+   * happened — and the seal, the accuracy circle, the marker and the readout
+   * all follow from a single call site instead of four that each forget a
+   * different one.
    */
-  function usePlace(place, opts) {
-    const o = opts || {};
+  function usePlace(place) {
     const lat = Number(place.lat), lng = Number(place.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     pickedLatLng = { lat, lng };
@@ -3191,271 +3116,21 @@ create policy "house-photos upload" on storage.objects for insert
     if (pinMarker) pinMarker.setLngLat([lng, lat]);
     if (pinMap) pinMap.easeTo({ center: [lng, lat], zoom: 17, duration: 600 });
     updatePinReadout();
-    if (o.remember !== false && window.PlaceBook) window.PlaceBook.add(place);
-    renderPlaceBook();
   }
 
-  // How a place arrived, in a word — because "someone standing there sent
-  // this" and "I typed it into a search box" are different kinds of evidence
-  // and the agent is entitled to know which row is which.
-  function placeSourceWord(source) {
-    return tr({
-      code: "ah_loc_src_code", link: "ah_loc_src_link", gps: "ah_loc_src_gps",
-      request: "ah_loc_src_request", map: "ah_loc_src_map",
-      // 'chat' is what builds before this one wrote for a pin saved out of
-      // P-Message. It had no word here, so the strongest evidence in the
-      // book was being labelled "pasted from a link".
-      pm: "ah_loc_src_pm", chat: "ah_loc_src_pm",
-    }[source] || "ah_loc_src_link");
-  }
-
-  function agoWords(ms) {
-    const mins = Math.round((Date.now() - ms) / 60000);
-    if (mins < 1) return tr("ah_ago_now");
-    if (mins < 60) return tr("ah_ago_min").replace("{n}", mins);
-    const hrs = Math.round(mins / 60);
-    if (hrs < 24) return tr("ah_ago_hr").replace("{n}", hrs);
-    return tr("ah_ago_day").replace("{n}", Math.round(hrs / 24));
-  }
-
-  function renderPlaceBook() {
-    if (!fPlaceList || !window.PlaceBook) return;
-    const rows = window.PlaceBook.list().slice(0, 8);
-    fPlaceList.innerHTML = "";
-    if (!rows.length) return;
-    const lead = document.createElement("p");
-    lead.className = "ah-suggest-lead";
-    lead.style.margin = "6px 0 2px";
-    lead.textContent = tr("ah_loc_book_lead");
-    fPlaceList.appendChild(lead);
-    rows.forEach(p => {
-      const on = pickedLatLng &&
-        Math.abs(pickedLatLng.lat - p.lat) < 0.00015 &&
-        Math.abs(pickedLatLng.lng - p.lng) < 0.00015;
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "ah-place-row" + (on ? " is-on" : "");
-      b.innerHTML = `
-        <span class="ah-place-ic" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-          <path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z"/>
-          <circle cx="12" cy="10.3" r="2.4"/></svg></span>
-        <span class="ah-place-tx">
-          <span class="ah-place-t">${esc(p.label || window.PlaceBook.coords(p.lat, p.lng))}</span>
-          <span class="ah-place-d">${esc(placeSourceWord(p.source))}${p.from ? " · " + esc(p.from) : ""} · ${esc(agoWords(p.at))}</span>
-        </span>`;
-      b.addEventListener("click", () => {
-        usePlace(p, { remember: false });
-        locMsg(tr("ah_loc_ok"), "ok");
-      });
-      fPlaceList.appendChild(b);
-    });
-  }
-
-  // ==========================================================================
-  //  THE PINS PEOPLE SENT YOU, READ OUT OF THE CONVERSATIONS THEMSELVES
-  //
-  //  The panel above is the device book: everything that has ALREADY been
-  //  filed. Filing is a deliberate act — somebody has to have tapped "Save
-  //  this pin" in P-Message — and the pins that matter most are exactly the
-  //  ones nobody thought to tap, because they arrived in the middle of a
-  //  conversation about something else.
-  //
-  //  So this door does not wait to be filed. js/lib/pm-places.js opens the
-  //  threads this device can already read, finds the pins in them, and hands
-  //  them over with their coordinates untouched and the sender attached. The
-  //  agent taps one and the marker is standing on the sender numbers to six
-  //  decimal places, having passed through nobody hands.
-  //
-  //  It reads and never writes: no key is minted, no message is marked read,
-  //  no row is touched. See the header of pm-places.js for why that matters
-  //  more than it sounds.
-  // ==========================================================================
-  function pmMsg(text, kind) {
-    if (!fPmMsg) return;
-    fPmMsg.textContent = text || "";
-    fPmMsg.className = "ah-place-msg" + (kind ? " " + kind : "");
-  }
-
-  // Why there is nothing to show — said as the ordinary situation it is, with
-  // the way out of it. "Unavailable" would send an agent hunting for a fault
-  // that is not there.
-  function pmReasonText(reason) {
-    return tr({
-      no_crypto: "ah_pm_r_nocrypto", locked: "ah_pm_r_locked", no_key: "ah_pm_r_nokey",
-      signed_out: "ah_pm_r_signin", offline: "ah_pm_r_offline", empty: "ah_pm_r_empty",
-    }[reason] || "ah_pm_r_failed");
-  }
-
-  function pmWhere(p) {
-    if (p.threadKind === "group" && p.threadName) {
-      return tr("ah_pm_in_room").replace("{room}", p.threadName);
-    }
-    return tr("ah_pm_in_chat");
-  }
-
-  function renderPmPlaces(res) {
-    if (!fPmList) return;
-    fPmList.innerHTML = "";
-    if (!res) return;
-    if (!res.ok || !res.places.length) { pmMsg(pmReasonText(res.reason), "err"); return; }
-    pmMsg("");
-
-    const lead = document.createElement("p");
-    lead.className = "ah-suggest-lead";
-    lead.style.margin = "6px 0 2px";
-    lead.textContent = tr("ah_pm_lead");
-    fPmList.appendChild(lead);
-
-    res.places.slice(0, 8).forEach(p => {
-      const on = pickedLatLng &&
-        Math.abs(pickedLatLng.lat - p.lat) < 0.00015 &&
-        Math.abs(pickedLatLng.lng - p.lng) < 0.00015;
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "ah-place-row" + (on ? " is-on" : "");
-      // The pin words first: "the blue gate, second house" is the half a
-      // person wrote, and six decimal places are only worth reading when
-      // there is nothing else. Coordinates stand in when there is not.
-      const title = p.label || window.PlaceBook.coords(p.lat, p.lng);
-      const who = p.fromName || tr("ah_seal_someone");
-      b.innerHTML = `
-        <span class="ah-place-ic" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-          <path d="M12 21s-7-5.5-7-10.5A7 7 0 0 1 19 10.5C19 15.5 12 21 12 21z"/>
-          <circle cx="12" cy="10.3" r="2.4"/></svg></span>
-        <span class="ah-place-tx">
-          <span class="ah-place-t">${esc(title)}</span>
-          <span class="ah-place-d">${esc(who)}${p.fromGuest
-            ? ` <span class="ah-place-guest">${esc(tr("ah_pm_guest"))}</span>` : ""
-          } · ${esc(pmWhere(p))} · ${esc(agoWords(p.at))}${
-            p.acc ? " · " + esc(tr("ah_seal_within").replace("{n}", p.acc)) : ""
-          }</span>
-        </span>`;
-      b.addEventListener("click", () => {
-        usePlace({
-          lat: p.lat, lng: p.lng, acc: p.acc, label: p.label,
-          source: "pm", from: p.fromName, fromId: p.fromId, guest: p.fromGuest,
-          threadId: p.threadId, threadName: p.threadName, msgId: p.msgId, at: p.at,
-        });
-        locMsg(p.outside ? tr("ah_loc_outside") : tr("ah_loc_ok"), p.outside ? "err" : "ok");
-      });
-      fPmList.appendChild(b);
-    });
-  }
-
-  let pmScanning = false;
-  async function scanPmPlaces(opts) {
-    if (!window.PMPlaces || !fPmList || pmScanning) return;
-    const o = opts || {};
-    // Silence on a device that has never opened P-Message and was not asked to
-    // look. The panel is about locations somebody sent; an agent who has never
-    // used the messenger is owed nothing here until they press the button.
-    if (!o.loud && window.PMPlaces.available()) return;
-    pmScanning = true;
-    if (fPmScan) fPmScan.disabled = true;
-    pmMsg(tr("ah_pm_looking"));
-    try {
-      renderPmPlaces(await window.PMPlaces.scan({ refresh: !!o.refresh }));
-    } catch (err) {
-      console.warn("[agent-houses] p-message scan failed", err);
-      pmMsg(tr("ah_pm_r_failed"), "err");
-    } finally {
-      pmScanning = false;
-      if (fPmScan) fPmScan.disabled = false;
-    }
-  }
-
-  // Pressed deliberately: look again, from scratch, and say what happened even
-  // when the answer is "this device cannot read your messages".
-  fPmScan?.addEventListener("click", () => scanPmPlaces({ loud: true, refresh: true }));
-
-  // Why a code cannot be used, said as the ordinary thing it is. Every one of
-  // these happens to real people; none of them is an error the agent caused.
-  function locReasonText(reason) {
-    const key = {
-      short: "ah_loc_r_short", long: "ah_loc_r_long", chars: "ah_loc_r_chars",
-      check: "ah_loc_r_check", expired: "ah_loc_r_expired", used_up: "ah_loc_r_used",
-      revoked: "ah_loc_r_revoked", not_found: "ah_loc_r_notfound",
-      rate_limited: "ah_loc_r_rate", signin: "ah_loc_r_signin", offline: "ah_loc_r_offline",
-    }[reason];
-    return key ? tr(key) : tr("ah_loc_r_failed");
-  }
-
-  // K7M2Q9F3T typed straight through still reads back as K7M-2Q9-F3T, because
-  // the person on the phone is reading it in threes and the box should agree.
-  fLocCode?.addEventListener("input", () => {
-    if (!window.LocCode) return;
-    const c = window.LocCode.normalize(fLocCode.value);
-    const at = fLocCode.selectionStart === fLocCode.value.length;
-    fLocCode.value = c.length === window.LocCode.CODE_LEN ? window.LocCode.format(c)
-      : c.replace(/(.{3})(?=.)/g, "$1-");
-    if (at) fLocCode.setSelectionRange(fLocCode.value.length, fLocCode.value.length);
-  });
-  fLocCode?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); fLocOpen?.click(); }
-  });
-
-  fLocOpen?.addEventListener("click", async () => {
-    if (!window.LocShare || !window.LocCode) { locMsg(tr("ah_loc_unavailable"), "err"); return; }
-    const raw = (fLocCode.value || "").trim();
-    const problem = window.LocCode.problem(raw);
-    if (problem) { locMsg(locReasonText(problem), "err"); return; }
-    fLocOpen.disabled = true;
-    locMsg(tr("ah_loc_opening"));
-    try {
-      const r = await window.LocShare.open(raw);
-      if (!r.ok) { locMsg(locReasonText(r.reason), "err"); return; }
-      usePlace({
-        lat: r.place.lat, lng: r.place.lng, acc: r.place.acc,
-        label: r.place.label || "", source: "code", from: window.LocCode.format(raw),
-      });
-      fLocCode.value = "";
-      locMsg(tr("ah_loc_ok"), "ok");
-    } catch (err) {
-      console.warn("[agent-houses] code open failed", err);
-      locMsg(tr("ah_loc_r_failed"), "err");
-    } finally {
-      fLocOpen.disabled = false;
-    }
-  });
-
-  /**
-   * Whatever a chat carried.
-   *
-   * A code goes to the code box and opens itself; anything with coordinates in
-   * it pins directly. Both are one paste, because the agent copying a message
-   * out of P-Message does not know or care which of the two they have.
-   */
-  function applyPastedLocation(text) {
-    if (!window.PlaceBook) return;
-    const code = window.PlaceBook.codeIn(text);
-    if (code && window.LocCode) {
-      fLocCode.value = window.LocCode.format(code);
-      fLocPaste.value = "";
-      fLocOpen?.click();
-      return;
-    }
-    const hit = window.PlaceBook.parse(text);
-    if (!hit) { locMsg(tr("ah_loc_unreadable"), "err"); return; }
-    usePlace({ lat: hit.lat, lng: hit.lng, acc: null, label: hit.label, source: "link" });
-    fLocPaste.value = "";
-    locMsg(hit.outside ? tr("ah_loc_outside") : tr("ah_loc_ok"), hit.outside ? "err" : "ok");
-  }
-
-  fLocPasteGo?.addEventListener("click", () => applyPastedLocation(fLocPaste.value));
-  fLocPaste?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); applyPastedLocation(fLocPaste.value); }
-  });
-  // A paste is the whole gesture on a phone — waiting for a second tap on
-  // "Use it" is a step that exists only because desktops have buttons.
-  fLocPaste?.addEventListener("paste", (e) => {
-    const text = (e.clipboardData || window.clipboardData)?.getData("text");
-    if (!text) return;
-    e.preventDefault();
-    fLocPaste.value = text;
-    applyPastedLocation(text);
-  });
+  // Mounted once. The map is this page's own (MapLibre here, Leaflet on the
+  // other two), which is exactly why the module owns no map and hands the
+  // place back instead.
+  const placeDoors = window.PlaceDoors && document.getElementById("ahLocDoors")
+    ? window.PlaceDoors.mount({
+        into: document.getElementById("ahLocDoors"),
+        sb: sb,
+        purpose: "house_pin",
+        title: () => (fTitle && fTitle.value.trim()) || "",
+        current: () => pickedLatLng,
+        onPick: usePlace,
+      })
+    : null;
 
   // ---- Save listing (create or update) ------------------------------------
   /**

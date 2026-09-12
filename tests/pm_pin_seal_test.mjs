@@ -335,7 +335,7 @@ try {
           dashHidden: (document.getElementById("ahDashboard") || {}).hidden,
           warn: ((document.getElementById("ahWarn") || {}).textContent || "").slice(0, 200),
           ds: !!(window.DataStore && window.DataStore.sb),
-          pmList: (document.getElementById("ahPmList") || {}).innerHTML ? "filled" : "empty",
+          pmList: (document.querySelector("#ahLocDoors [data-pd=\"pmList\"]") || {}).innerHTML ? "filled" : "empty",
           pmMsg: (document.getElementById("ahPmMsg") || {}).textContent || "",
           seal: (document.getElementById("ahPinSeal") || {}).className,
           coords: (document.getElementById("ahPinCoords") || {}).textContent || "",
@@ -374,12 +374,12 @@ try {
   };
 
   const rows = () => page.evaluate(() => {
-    const list = document.getElementById("ahPmList");
+    const list = document.querySelector("#ahLocDoors [data-pd=\"pmList\"]");
     if (!list) return [];
-    return Array.from(list.querySelectorAll(".ah-place-row")).map((b) => ({
-      title: (b.querySelector(".ah-place-t") || {}).textContent || "",
-      detail: ((b.querySelector(".ah-place-d") || {}).textContent || "").replace(/\s+/g, " ").trim(),
-      guest: !!b.querySelector(".ah-place-guest"),
+    return Array.from(list.querySelectorAll(".pd-place")).map((b) => ({
+      title: (b.querySelector(".pd-place__t") || {}).textContent || "",
+      detail: ((b.querySelector(".pd-place__d") || {}).textContent || "").replace(/\s+/g, " ").trim(),
+      guest: !!b.querySelector(".pd-guest"),
     }));
   });
 
@@ -407,7 +407,7 @@ try {
   await until("the listing form to open",
     () => !document.getElementById("ahFormSection").hidden);
   await until("the P-Message pins to be read out of the threads",
-    () => !!document.querySelector("#ahPmList .ah-place-row"));
+    () => !!document.querySelector(`#ahLocDoors [data-pd="pmList"] .pd-place`));
 
   const list = await rows();
   ok(list.length === 2,
@@ -429,7 +429,7 @@ try {
   // ---- use one, exactly ---------------------------------------------------
   process.stdout.write("\nusing it exactly\n");
   await page.evaluate(() => {
-    const b = Array.from(document.querySelectorAll("#ahPmList .ah-place-row"))
+    const b = Array.from(document.querySelectorAll(`#ahLocDoors [data-pd="pmList"] .pd-place`))
       .find((x) => /Blue gate/.test(x.textContent));
     b.click();
   });
@@ -457,9 +457,9 @@ try {
   // ---- move it, and watch the claim be withdrawn --------------------------
   process.stdout.write("\nmoving it off her pin\n");
   await page.evaluate(() => {
-    const box = document.getElementById("ahLocPaste");
+    const box = document.querySelector("#ahLocDoors [data-pd=\"paste\"]");
     box.value = "-6.795000, 39.212000";
-    document.getElementById("ahLocPasteGo").click();
+    document.querySelector("#ahLocDoors [data-pd=\"pasteGo\"]").click();
   });
   await until("the seal to break", () => {
     const el = document.getElementById("ahPinSeal");
@@ -475,7 +475,33 @@ try {
   ok(s && s.putBack, "the way back is one tap", JSON.stringify(s));
   await shot("pin_moved", "#ahPinSeal");
 
-  await page.click("#ahPinPutBack");
+  // The form is a workspace board: ONE part is on screen at a time, and every
+  // other panel is display:none (js/lib/agent-workspace.js). Everything above
+  // reads innerHTML, which works on a hidden node, so the whole test ran
+  // without ever opening "Where it is" -- and then page.click() failed with
+  // "not clickable", because the button really is 0x0 while its panel is off.
+  //
+  // That was read as a broken button for a while. It is not: it is this test
+  // never having walked to the step an agent walks to. So walk there, the way
+  // the tiles do, before pressing anything on it.
+  await page.evaluate(() => {
+    const panels = Array.from(document.querySelectorAll(".ap-panel"));
+    const i = panels.findIndex((p) => p.querySelector("#ahPinSeal"));
+    const tile = document.querySelector(`[data-aw-go="${i}"]`);
+    if (tile) tile.click();
+  });
+  // Width > 0 is the assertion that matters: it proves the button is really
+  // reachable on the step an agent stands on, which is what "not clickable"
+  // was telling us and what the navigation above fixed.
+  await until("the pin panel to be on screen", () => {
+    const b = document.getElementById("ahPinPutBack");
+    return !!b && b.getBoundingClientRect().width > 0;
+  });
+  // Clicked IN PAGE rather than through page.click(). renderPinSeal() rewrites
+  // the seal's innerHTML, so the button is a new node after every redraw, and
+  // page.click() resolves the selector and then clicks -- which loses the race
+  // and fails with "Node is detached from document". This is one operation.
+  await page.evaluate(() => document.getElementById("ahPinPutBack").click());
   await until("the pin to go back", () => {
     const t = (document.getElementById("ahPinCoords") || {}).textContent || "";
     return /-6\.79240/.test(t);
@@ -534,9 +560,9 @@ try {
     document.getElementById("ahNewBtn").click();
   });
   await until("the form again", () => !document.getElementById("ahFormSection").hidden);
-  await until("the pins again", () => !!document.querySelector("#ahPmList .ah-place-row"));
+  await until("the pins again", () => !!document.querySelector(`#ahLocDoors [data-pd="pmList"] .pd-place`));
   await page.evaluate(() => {
-    const b = Array.from(document.querySelectorAll("#ahPmList .ah-place-row"))
+    const b = Array.from(document.querySelectorAll(`#ahLocDoors [data-pd="pmList"] .pd-place`))
       .find((x) => /Blue gate/.test(x.textContent));
     b.click();
   });

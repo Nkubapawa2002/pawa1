@@ -322,6 +322,19 @@
     }
 
     el.pasteGo && el.pasteGo.addEventListener("click", function () { applyPaste(el.paste.value); });
+    // A paste IS the whole gesture on a phone. Waiting for a second tap on
+    // "Use it" is a step that exists only because desktops have buttons.
+    // agent-houses had this in its forked copy and the shared module did not,
+    // so folding the fork in without it would have been a quiet regression on
+    // the page that had it and a missing feature on the two that never did.
+    el.paste && el.paste.addEventListener("paste", function (e) {
+      var text = (e.clipboardData || window.clipboardData);
+      text = text && text.getData("text");
+      if (!text) return;
+      e.preventDefault();
+      el.paste.value = text;
+      applyPaste(text);
+    });
     el.paste && el.paste.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); applyPaste(el.paste.value); }
     });

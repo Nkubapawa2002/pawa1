@@ -34,6 +34,9 @@
        written entirely in design tokens, so it follows the brand and both
        themes without a page-level palette of its own. -->
   <link rel="stylesheet" href="css/agent-portal.css" />
+  <!-- The three location doors. Shared with agent-services and agent-trucks;
+       this page used to carry an `ah-`-prefixed re-spelling of it. -->
+  <link rel="stylesheet" href="css/place-doors.css" />
   <!-- The workspace layer: the board of eight parts, one part at a time, and
        the listing cards that replaced a 640px-wide table on a 390px phone.
        Loads after the shell it reorganises. css/agent-workspace.css -->
@@ -628,44 +631,9 @@
     .ah-cost-billing { flex: 1 1 120px; }
 
     /* ---------------------------------------------------------------------
-       Shared locations: the doors a pin can arrive through
-       --------------------------------------------------------------------- */
-    #ahLocCode {
-      font-family: var(--font-mono); letter-spacing: .16em; text-transform: uppercase;
-    }
-    .ah-place-msg { font-size: var(--text-sm); margin-top: var(--space-2); line-height: var(--lh-normal); }
-    .ah-place-msg.err { color: var(--c-danger); }
-    .ah-place-msg.ok  { color: var(--c-success); font-weight: var(--fw-semibold); }
-    .ah-place-guest {
-      font-size: var(--text-xs); padding: 1px 5px; border-radius: var(--radius-pill);
-      border: 1px solid var(--c-border); color: var(--c-text-muted);
-    }
-    /* The page script writes .ah-place-row / .ah-place-ic / .ah-place-tx for
-       every remembered place; they are the portal's .ap-row under the older
-       name. Same rule, one selector list. */
-    .ah-place-row {
-      display: flex; align-items: center; gap: var(--space-3);
-      width: 100%; text-align: left;
-      border: 1px solid var(--c-border); border-radius: var(--radius);
-      padding: var(--space-3); background: var(--c-surface); color: inherit;
-      font: inherit; cursor: pointer;
-      transition: border-color var(--dur-fast) var(--ease);
-    }
-    .ah-place-row:hover { border-color: var(--c-brand); background: var(--c-brand-faint); }
-    .ah-place-row.is-on { border-color: var(--c-brand); box-shadow: inset 0 0 0 1px var(--c-brand); }
-    .ah-place-ic { flex: 0 0 auto; color: var(--c-brand); display: flex; }
-    .ah-place-tx { flex: 1; min-width: 0; }
-    .ah-place-t {
-      display: block; font-size: var(--text-sm); font-weight: var(--fw-semibold);
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-    .ah-place-d { display: block; font-size: var(--text-xs); color: var(--c-text-muted); }
-    .ah-place-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
-    .ah-pm-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-    .ah-pm-head h6 { margin: 0; font-size: var(--text-sm); font-weight: var(--fw-bold); color: var(--c-text-soft); }
 
     @media (prefers-reduced-motion: reduce) {
-      .ah-btn, .ah-chip, .ah-place-row, .ah-band__b { transition: none; }
+      .ah-btn, .ah-chip, .ah-band__b { transition: none; }
     }
   </style>
 
@@ -1141,89 +1109,15 @@
             <div class="ap-sub">
               <h4 data-i18n="ah_loc_h2">Not standing at the property?</h4>
 
-              <!-- Somebody read you a code, or sent a link ---------------
-                   The location of a house usually already exists: someone
-                   stood at the gate and shared it, down a phone call as nine
-                   characters or into a P-Message thread as a map link.
-                   js/lib/place-book.js keeps every place this device has been
-                   given, whichever door it came through. -->
-              <details class="ap-acc">
-                <summary>
-                  <span class="ap-acc__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h4M7 14h8"/></svg></span>
-                  <span class="ap-acc__tx">
-                    <span data-i18n="ah_loc_h">Pin it from a location someone shared with you</span>
-                    <small data-i18n="ah_loc_sub_short">Nine characters read down the phone, or a map link from a chat.</small>
-                  </span>
-                  <span class="ap-acc__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
-                </summary>
-                <div class="ap-acc__body">
-                  <div class="ap-inline" style="margin-bottom:var(--space-2)">
-                    <input id="ahLocCode" type="text" inputmode="latin" autocomplete="off" spellcheck="false"
-                           maxlength="13" placeholder="K7M-2Q9-F3T"
-                           aria-label="Location code" data-i18n-aria-label="ah_loc_code_aria" />
-                    <button type="button" id="ahLocOpen" class="ah-btn ah-btn-brand" data-i18n="ah_loc_open">Open the code</button>
-                  </div>
-                  <div class="ap-inline">
-                    <input id="ahLocPaste" type="text" autocomplete="off"
-                           placeholder="Or paste a map link or coordinates from a chat"
-                           data-i18n-placeholder="ah_loc_paste_ph"
-                           aria-label="Map link or coordinates" data-i18n-aria-label="ah_loc_paste_aria" />
-                    <button type="button" id="ahLocPasteGo" class="ah-btn" data-i18n="ah_loc_paste_go">Use it</button>
-                  </div>
-                  <div id="ahLocMsg" class="ah-place-msg" role="status" aria-live="polite"></div>
-                  <div class="ah-place-list" id="ahPlaceList"></div>
-                  <p class="ap-hint" data-i18n-html="ah_loc_howto">They have no code? Send them <a href="share-location.html" target="_blank" rel="noopener">this page</a>.</p>
-                </div>
-              </details>
-
-              <!-- Pins still sitting in a conversation --------------------
-                   The list above is what has already been FILED, and filing
-                   is a deliberate tap somebody has to have remembered to
-                   make. The pins that matter most are the ones nobody thought
-                   to save, because they arrived in the middle of a
-                   conversation about something else. js/lib/pm-places.js opens
-                   the threads this device can already read, finds the pins in
-                   them, and hands them over with the coordinates untouched and
-                   the sender attached. It reads and never writes. -->
-              <details class="ap-acc">
-                <summary>
-                  <span class="ap-acc__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-3.6A8.4 8.4 0 1 1 21 11.5z"/></svg></span>
-                  <span class="ap-acc__tx">
-                    <span data-i18n="ah_pm_h">Pins people sent you in P-Message</span>
-                    <small data-i18n="ah_pm_sub">Read straight out of your encrypted threads, without writing anything back.</small>
-                  </span>
-                  <span class="ap-acc__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
-                </summary>
-                <div class="ap-acc__body">
-                  <div class="ah-pm-head">
-                    <button type="button" id="ahPmScan" class="ah-btn" data-i18n="ah_pm_scan">Look again</button>
-                  </div>
-                  <div id="ahPmMsg" class="ah-place-msg" role="status" aria-live="polite"></div>
-                  <div class="ah-place-list" id="ahPmList"></div>
-                </div>
-              </details>
-
-              <!-- Ask somebody who is there right now -------------------- -->
-              <details class="ap-acc">
-                <summary>
-                  <span class="ap-acc__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 16 0"/><path d="M12 21v-5"/><circle cx="12" cy="12" r="2"/><path d="m8.5 8.5-2-2M15.5 8.5l2-2"/></svg></span>
-                  <span class="ap-acc__tx">
-                    <span data-i18n="ah_remote_summary">Ask somebody at the property to send it now</span>
-                    <small data-i18n="ah_remote_sub">They tap one link and the pin drops here by itself.</small>
-                  </span>
-                  <span class="ap-acc__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
-                </summary>
-                <div class="ap-acc__body">
-                  <button type="button" id="ahReqLoc" class="ah-btn ah-btn-brand" data-i18n="ah_remote_btn">Request the location</button>
-                  <div id="ahReqLocBox" hidden style="margin-top:var(--space-3)">
-                    <div class="ap-inline" style="margin-top:var(--space-2)">
-                      <input id="ahReqLocLink" readonly aria-label="The link to send" data-i18n-aria-label="ah_remote_link_aria" />
-                      <button type="button" id="ahReqLocCopy" class="ah-btn ah-btn-brand" data-i18n="ah_remote_copy">Copy</button>
-                      <a id="ahReqLocWa" class="ah-btn" target="_blank" rel="noopener" data-i18n="ah_remote_wa">WhatsApp</a>
-                    </div>
-                    <div id="ahReqLocStatus" class="ah-place-msg ok" role="status" aria-live="polite"></div>
-                  </div>
-                  <p class="ap-hint" data-i18n-html="ah_remote_alt_html">Or <a href="meet.html" target="_blank" rel="noopener">use a Meet room</a>.</p>
+              <!-- The three doors onto a location somebody already shared:
+                   a code or a link, a pin sitting in a P-Message thread, or
+                   asking whoever is standing there to send it. All three are
+                   js/lib/place-doors.js, the same module agent-services and
+                   agent-trucks mount. This page used to hand-write them, with
+                   `ah-` spellings of the same classes and the same i18n keys
+                   read twice; the only real difference was that this pin gets
+                   sealed, and that is what the onPick callback is for. -->
+              <div id="ahLocDoors"></div>
                 </div>
               </details>
             </div>
@@ -1382,6 +1276,11 @@
   <script src="js/lib/pm-store.js"></script>
   <script src="js/lib/pm-place.js"></script>
   <script src="js/lib/pm-places.js"></script>
+  <!-- The three doors onto a location somebody already shared. It owns no map:
+       this page moves its own MapLibre marker in onPick, which is how one
+       module serves this page and the two Leaflet ones. Needs loc-share,
+       place-book and pm-places above. -->
+  <script src="js/lib/place-doors.js"></script>
   <!-- The section rail: where you are in the form, and what you have answered. -->
   <script src="js/lib/agent-portal.js"></script>
   <script src="js/lib/agent-workspace.js"></script>
