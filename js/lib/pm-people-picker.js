@@ -333,17 +333,65 @@
         .filter(function (p) { return !blockedWhy(p); });
     }
 
+    /**
+     * What to do when this dialog can take nobody.
+     *
+     * THE REPORT THAT PROVOKED THIS was "the announce and rooms is not
+     * working". They worked. The audience was empty, and on the real data it
+     * was empty for everybody: reach needs a direct thread both people have
+     * written in or an accepted invite, and the database held zero messages
+     * and zero invites. So both dialogs opened, drew an honest sentence, and
+     * stopped -- with a send button that could never enable and nothing on
+     * screen to press instead.
+     *
+     * An explanation is not a way out. The sentence already said "write to
+     * them first" and "anybody who opens your invite appears here"; both name
+     * an action, and neither was reachable from the screen saying it. So the
+     * actions are here, and they are the only two that exist: make a link for
+     * somebody who has no account, or go and look at everybody.
+     *
+     * It is drawn for ALL-GREYED as well as for empty, which is the case that
+     * had no handling at all: a list of rows with every checkbox disabled
+     * looks like a working screen that is ignoring your taps.
+     */
+    function wayForward() {
+      var acts = [];
+      if (source === "mine") {
+        acts.push('<button class="pm-btn ghost" type="button" data-pk-all="1">' +
+          esc(t("pm_pick_go_all", "Look at everyone")) + "</button>");
+      }
+      // Only on p-message.html, which is the only page that mounts this.
+      if (window.PMInviteUI) {
+        acts.push('<button class="pm-btn ghost" type="button" data-pk-invite="1">' +
+          esc(t("pm_pick_go_invite", "Make an invite link")) + "</button>");
+      }
+      if (!acts.length) return "";
+      return '<div class="pm-pk-way">' +
+        '<p>' + esc(t("pm_pick_way_d",
+          "Somebody becomes reachable when you have written to each other, or when they open an invite link from you.")) + "</p>" +
+        '<div class="pm-pk-way-acts">' + acts.join("") + "</div></div>";
+    }
+
     function draw() {
       if (!shown.length) {
         head.hidden = true;
         list.innerHTML = '<div class="pm-empty">' + esc(source === "mine"
           ? t("pm_pick_mine_none", "Nobody yet. Anybody you write to, and anybody who opens your invite, appears here.")
-          : t("pm_pick_none_here", "Nobody matches that yet.")) + "</div>";
+          : t("pm_pick_none_here", "Nobody matches that yet.")) + "</div>" +
+          wayForward();
         return;
       }
       list.innerHTML = shown.map(rowHtml).join("");
       head.hidden = false;
       shownEl.textContent = t("pm_pick_showing", "{n} people", { n: shown.length });
+      // Rows, but not one of them can be had. Without this the screen looks
+      // fully populated and simply refuses every tap.
+      if (!takeable().length) {
+        list.insertAdjacentHTML("beforeend",
+          '<div class="pm-empty">' + esc(t("pm_pick_none_takeable",
+            "None of these can be added yet, for the reason on each row.")) + "</div>" +
+          wayForward());
+      }
     }
 
     // "Every agent in Tanzania" used to be its own button on the room dialog,
@@ -511,7 +559,11 @@
       host.querySelector(".pm-pk-f").hidden = source !== "all";
       q.hidden = source === "list";
       if (source === "list" && !myLists.length) {
-        try { myLists = await window.PMStore.lists(); } catch (_) { myLists = []; }
+        // A swallowed failure here reads as "No lists yet", which is a claim
+        // about this account rather than about the request. Somebody who saved
+        // eleven people last week is told they never did.
+        try { myLists = await window.PMStore.lists(); }
+        catch (err) { myLists = []; say((err && err.message) || String(err), true); }
       }
       if (source === "list" && !listId && myLists.length) listId = myLists[0].id;
       drawLists();
@@ -531,6 +583,28 @@
       if (!b) return;
       e.preventDefault();
       setAll(b.dataset.all === "1");
+    });
+    // The two ways out of an empty audience. They are inside #pmPkList because
+    // that is what draw() rewrites, so the listener is on the container and
+    // bound once -- a listener per redraw is the accumulating-handler bug.
+    list.addEventListener("click", function (e) {
+      if (!e.target.closest) return;
+      if (e.target.closest("[data-pk-all]")) {
+        e.preventDefault();
+        // Go through the tab itself, so the tab strip, the filters and the
+        // source all move together rather than this being a second way to
+        // change source that forgets one of the three.
+        var tab = host.querySelector('[data-src="all"]');
+        if (tab) tab.click();
+        return;
+      }
+      if (e.target.closest("[data-pk-invite]")) {
+        e.preventDefault();
+        // This replaces the modal the picker is sitting in, deliberately:
+        // making a link is a whole task, not a step inside addressing an
+        // announcement to nobody.
+        if (window.PMInviteUI) window.PMInviteUI.open();
+      }
     });
     list.addEventListener("change", onListChange);
     basketEl.addEventListener("click", onBasketClick);

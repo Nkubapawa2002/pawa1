@@ -698,6 +698,29 @@
     if (el.pmTrustBar) el.pmTrustBar.hidden = true;
     if (!info || info.kind !== "direct" || !info.otherId || !me) return;
 
+    // A BLOCK REACHES AN EXISTING CONVERSATION, and until now only the server
+    // knew that. pm_can_speak() has existed since blocking shipped and nothing
+    // called it, so after a block the composer stayed live and the send threw
+    // a raw server string at whoever pressed it -- the failure arriving after
+    // the sentence was written rather than before.
+    //
+    // Asked before the trust fetch, because it is the cheaper question and
+    // because a closed conversation makes the safety number moot. If the trust
+    // check below finds a substituted key it blocks anyway, which is the
+    // stronger of the two and should win.
+    try {
+      var mayWrite = await window.PMStore.canSpeak(info.threadId);
+      // The await is a round trip: the person may have opened another
+      // conversation in the meantime, and blocking THAT one's composer on this
+      // one's answer is the classic stale-response bug.
+      if (!open || open.threadId !== info.threadId) return;
+      if (!mayWrite) { setComposerBlocked(true, "blocked"); return; }
+    } catch (_) {
+      // Fail OPEN. The server refuses the send on its own, so the cost of not
+      // knowing is one clear error; the cost of guessing wrong the other way
+      // is a composer switched off for somebody nobody blocked.
+    }
+
     var hit = null;
     try { hit = await window.PMStore.peer(info.otherId); } catch (_) { return; }
     // The thread may have been closed or swapped while that was in flight.
@@ -756,6 +779,12 @@
         ? t("pm_write_ph", "Write a message")
         : why === "cast"
         ? t("pm_cast_read_ph", "Only the sender can add to an announcement")
+        : why === "blocked"
+        // Deliberately says nothing about WHICH of you blocked the other.
+        // Naming it either way is an oracle: "they blocked you" tells somebody
+        // the one thing a block exists in order not to tell them, and "you
+        // blocked them" on a screen where you did not would be a lie.
+        ? t("pm_hush_ph", "This conversation is closed")
         : t("pm_trust_blocked_ph", "Check their safety number first");
     }
     if (el.pmSendBtn) el.pmSendBtn.disabled = !!on;

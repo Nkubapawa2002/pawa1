@@ -274,6 +274,20 @@
   function blockAdd(userId)    { return rpc("pm_block",   { p_user: userId }); }
   function blockRemove(userId) { return rpc("pm_unblock", { p_user: userId }); }
   function blocksMine()        { return rpc("pm_blocks_mine").then(function (r) { return r || []; }); }
+  /**
+   * May I still write in this thread?
+   *
+   * pm_can_speak() has existed since blocking shipped and nothing ever asked
+   * it, so a block left the composer live and the send threw a raw server
+   * string back at whoever pressed it. Answers false for a direct thread
+   * either side has blocked, and for an announcement you did not send. It
+   * deliberately does NOT silence a room: one member must not be able to
+   * switch a room off for everybody.
+   */
+  function canSpeak(threadId) {
+    return rpc("pm_can_speak", { p_thread: threadId })
+      .then(function (r) { return r !== false; });
+  }
 
   function inbox() { return rpc("pm_inbox").then(function (r) { return r || []; }); }
 
@@ -905,6 +919,7 @@
     listDelete: listDelete,
     listPeople: listPeople,
     blockAdd: blockAdd,
+    canSpeak: canSpeak,
     blockRemove: blockRemove,
     blocksMine: blocksMine,
     inbox: inbox,

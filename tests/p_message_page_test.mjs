@@ -576,6 +576,17 @@ window.supabase = { createClient: function () {
       db.blocks = (db.blocks || []).filter(function (u) { return u !== args.p_user; });
       return Promise.resolve({ data: true, error: null });
     }
+    // The server half of a block that reaches an EXISTING conversation. It
+    // mirrors p_message_hush.sql: false for a direct thread either side has
+    // blocked, and it deliberately does NOT silence a room, because one member
+    // must not be able to switch a room off for everybody.
+    if (name === "pm_can_speak") {
+      var th = db.threads[args.p_thread];
+      if (!th || th.kind !== "direct") return Promise.resolve({ data: true, error: null });
+      var otherSide = (th.members || []).filter(function (u) { return u !== me; })[0];
+      return Promise.resolve({
+        data: !otherSide || (db.blocks || []).indexOf(otherSide) < 0, error: null });
+    }
     if (name === "pm_blocks_mine") {
       return Promise.resolve({ data: (db.blocks || []).map(function (u) {
         return { user_id: u, display_name: (db.keys[u] || {}).display_name || u,
@@ -2165,6 +2176,30 @@ try {
     }));
     ok(after.enabled.indexOf("agent_juma") < 0,
        "a blocked person cannot be gathered into a room either", JSON.stringify(after.enabled));
+
+    // And the conversation you blocked FROM goes quiet. pm_can_speak() had
+    // existed since blocking shipped with nothing calling it, so the composer
+    // stayed live and the send threw a raw server string at whoever pressed
+    // it: the refusal arriving after the sentence was written instead of
+    // before. The placeholder must not say WHICH of you blocked the other --
+    // "they blocked you" is the one thing a block exists in order not to say.
+    await ap.page.evaluate(() => {
+      document.getElementById("pmModalBack").classList.remove("is-on");
+      document.getElementById("segChats").click();
+    });
+    await sleep(500);
+    await ap.page.evaluate(() => {
+      var row = document.querySelector('.pm-row[data-thread="known"]');
+      if (row) row.click();
+    });
+    await sleep(900);
+    const hush = await ap.page.evaluate(() => ({
+      off: document.getElementById("pmInput").disabled,
+      ph: document.getElementById("pmInput").placeholder,
+    }));
+    ok(hush.off, "the composer in that conversation is switched off", JSON.stringify(hush));
+    ok(!/block/i.test(hush.ph),
+       "and the placeholder does not say who blocked whom", hush.ph);
     ok(ap.errs.length === 0, "no page errors", ap.errs.slice(0, 3).join("\n        "));
     await ap.page.close();
   }
