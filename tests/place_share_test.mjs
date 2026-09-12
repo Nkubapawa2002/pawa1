@@ -239,7 +239,10 @@ try {
     // property of the map, not of any one run.
     const { readFileSync } = await import("node:fs");
     const sl = readFileSync("js/pages/share-location.js", "utf8");
-    const pm = readFileSync("js/pages/p-message.js", "utf8");
+    // The P-Message half of both maps moved to js/lib/pm-place-ui.js when
+    // p-message.js was split; the assertion is about the map, not the file it
+    // sits in, so it follows the code.
+    const pm = readFileSync("js/lib/pm-place-ui.js", "utf8");
 
     // Every status loc_share_open() can return, from the SQL.
     const statuses = ["forbidden", "not_found", "rate_limited",
@@ -270,7 +273,8 @@ try {
   // =========================================================================
   {
     const { readFileSync } = await import("node:fs");
-    const pm = readFileSync("js/pages/p-message.js", "utf8");
+    // See the note in section 2: the attachment strip is pm-place-ui.js now.
+    const pm = readFileSync("js/lib/pm-place-ui.js", "utf8");
     ok(/id="pmAttachCode"/.test(pm),
       "the attachment strip offers a code as well as a send");
     ok(/function mintPlaceCode/.test(pm),

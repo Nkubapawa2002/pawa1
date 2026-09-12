@@ -1205,6 +1205,15 @@
   <!-- The way out of everything the picker makes possible: a block, enforced
        in the database and merely offered here. -->
   <script src="js/lib/pm-block.js"></script>
+  <!-- Announce and Open a room: the two dialogs that reach more than one
+       person. Both mount the picker above, so they load after it. -->
+  <script src="js/lib/pm-announce-ui.js"></script>
+  <!-- The invite link: the only way somebody who has never opened the site
+       becomes reachable at all. Draws a QR through js/lib/qr.js. -->
+  <script src="js/lib/pm-invite-ui.js"></script>
+  <!-- The four doors onto a pin, and the sheet that opens one somebody sent.
+       pm-place.js above is the wire format; this is the screen. -->
+  <script src="js/lib/pm-place-ui.js"></script>
   <!-- PN-Zaki. Order matters: ai-tools registers window.AITools, which
        pn-zaki folds into its system prompt at load; gemini-chat and
        gemini-voice are the primary text and voice transports. Each of the
