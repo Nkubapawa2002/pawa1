@@ -628,6 +628,37 @@ supabase/features/message/p_message_lists.sql     pm_lists + pm_list_members:
     Also AFTER p_message_audience.sql: pm_list_people answers may_cast and
     may_room per row, computed at read time rather than stored.
 
+supabase/features/message/p_message_reach_opened.sql   *** NOT YET APPLIED ***
+    Two changes, both provoked by "the announce and rooms is not working".
+    They were not broken: the audience was empty, and on the production data
+    it was empty for EVERYBODY (16 people had opened P-Message, 15 of them
+    guests, and zero messages had ever been sent, so pm_my_people,
+    pm_recipients and pm_group_candidates all returned nothing).
+      1. pm_deals_with gains one arm: a direct thread THEY created. Not one I
+         created -- pm_start_direct is unilateral, so counting my own would
+         let an attacker manufacture an audience one call per victim. A thread
+         they opened is their own decision to walk into the shop, and it is
+         the commonest way a real customer appears. "Either of us" is the
+         hole; sections 4 and 12 of p_message_audience_test.mjs catch it.
+      2. pm_agent_finder stops listing accounts with no auth.users row. A
+         Clerk-era id can never sign in, so it can never hold a key, so it
+         can never be written to, and a directory of people you can message
+         is the wrong place to draw it. pm_agent_card is deliberately NOT
+         fenced: it answers "show me this person's shop", the listings and
+         the number on them are real, and it is reached by link.
+    Run it AFTER p_message_audience.sql and AFTER p_message_call.sql (whose
+    pm_agent_finder it regenerates).
+
+A THIRD ORDERING HAZARD, and this one is unguarded. p_message_guests.sql adds
+`and not app_is_guest()` to six INSERT policies, and SIX OTHER FILES recreate
+those same policy names without it: supabase/auth/clerk_text_user_ids.sql,
+features/house/setup_houses.sql, features/service/services.sql,
+features/truck/trucks.sql, features/agent/agent_profiles.sql and
+schema/schema_master.sql. Applying any of them after p_message_guests.sql
+silently reopens the catalogue to free unlimited guest listings. Nothing in
+the repo enforces the ordering; tests/p_message_guest_test.mjs is the tripwire,
+so run it after ANY RLS work.
+
 TWO ORDERING TRAPS THAT ARE NOT ABOUT THE FILES ABOVE, recorded here because
 neither is obvious and both bite silently:
   · p_message_sender_keys.sql CANNOT BE RE-APPLIED. Its pm_group_leave is

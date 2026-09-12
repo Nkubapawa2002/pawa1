@@ -172,8 +172,22 @@ try {
       ${msg(T1, A, 6)}
       ${msg(T1, G, 7)}
     ` + asUid(A, ask(`public.pm_may_cast_to(${literal(G)})`)));
-    ok(last(r).r === "false",
-       "nor to a guest, even one I really have talked with: a guest is a browser tab and the advert would outlive it",
+    // THIS ASSERTION IS INVERTED FROM THE ONE THAT SHIPPED, and it must stay
+    // inverted. The old rule refused every guest recipient outright, in a
+    // clause standing AHEAD of the pm_deals_with test they would otherwise
+    // have passed -- and that contradicted the invite feature, whose whole
+    // point is reaching somebody with no account. An invited customer signs in
+    // as a guest, so an agent could invite them, talk to them, and never be
+    // able to put them in a room or an announcement. The invite could not
+    // produce a reachable person.
+    //
+    // p_message_reach_guests.sql fixed it by refusing a guest as a STRANGER
+    // rather than as a guest. Here both of them have written in the same
+    // direct thread, so this guest is not a stranger. The fence that matters
+    // is still asserted two cases up: a guest nobody deals with is refused,
+    // and a guest still cannot SEND one.
+    ok(last(r).r === "true",
+       "but a guest I have really talked with IS reachable, or the invite feature could never produce anybody",
        JSON.stringify(last(r)));
   }
 
@@ -435,8 +449,14 @@ try {
       select public.pm_broadcast('pmtest cast', null, 'iv', 'ct',
         ${wraps([B, G])}, ${literal(R1)});
       ${members(R1)}`));
-    ok(last(r).r === "pmtest_a,pmtest_b",
-       "a guest RECIPIENT is dropped too. pm_broadcast never checked this before: guests were kept out only because the client happened to call a function that filtered them",
+    // Also inverted, and for the same reason as the one in section 2: A and G
+    // have both written in T1, so G is somebody A deals with and belongs in
+    // the advert. pm_broadcast no longer carries its own guest check -- the
+    // rule had FOUR copies (here, pm_group_create and pm_group_add), which is
+    // why changing the predicate alone would once have changed nothing. The
+    // predicates are the only place it lives now.
+    ok(last(r).r === "pmtest_a,pmtest_b,pmtest_guest",
+       "and a guest recipient who is genuinely dealt with is carried, not silently dropped",
        JSON.stringify(last(r)));
   }
 
