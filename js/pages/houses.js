@@ -475,8 +475,22 @@ window.initHousesPage = async () => {
     catch { return new Set(); }
   }
   function saveSeenIds(set) {
-    const arr = [...set].slice(-500);
-    localStorage.setItem("pawa_house_seen_ids", JSON.stringify(arr));
+    // The cap used to be 500, a number that works until the catalogue passes
+    // it and then fails in the most confusing way available: the OLDEST ids
+    // are evicted, so listings somebody has been scrolling past for months
+    // become "new" again, one banner at a time, and no amount of dismissing
+    // helps because the eviction happens on the next write. 5000 ids is about
+    // 200 KB of JSON at these lengths, which is affordable.
+    //
+    // Declared HERE rather than beside the other constants at the top of this
+    // function: saveSeenIds is called during init, before a `const` further
+    // down the same body has been evaluated, and reaching it threw
+    // "Cannot access 'SEEN_ID_CAP' before initialization" — which killed the
+    // whole page, not just the banner.
+    const cap = 5000;
+    const arr = [...set].slice(-cap);
+    try { localStorage.setItem("pawa_house_seen_ids", JSON.stringify(arr)); }
+    catch (_) { /* a full or private store is not a reason to stop browsing */ }
   }
 
   function setupGeoAlerts() {
@@ -635,6 +649,14 @@ window.initHousesPage = async () => {
 
   function announceNewListings(matches) {
     if (!matches.length) return;
+    // Somebody who switched new rooms off in the bell meant it about rooms,
+    // not about one surface. This bar and the operating-system pop-up below
+    // it never went through js/core/notify.js, so before the switch existed
+    // they were simply a second channel saying the same thing — and the OS
+    // one is the version that wakes a phone at night. One answer, read from
+    // js/lib/notify-mute.js, which is the file that exists so a page can ask
+    // without loading the polling engine.
+    if (window.NotifyMute && window.NotifyMute.isMuted("houses")) return;
     // matches: [{h, alert, dist_m}]
     const first = matches[0];
     const more  = matches.length - 1;
@@ -719,6 +741,14 @@ window.initHousesPage = async () => {
             apply();
           }
           const d_m = Math.round(haversineKm(row.lat, row.lng, hit.lat, hit.lng) * 1000);
+          // Mark it seen HERE too. runNewListingDiff() does this for the rows
+          // it announces on load, and this path never did — so a listing
+          // announced live, and dismissed, was announced all over again on the
+          // next page load. The dismiss button only hides the bar; what stops
+          // it coming back is this set.
+          const seen = getSeenIds();
+          seen.add(row.id);
+          saveSeenIds(seen);
           announceNewListings([{ h: row, alert: hit, dist_m: d_m }]);
         }
       );

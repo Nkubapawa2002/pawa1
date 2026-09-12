@@ -99,7 +99,7 @@ const DEMAND = Array.from({ length: 9 }, (_, i) => ({
 }));
 
 const stub = `window.supabase={createClient:function(){
-var M={houses:${JSON.stringify(HOUSES)},services:${JSON.stringify(SERVICES)},trucks:${JSON.stringify(TRUCKS)},day_jobs:${JSON.stringify(JOBS)},agent_profiles:[${JSON.stringify(AGENT_PROFILE)}]};
+var M=window.__M={houses:${JSON.stringify(HOUSES)},services:${JSON.stringify(SERVICES)},trucks:${JSON.stringify(TRUCKS)},day_jobs:${JSON.stringify(JOBS)},agent_profiles:[${JSON.stringify(AGENT_PROFILE)}]};
 function q(tbl){var b={_t:tbl};["select","eq","neq","gt","gte","lt","lte","is","or","order","limit","in"].forEach(function(m){b[m]=function(){return b}});
 b.then=function(r,j){return Promise.resolve({data:M[b._t]||[],error:null}).then(r,j)};
 // AgentProfile.get() ends in .maybeSingle(). A stub without it throws inside
@@ -538,6 +538,74 @@ console.log("\n10. A reader who is not an agent is never shown an empty version 
   // Six, not fifteen: five unread messages and one group. The rest of the bell
   // is untouched for a reader this feature is not for.
   ok(w.total === 6, "the rest of the bell is exactly what it was", String(w.total));
+  ok(t.errs.length === 0, "no page errors", t.errs.slice(0, 2).join(" | "));
+  await t.close();
+}
+
+// ===========================================================================
+console.log("\n11. Switching a kind of news off, and it staying off");
+// ===========================================================================
+// The report was "when a user sees a notification they can completely remove
+// them and never show them again" — which the panel could not do. Dismissing
+// was a WATERMARK: markSeen() moved a timestamp, so "3 new rooms" cleared and
+// came back the moment a fourth was posted anywhere in the country. And the
+// four catalogue rows had no close button at all, because withPut() gated it
+// on g.key === "renew".
+{
+  const t = await open();
+  await t.page.waitForFunction(() => window.Notify.state().total > 0, { timeout: 20000 });
+  await t.page.click("#pawa-notify-bell");
+  await sleep(500);
+
+  ok(await t.page.$('[data-put^="mute:houses"]') !== null,
+     "a rooms row now carries a way to switch it off");
+  ok(await t.page.$('[data-put^="mute:messages"]') === null,
+     "and an unread message does not: that is a person writing to you");
+  ok(await t.page.$('[data-put^="mute:demand"]') === null,
+     "nor a customer waiting for a call");
+
+  await t.page.evaluate(() => document.querySelector('[data-put^="mute:houses"]').click());
+  await sleep(400);
+  const after = await t.page.evaluate(() => {
+    const by = {};
+    window.Notify.state().groups.forEach((g) => { by[g.key] = g.count; });
+    return { by, muted: window.Notify.mutedKeys() };
+  });
+  ok(after.by.houses === 0, "pressing it empties the row at once", JSON.stringify(after.by));
+  ok(after.by.services === 1, "and touches nothing else", JSON.stringify(after.by));
+  ok(after.muted.indexOf("houses") >= 0, "it is written down", JSON.stringify(after.muted));
+
+  // THE WHOLE POINT: a new listing must not bring it back. This is what the
+  // watermark could never do.
+  const back = await t.page.evaluate(async () => {
+    window.__M.houses.push({
+      id: "brand_new", title: "A room posted just now", region: "Dar es Salaam",
+      lat: -6.771, lng: 39.239, created_at: new Date().toISOString(),
+    });
+    await window.Notify.refresh();
+    const by = {};
+    window.Notify.state().groups.forEach((g) => { by[g.key] = g.count; });
+    return by;
+  });
+  ok(back.houses === 0,
+     "and a room posted afterwards does NOT bring it back, which the old watermark could not promise",
+     JSON.stringify(back));
+
+  // A mute with no way back is the same bug pointing the other way.
+  const on = await t.page.evaluate(async () => {
+    window.Notify.setMuted("houses", false);
+    await window.Notify.refresh();
+    const by = {};
+    window.Notify.state().groups.forEach((g) => { by[g.key] = g.count; });
+    return { by, muted: window.Notify.mutedKeys() };
+  });
+  ok(on.by.houses > 0, "switching it back on brings the news back", JSON.stringify(on.by));
+  ok(on.muted.length === 0, "and clears the record of it being off", JSON.stringify(on.muted));
+
+  // A person is not mutable through the front door either.
+  const refused = await t.page.evaluate(() => window.Notify.setMuted("messages", true));
+  ok(refused === false, "and a person cannot be muted even by asking directly");
+
   ok(t.errs.length === 0, "no page errors", t.errs.slice(0, 2).join(" | "));
   await t.close();
 }

@@ -275,16 +275,43 @@
    * reason and the date, so a subscription that moves speaks up again and one
    * that has not stays quiet. Two marks, because they are two promises.
    *
-   * Everything else has no button at all, for the reason it never had one: a
-   * customer waiting for a call is answered, an unread message is read, and a
-   * changed safety number is compared. None of those is a thing to tidy away.
+   * A CATALOGUE ROW IS A THIRD KIND, and until now it had no button at all,
+   * which was the whole of the complaint. Tapping it only moved a watermark,
+   * so "4 new rooms" cleared and came back the moment a fifth was listed
+   * anywhere in the country. There was no way to say "stop telling me about
+   * rooms", and no amount of tapping added up to one. The cross on these
+   * switches the kind OFF, through Notify.setMuted, and Profile is where they
+   * come back.
+   *
+   * Everything else still has no button, for the reason it never had one: a
+   * customer waiting for a call is answered, an unread message is read, a
+   * person adding you to a room is somebody addressing you, and a changed
+   * safety number is compared. None of those is a thing to tidy away, and
+   * Notify.MUTABLE is deliberately the four catalogue kinds and nothing else.
    */
   function withPut(g, inner) {
-    if (g.key !== "renew") return inner;
-    return '<div class="nt-line">' + inner +
-      '<button type="button" class="nt-put" data-put="billing" aria-label="' +
-        esc(tx("nt_hide_sub", "Hide this subscription notice")) + '">' +
-        icon("close") + "</button></div>";
+    if (g.key === "renew") {
+      return '<div class="nt-line">' + inner +
+        '<button type="button" class="nt-put" data-put="billing" aria-label="' +
+          esc(tx("nt_hide_sub", "Hide this subscription notice")) + '">' +
+          icon("close") + "</button></div>";
+    }
+    if (window.Notify && window.Notify.isMutable && window.Notify.isMutable(g.key)) {
+      return '<div class="nt-line">' + inner +
+        '<button type="button" class="nt-put" data-put="mute:' + esc(g.key) + '" aria-label="' +
+          esc(muteLabel(g.key)) + '" title="' + esc(muteLabel(g.key)) + '">' +
+          icon("close") + "</button></div>";
+    }
+    return inner;
+  }
+
+  /** Said in the row's own words, because "hide this" does not say for how long. */
+  function muteLabel(key) {
+    return key === "houses"   ? tx("nt_mute_houses",   "Stop telling me about new rooms")
+         : key === "services" ? tx("nt_mute_services", "Stop telling me about new services")
+         : key === "trucks"   ? tx("nt_mute_trucks",   "Stop telling me about new trucks")
+         : key === "jobs"     ? tx("nt_mute_jobs",     "Stop telling me about new day jobs")
+         : tx("nt_mute_one", "Stop telling me about this");
   }
 
   /**
@@ -641,6 +668,14 @@
         // notice binned a moment ago, because nothing told the engine about
         // those. The same surgery, for the same reason. See dropLine().
         if (window.Notify && window.Notify.hideBilling) window.Notify.hideBilling();
+        dropLine(put.closest(".nt-line"));
+      } else if (what.indexOf("mute:") === 0) {
+        // Same surgery as billing, and for the same reason: setMuted zeroes
+        // the kind in the engine's cache, but a full render would also redraw
+        // any notice binned a moment ago, which nothing told the engine about.
+        if (window.Notify && window.Notify.setMuted) {
+          window.Notify.setMuted(what.slice(5), true);
+        }
         dropLine(put.closest(".nt-line"));
       } else if (what.indexOf("notice:") === 0) {
         killNotice(what.slice(7));

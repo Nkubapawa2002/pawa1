@@ -278,6 +278,10 @@
   <!-- What each thing this account lists is ordered by. Nobody is assigned an
        account type: it is derived from what they have actually listed, which
        is why this reads the counts the storefront query already returned. -->
+  <!-- Which kinds of news this device has switched off. The small module,
+       not js/core/notify.js: Profile needs the answer, not the engine that
+       polls four catalogues to produce the question. -->
+  <script src="js/lib/notify-mute.js"></script>
   <script src="js/lib/account-prefs.js"></script>
   <!-- The storefront block, shared with agent.html. pm-presence.js first: the
        identity line asks it for the last-seen dot, and without it the block

@@ -197,6 +197,7 @@
     save: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v17l-7-4-7 4z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     house: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7M5 10v10h14V10" stroke="#F6C45A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tool: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.9 2.9-2.1-2.1z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    bell: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 13 6 9z" stroke="#7FB2FF" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 18a2 2 0 0 0 4 0" stroke="#7FB2FF" stroke-width="1.7" stroke-linecap="round"/></svg>',
     truck: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M1 6h13v9H1zM14 9h4l3 3v3h-7z" stroke="#F6C45A" stroke-width="1.7" stroke-linejoin="round"/><circle cx="5.5" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/><circle cx="17.5" cy="18" r="1.7" stroke="#F6C45A" stroke-width="1.7"/></svg>',
     lang: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#5EB7FF" stroke-width="1.7"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18" stroke="#5EB7FF" stroke-width="1.5"/></svg>',
     theme: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.5 6.5 0 0 0 10.2 10.2z" stroke="#5EB7FF" stroke-width="1.7" stroke-linejoin="round"/></svg>',
@@ -425,6 +426,10 @@
     // a person who lists a house is a house owner, and if they post a truck
     // tomorrow they are that too. AccountPrefs.typesOf is the whole of that
     // rule and it is the same rule pm_owner_listings uses.
+    // How many kinds of news this device has switched off. Shown as the value
+    // on the row, so the setting says what it is doing without being opened.
+    var mutedCount = (window.Notify && window.Notify.mutedKeys)
+      ? window.Notify.mutedKeys().length : 0;
     var myTypes = window.AccountPrefs
       ? window.AccountPrefs.typesOf({
           houses: countOf("n_houses"), services: countOf("n_services"),
@@ -442,6 +447,14 @@
             desc: t("pf_lang_d", "Switches the whole site."), value: lang === "sw" ? "Kiswahili" : "English" }),
       row({ act: "theme", icon: ICON.theme, tint: "ic-sky", title: t("pf_theme", "Appearance"),
             desc: t("pf_theme_d", "Dark by default."), value: theme === "light" ? t("pf_light", "Light") : t("pf_dark", "Dark") }),
+      // A mute with no way back is the same bug pointing the other way, so the
+      // row is here whether or not anything is off: somebody looking for the
+      // switch they pressed last week should find it where settings live, not
+      // have to guess that it only appears once it has been used.
+      row({ act: "notif", icon: ICON.bell, tint: "ic-sky",
+            title: t("pf_notif", "What you get told about"),
+            desc: t("pf_notif_d", "New rooms, services, trucks and day jobs. Switch off the ones you do not want to hear about."),
+            value: mutedCount ? String(mutedCount) : "" }),
       layoutRow(),
     ]);
 
@@ -530,6 +543,7 @@
       if (act === "restore") return window.PMIdentityUI.restore();
       if (act === "blocked") return window.PMBlock && window.PMBlock.list();
       if (act === "delacct") return askDeleteAccount();
+      if (act === "notif") return showNotifPrefs();
 
       if (act === "agentbio") {
         var sb = window.DataStore && window.DataStore.sb;
@@ -720,6 +734,66 @@
    * somebody else's copy of a conversation because a stranger closed a tab is
    * not tidying up.
    */
+  /**
+   * What this device gets told about.
+   *
+   * The bell can switch four kinds of news off from the row itself, which is
+   * where somebody actually decides they have had enough. This screen is the
+   * other half and the reason the first half is safe to offer: a switch with
+   * no way back is the same bug pointing the other way.
+   *
+   * Only the four catalogue kinds are here. js/core/notify.js draws the line
+   * at "news about the catalogue, never a person" — an unread message, being
+   * added to a room, a note from the admin and a customer waiting for a call
+   * are all somebody addressing this reader, and a screen offering to silence
+   * those would be offering a way to miss the only things that were meant for
+   * them. Notify.MUTABLE is the single definition; this reads it rather than
+   * keeping a second list that would drift.
+   */
+  function showNotifPrefs() {
+    var N = window.Notify;
+    if (!N || !N.MUTABLE) return;
+
+    var LABEL = {
+      houses:   t("pf_nt_houses",   "New rooms and houses"),
+      services: t("pf_nt_services", "New services"),
+      trucks:   t("pf_nt_trucks",   "New trucks"),
+      jobs:     t("pf_nt_jobs",     "New day jobs"),
+    };
+
+    var draw = function () {
+      var keys = Object.keys(N.MUTABLE);
+      return keys.map(function (k) {
+        var on = !N.isMuted(k);
+        return '<label class="pf-check"><input type="checkbox" data-nt="' + esc(k) + '"' +
+          (on ? " checked" : "") + " /><span>" + esc(LABEL[k] || k) + "</span></label>";
+      }).join("");
+    };
+
+    window.PMIdentityUI.open("<h2>" + esc(t("pf_notif", "What you get told about")) + "</h2>" +
+      "<p>" + esc(t("pf_notif_d1",
+        "These are the four kinds of new listing the bell can tell you about. Switch off anything you do not want to hear about; nothing else changes.")) + "</p>" +
+      '<div id="pfNtList">' + draw() + "</div>" +
+      '<p class="pf-check-d">' + esc(t("pf_notif_d2",
+        "Messages, rooms you are added to, notes from the admin and customers waiting for a call are not here. Those are somebody writing to you, not news about the catalogue.")) + "</p>" +
+      '<div class="pm-modal-acts"><button class="pm-btn" id="pfNtX">' +
+      esc(t("pm_close", "Close")) + "</button></div>");
+
+    document.getElementById("pfNtX").addEventListener("click", function () {
+      window.PMIdentityUI.close();
+      render();                     // the row's own count has just moved
+    });
+
+    // Bound once on the container. The list is not redrawn on each change --
+    // the checkbox already shows the new state -- but binding per row would
+    // still be the accumulating-handler bug the moment it ever is.
+    document.getElementById("pfNtList").addEventListener("change", function (e) {
+      var box = e.target.closest ? e.target.closest("[data-nt]") : null;
+      if (!box) return;
+      N.setMuted(box.dataset.nt, !box.checked);
+    });
+  }
+
   /**
    * Closing an account for good.
    *

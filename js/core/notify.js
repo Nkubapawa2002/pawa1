@@ -398,6 +398,13 @@
     var byKey = {
       houses: homes.rows, services: results[1], trucks: results[2], jobs: results[3],
     };
+    // A muted kind is emptied HERE, before it is counted, rather than hidden
+    // at the last moment in the panel. The badge on the bell is built from
+    // these counts, so filtering any later would leave a person who switched
+    // rooms off still being told "7" by the thing they switched off.
+    Object.keys(byKey).forEach(function (k) {
+      if (muted(k)) byKey[k] = [];
+    });
     var pm = results[4];
     var acct = results[5];
     var wants = results[6];
@@ -544,6 +551,45 @@
     messages: true, trust: true, admin: true, renew: true, demand: true,
   };
 
+  /**
+   * Switching a kind of news off for good.
+   *
+   * Dismissing used to be a watermark and nothing else: markSeen() moved a
+   * timestamp, so a row cleared and came straight back the moment one more
+   * room was listed anywhere in the country. That is the right behaviour for
+   * "I have read this" and the wrong one for "stop telling me", and there was
+   * no way at all to say the second.
+   *
+   * WHICH kinds may be switched off, and where the answer is stored, both live
+   * in js/lib/notify-mute.js — because Profile and the houses banner need the
+   * same answer and neither of them wants this engine. What is added HERE is
+   * the engine half: zeroing the cache the reader is looking at right now, and
+   * going back to the server when something is switched on again.
+   */
+  var MUTE = function () { return window.NotifyMute || null; };
+
+  function muted(key) {
+    var M = MUTE();
+    return !!(M && M.isMuted(key));
+  }
+
+  function setMuted(key, on) {
+    var M = MUTE();
+    if (!M || !M.setMuted(key, on)) return false;
+    // The mark is what the NEXT poll reads; the cache is what is on screen
+    // now. Leaving the two disagreeing is how a row survives its own off
+    // switch until something unrelated happens to trigger a redraw.
+    if (cache) {
+      cache.groups.forEach(function (g) {
+        if (g.key === key && on) { g.count = 0; g.items = []; }
+      });
+      Object.assign(cache, tally(cache.groups));
+    }
+    emit();
+    if (!on) refresh();          // turning one back on has to go and look again
+    return true;
+  }
+
   function markSeen(key) {
     var m = mark();
     var now = new Date().toISOString();
@@ -627,6 +673,15 @@
     // left is an alarm that button cannot touch. A second copy of the list
     // over there would drift into offering a button that does nothing.
     isDismissible: function (key) { return !UNDISMISSABLE[key]; },
+    // Switching a kind off for good, and the list of what is off. Asked by
+    // notify-ui.js for the close button on a row, by profile.js for the
+    // screen that offers them back, and by houses.js before it raises a
+    // banner or an operating-system notification.
+    isMutable: function (key) { return !!(MUTE() && MUTE().isMutable(key)); },
+    isMuted: muted,
+    setMuted: setMuted,
+    mutedKeys: function () { return MUTE() ? MUTE().mutedKeys() : []; },
+    get MUTABLE() { return (MUTE() && MUTE().MUTABLE) || {}; },
     on: function (fn) { if (typeof fn === "function") listeners.push(fn); },
     GROUPS: GROUPS,
   };

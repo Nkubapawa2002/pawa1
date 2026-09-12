@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v337-2026-09-12-delete-my-account";
+const VERSION = "v338-2026-09-12-notifications-stay-gone";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -67,6 +67,11 @@ const APP_SHELL = [
   "./js/core/notify.js",
   "./css/notify.css",
   "./js/lib/notify-ui.js",
+  // Which kinds of news this device has switched off. notify.js delegates to
+  // it, so an install that cached the bell without it has a close button whose
+  // handler finds nothing to call: the row would leave the screen and be back
+  // on the next poll, which is exactly the bug the button exists to fix.
+  "./js/lib/notify-mute.js",
   // The bell's writer. It is the only module allowed to mark a notice read or
   // delete one, and notify-ui.js guards every call on it, so a cached install
   // without it has a bin that quietly does nothing: the row leaves the screen
