@@ -78,6 +78,16 @@ window.supabase = { createClient: function () {
       // Ending a guest session removes the guest on the SERVER as well. The
       // stub reports what the real function returns so the page can be checked
       // for calling it, and for calling it before it signs out.
+      if (name === "account_footprint") {
+        return Promise.resolve({ data: {
+          houses: 2, services: 1, trucks: 0, jobs: 0,
+          requests: 3, tenancies: 0, threads: 4, messages: 9, has_key: true,
+        }, error: null });
+      }
+      if (name === "account_erase") {
+        order("erase");
+        return Promise.resolve({ data: { houses: 2, services: 1 }, error: null });
+      }
       if (name === "pm_guest_forget") {
         order("forget");
         return Promise.resolve({ data: { threads: 2, messages: 0 }, error: null });
@@ -105,6 +115,11 @@ const browser = await puppeteer.launch({
 
 async function openProfile(session, opts) {
   const inAdminsTable = !!(opts && opts.inAdminsTable);
+  // "missing" is the DEFAULT on purpose: supabase/functions/delete-account
+  // has to be deployed by hand, so an app in the wild meets a 404 here until
+  // somebody runs the CLI. The fallback that 404 triggers is the path most
+  // installs will actually take, so it is the one the suite exercises first.
+  const edge = (opts && opts.edge) || "missing";
   const card = (opts && opts.card) || null;
   const page = await browser.newPage();
   await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 1 });
@@ -125,6 +140,19 @@ async function openProfile(session, opts) {
     }
     if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url)) {
       return req.respond({ status: 200, headers: { "content-type": "text/css" }, body: "" });
+    }
+    // The Edge Function is a different thing from the REST host and has to be
+    // answerable separately. Without this branch it falls into the catch-all
+    // below, which answers 200 to everything — so a 404 could never be tested
+    // and the fallback path would look like it was never taken.
+    if (/functions\/v1\/delete-account/.test(url)) {
+      return req.respond({
+        status: edge === "ok" ? 200 : 404,
+        headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+        body: JSON.stringify(edge === "ok"
+          ? { ok: true, erased: { houses: 1 }, files: 0 }
+          : { error: "not_found" }),
+      });
     }
     if (/supabase\.co/.test(url)) {
       return req.respond({ status: 200, headers: {
@@ -557,6 +585,123 @@ try {
        "and it does so BEFORE signing out, while there is still a session to authorise it",
        JSON.stringify(order));
     ok(errs.length === 0, "no page errors", errs.slice(0, 3).join("\n        "));
+    await page.close();
+  }
+
+  // ==========================================================================
+  section("9. Closing an account for good");
+  // ==========================================================================
+  // Until this existed, nothing in the app could delete an account. The
+  // database made that worse rather than easier: houses/services/trucks hold
+  // the owner as TEXT with no foreign key, so removing the auth row would have
+  // left every listing live on the public board with the person's phone number
+  // on it. account_erase() is an explicit, ordered erasure for that reason.
+  {
+    const { page, errs } = await openProfile(
+      // access_token matters: without one the page cannot call the Edge
+      // Function at all and would reach the RPC fallback for the wrong
+      // reason, passing the assertion below while testing nothing.
+      { access_token: "t", user: { id: "u_del", email: "juma@example.com", is_anonymous: false } },
+      { withKey: KEYPAIR });
+
+    const r = await rows(page);
+    const del = r.find((x) => x.act === "delacct");
+    ok(!!del, "an account is offered a way to close itself", JSON.stringify(r.map((x) => x.act)));
+
+    await page.evaluate(() => document.querySelector('[data-act="delacct"]').click());
+    await sleep(500);
+    const ask = await page.$eval("#pfModal", (n) => n.textContent);
+
+    // "This cannot be undone" without naming what "this" is, is asking for
+    // consent to something unnamed.
+    ok(/2 rooms and houses/.test(ask) && /3 requests/.test(ask),
+       "and is told what it is about to lose, counted", ask.slice(0, 220));
+    ok(/cannot be undone/i.test(ask), "that it cannot be undone");
+    // The one promise this dialog must not make.
+    ok(/sealed with a key we have never held/i.test(ask),
+       "and that messages already sent cannot be reached, rather than implying they can");
+
+    // The row sits on a screen people open to change their language. A mis-tap
+    // must not be able to reach the button.
+    ok(await page.$eval("#pfDelYes", (b) => b.disabled),
+       "the button is dead until the address is typed");
+    await page.evaluate(() => {
+      const f = document.getElementById("pfDelEmail");
+      f.value = "wrong@example.com";
+      f.dispatchEvent(new Event("input"));
+    });
+    ok(await page.$eval("#pfDelYes", (b) => b.disabled),
+       "and a different address does not wake it");
+    await page.evaluate(() => {
+      const f = document.getElementById("pfDelEmail");
+      f.value = "JUMA@example.com";           // case must not matter
+      f.dispatchEvent(new Event("input"));
+    });
+    ok(!(await page.$eval("#pfDelYes", (b) => b.disabled)),
+       "their own address does, whatever the case");
+
+    await page.evaluate(() => document.getElementById("pfDelYes").click());
+    await sleep(1200);
+
+    const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("__rpc") || "[]"));
+    const calls = log.map((c) => c.name);
+    // The Edge Function is not deployed in this run, so the page must fall
+    // back rather than refuse: the person asked to be deleted, and taking
+    // their listings down does not need the function.
+    ok(calls.includes("account_erase"),
+       "with the Edge Function missing it still erases through the database",
+       JSON.stringify(calls));
+    ok(/index\.html$/.test(page.url()), "and they are sent back to the home page", page.url());
+
+    const order = await page.evaluate(() => JSON.parse(sessionStorage.getItem("__order") || "[]"));
+    ok(order.indexOf("erase") >= 0 && order.indexOf("erase") < order.indexOf("signout"),
+       "server first, before signing out, while there is still a session to authorise it",
+       JSON.stringify(order));
+    // The 404 IS the scenario here, and Chrome logs every failed request to
+    // the console whether or not the page handled it. Counting it as a page
+    // error would mean this section could only pass by not testing the thing
+    // it exists to test.
+    const real = errs.filter((e) => !/404 \(Not Found\)/.test(e));
+    ok(real.length === 0, "no page errors beyond the 404 this section asks for",
+       real.slice(0, 3).join("\n        "));
+    await page.close();
+  }
+
+  section("9b. And a guest is not offered it");
+  {
+    // A guest has "End this guest session", which is the same act for somebody
+    // with no account, and account_erase() refuses a guest session outright.
+    // Two doors to the same place, one of which errors, is one door too many.
+    const { page } = await openProfile(
+      { user: { id: "guest_2", email: null, is_anonymous: true } }, { withKey: KEYPAIR });
+    const r = await rows(page);
+    ok(!r.some((x) => x.act === "delacct"), "no delete-account row for a guest",
+       JSON.stringify(r.map((x) => x.act)));
+    await page.close();
+  }
+
+  section("9c. When the Edge Function IS deployed, the database is not asked twice");
+  {
+    const { page } = await openProfile(
+      { access_token: "t", user: { id: "u_del2", email: "amina@example.com", is_anonymous: false } },
+      { withKey: KEYPAIR, edge: "ok" });
+    await page.evaluate(() => document.querySelector('[data-act="delacct"]').click());
+    await sleep(500);
+    await page.evaluate(() => {
+      const f = document.getElementById("pfDelEmail");
+      f.value = "amina@example.com";
+      f.dispatchEvent(new Event("input"));
+      document.getElementById("pfDelYes").click();
+    });
+    await sleep(1200);
+    const calls = await page.evaluate(() =>
+      JSON.parse(sessionStorage.getItem("__rpc") || "[]").map((c) => c.name));
+    // The function calls account_erase itself, server-side, as the caller.
+    // Calling it again from here would be a second erasure of nothing, and on
+    // a slow connection a second round trip for no reason.
+    ok(!calls.includes("account_erase"),
+       "the page leaves the erasing to the function that already did it",
+       JSON.stringify(calls));
     await page.close();
   }
 

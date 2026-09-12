@@ -464,6 +464,19 @@
       ]);
     }
 
+    // The way out, and it is its own group at the very bottom on purpose: it
+    // is not a setting, and it must not sit one thumb-width from Sign out in
+    // the same card. A guest is not offered it — they have "End this guest
+    // session" above, which is the same act for somebody with no account, and
+    // account_erase() refuses a guest session outright.
+    if (me.userId && !me.isGuest) {
+      html += group(t("pf_g_danger", "Closing your account"), [
+        row({ act: "delacct", icon: ICON.out, tint: "ic-rose",
+              title: t("pf_del", "Delete my account"),
+              desc: t("pf_del_d", "Takes down everything you have listed and removes your account for good. It cannot be undone.") }),
+      ]);
+    }
+
     el.pfMain.innerHTML = html;
 
   }
@@ -516,6 +529,7 @@
       if (act === "backup") return window.PMIdentityUI.backup();
       if (act === "restore") return window.PMIdentityUI.restore();
       if (act === "blocked") return window.PMBlock && window.PMBlock.list();
+      if (act === "delacct") return askDeleteAccount();
 
       if (act === "agentbio") {
         var sb = window.DataStore && window.DataStore.sb;
@@ -706,6 +720,158 @@
    * somebody else's copy of a conversation because a stranger closed a tab is
    * not tidying up.
    */
+  /**
+   * Closing an account for good.
+   *
+   * Built on askEndGuest() below, which is the right shape and already proved
+   * itself: server first while the session still authorises it, nothing
+   * touched locally if that fails, and the consequences said in plain words
+   * before anything is pressed. Three things are deliberately different,
+   * because the act is bigger.
+   *
+   *  1. IT SAYS WHAT WILL GO, WITH NUMBERS. account_footprint() is asked
+   *     before the button is live. "This cannot be undone" without naming
+   *     what "this" is, is asking for consent to something unnamed — and the
+   *     person most likely to press it is one who has forgotten they still
+   *     have two rooms listed.
+   *  2. THE EMAIL HAS TO BE TYPED. Not theatre: this row sits on the screen a
+   *     person opens to change their language, and a mis-tap must not be able
+   *     to reach it. Typing your own address is the cheapest confirmation
+   *     that cannot be produced by accident.
+   *  3. IT IS HONEST ABOUT MESSAGES. What they sent is sealed on somebody
+   *     else's phone under a key this server has never held. Tombstoning is
+   *     the most that can be done and the dialog says so, rather than letting
+   *     "delete everything" imply a reach the crypto does not have.
+   */
+  async function askDeleteAccount() {
+    var foot = null;
+    try {
+      var r = window.SB && await window.SB.rpc("account_footprint");
+      foot = (r && r.data) || null;
+    } catch (_) { /* the dialog still opens; it just cannot itemise */ }
+
+    var lines = [];
+    var add = function (n, one, many) {
+      n = n | 0;
+      if (n > 0) lines.push(n === 1 ? t(one, one) : t(many, many).replace("{n}", n));
+    };
+    if (foot) {
+      add(foot.houses,    "pf_del_h1",  "pf_del_hn");
+      add(foot.services,  "pf_del_s1",  "pf_del_sn");
+      add(foot.trucks,    "pf_del_t1",  "pf_del_tn");
+      add(foot.jobs,      "pf_del_j1",  "pf_del_jn");
+      add(foot.requests,  "pf_del_r1",  "pf_del_rn");
+      add(foot.tenancies, "pf_del_y1",  "pf_del_yn");
+      add(foot.threads,   "pf_del_c1",  "pf_del_cn");
+    }
+
+    var email = (me && me.email) || "";
+
+    window.PMIdentityUI.open("<h2>" + esc(t("pf_del_t", "Delete your account?")) + "</h2>" +
+      "<p>" + esc(t("pf_del_d1",
+        "This removes your account and everything you have put on this app. It cannot be undone, and the same email can be used to start again from nothing.")) + "</p>" +
+      (lines.length
+        ? '<p class="pf-check-d">' + esc(t("pf_del_list", "What goes:")) + "</p><ul class=\"pf-del-list\">" +
+            lines.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul>"
+        : "") +
+      '<p class="pf-check-d">' + esc(t("pf_del_msgs",
+        "Messages you sent stay on the phone of whoever you sent them to. They are sealed with a key we have never held, so nobody here can reach them. Yours are marked as withdrawn.")) + "</p>" +
+      "<label>" + esc(t("pf_del_type", "Type your email address to confirm")) + "</label>" +
+      '<input id="pfDelEmail" type="email" autocomplete="off" spellcheck="false" placeholder="' + esc(email) + '" />' +
+      '<div class="pm-modal-acts">' +
+      '<button class="pm-btn ghost" id="pfDelNo">' + esc(t("pm_cancel", "Cancel")) + "</button>" +
+      '<button class="pm-btn is-danger" id="pfDelYes" disabled>' + esc(t("pf_del_go", "Delete my account")) + "</button>" +
+      "</div><div class=\"pm-msg-out\" id=\"pfDelMsg\"></div>");
+
+    var field = document.getElementById("pfDelEmail");
+    var go = document.getElementById("pfDelYes");
+    field.addEventListener("input", function () {
+      go.disabled = field.value.trim().toLowerCase() !== String(email).trim().toLowerCase();
+    });
+    document.getElementById("pfDelNo").addEventListener("click", window.PMIdentityUI.close);
+
+    go.addEventListener("click", async function (e) {
+      var btn = e.currentTarget;          // captured, never read after an await
+      var out = document.getElementById("pfDelMsg");
+      btn.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("pm_working", "Working…");
+
+      try {
+        await deleteAccountOnServer();
+      } catch (err) {
+        btn.disabled = false;
+        out.className = "pm-msg-out bad";
+        out.textContent = ((err && err.message) || String(err)) + " " +
+          t("pf_end_fail", "Nothing was changed. Try again when you have a connection.");
+        return;
+      }
+
+      // Only once the server is done. Same order and the same reasoning as
+      // askEndGuest: a device cleared against a server that refused would
+      // leave a live, reachable identity nobody can read.
+      if (window.PMCrypto) window.PMCrypto.forget();
+      if (window.PMDeviceLock) window.PMDeviceLock.forget();
+      if (window.PMTrust) window.PMTrust.forgetAll(me.userId);
+      if (window.AccountPrefs) window.AccountPrefs.forget(me.userId);
+      try { localStorage.removeItem("pm-hidden-v1"); } catch (_) {}
+      try { if (window.Auth) await window.Auth.signOut(); } catch (_) {}
+      location.href = "index.html";
+    });
+  }
+
+  /**
+   * The server half, in one place because it has two halves itself.
+   *
+   * The Edge Function is what removes the auth.users row, and it needs the
+   * service_role key that the browser must never hold. But it has to be
+   * DEPLOYED, and until it is, the RPC alone still does the part that matters
+   * most to somebody asking to be deleted: it takes their listings down and
+   * unpublishes their key. So a 404 from the function is not a failure — it
+   * is the state of the deployment, and the data is gone either way.
+   */
+  async function deleteAccountOnServer() {
+    var sb = window.SB || (window.DataStore && window.DataStore.sb);
+    if (!sb) throw new Error(t("pf_del_offline", "No connection to the server."));
+
+    var sess = null;
+    try {
+      var got = await sb.auth.getSession();
+      sess = (got && got.data && got.data.session) || null;
+    } catch (_) {}
+
+    var base = (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL) || "";
+    if (base && sess && sess.access_token) {
+      try {
+        var res = await fetch(base.replace(/\/$/, "") + "/functions/v1/delete-account", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + sess.access_token,
+          },
+          body: JSON.stringify({ wipe_messages: true }),
+        });
+        if (res.ok) return;                       // account and data both gone
+        // 404 means the function is not deployed on this project yet. Fall
+        // through to the RPC rather than refusing: the person asked to be
+        // deleted, and most of that is reachable without it.
+        if (res.status !== 404) {
+          var body = null;
+          try { body = await res.json(); } catch (_) {}
+          // erase_failed carries the database's own sentence, which is the
+          // one worth showing (the "only admin" refusal arrives this way).
+          if (body && body.detail) throw new Error(body.detail);
+          if (body && body.error === "guest_session") return;
+        }
+      } catch (err) {
+        if (err && err.message) throw err;        // a real refusal, not a 404
+      }
+    }
+
+    var r = await sb.rpc("account_erase", { p_wipe_messages: true });
+    if (r && r.error) throw new Error(r.error.message || String(r.error));
+  }
+
   function askEndGuest() {
     window.PMIdentityUI.open("<h2>" + esc(t("pf_end_t", "End this guest session?")) + "</h2>" +
       "<p>" + esc(t("pf_end_d1",

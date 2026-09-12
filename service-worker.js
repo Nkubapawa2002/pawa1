@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v336-2026-09-12-blocking-has-a-door";
+const VERSION = "v337-2026-09-12-delete-my-account";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
