@@ -347,6 +347,10 @@
   <script src="js/core/auth.js"></script>
   <script src="js/lib/auth-errors.js"></script>
   <script src="js/lib/auth-policy.js"></script>
+  <!-- "Signed in" is not "has an account". The portal chooser below is drawn
+       from this answer; without it a guest session was shown every portal,
+       System admin included. js/lib/auth-guard.js -->
+  <script src="js/lib/auth-guard.js"></script>
   <!-- The four doors: who is coming in, and where they land. Must precede
        login.js, which wires them into the step flow. -->
   <script src="js/lib/login-doors.js"></script>

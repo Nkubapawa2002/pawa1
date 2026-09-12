@@ -226,6 +226,58 @@ console.log("\n5. The guard's own answer");
   await t.close();
 }
 
+// ---------------------------------------------------------------------------
+//  The portal chooser. This is the screen the whole fence was built for and
+//  the one page that never adopted the guard: `mine.length ? mine : PORTALS`
+//  fell through to the full list for anybody who owned nothing, and a guest
+//  owns nothing by construction. What a guest was shown was four portals with
+//  System admin at the top of them, under the words "Signed in as".
+// ---------------------------------------------------------------------------
+console.log("\n6. The portal chooser tells a guest the truth");
+{
+  const t = await open("login.html");
+  const r = await t.page.evaluate(() => ({
+    card: !document.getElementById("cardPortal").hidden,
+    hrefs: [...document.querySelectorAll("#portalList a")].map((a) => a.getAttribute("href")),
+    join: !!document.getElementById("portalJoin"),
+    note: (document.getElementById("portalEmpty") || {}).innerText || "",
+  }));
+  ok(r.card, "a guest session reaches the chooser at all");
+  ok(!r.hrefs.includes("admin.html"), "no admin console", r.hrefs.join(" "));
+  ok(!r.hrefs.some((h) => /^agent-/.test(h || "")),
+     "and not one of the three portals", r.hrefs.join(" "));
+  // A warning over a dead end is still a dead end: the sentence says "create
+  // an account", so there has to be something to press that does it.
+  ok(r.join, "it offers the account the warning talks about");
+  ok(/guest/i.test(r.note), "and names the state they are in", r.note.slice(0, 80));
+  await t.close();
+}
+
+console.log("\n7. And an account still gets its portals");
+{
+  const t = await open("login.html", { anon: false });
+  const hrefs = await t.page.evaluate(() =>
+    [...document.querySelectorAll("#portalList a")].map((a) => a.getAttribute("href")));
+  // The stub owns nothing either, so this is the `mine` fallback path — the
+  // one the guest must not take and an account must. A fence that closes on
+  // everybody is a wall.
+  ok(hrefs.some((h) => /^agent-/.test(h || "")),
+     "an account still sees the portals", hrefs.join(" "));
+  ok(!(await t.page.$("#portalJoin")), "and is not asked to create an account",
+     "portalJoin should only exist for a guest");
+  await t.close();
+}
+
+// ---------------------------------------------------------------------------
+//  There is deliberately NO section here for js/core/nav.js. Its agent-portal
+//  links and its sign-out button carry the same guest bug the chooser did, and
+//  they are fixed in that file — but window.renderNav is not called from
+//  anywhere in this repo, so the shared dropdown is never drawn and an
+//  assertion about it would pass or fail on code that cannot run. If the nav
+//  is ever revived, the test to write asserts .nav-agent-link is hidden for a
+//  guest and #navSignOut is shown.
+// ---------------------------------------------------------------------------
+
 console.log("\n" + passed + " passed, " + fails.length + " failed\n");
 await browser.close();
 process.exit(fails.length ? 1 : 0);

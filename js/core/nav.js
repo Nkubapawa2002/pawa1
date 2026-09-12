@@ -82,9 +82,9 @@ window.renderNav = (active) => {
             </button>
             <div class="nav-dropdown">
               ${link("login.html",          "nav_signin")}
-              ${link("agent-houses.html",   "nav_agent_houses")}
-              ${link("agent-services.html", "nav_agent_services")}
-              ${link("agent-trucks.html",   "nav_agent_trucks")}
+              ${link("agent-houses.html",   "nav_agent_houses",   "nav-agent-link")}
+              ${link("agent-services.html", "nav_agent_services", "nav-agent-link")}
+              ${link("agent-trucks.html",   "nav_agent_trucks",   "nav-agent-link")}
               ${link("admin.html",          "nav_admin",       "nav-admin-link")}
               ${link("super-admin.html",   "nav_super_admin", "nav-admin-link")}
             </div>
@@ -162,11 +162,38 @@ window.renderNav = (active) => {
   (async () => {
     if (!window.Auth) return;
     try {
-      const email = await window.Auth.currentEmail();
-      if (!email) return;  // not logged in → links stay hidden
+      // NOTE, before you read the rest: nothing in this repo calls
+      // window.renderNav. Every page still loads nav.js, but the shared
+      // dropdown is not drawn anywhere, so the gate below is correct and
+      // currently unreachable. It is fixed rather than left because the bug
+      // would ship the day the nav comes back, and a wrong gate is harder to
+      // spot in working code than in code nobody is looking at.
+      //
+      // Three states, not two. currentEmail() is null for an ANONYMOUS session
+      // as well as for no session at all, and gating on it did two wrong things
+      // at once: a guest got no Sign-out button here (their only way out was
+      // profile.html), and the three agent-portal links above stayed up for
+      // them, reading as "your account's portals" to somebody who has no
+      // account. See js/lib/auth-guard.js, which is the same answer everywhere
+      // else; nav.js is on all 24 pages and cannot depend on that script being
+      // loaded, so the test is inlined and fails closed.
+      const session = await window.Auth.getSession();
+      const isGuest = window.AuthGuard
+        ? window.AuthGuard.isGuest(session)
+        : !!(session && session.user && session.user.is_anonymous === true);
 
-      // Logged in (any Supabase user) → expose the universal Sign-out button.
-      if (navSignOut) navSignOut.style.display = "";
+      // A guest has no portals. A signed-OUT visitor keeps them: for them the
+      // dropdown reads as a way in, and discovering the portals is the point.
+      if (isGuest) {
+        document.querySelectorAll(".nav-agent-link")
+          .forEach(el => el.style.display = "none");
+      }
+
+      // Any real session, guest included, gets a way out.
+      if (session && session.user && navSignOut) navSignOut.style.display = "";
+
+      const email = await window.Auth.currentEmail();
+      if (!email) return;  // guest or signed out → admin links stay hidden
 
       // Show the unread admin-message count on the Account menu (+ hamburger dot).
       window.refreshAgentMsgBadge?.();

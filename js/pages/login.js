@@ -345,8 +345,22 @@ window.initLoginPage = () => {
     $("portalSpinner").hidden = true;
     list.innerHTML = "";
 
-    const isGuest = session.user && session.user.is_anonymous === true;
-    const shown = mine.length ? mine : PORTALS;
+    // A guest is not an account, and this is the screen that used to forget it.
+    // `mine` is empty for a guest BY CONSTRUCTION — RLS gives an anonymous
+    // session nothing to own — so the `mine.length ? mine : PORTALS` fallback
+    // handed a guest every portal in the list, System admin included. Each of
+    // those pages refuses a guest on arrival and the database refuses every
+    // write, so nothing could be done; but a chooser that offers the admin
+    // console to a browser tab is the screen telling a stranger what the inside
+    // looks like, which is the exact failure js/lib/auth-guard.js exists to end.
+    //
+    // AuthGuard is the single answer to this question on the other five screens.
+    // The inline test is its fail-closed fallback, the same shape those callers
+    // use: a missing script must err towards showing LESS, never more.
+    const isGuest = window.AuthGuard
+      ? window.AuthGuard.isGuest(session)
+      : !!(session.user && session.user.is_anonymous === true);
+    const shown = isGuest ? [] : (mine.length ? mine : PORTALS);
 
     if (isGuest) {
       empty.hidden = false;
@@ -371,6 +385,27 @@ window.initLoginPage = () => {
     home.querySelector("span > span").textContent = T("lg_p_browse", "Browse the app");
     home.querySelector("small").textContent = T("lg_p_browse_d", "Houses, services and trucks near you");
     list.appendChild(home);
+
+    // A guest now gets no portals at all, so without this the card would be a
+    // warning over a single "Browse the app" link and no way to act on it. The
+    // advice in that warning is "create an account"; this is that sentence made
+    // pressable. It is a button rather than a link because the sign-in card is
+    // on this page already.
+    if (isGuest) {
+      const join = document.createElement("button");
+      join.type = "button";
+      join.className = "lg-route";
+      join.id = "portalJoin";
+      join.innerHTML = `<span class="lg-route-ic">${ICON.houses}</span>` +
+        `<span class="lg-route-tx"><span></span><small></small></span>` +
+        `<span class="lg-route-go">${ICON.go}</span>`;
+      join.querySelector("span > span").textContent =
+        T("lg_p_join", "Create an account");
+      join.querySelector("small").textContent =
+        T("lg_p_join_d", "Keep your listings, your messages and your key");
+      join.addEventListener("click", () => goStep("cardAuth"));
+      list.appendChild(join);
+    }
 
     for (const p of shown) {
       const a = document.createElement("a");
