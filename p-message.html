@@ -1204,6 +1204,16 @@
   <script src="js/lib/pm-people-picker.js"></script>
   <!-- The way out of everything the picker makes possible: a block, enforced
        in the database and merely offered here. -->
+  <!-- The six glyphs this page draws. No emoji anywhere, ever: the same
+       character renders as colour art on one phone and a bare outline on the
+       next. Loaded before anything that draws a row. -->
+  <script src="js/lib/pm-icons.js"></script>
+  <!-- The Agents pane: rows, ranking readout and the three chips under one.
+       Reads the order from pm-match.js, which loads above. -->
+  <script src="js/lib/pm-directory-ui.js"></script>
+  <!-- What you can do TO a conversation rather than in it: the row menu, the
+       roster, leaving, deleting, and the door onto pm-block.js. -->
+  <script src="js/lib/pm-rooms-ui.js"></script>
   <script src="js/lib/pm-block.js"></script>
   <!-- Announce and Open a room: the two dialogs that reach more than one
        person. Both mount the picker above, so they load after it. -->
