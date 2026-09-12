@@ -2169,6 +2169,51 @@ try {
     await ap.page.close();
   }
 
+  // ===========================================================================
+  //  The report that provoked this: "there is something like people you have
+  //  blocked as if there is no any option in the app to block or unblock".
+  //
+  //  Both halves were true. Blocking WORKED -- the SQL, the store call, the
+  //  confirm dialog and the unblock list were all built and wired -- but
+  //  PMBlock.ask() had exactly ONE call site in the whole app: the dot menu on
+  //  a conversation row, which rowMenuKind() only yields for a direct thread
+  //  with a non-guest account. On the production data that row type does not
+  //  exist for anybody, so Profile showed "People you blocked" over a list
+  //  nothing in the app could add to.
+  //
+  //  So the assertions here are about DOORS, not about blocking. A feature
+  //  reachable from one place that most accounts never see is not reachable.
+  // ===========================================================================
+  section("8q. There is a way to block somebody you have never spoken to");
+  {
+    const ap = await openPage("ordinary@example.com");
+    await sleep(900);
+    await ap.page.evaluate(() => document.getElementById("segPeople").click());
+    await sleep(1200);
+
+    const dots = await ap.page.evaluate(() =>
+      document.querySelectorAll("#pmPeople [data-person-menu]").length);
+    ok(dots > 0, "every row in the agent list carries a menu", String(dots) + " found");
+
+    // The row's own button opens a conversation. The dots must NOT: they are
+    // a sibling of it inside the actions strip, and if the row handler caught
+    // them first this door would silently be "message them" instead.
+    await ap.page.evaluate(() =>
+      document.querySelector("#pmPeople [data-person-menu]").click());
+    await sleep(500);
+    ok(await ap.page.$("#pmPmBlock") !== null,
+       "and it offers Block, without needing a conversation first");
+    ok(await ap.page.$("#pmConv.is-on") === null,
+       "and it did not open the conversation instead");
+
+    await ap.page.evaluate(() => document.getElementById("pmPmBlock").click());
+    await sleep(400);
+    ok(await ap.page.$("#pmBlYes") !== null,
+       "which hands straight to the one confirm dialog, not a second copy of it");
+    ok(ap.errs.length === 0, "no page errors", ap.errs.slice(0, 3).join("\n        "));
+    await ap.page.close();
+  }
+
   section("8m. The thread list stays live");
   {
     // Until this existed the only live delivery was per-open-conversation, so

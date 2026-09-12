@@ -171,7 +171,18 @@
    */
   function mount(host, opts) {
     opts = opts || {};
-    var mode = opts.mode === "cast" ? "cast" : "room";
+    // Three modes, and the third is not a relaxation of the other two.
+    //
+    //   cast   who may be announced to        pm_may_cast_to
+    //   room   who may be gathered into one   pm_may_room_with
+    //   any    everybody, greyed for nobody
+    //
+    // "any" exists for BLOCKING, where the reach rules are not merely
+    // inapplicable but backwards: the people you most need to block are the
+    // ones who can already reach you, and a picker that greys out everybody a
+    // rule refuses would refuse to let you block the person the rule let in.
+    // pm_block() accepts any id for the same reason.
+    var mode = opts.mode === "cast" ? "cast" : opts.mode === "any" ? "any" : "room";
     var exclude = {};
     (opts.exclude || []).forEach(function (id) { exclude[id] = 1; });
 
@@ -183,18 +194,21 @@
     // Everything currently on screen, and the server's verdict on each.
     var shown = [];
     var verdict = {};
-    var source = "mine";
+    // "People you deal with" is the right first answer for a room or an
+    // announcement, where reach is the question. It is the wrong one for
+    // blocking, where the list you want is everybody you can see.
+    var source = opts.source === "all" ? "all" : "mine";
     var seq = 0;                 // so a slow answer cannot overwrite a fast one
     var timer = null;
 
     host.innerHTML =
       '<div class="pm-pk">' +
         '<div class="pm-pk-src" role="tablist">' +
-          '<button class="pm-pk-tab is-on" type="button" data-src="mine">' +
+          '<button class="pm-pk-tab' + (source === "mine" ? " is-on" : "") + '" type="button" data-src="mine">' +
             esc(t("pm_pick_src_mine", "People you deal with")) + "</button>" +
           '<button class="pm-pk-tab" type="button" data-src="list">' +
             esc(t("pm_pick_src_list", "Your lists")) + "</button>" +
-          '<button class="pm-pk-tab" type="button" data-src="all">' +
+          '<button class="pm-pk-tab' + (source === "all" ? " is-on" : "") + '" type="button" data-src="all">' +
             esc(t("pm_pick_src_all", "Everyone")) + "</button>" +
         "</div>" +
         '<div class="pm-pk-lists" id="pmPkLists" hidden></div>' +
@@ -267,6 +281,10 @@
 
     /** Why this person cannot be had, in the mode we are in. */
     function blockedWhy(p) {
+      // Blocking asks no permission and needs no key: the row is a person, not
+      // a recipient. Greying here would be the picker refusing to let somebody
+      // shut a door the rules had already opened.
+      if (mode === "any") return "";
       var v = verdict[p.user_id];
       if (!v) return "";
       if (mode === "cast" && !v.cast) {
@@ -386,6 +404,9 @@
           rows.forEach(function (r) { v[r.user_id] = { room: !!r.may_room, cast: !!r.may_cast }; });
           return { rows: rows, v: v };
         }
+        // "any" greys nobody, so the verdict is never read. Asking for it
+        // anyway would be a round trip per search whose answer is discarded.
+        if (mode === "any") return { rows: rows, v: {} };
         return window.PMStore.audienceCheck(rows.map(function (r) { return r.user_id; }))
           .then(function (v) { return { rows: rows, v: v }; });
       }).then(function (res) {

@@ -206,7 +206,23 @@
             esc(kind === "gone"
               ? t("pm_chat_del_gone_d", "They have already gone, so nothing here can be opened again.")
               : t("pm_chat_del_guest_d", "They have no account, so the whole conversation goes from the server.")) +
-            "</span></button>") +
+            "</span></button>" +
+          // A GUEST CAN BE BLOCKED TOO, and the reasoning that said otherwise
+          // has been overtaken by the data. It was "blocking a browser tab
+          // that will not exist tomorrow is a control that does nothing" --
+          // sound when guests were the rare case. On this database 15 of the
+          // 16 people who have ever opened P-Message are guests, so refusing
+          // to block one means refusing to block almost anybody who can
+          // actually reach you. pm_block() has always accepted any id.
+          //
+          // "gone" gets no block: there is nobody left to stop. The row is a
+          // conversation whose other side deleted their account.
+          (kind === "guest" && other
+            ? '<button class="pm-sheet-b is-danger" type="button" id="pmCmBlock">' +
+                "<b>" + esc(t("pm_block", "Block this person")) + "</b><span>" +
+                esc(t("pm_block_guest_d", "They stop being able to reach you with anything new, even if they come back on this browser. Deleting the conversation does not do that.")) +
+                "</span></button>"
+            : "")) +
       "</div>" +
       '<div class="pm-modal-acts"><button class="pm-btn ghost" id="pmCmX">' +
       esc(t("pm_close", "Close")) + "</button></div>" +

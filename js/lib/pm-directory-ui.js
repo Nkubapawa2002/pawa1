@@ -47,6 +47,10 @@
   /** An identity exists and is published. Nothing is drawn before it does. */
   var ready = function () { return ctx.ready ? ctx.ready() : false; };
   var initials = function (n) { return ctx.initials ? ctx.initials(n) : ""; };
+  /** { userId, isAdmin, isGuest } once the gate has run, or null. */
+  var who = function () { return ctx.me ? ctx.me() : null; };
+  var modal = function (h) { if (ctx.modal) ctx.modal(h); };
+  var closeModal = function () { if (ctx.closeModal) ctx.closeModal(); };
 
   // The shortlist target: how confident is confident enough to stop suggesting
   // more people to write to. Four in five, not nine in ten -- the difference is
@@ -362,6 +366,23 @@
         PMIcons.box + "<span>" + esc(t("pm_open_listings", "See their work")) + "</span></a>");
     }
 
+    // The way OUT. Until this existed, blocking had exactly one door in the
+    // whole app -- the dot menu on a conversation row -- which meant you could
+    // only stop somebody you were already talking to. On a database where
+    // almost nobody has a conversation yet, that is no door at all, and the
+    // "People you blocked" list in Profile stood over something nothing could
+    // add to. Here it sits beside the people themselves, which is where
+    // somebody decides they do not want to hear from one of them.
+    //
+    // A guest is not offered it, because pm_block() refuses a guest session
+    // outright: a block that dies with the browser tab is not a block, and
+    // showing the button would be promising one.
+    if (!(who() && who().isGuest)) {
+      acts.push('<button class="pm-act is-more" type="button" data-person-menu="' +
+        esc(p.user_id) + '" data-name="' + esc(name) + '" aria-label="' +
+        esc(t("pm_msg_more", "More")) + '">' + window.PMIcons.more + "</button>");
+    }
+
     // Somebody with no key, no number and nothing listed has no action at all,
     // and an empty strip under every such row is a row of wasted height.
     if (!acts.length) return "";
@@ -470,10 +491,43 @@
     return bits.slice(0, 3).join(" · ");
   }
 
+  /**
+   * Everything you can do to a person you are NOT in a conversation with.
+   *
+   * Today that is one thing, and a one-item sheet is the right shape for it
+   * rather than a bare confirm: the three chips beside the row are the things
+   * you do WITH somebody, and this is the thing you do ABOUT them. Putting a
+   * block chip in that strip would have made the commonest row on the screen
+   * offer "message, call, see their work, cut them off" as four equal weights.
+   */
+  function showPersonMenu(btn) {
+    var id = btn.dataset.personMenu;
+    var name = btn.dataset.name || t("pm_someone", "Someone");
+
+    modal("<h2>" + esc(name) + "</h2>" +
+      '<div class="pm-sheet">' +
+        '<button class="pm-sheet-b is-danger" type="button" id="pmPmBlock">' +
+          "<b>" + esc(t("pm_block", "Block this person")) + "</b><span>" +
+          esc(t("pm_block_d", "They stop being able to add you to a room, announce to you, or start a new conversation. This one stays.")) +
+        "</span></button>" +
+      "</div>" +
+      '<div class="pm-modal-acts"><button class="pm-btn ghost" id="pmPmX">' +
+      esc(t("pm_close", "Close")) + "</button></div>");
+
+    document.getElementById("pmPmX").addEventListener("click", closeModal);
+    document.getElementById("pmPmBlock").addEventListener("click", function () {
+      closeModal();
+      // The confirm, the wording and the call are pm-block.js's, not a second
+      // copy of them. It is the same dialog the conversation row opens.
+      if (window.PMBlock) window.PMBlock.ask(id, name);
+    });
+  }
+
   window.PMDirectoryUI = {
     attach: attach,
     fillRegions: fillRegions,
     refresh: refreshPeople,
+    personMenu: showPersonMenu,
     // Two answers the rest of the page asks this module for, rather than
     // growing a second copy of either: where somebody works, and the address
     // of their shopfront.

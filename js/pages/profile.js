@@ -357,10 +357,18 @@
               desc: t("pf_backup_d", "The only copy of this key is on this device. A code lets you restore it on another.") }),
         row({ act: "restore", icon: ICON.key, tint: "ic-gold", title: t("pf_restore", "Restore from a backup code"),
               desc: t("pf_restore_d", "Replaces the key on this device with one from another.") }),
-        // The other side of blocking. Blocking happens where it makes sense,
-        // on the conversation itself; UNblocking has nowhere to happen, since
-        // the whole point is that the person has stopped appearing. Without
-        // this row a block is a one-way door.
+        // The other side of blocking. Blocking happens where the person is --
+        // on the conversation, or on their row in the P-Message directory --
+        // while UNblocking has nowhere else it could happen, since the whole
+        // point is that they have stopped appearing. Without this row a block
+        // is a one-way door.
+        //
+        // NOT FOR A GUEST. pm_block() refuses a guest session outright
+        // (p_message_audience.sql), so for a guest this row could only ever
+        // open an empty list: a door onto a feature they were never allowed
+        // through, which reads as their own list being empty rather than as
+        // the feature being closed to them.
+        me.isGuest ? "" :
         row({ act: "blocked", icon: ICON.shield, tint: "ic-violet",
               title: t("pf_blocked", "People you blocked"),
               desc: t("pf_blocked_d", "They cannot add you to a room, announce to you, or start a new conversation. You can let any of them back.") }),

@@ -435,6 +435,15 @@
     .pm-act.is-call.is-only { background: var(--pm-brand); border-color: transparent; color: var(--pm-on-brand); }
     .pm-acts .pm-open { flex: 0 1 auto; min-width: 0; }
     .pm-acts .pm-open span { overflow: hidden; text-overflow: ellipsis; }
+    /* The way out. Pushed to the far end and drawn as quietly as the strip
+       allows: it is the only control here that is about somebody rather than
+       for them, and it must be findable without competing with the three that
+       do the work. Square rather than pill, because it carries no word.
+       margin-inline-start:auto puts it at the end however many chips precede
+       it, including none. */
+    .pm-act.is-more { margin-inline-start: auto; padding: 6px 9px; color: var(--pm-ink-soft); }
+    .pm-act.is-more svg { width: 15px; height: 15px; }
+    .pm-act.is-more:hover { color: var(--pm-ink); }
 
     /* ---- answering one message --------------------------------------------
        In a room with thirty people "yes, 300,000" is an answer to a question

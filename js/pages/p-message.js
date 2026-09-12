@@ -584,6 +584,8 @@
     // identity is published, both after this attach has run.
     category: function () { return category; },
     ready: function () { return ready; },
+    me: function () { return me; },
+    modal: modal, closeModal: closeModal,
   });
   function fillRegions() { window.PMDirectoryUI.fillRegions(); }
   function refreshPeople() { return window.PMDirectoryUI.refresh(); }
@@ -1735,6 +1737,11 @@
     });
 
     el.pmPeople && el.pmPeople.addEventListener("click", async function (e) {
+      // The dots sit inside the actions strip, which is a SIBLING of the row
+      // button, so this is not a click on the row and must be answered before
+      // the row lookup rather than after it.
+      var dots = e.target.closest("[data-person-menu]");
+      if (dots) { window.PMDirectoryUI.personMenu(dots); return; }
       var row = e.target.closest("[data-person]");
       if (!row) return;
       if (row.dataset.unreachable) {

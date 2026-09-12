@@ -575,6 +575,7 @@ window.I18N = {
     // people assume is worse than none.
     pm_block: "Block this person",
     pm_block_d: "They stop being able to add you to a room, announce to you, or start a new conversation. This one stays.",
+    pm_block_guest_d: "They stop being able to reach you with anything new, even if they come back on this browser. Deleting the conversation does not do that.",
     pm_block_t: "Block this person?",
     pm_block_does: "They will not be able to add you to a room, include you in an announcement, or start a new conversation with you.",
     pm_block_not: "Neither of you can write here any more, but it does not delete this conversation and it does not reach messages already on either phone. It does not take either of you out of a room you are both already in. Nothing tells them, but they will find out if they try to write to you.",
@@ -4367,6 +4368,7 @@ window.I18N = {
     pm_cast_d2: "Ujumbe mmoja kwa watu unaowachagua. Umefichwa kwa kila mmoja peke yake, nakala moja iliyofungwa kwa kila mtu, kwa hiyo hausomeki kwa mtu mwingine yeyote wala kwetu. Hawawezi kujibu ndani yake.",
     pm_block: "Mzuie mtu huyu",
     pm_block_d: "Hataweza tena kukuweka kwenye chumba, kukutumia tangazo, wala kuanzisha mazungumzo mapya. Haya yaliyopo yanabaki.",
+    pm_block_guest_d: "Hataweza tena kukufikia na kitu chochote kipya, hata akirudi kwenye kivinjari hiki. Kufuta mazungumzo hakufanyi hivyo.",
     pm_block_t: "Umzuie mtu huyu?",
     pm_block_does: "Hataweza kukuweka kwenye chumba, kukujumuisha kwenye tangazo, wala kuanzisha mazungumzo mapya na wewe.",
     pm_block_not: "Hakuna kati yenu atakayeweza kuandika hapa tena, lakini haifuti mazungumzo haya na haifikii ujumbe uliokwisha kuwepo kwenye simu za wote wawili. Haiwatoi ninyi wawili kwenye chumba mlichomo tayari. Hakuna kinachomwarifu, lakini atagundua akijaribu kukuandikia.",
