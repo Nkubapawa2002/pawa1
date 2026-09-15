@@ -12,6 +12,11 @@
 //  the rooms row answers the alert this device actually saved, and the alarm
 //  cannot be tapped away.
 //
+//  Sections 11 and 12 pin the promise every row now makes: press clear and
+//  THESE go for good, while something genuinely new still reaches you. That is
+//  neither the watermark it used to be (back on the next posting) nor the mute
+//  that replaced it (the whole kind gone for ever).
+//
 //  Everything external is answered locally, so this spends no quota and does
 //  not need Supabase to be reachable. See the browser-test recipe.
 //
@@ -413,12 +418,17 @@ console.log("\n8. A changed safety number is an alarm, and it cannot be tapped a
   // An alarm is no longer a row in the list. It is the rail above every
   // section, which is the same claim the old assertion made ("first, above
   // every kind of news") in the shape the panel has now.
+  //
+  // It sits inside a .nt-line now, because every row carries a clear button
+  // and .nt-line is what holds a row and its button together. The claim being
+  // made here is unchanged: nothing is drawn above the alarm.
   const p = await t.page.evaluate(() => {
     const body = document.querySelector(".nt-body");
     const el = body.querySelector('.nt-alarm[data-key="trust"]');
     const g = window.Notify.state().groups.find((x) => x.key === "trust");
     return {
-      first: body.firstElementChild === el,
+      first: body.firstElementChild === el ||
+             body.firstElementChild === (el && el.closest(".nt-line")),
       aboveSections: !!el && (!body.querySelector(".nt-sec") ||
         (el.compareDocumentPosition(body.querySelector(".nt-sec")) & Node.DOCUMENT_POSITION_FOLLOWING) > 0),
       count: g ? g.count : -1,
@@ -458,6 +468,21 @@ console.log("\n8. A changed safety number is an alarm, and it cannot be tapped a
   ok(!after.dismissible, "the engine says so out loud, so the UI need not guess");
   // Nothing left that the button could clear, so offering it would be a lie.
   ok(after.clearHidden, "and the button that cannot clear it stops offering to");
+
+  // TAPPED AWAY and CLEARED are different, and this is the row where the
+  // difference matters most. Tapping the alarm is a door to the conversation
+  // and never an acknowledgement, which is everything above. A deliberate
+  // press on "clear" is an acknowledgement, and it is allowed, because the
+  // thing it puts away is a line on a panel and not the block on the
+  // composer. The label has to say so or the button reads as an escape.
+  const put = await t.page.evaluate(() => {
+    const b = document.querySelector('[data-put="clear:trust"]');
+    return { there: !!b, label: b && b.getAttribute("aria-label") };
+  });
+  ok(put.there, "the alarm can still be cleared off the panel deliberately");
+  ok(/blocked until you check the number/i.test(put.label || ""),
+     "and the button says plainly that clearing it does not unblock the chat", put.label);
+
   ok(t.errs.length === 0, "no page errors across the alarm run", t.errs.slice(0, 2).join(" | "));
   await t.close();
 }
@@ -543,68 +568,135 @@ console.log("\n10. A reader who is not an agent is never shown an empty version 
 }
 
 // ===========================================================================
-console.log("\n11. Switching a kind of news off, and it staying off");
+console.log("\n11. Clearing a row, and it staying cleared");
 // ===========================================================================
 // The report was "when a user sees a notification they can completely remove
-// them and never show them again" — which the panel could not do. Dismissing
-// was a WATERMARK: markSeen() moved a timestamp, so "3 new rooms" cleared and
-// came back the moment a fourth was posted anywhere in the country. And the
-// four catalogue rows had no close button at all, because withPut() gated it
-// on g.key === "renew".
+// them and never show them again", and it has been answered wrongly twice.
+//
+// First it was a WATERMARK: markSeen() moved a timestamp, so "3 new rooms"
+// cleared and came back the moment a fourth was posted anywhere in the
+// country. Then it was a MUTE: the cross switched the whole kind off for good,
+// so somebody who wanted four rooms off their screen stopped being told about
+// rooms at all, and the rows that were not catalogue rows still had no button.
+//
+// It is neither. "Clear this" is a statement about the rows in front of
+// somebody: THESE, gone, and something genuinely new later is still news. The
+// three assertions that pin that are: the row empties, the cleared ones never
+// return, and a NEW one does.
 {
   const t = await open();
   await t.page.waitForFunction(() => window.Notify.state().total > 0, { timeout: 20000 });
   await t.page.click("#pawa-notify-bell");
   await sleep(500);
 
-  ok(await t.page.$('[data-put^="mute:houses"]') !== null,
-     "a rooms row now carries a way to switch it off");
-  ok(await t.page.$('[data-put^="mute:messages"]') === null,
-     "and an unread message does not: that is a person writing to you");
-  ok(await t.page.$('[data-put^="mute:demand"]') === null,
-     "nor a customer waiting for a call");
+  // Every row, not four of them. The three below are the ones that had no
+  // button at all and could not be put down however long somebody looked.
+  ok(await t.page.$('[data-put="clear:houses"]') !== null,
+     "a rooms row carries a clear button");
+  ok(await t.page.$('[data-put="clear:messages"]') !== null,
+     "so does an unread message, which never had one");
+  ok(await t.page.$('[data-put="clear:demand"]') !== null,
+     "so does a customer waiting for a call");
+  // The safety-number alarm has one too, and section 8 checks it: it is the
+  // run with a trust book in it, and it is where the wording of that
+  // particular button has to be argued.
 
-  await t.page.evaluate(() => document.querySelector('[data-put^="mute:houses"]').click());
+  // The promise is written on the button, not only in the code.
+  const label = await t.page.evaluate(() =>
+    document.querySelector('[data-put="clear:houses"]').getAttribute("aria-label"));
+  ok(/New rooms will still reach you/i.test(label || ""),
+     "and it says what comes back, which is the only question before pressing it", label);
+
+  await t.page.evaluate(() => document.querySelector('[data-put="clear:houses"]').click());
   await sleep(400);
   const after = await t.page.evaluate(() => {
     const by = {};
     window.Notify.state().groups.forEach((g) => { by[g.key] = g.count; });
-    return { by, muted: window.Notify.mutedKeys() };
+    return { by, gone: window.NotifyCleared.list("houses") };
   });
   ok(after.by.houses === 0, "pressing it empties the row at once", JSON.stringify(after.by));
   ok(after.by.services === 1, "and touches nothing else", JSON.stringify(after.by));
-  ok(after.muted.indexOf("houses") >= 0, "it is written down", JSON.stringify(after.muted));
+  ok(after.gone.length > 0, "the ids are written down, not just a timestamp",
+     JSON.stringify(after.gone));
 
-  // THE WHOLE POINT: a new listing must not bring it back. This is what the
-  // watermark could never do.
-  const back = await t.page.evaluate(async () => {
+  // THE FIRST HALF OF THE PROMISE. A refresh must not bring back what was
+  // cleared, which the watermark alone could not guarantee for a row whose
+  // created_at was older than the moment it was cleared.
+  const again = await t.page.evaluate(async () => {
+    await window.Notify.refresh();
+    const by = {};
+    window.Notify.state().groups.forEach((g) => { by[g.key] = g.count; });
+    return by;
+  });
+  ok(again.houses === 0, "and a refresh does not bring them back", JSON.stringify(again));
+
+  // THE SECOND HALF, and the whole difference between this and a mute: a room
+  // posted afterwards is not one of the rows that was cleared, so it speaks.
+  const fresh = await t.page.evaluate(async () => {
     window.__M.houses.push({
-      id: "brand_new", title: "A room posted just now", region: "Dar es Salaam",
-      lat: -6.771, lng: 39.239, created_at: new Date().toISOString(),
+      id: "brand_new", title: "A room posted just now", available: true,
+      lat: -6.771, lng: 39.239, price_tzs: 300000, listing: "rent", type: "house",
+      bedrooms: 1, created_at: new Date().toISOString(),
     });
     await window.Notify.refresh();
     const by = {};
     window.Notify.state().groups.forEach((g) => { by[g.key] = g.count; });
     return by;
   });
-  ok(back.houses === 0,
-     "and a room posted afterwards does NOT bring it back, which the old watermark could not promise",
-     JSON.stringify(back));
+  ok(fresh.houses === 1,
+     "but a room posted afterwards DOES come through, and only that one",
+     JSON.stringify(fresh));
 
-  // A mute with no way back is the same bug pointing the other way.
-  const on = await t.page.evaluate(async () => {
-    window.Notify.setMuted("houses", false);
-    await window.Notify.refresh();
-    const by = {};
-    window.Notify.state().groups.forEach((g) => { by[g.key] = g.count; });
-    return { by, muted: window.Notify.mutedKeys() };
+  ok(t.errs.length === 0, "no page errors", t.errs.slice(0, 2).join(" | "));
+  await t.close();
+}
+
+// ===========================================================================
+console.log("\n12. Clearing everything, and switching a kind off, are different things");
+// ===========================================================================
+{
+  const t = await open();
+  await t.page.waitForFunction(() => window.Notify.state().total > 0, { timeout: 20000 });
+  await t.page.click("#pawa-notify-bell");
+  await sleep(500);
+
+  // The footer used to hide this button whenever the panel held nothing but
+  // catalogue rows, which is the commonest panel there is: a screen full of
+  // news with no way to empty it.
+  const offered = await t.page.evaluate(() => {
+    const b = document.querySelector('[data-foot="wipe"]');
+    return !!b && !b.hidden;
   });
-  ok(on.by.houses > 0, "switching it back on brings the news back", JSON.stringify(on.by));
-  ok(on.muted.length === 0, "and clears the record of it being off", JSON.stringify(on.muted));
+  ok(offered, "a panel of catalogue rows offers a way to clear everything");
 
-  // A person is not mutable through the front door either.
-  const refused = await t.page.evaluate(() => window.Notify.setMuted("messages", true));
-  ok(refused === false, "and a person cannot be muted even by asking directly");
+  await t.page.evaluate(() => document.querySelector('[data-foot="wipe"]').click());
+  await sleep(200);
+  await t.page.evaluate(() => document.querySelector('[data-foot="yes"]').click());
+  await t.page.waitForFunction(() => window.Notify.state().total === 0 &&
+    window.Notify.state().news === 0, { timeout: 10000 });
+
+  const emptied = await t.page.evaluate(async () => {
+    await window.Notify.refresh();
+    const st = window.Notify.state();
+    return { total: st.total, news: st.news };
+  });
+  ok(emptied.total === 0 && emptied.news === 0,
+     "and a refresh afterwards leaves it empty, which markAllSeen never did",
+     JSON.stringify(emptied));
+
+  // Switching a whole kind off still exists. It is a settings switch on the
+  // Profile tab now, not a cross on a row, because the two are different
+  // requests and offering only the second was the complaint.
+  const mute = await t.page.evaluate(() => ({
+    mutable: window.Notify.isMutable("houses"),
+    person: window.Notify.isMutable("messages"),
+    refused: window.Notify.setMuted("messages", true),
+    onRow: !!document.querySelector('[data-put^="mute:"]'),
+  }));
+  ok(mute.mutable === true, "a catalogue kind can still be switched off through the API");
+  ok(mute.person === false, "a person still cannot be");
+  ok(mute.refused === false, "not even by asking directly");
+  ok(mute.onRow === false, "and the row no longer offers it, because clearing is what a row means");
 
   ok(t.errs.length === 0, "no page errors", t.errs.slice(0, 2).join(" | "));
   await t.close();

@@ -431,6 +431,12 @@ a.dm-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .nt-line:has(> .nt-alarm) { margin: 0 var(--space-1) var(--space-2); }
 .nt-line > .nt-alarm { margin: 0; }
 
+/* A body that is several rows rather than one. The requests section draws three
+   cards and a "more" link, and .nt-line is a flex ROW, so without this they
+   would sit side by side across a 380px panel. */
+.nt-stack { flex: 1 1 auto; min-width: 0; display: grid; gap: var(--space-1); }
+.nt-line--block > .nt-put { align-self: flex-start; }
+
 .nt-put {
   flex: 0 0 auto; align-self: center;
   width: var(--hit-min); min-height: var(--hit-min);

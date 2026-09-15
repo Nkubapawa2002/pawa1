@@ -257,7 +257,7 @@ try {
   }
 
   // -------------------------------------------------------------------------
-  section("3. Delete all asks first, and then means it");
+  section("3. Clear everything asks first, and then means it");
   {
     const p = await open(stub({ session: ACCOUNT }));
     await p.goto("http://localhost:8080/index.html", { waitUntil: "domcontentloaded" });
@@ -268,17 +268,21 @@ try {
     ok(await p.evaluate(() => {
       const b = document.querySelector('[data-foot="wipe"]');
       return !!b && !b.hidden;
-    }), "the panel offers to delete the lot");
+    }), "the panel offers to clear the lot");
 
     await p.evaluate(() => document.querySelector('[data-foot="wipe"]')?.click());
     await wait(350);
     // The question is a strip inside the panel, not a window.confirm: the panel
     // is already a modal and a browser dialog stacked on it is the one thing a
     // phone draws worse than the screen itself.
+    // The question has to carry BOTH halves of what the button does, because
+    // both are what somebody needs before answering it: these are gone for
+    // good, and the app has not been switched off.
     ok(await p.evaluate(() => {
       const a = document.querySelector(".nt-ask");
-      return !!a && !a.hidden && /cannot be undone/i.test(a.textContent);
-    }), "and asks first, saying that it cannot be undone");
+      const tx = a ? a.textContent : "";
+      return !!a && !a.hidden && /will not come back/i.test(tx) && /new/i.test(tx);
+    }), "and asks first, saying these will not come back and new ones still will"),
     ok(await p.evaluate(() => window.__cleared.length === 0),
        "having deleted nothing yet", JSON.stringify(await p.evaluate(() => window.__cleared)));
     ok(await p.evaluate(() => {

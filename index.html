@@ -977,6 +977,11 @@
        panel drew notices on the home page that no tap could ever clear. -->
   <script src="js/lib/notices.js"></script>
   <script src="js/lib/notify-mute.js"></script>
+  <!-- What this device has CLEARED, and will not be shown again. notify.js
+       delegates to it, the same way it delegates the off switches to
+       notify-mute.js. Without it a cleared row comes straight back on the
+       next poll, which is the whole bug the clear button exists to end. -->
+  <script src="js/lib/notify-clear.js"></script>
   <script src="js/core/notify.js"></script>
   <script src="js/lib/notify-ui.js"></script>
   <script src="js/lib/dialog.js"></script>

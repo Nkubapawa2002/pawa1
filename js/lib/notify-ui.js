@@ -24,10 +24,24 @@
 //  the body in hand, so the tap now OPENS the notice in place and marks it
 //  read on the server, and reading it is the last time it appears.
 //
-//  Every notice also carries a bin. Read is a state; deleted is gone, and
-//  "clear these and never show them to me again" is a request that only a
-//  delete can answer. See notice_delete / notices_clear in
-//  supabase/features/agent/agent_notices.sql.
+//  EVERY ROW CARRIES A CLEAR BUTTON, AND IT MEANS ONE THING EVERYWHERE.
+//  ------------------------------------------------------------------
+//  Press it and what is in front of you goes, for good. Something genuinely
+//  new later still reaches you.
+//
+//  It used to mean three different things depending on which row you pressed,
+//  and only one of the three was what anybody wanted. A notice was deleted (a
+//  real delete: notice_delete / notices_clear in supabase/features/agent/
+//  agent_notices.sql). A subscription reminder was hidden until the state
+//  moved. And a catalogue row, the commonest of the three by far, SWITCHED
+//  THE WHOLE KIND OFF FOREVER, so somebody who wanted four rooms off their
+//  screen stopped being told about rooms at all. The rest of the rows had no
+//  button whatsoever and could not be put down.
+//
+//  Now the promise is the same on all of them, and js/core/notify.js keeps it
+//  by identity rather than by category: see Notify.clear(). Switching a whole
+//  kind off is still available, in its right place, as a settings switch on
+//  the Profile tab.
 // ============================================================================
 (function () {
   "use strict";
@@ -60,6 +74,12 @@
     clock:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.4l3.4 2"/>',
     stamp:   '<path d="M5 20h14M7 16h10v1.5H7z"/><path d="M9 16c0-2-2.5-3-2.5-6a5.5 5.5 0 0 1 11 0c0 3-2.5 4-2.5 6"/>',
     close:   '<path d="M6 6l12 12M18 6L6 18"/>',
+    // A broom, for "clear this". Not the cross, which everywhere else on the
+    // web means "close what I am looking at" and never "put this away for
+    // good", and not the bin, which is reserved below for a row that is
+    // genuinely deleted from the database.
+    broom:   '<path d="M14 4l6 6"/><path d="M11.5 6.5 17.5 12.5l-4.7 4.7a3 3 0 0 1-2.6.8L5 17l-.9-5a3 3 0 0 1 .8-2.6z"/>' +
+             '<path d="M4.2 17 2 22l5-2.2"/>',
     // A bin, not a cross. The cross on the subscription row HIDES a state that
     // is still true; this one deletes a row for good, and the two must not
     // look like the same promise.
@@ -265,53 +285,54 @@
   }
 
   /**
-   * A row, and the button that puts it away.
+   * A row, and the button that clears it.
    *
-   * Only two things here can be put away, and they are put away differently.
-   * A notice is a ROW: the bin deletes it, and it is gone from the bell, the
-   * Profile tab and the database at once. The subscription is a STATE: nothing
-   * wrote a row for it, so there is nothing to delete and the cross hides the
-   * state as it stands today. js/core/notify.js keys that dismissal on the
-   * reason and the date, so a subscription that moves speaks up again and one
-   * that has not stays quiet. Two marks, because they are two promises.
+   * Every row gets one, and it makes the same promise on all of them: what is
+   * in front of you goes and does not come back, and something genuinely new
+   * later still reaches you. js/core/notify.js keeps that promise by writing
+   * down what the row was counting; see Notify.clear().
    *
-   * A CATALOGUE ROW IS A THIRD KIND, and until now it had no button at all,
-   * which was the whole of the complaint. Tapping it only moved a watermark,
-   * so "4 new rooms" cleared and came back the moment a fifth was listed
-   * anywhere in the country. There was no way to say "stop telling me about
-   * rooms", and no amount of tapping added up to one. The cross on these
-   * switches the kind OFF, through Notify.setMuted, and Profile is where they
-   * come back.
-   *
-   * Everything else still has no button, for the reason it never had one: a
-   * customer waiting for a call is answered, an unread message is read, a
-   * person adding you to a room is somebody addressing you, and a changed
-   * safety number is compared. None of those is a thing to tidy away, and
-   * Notify.MUTABLE is deliberately the four catalogue kinds and nothing else.
+   * The subscription is the one row that has nothing to write down, because
+   * nothing wrote a row for it in the first place: it is a STATE. Its button
+   * goes to hideBilling(), which keys the dismissal on the reason and the date
+   * it is about, so a subscription that moves speaks up again and one that has
+   * not stays quiet. That is the honest limit of "it will not come back" for a
+   * state, and clearLabel() says so in its own words rather than borrowing the
+   * sentence the other rows can keep.
    */
-  function withPut(g, inner) {
-    if (g.key === "renew") {
-      return '<div class="nt-line">' + inner +
-        '<button type="button" class="nt-put" data-put="billing" aria-label="' +
-          esc(tx("nt_hide_sub", "Hide this subscription notice")) + '">' +
-          icon("close") + "</button></div>";
-    }
-    if (window.Notify && window.Notify.isMutable && window.Notify.isMutable(g.key)) {
-      return '<div class="nt-line">' + inner +
-        '<button type="button" class="nt-put" data-put="mute:' + esc(g.key) + '" aria-label="' +
-          esc(muteLabel(g.key)) + '" title="' + esc(muteLabel(g.key)) + '">' +
-          icon("close") + "</button></div>";
-    }
-    return inner;
+  function withPut(g, inner, block) {
+    var what = g.key === "renew" ? "billing" : "clear:" + g.key;
+    var label = clearLabel(g.key);
+    // `block` is for a body that is several rows rather than one. .nt-line is
+    // a flex ROW, so handing it three sibling cards would lay them out side by
+    // side; the stack keeps them stacked and takes the flex child's place.
+    if (block) inner = '<div class="nt-stack">' + inner + "</div>";
+    return '<div class="nt-line' + (block ? " nt-line--block" : "") + '">' + inner +
+      '<button type="button" class="nt-put" data-put="' + esc(what) + '" aria-label="' +
+        esc(label) + '" title="' + esc(label) + '">' +
+        icon("broom") + "</button></div>";
   }
 
-  /** Said in the row's own words, because "hide this" does not say for how long. */
-  function muteLabel(key) {
-    return key === "houses"   ? tx("nt_mute_houses",   "Stop telling me about new rooms")
-         : key === "services" ? tx("nt_mute_services", "Stop telling me about new services")
-         : key === "trucks"   ? tx("nt_mute_trucks",   "Stop telling me about new trucks")
-         : key === "jobs"     ? tx("nt_mute_jobs",     "Stop telling me about new day jobs")
-         : tx("nt_mute_one", "Stop telling me about this");
+  /**
+   * Said in the row's own words.
+   *
+   * "Clear this" alone does not say what comes back, and that is the only
+   * question a person has before pressing it. Each of these answers it for the
+   * row it is on, and the trust one answers a second question nobody should
+   * have to guess at: clearing the warning off the bell does not unblock the
+   * conversation, and it must not read as though it might.
+   */
+  function clearLabel(key) {
+    return key === "houses"   ? tx("nt_clr_houses",   "Clear these. New rooms will still reach you.")
+         : key === "services" ? tx("nt_clr_services", "Clear these. New services will still reach you.")
+         : key === "trucks"   ? tx("nt_clr_trucks",   "Clear these. New trucks will still reach you.")
+         : key === "jobs"     ? tx("nt_clr_jobs",     "Clear these. New day jobs will still reach you.")
+         : key === "messages" ? tx("nt_clr_msgs",     "Clear this. It comes back when somebody writes to you again.")
+         : key === "groups"   ? tx("nt_clr_groups",   "Clear this. The next group you are added to will still reach you.")
+         : key === "demand"   ? tx("nt_clr_demand",   "Clear these. New requests will still reach you.")
+         : key === "trust"    ? tx("nt_clr_trust",    "Clear this warning. Sending in that chat stays blocked until you check the number.")
+         : key === "renew"    ? tx("nt_clr_sub",      "Clear this. It speaks up again if the subscription changes.")
+         : tx("nt_clr_one", "Clear this. It will not come back.");
   }
 
   /**
@@ -382,9 +403,13 @@
       // Three rows, but the true count and the door, so the line underneath
       // reads "+17 more in your area" and goes somewhere. g.items is the
       // handful that travelled; g.count is how many there are.
-      return window.DemandRows
-        ? window.DemandRows.html(g.items || [], { limit: 3, total: g.count, href: g.href })
-        : "";
+      //
+      // Wrapped by hand, because these rows are drawn by js/lib/demand-rows.js
+      // and never pass through doorHtml. Without this the requests section was
+      // the one part of the panel with nothing to press.
+      if (!window.DemandRows) return "";
+      return withPut(g, window.DemandRows.html(g.items || [],
+        { limit: 3, total: g.count, href: g.href }), true);
     }
     if (g.key === "admin") {
       return (g.items || []).map(function (it) { return noticeHtml(g, it); }).join("");
@@ -468,11 +493,12 @@
       return g.count > 0 && (!window.Notify || window.Notify.isDismissible(g.key));
     }));
 
-    // "Delete all" is only offered for the two things that can actually be put
-    // away for good: the notices, which are rows, and the subscription state,
-    // which is hidden until it moves. Offering it over twelve new rooms would
-    // promise a delete this app cannot perform.
-    if (wipe) wipe.hidden = !(hasNotice || hasBilling);
+    // "Clear everything" used to be offered only over the two things that could
+    // be put away for good, which meant a panel full of catalogue rows had no
+    // way to be emptied at all. Every row can be cleared now, so it is offered
+    // whenever there is anything on the panel to clear.
+    if (wipe) wipe.hidden = !(hasNotice || hasBilling ||
+      !!panel.querySelector(".nt-row, .nt-alarm, .dm-row"));
 
     if (foot) foot.hidden = (!read || read.hidden) && (!wipe || wipe.hidden);
   }
@@ -508,22 +534,22 @@
         '<button type="button" class="nt-clear" data-foot="read" hidden>' + icon("check") +
           "<span>" + esc(tx("nt_mark_all", "Mark all as read")) + "</span></button>" +
         '<button type="button" class="nt-clear nt-clear--kill" data-foot="wipe" hidden>' +
-          icon("trash") +
-          "<span>" + esc(tx("nt_clear_all", "Delete all")) + "</span></button>" +
+          icon("broom") +
+          "<span>" + esc(tx("nt_clear_all", "Clear everything")) + "</span></button>" +
         // The question lives in the panel rather than in a window.confirm.
         // The panel is already a modal, and stacking a browser dialog on it is
         // the one thing on this screen a phone renders worse than the screen
         // itself. Hidden, not absent: nothing is rebuilt on the way to a
         // destructive answer.
         '<div class="nt-ask" hidden role="group" aria-label="' +
-            esc(tx("nt_clear_all", "Delete all")) + '">' +
+            esc(tx("nt_clear_all", "Clear everything")) + '">' +
           '<p class="nt-ask-q">' + esc(tx("nt_clear_q",
-            "Delete every notification? This cannot be undone.")) + "</p>" +
+            "Clear every notification? These will not come back, though anything new still will.")) + "</p>" +
           '<div class="nt-ask-acts">' +
             '<button type="button" class="nt-ask-b" data-foot="cancel">' +
               esc(tx("nt_clear_no", "Cancel")) + "</button>" +
             '<button type="button" class="nt-ask-b is-kill" data-foot="yes">' +
-              esc(tx("nt_clear_yes", "Yes, delete")) + "</button>" +
+              esc(tx("nt_clear_yes", "Yes, clear them")) + "</button>" +
           "</div>" +
         "</div>" +
       "</div>";
@@ -626,16 +652,20 @@
   /**
    * Everything, gone.
    *
-   * The rows first, because that is what was asked for. markAllSeen() then
-   * retires the catalogue marks, and hideBilling() silences the subscription
-   * state, which has no row to delete and would otherwise be the one thing
-   * still sitting on a panel the reader has just emptied.
+   * The notices first, because they are rows in the database and only a delete
+   * can retire them. Notify.clearAll() then does every other row the same way
+   * the per-row button does: by identity, so none of them comes back and
+   * anything genuinely new still does.
+   *
+   * It used to be markAllSeen() here, which moved four watermarks and left the
+   * panel to refill itself the moment anything was posted. That is precisely
+   * the thing a button labelled "clear everything" must not do.
    */
   async function wipeAll() {
     if (window.Notices && window.Notices.clearAll) await window.Notices.clearAll(false);
     if (window.Notify) {
-      if (window.Notify.hideBilling) window.Notify.hideBilling();
-      window.Notify.markAllSeen();
+      if (window.Notify.clearAll) window.Notify.clearAll();
+      else window.Notify.markAllSeen();
       await window.Notify.refresh();
     }
     // Refreshed and redrawn here, so the badge is already right and closing
@@ -669,13 +699,11 @@
         // those. The same surgery, for the same reason. See dropLine().
         if (window.Notify && window.Notify.hideBilling) window.Notify.hideBilling();
         dropLine(put.closest(".nt-line"));
-      } else if (what.indexOf("mute:") === 0) {
-        // Same surgery as billing, and for the same reason: setMuted zeroes
-        // the kind in the engine's cache, but a full render would also redraw
-        // any notice binned a moment ago, which nothing told the engine about.
-        if (window.Notify && window.Notify.setMuted) {
-          window.Notify.setMuted(what.slice(5), true);
-        }
+      } else if (what.indexOf("clear:") === 0) {
+        // Same surgery as billing, and for the same reason: clear() zeroes the
+        // row in the engine's cache, but a full render would also redraw any
+        // notice binned a moment ago, which nothing told the engine about.
+        if (window.Notify && window.Notify.clear) window.Notify.clear(what.slice(6));
         dropLine(put.closest(".nt-line"));
       } else if (what.indexOf("notice:") === 0) {
         killNotice(what.slice(7));

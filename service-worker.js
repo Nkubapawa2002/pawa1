@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v340-2026-09-15-house-you";
+const VERSION = "v341-2026-09-15-clear-for-good";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 
@@ -72,6 +72,11 @@ const APP_SHELL = [
   // handler finds nothing to call: the row would leave the screen and be back
   // on the next poll, which is exactly the bug the button exists to fix.
   "./js/lib/notify-mute.js",
+  // What this device has CLEARED, by identity, so those exact rows are never
+  // counted again while new ones still are. Same failure mode as the line
+  // above and worse: a cached install without it has a clear button on every
+  // row that empties the panel and refills it on the next poll.
+  "./js/lib/notify-clear.js",
   // The bell's writer. It is the only module allowed to mark a notice read or
   // delete one, and notify-ui.js guards every call on it, so a cached install
   // without it has a bin that quietly does nothing: the row leaves the screen

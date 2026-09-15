@@ -31,6 +31,8 @@
 //    Notify.refresh()          -> re-read everything, returns state()
 //    Notify.markSeen(key)      -> one category is no longer news
 //    Notify.markAllSeen()
+//    Notify.clear(key)         -> clear this row FOR GOOD, item by item
+//    Notify.clearAll()
 //    Notify.hideBilling(b)     -> stop showing THIS subscription state
 //    Notify.on(fn)             -> called with state() whenever it changes
 //  Fires `pawa:notify` on window as well, for anything that would rather listen
@@ -81,6 +83,29 @@
     return String(row.created_at) > String(iso);
   }
 
+  // ---- what has been cleared, and will not come back -----------------------
+  // "Clear this" is neither a read mark nor a mute; js/lib/notify-clear.js
+  // holds the list and the reasoning. WHAT NAMES A ROW is decided here, being
+  // a fact about the thing counted rather than about storage: a house is its
+  // id, a conversation is its id plus the time of its last message, a changed
+  // safety number is the peer plus the moment it changed.
+  var CLEARED = function () { return window.NotifyCleared || null; };
+
+  function goneSet(key) {
+    var C = CLEARED();
+    return C ? C.set(key) : Object.create(null);
+  }
+
+  function remember(key, ids) {
+    var C = CLEARED();
+    return C ? C.remember(key, ids) : false;
+  }
+
+  function dropGone(key, rows, idOf) {
+    var C = CLEARED();
+    return C ? C.drop(key, rows, idOf) : (rows || []);
+  }
+
   // ---- the six sources -----------------------------------------------------
   // Each returns rows created after the mark. A source that throws is a source
   // that contributes nothing, never one that breaks the badge: a signed-out
@@ -104,7 +129,9 @@
     // userId rides back with the inbox rather than being fetched a second
     // time: this function already has the session in hand, and the trust
     // alarms below are scoped by exactly that id.
-    var out = { unread: 0, newThreads: [], threads: [], userId: null };
+    // `unreadRows` is the per-thread breakdown, and it exists so an unread
+    // count can be cleared by identity rather than by tapping a total away.
+    var out = { unread: 0, unreadRows: [], newThreads: [], threads: [], userId: null };
     var D = window.DataStore;
     if (!D || !D.sb) return out;
     try {
@@ -117,9 +144,15 @@
       if (res.error || !Array.isArray(res.data)) return out;
       var known = {};
       (knownThreads || []).forEach(function (id) { known[id] = true; });
+      var goneMsg = goneSet("messages");
       res.data.forEach(function (t) {
         out.threads.push(t.thread_id);
-        out.unread += Math.max(0, Number(t.unread) || 0);
+        var n = Math.max(0, Number(t.unread) || 0);
+        if (n > 0 && !goneMsg[t.thread_id + "|" + (t.last_at || "")]) {
+          out.unread += n;
+          out.unreadRows.push({ id: t.thread_id + "|" + (t.last_at || ""),
+                                title: t.title || "", at: t.last_at });
+        }
         if (!known[t.thread_id] && t.kind === "group") out.newThreads.push(t);
       });
     } catch (_) {}
@@ -398,6 +431,12 @@
     var byKey = {
       houses: homes.rows, services: results[1], trucks: results[2], jobs: results[3],
     };
+    // Cleared rows never reach a count. Filtered HERE rather than in the
+    // panel, because the badge is built from these numbers: later would leave
+    // somebody being told "7" by the bell they just cleared.
+    Object.keys(byKey).forEach(function (k) {
+      byKey[k] = dropGone(k, byKey[k], function (r) { return r.id; });
+    });
     // A muted kind is emptied HERE, before it is counted, rather than hidden
     // at the last moment in the panel. The badge on the bell is built from
     // these counts, so filtering any later would leave a person who switched
@@ -422,19 +461,30 @@
       pm.newThreads = [];
     }
 
-    var alarms = trustAlarms(pm.userId);
+    // Clearing a trust row never unblocks the composer in that conversation,
+    // which is pm-trust.js's business and stays shut.
+    var alarms = dropGone("trust", trustAlarms(pm.userId), function (r) {
+      return r.userId + "|" + (r.changedAt || "");
+    });
+    wants = dropGone("demand", wants, function (r) { return r.id; });
+    pm.newThreads = dropGone("groups", pm.newThreads, function (t) { return t.thread_id; });
 
     var groups = GROUPS.map(function (g) {
       if (g.key === "trust") {
         return Object.assign({}, g, {
           count: alarms.length,
+          _ids: alarms.map(function (r) { return r.userId + "|" + (r.changedAt || ""); }),
           items: alarms.slice(0, MAX_LIST).map(function (r) {
             return { id: r.userId, title: r.name || "", at: r.changedAt };
           }),
         });
       }
       if (g.key === "messages") {
-        return Object.assign({}, g, { count: pm.unread, items: [] });
+        return Object.assign({}, g, {
+          count: pm.unread,
+          _ids: pm.unreadRows.map(function (r) { return r.id; }),
+          items: [],
+        });
       }
       // One row, never a count: an account has one subscription, and what the
       // reader needs is which state it is in and how long is left.
@@ -456,7 +506,11 @@
       // demand() asks for 20, so an agent with more than that waiting sees 20
       // and a door to the dashboard, never a number larger than was fetched.
       if (g.key === "demand") {
-        return Object.assign({}, g, { count: wants.length, items: wants.slice(0, MAX_LIST) });
+        return Object.assign({}, g, {
+          count: wants.length,
+          _ids: wants.map(function (r) { return r.id; }),
+          items: wants.slice(0, MAX_LIST),
+        });
       }
       // `body` rides along now. A notice that can only be counted is a notice
       // the reader has to leave the page to read.
@@ -474,6 +528,7 @@
       if (g.key === "groups") {
         return Object.assign({}, g, {
           count: pm.newThreads.length,
+          _ids: pm.newThreads.map(function (t) { return t.thread_id; }),
           items: pm.newThreads.slice(0, MAX_LIST).map(function (t) {
             return { id: t.thread_id, title: t.title || "", at: t.last_at };
           }),
@@ -482,6 +537,8 @@
       var rows = byKey[g.key] || [];
       return Object.assign({}, g, {
         count: rows.length,
+        // EVERY id, not the six drawn: see clear().
+        _ids: rows.map(function (r) { return r.id; }),
         // Only the rooms row can be narrowed, and the panel has to SAY when it
         // was: "3 new rooms" and "3 new rooms in your areas" are different
         // claims, and a reader who cannot tell which one they are being shown
@@ -541,12 +598,10 @@
    * subscription is renewed. A badge that could be tapped away would let
    * somebody dismiss the reminder that their listings come off the board on
    * Friday, which is the one this whole feature exists to deliver.
+   *
+   * ALL OF THAT IS ABOUT TAPPING A ROW, and it still holds. It is not about
+   * the clear button: see clear(), which every row now has.
    */
-  //
-  // `demand` joins them, and for the plainest reason of the five: a request is
-  // not read, it is ANSWERED, or it passes its date and the server stops
-  // returning it. Letting an agent tap away the customer who is waiting for a
-  // call would be this panel deleting the only thing on it worth money.
   var UNDISMISSABLE = {
     messages: true, trust: true, admin: true, renew: true, demand: true,
   };
@@ -614,6 +669,55 @@
     emit();
   }
 
+  /**
+   * CLEAR THIS ROW, AND DO NOT SHOW IT TO ME AGAIN.
+   *
+   * Writes down every id the row was counting (all of them: clearing "40 new
+   * rooms" and remembering six brings thirty-four back on the next poll) and
+   * zeroes the cached group, so the badge is right before that poll rather
+   * than after it. For the catalogues it moves the watermark too, as belt and
+   * braces against a row created before the mark and inserted after it.
+   * js/lib/notify-clear.js says why this is neither a read mark nor a mute.
+   *
+   * EVERY ROW CAN BE CLEARED, and that is the change. UNDISMISSABLE still
+   * governs markSeen(), because a tap on a row is not an acknowledgement. A
+   * deliberate press on a button that says "clear this" is one, and refusing
+   * it left people holding rows they could not put down.
+   */
+  function clear(key) {
+    var g = cache && cache.groups.filter(function (x) { return x.key === key; })[0];
+    if (key === "renew") return hideBilling();
+    var ids = (g && g._ids) || [];
+    remember(key, ids);
+    // The mark is what the NEXT poll reads; the cached count is what is on the
+    // screen now. Moving one without the other is how a row survives its own
+    // clear button until something unrelated triggers a redraw.
+    var m = mark();
+    if (Object.prototype.hasOwnProperty.call(m, key) && key !== "threads") {
+      m[key] = new Date().toISOString();
+    }
+    if (key === "groups") m.threads = (cache && cache._threads) || m.threads || [];
+    saveSeen(m);
+    if (cache) {
+      cache.groups.forEach(function (x) {
+        if (x.key === key) { x.count = 0; x.items = []; x._ids = []; x.alarm = false; }
+      });
+      Object.assign(cache, tally(cache.groups));
+    }
+    emit();
+    return true;
+  }
+
+  /** Every row, gone. The admin notices are rows in the database, and
+      notify-ui.js deletes them through Notices.clearAll() before calling this. */
+  function clearAll() {
+    (cache ? cache.groups : GROUPS).forEach(function (g) {
+      if (g.key === "admin") return;
+      clear(g.key);
+    });
+    return true;
+  }
+
   function markAllSeen() {
     ["houses", "services", "trucks", "jobs", "groups"].forEach(function (k) {
       var m = mark(), now = new Date().toISOString();
@@ -668,6 +772,9 @@
     refresh: refresh,
     markSeen: markSeen,
     markAllSeen: markAllSeen,
+    // "Clear this and never show it to me again", row by row. See clear().
+    clear: clear,
+    clearAll: clearAll,
     hideBilling: hideBilling,
     // Asked by notify-ui.js so "Mark all as read" hides when the only thing
     // left is an alarm that button cannot touch. A second copy of the list
