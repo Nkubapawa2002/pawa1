@@ -1434,19 +1434,25 @@ body[data-page="house"] :focus-visible {
   color: var(--hx-ink);
 }
 .hd-commute-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.hd-commute-row input {
+/* Typed AND banged, because css/premium.css sets
+   `input[type="text"] { background: #fff !important }` at specificity 0,1,1,
+   and an untyped rule here loses to it whatever it says: this box rendered
+   white, inside a dark card, with a near-white placeholder inside it. */
+.hd-commute-row input,
+.hd-commute-row input[type="text"] {
   flex: 1 1 180px;
   min-height: var(--hit-min);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--hx-line-strong);
-  background: var(--hx-rail);
-  color: var(--hx-ink);
+  padding: var(--space-2) var(--space-3) !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--hx-line-strong) !important;
+  background: var(--hx-rail) !important;
+  color: var(--hx-ink) !important;
   font-family: var(--font-app);
   font-size: 16px;           /* 16px keeps iOS from zooming the page on focus */
+  min-width: 0;
 }
-.hd-commute-row input::placeholder { color: var(--hx-ink-faint); }
-.hd-commute-row input:focus { outline: none; border-color: var(--hx-accent); }
+.hd-commute-row input::placeholder { color: var(--hx-ink-faint) !important; }
+.hd-commute-row input:focus { outline: none; border-color: var(--hx-accent) !important; }
 .hd-commute-btn {
   min-height: var(--hit-min);
   padding: 0 var(--space-5);

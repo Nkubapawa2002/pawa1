@@ -111,23 +111,53 @@
       (mark ? ico(mark, 12) : "") + esc(text) + "</span>";
   }
 
-  /** The distance chip: road km and the drive, or the honest absence of both. */
-  function distanceChip(row) {
+  /**
+   * THE ANSWER, NOT A CHIP.
+   *
+   * How far the lorry is from the load was one pill in a row of nine, in the
+   * same shape and the same size as "Verified". On a 390px phone those nine
+   * pills are five lines of wrapped text, and the one fact that decides
+   * whether this lorry is worth ringing was somewhere in the middle of them.
+   *
+   * It is now the card's headline: the figure in mono, big, with the sentence
+   * beside it. The chips underneath are what is left, which is what a chip is
+   * for.
+   *
+   * Returns nothing at all when there is no origin to measure from, because a
+   * card on a page that has not been told where your things are has no
+   * distance to lead with, and an empty headline is worse than none.
+   */
+  function leadHtml(row, ctx) {
     var TM = window.TruckMove;
-    if (!TM) return "";
+    if (!TM || !ctx || !TM.usable(ctx.from)) return "";
+    var n, t, d = "", cls = "";
     if (row._pickupKm != null) {
-      var mins = TM.driveMin(row._pickupKm);
-      return chip("is-dist is-yes", "nav",
-        fill(T("tm_away_min", "{km} away, about {min} min"),
-             { km: TM.kmText(row._pickupKm), min: mins }));
+      n = TM.kmText(row._pickupKm);
+      t = T("tm_lead_to_you", "from this truck to your things");
+      d = fill(T("tm_lead_min", "about {min} minutes of driving"),
+               { min: TM.driveMin(row._pickupKm) });
+    } else if (row._pickupPending) {
+      cls = " is-wait";
+      n = "";
+      t = T("tm_measuring", "Measuring the road");
+    } else if (row._directKm != null) {
+      // We know roughly where it is and no road came back. Said plainly,
+      // because the straight line we DO have must never be printed as a drive.
+      cls = " is-none";
+      n = "";
+      t = T("tm_away_unknown", "Road distance not available");
+    } else {
+      cls = " is-none";
+      n = "";
+      t = T("tm_no_pin_truck", "No pin on this truck");
     }
-    if (row._pickupPending) return chip("is-dist", "", T("tm_measuring", "Measuring the road"));
-    if (row._directKm != null) {
-      // We know roughly where it is but no road came back. Say so rather than
-      // dressing a straight line up as a drive.
-      return chip("is-dist", "", T("tm_away_unknown", "Road distance not available"));
-    }
-    return chip("", "", T("tm_no_pin_truck", "No pin on this truck"));
+    return '<div class="tm-lead' + cls + '">' +
+      (n ? '<span class="tm-lead__n">' + esc(n) + "</span>"
+         : '<span class="tm-lead__n is-blank">' + ico("nav", 16) + "</span>") +
+      '<span class="tm-lead__tx">' +
+        '<span class="tm-lead__t">' + esc(t) + "</span>" +
+        (d ? '<small class="tm-lead__d">' + esc(d) + "</small>" : "") +
+      "</span></div>";
   }
 
   function capacityChip(row, ctx) {
@@ -155,19 +185,33 @@
     return chip("is-ask", "ask", T("tm_cov_no", "Further than they usually go"));
   }
 
-  /** The whole row of chips, superlatives first because they are the headline. */
+  // Five, and the order below is the priority when there are more than five.
+  //
+  // There were nine. Every one of them is true and worth knowing, and all nine
+  // together are four wrapped lines on a phone, which is how a card stops
+  // being read at all. The two that decide whether to ring somebody (does it
+  // fit, will they go there) are always in; one superlative is in when there
+  // is one, because "cheapest here" is the reason to look at this row rather
+  // than the one above it; the three comforts fill whatever is left and are
+  // on the lorry's own page in full.
+  var MAX_FITS = 5;
+
+  /** The row of chips, in priority order, capped. */
   function fitsHtml(row, ctx) {
     var out = [];
+    // One superlative, not three. A row wearing "closest", "cheapest" and
+    // "biggest" at once has spent the whole chip budget saying it won on a
+    // sort nobody chose.
     if (row._closest && !row._best) out.push(chip("is-gold", "nav", T("tm_closest", "Closest to you")));
-    if (row._cheapest) out.push(chip("is-gold", "", T("tm_cheapest", "Cheapest here")));
-    if (row._biggest) out.push(chip("is-gold", "scale", T("tm_biggest", "Biggest here")));
-    out.push(distanceChip(row));
+    else if (row._cheapest) out.push(chip("is-gold", "", T("tm_cheapest", "Cheapest here")));
+    else if (row._biggest) out.push(chip("is-gold", "scale", T("tm_biggest", "Biggest here")));
     out.push(capacityChip(row, ctx));
     out.push(coverageChip(row));
-    if (row.driver_included) out.push(chip("is-yes", "user", T("tm_driver", "Driver included")));
     if (row.loaders_included) out.push(chip("is-yes", "users", T("tm_loaders", "Loaders included")));
+    if (row.driver_included) out.push(chip("is-yes", "user", T("tm_driver", "Driver included")));
     if (row.verified) out.push(chip("is-yes", "shield", T("of_verified", "Verified")));
-    return '<div class="tm-fits">' + out.filter(Boolean).join("") + "</div>";
+    return '<div class="tm-fits">' +
+      out.filter(Boolean).slice(0, MAX_FITS).join("") + "</div>";
   }
 
   // ==========================================================================
@@ -224,36 +268,60 @@
     return "";
   }
 
+  /**
+   * ONE ACTION IN FRONT, THREE BEHIND IT.
+   *
+   * Four buttons of equal weight, each with a label that must not wrap, in a
+   * 270px column: that is what a phone was being given. "Route in Google Maps"
+   * alone is wider than half the row, so it overflowed its own box, and the
+   * one button that carries the whole move ended up looking exactly like the
+   * one that dials a number.
+   *
+   * Now the route takes the full width, because it is the only action here
+   * that uses everything the planner worked out. The three ways of REACHING
+   * somebody share the line under it, in the order you would try them: the
+   * app's own encrypted message, then the phone, then WhatsApp. Each carries
+   * an aria-label, so the narrow breakpoint in css/truck-move.css can drop the
+   * labels to icons without dropping the meaning.
+   */
   function actsHtml(row, ctx, extra) {
     var phone = (row.owner && (row.owner.phone || row.owner.whatsapp)) || row.phone || "";
     var maps = mapsHref(row, ctx);
     var wa = waHref(row, ctx);
-    var out = [];
+    var lead = [], rest = [];
     if (maps) {
-      out.push('<a class="tm-act tm-act--map" href="' + esc(maps) + '" target="_blank" rel="noopener"' +
-        ' data-tm-maps="' + esc(row.id) + '">' + ico("nav", 14) + "<span>" +
-        esc(ctx && ctx.to ? T("tm_act_route", "Route in Google Maps")
-                          : T("tm_act_dir", "Directions in Google Maps")) + "</span></a>");
+      var mapLabel = ctx && ctx.to ? T("tm_act_route", "Route in Google Maps")
+                                   : T("tm_act_dir", "Directions in Google Maps");
+      lead.push('<a class="tm-act tm-act--map" href="' + esc(maps) + '" target="_blank" rel="noopener"' +
+        ' data-tm-maps="' + esc(row.id) + '" aria-label="' + esc(mapLabel) + '">' +
+        ico("nav", 14) + "<span>" + esc(mapLabel) + "</span></a>");
     }
     if (window.PMReach) {
+      var msgLabel = T("pm_reach", "Message");
       var b = window.PMReach.button(row, {
-        className: "tm-act tm-act--msg", sub: false, icon: false,
-        label: T("pm_reach", "Message"),
+        className: "tm-act tm-act--msg", sub: false, icon: false, label: msgLabel,
       });
-      if (b) out.push(b.replace("<span>", ico("chat", 14) + "<span>"));
+      if (b) rest.push(b.replace("<span>", ico("chat", 14) + "<span>"));
     }
     if (phone) {
-      out.push('<a class="tm-act tm-act--call" href="tel:' + esc(String(phone).replace(/[^\d+]/g, "")) +
-        '">' + ico("phone", 14) + "<span>" + esc(T("of_call", "Call")) + "</span></a>");
+      rest.push('<a class="tm-act tm-act--call" href="tel:' + esc(String(phone).replace(/[^\d+]/g, "")) +
+        '" aria-label="' + esc(T("of_call", "Call")) + '">' +
+        ico("phone", 14) + "<span>" + esc(T("of_call", "Call")) + "</span></a>");
     }
     if (wa) {
-      out.push('<a class="tm-act tm-act--wa" href="' + esc(wa) + '" target="_blank" rel="noopener">' +
-        ico("chat", 14) + "<span>WhatsApp</span></a>");
+      rest.push('<a class="tm-act tm-act--wa" href="' + esc(wa) + '" target="_blank" rel="noopener"' +
+        ' aria-label="WhatsApp">' + ico("chat", 14) + "<span>WhatsApp</span></a>");
     }
-    // The host's own action, if it has one. The directory adds "show it on
-    // this map", which only means anything on a page that has a map.
-    if (extra) out.push(extra);
-    return out.length ? '<div class="tm-acts">' + out.join("") + "</div>" : "";
+    // The host's own action, if it has one: the directory and the property
+    // sheet both add "show this one on the map", which only means anything on
+    // a page that has one. It goes on the lead line, because it acts on the
+    // screen rather than on a stranger.
+    if (extra) lead.push(extra);
+    if (!lead.length && !rest.length) return "";
+    return '<div class="tm-acts">' +
+      (lead.length ? '<div class="tm-acts__lead">' + lead.join("") + "</div>" : "") +
+      (rest.length ? '<div class="tm-acts__reach">' + rest.join("") + "</div>" : "") +
+    "</div>";
   }
 
   // ==========================================================================
@@ -293,6 +361,7 @@
           priceHtml(row) +
         "</div>" +
         (where ? '<p class="tm-card__where">' + esc(where) + "</p>" : "") +
+        leadHtml(row, ctx) +
         fitsHtml(row, ctx) +
         actsHtml(row, ctx, o.extra) +
       "</div></article>";
@@ -332,6 +401,45 @@
       }).join("") + "</div>";
   }
 
+  /**
+   * THE WAYS OF SAYING WHERE YOUR THINGS ARE.
+   *
+   * There used to be one: stand there and press the GPS button. That is fine
+   * for the person who opens the listing from the room they are packing, and
+   * useless for everyone else, which is most people: somebody planning the
+   * move from work, somebody arranging a lorry for their mother, somebody
+   * whose phone has just refused the location prompt, somebody on a laptop.
+   * For all of them the planner simply stopped, and with it the trip
+   * measurement and half the ranking.
+   *
+   * Three doors now, in the order they cost the reader something. The fix we
+   * can take for free, then the places they have already saved once on
+   * houses.html and never been asked for again, then typing. Nothing here is
+   * required: the planner still runs with no origin at all and says which half
+   * of the answer it lost.
+   *
+   * @param {Array} places  window.PawaMaps.savedPlaces(), or []
+   */
+  function doorsHtml(places) {
+    var rows = (places || []).slice(0, 4).map(function (p, i) {
+      return '<button type="button" class="tm-door" data-tm-door="saved" data-tm-i="' + i + '">' +
+        ico("pin", 14) + "<span>" + esc(p.name || T("hs_place_other", "Place")) + "</span></button>";
+    });
+    return '<div class="tm-doors" data-tm-doors hidden>' +
+      '<p class="tm-doors__hint">' + esc(T("tm_from_q", "Where are your things now?")) + "</p>" +
+      '<div class="tm-doors__row">' +
+        '<button type="button" class="tm-door is-gps" data-tm-door="gps">' +
+          ico("gps", 14) + "<span>" + esc(T("tm_use_gps", "Use my location")) + "</span></button>" +
+        rows.join("") +
+      "</div>" +
+      '<div class="tm-where" data-tm-where>' +
+        '<input type="text" data-tm-where-input autocomplete="off" placeholder="' +
+          esc(T("tm_where_ph", "A town, ward or area, anywhere in Tanzania")) + '" />' +
+        '<button type="button" data-tm-where-go>' + esc(T("tm_where_go", "Use this")) + "</button>" +
+      "</div>" +
+    "</div>";
+  }
+
   /** One leg of the move: the icon, the label, the value and the control. */
   function legHtml(o) {
     return '<div class="tm-leg">' +
@@ -354,6 +462,7 @@
     whereText: whereText,
     photoUrl: photoUrl,
     chip: chip,
+    leadHtml: leadHtml,
     fitsHtml: fitsHtml,
     actsHtml: actsHtml,
     mapsHref: mapsHref,
@@ -362,5 +471,6 @@
     listHtml: listHtml,
     loadsHtml: loadsHtml,
     legHtml: legHtml,
+    doorsHtml: doorsHtml,
   };
 })();

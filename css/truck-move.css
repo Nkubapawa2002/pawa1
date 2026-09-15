@@ -143,17 +143,27 @@
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-.tm-where input {
+/* TYPED, AND !important, AND BOTH ARE LOAD-BEARING.
+   css/premium.css carries `input[type="text"] { background: #fff !important }`.
+   That is specificity 0,1,1 with a bang on it, so an untyped `.tm-where input`
+   rule loses to it however it is written, and the box came out white inside a
+   dark panel with white placeholder text in it. Matching the type AND raising
+   the bang is what reaches it. Same family as the traps documented at the top
+   of css/house-detail.css. */
+.tm-where input,
+.tm-where input[type="text"] {
   width: 100%;
-  padding: var(--space-3);
-  border: 1px solid var(--tm-line);
-  border-radius: var(--radius);
-  background: var(--tm-panel);
-  color: var(--tm-ink);
+  padding: var(--space-3) !important;
+  border: 1px solid var(--tm-line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--tm-panel-2) !important;
+  color: var(--tm-ink) !important;
   font-family: inherit;
   font-size: 16px;   /* under 16px iOS zooms the whole page on focus */
+  min-width: 0;
 }
-.tm-where input::placeholder { color: var(--tm-muted); }
+.tm-where input::placeholder { color: var(--tm-muted) !important; }
+.tm-where input:focus { border-color: var(--tm-brand-line) !important; }
 .tm-where button {
   padding: var(--space-3) var(--space-4);
   border: none;
@@ -165,6 +175,61 @@
   font-size: var(--text-sm);
   cursor: pointer;
 }
+
+/* ---- the four ways of saying where your things are ----------------------- */
+/*
+   It opens under the leg it fills in, not over it, and it closes the moment an
+   answer lands. The two cheap answers (a fix, a place already saved) are
+   buttons on one wrapping row; typing is underneath, because it is the only
+   one that costs a keyboard.
+*/
+.tm-doors {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--radius);
+  background: var(--tm-panel);
+}
+.tm-doors__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--tm-muted);
+}
+.tm-doors__row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.tm-door {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--tm-line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--tm-soft);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.tm-door span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-door svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.tm-door:hover { border-color: var(--tm-brand-line); color: var(--tm-ink); }
+/* The free answer leads. It is the only one that needs no memory and no
+   typing, and on most phones it is the right one. */
+.tm-door.is-gps {
+  border-color: var(--tm-brand-line);
+  background: var(--tm-brand-dim);
+  color: var(--tm-brand);
+}
+.tm-doors .tm-where { margin-top: 0; }
 
 /* ---- the load-size picker ------------------------------------------------ */
 .tm-loads {
@@ -242,6 +307,110 @@
 }
 .tm-trip__n { font-weight: var(--fw-extra); color: var(--tm-ink); }
 .tm-trip__note { font-size: var(--text-xs); color: var(--tm-muted); flex-basis: 100%; }
+
+/* ===========================================================================
+   2b. THE MEASUREMENT, DRAWN
+
+   The planner could always say "18 km by road". That is a number somebody has
+   to take on trust: it does not say which direction, nor whether the lorry is
+   on the far side of town, and both of those change what an owner quotes.
+
+   So the three distances get a picture and a key. The key rows carry the same
+   line the map draws them with, which is the whole reason this reads rather
+   than decorates: a number and the line it came from must never come apart.
+   =========================================================================== */
+.tm-measure {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--tm-brand-line);
+  border-radius: var(--radius-lg);
+  background: var(--tm-brand-dim);
+}
+.tm-measure__map {
+  height: 190px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--tm-line);
+  background: var(--tm-panel-2);
+}
+/* The map is small, so its own chrome has to be small with it, and none of it
+   may sit where the two ends of the move are drawn. Same rule as the property
+   sheet's map: everything hangs off the bottom. */
+.tm-measure__map .maplibregl-ctrl-attrib { font-size: 10px; }
+.tm-measure__map .maplibregl-ctrl-bottom-right { padding: 4px; }
+
+.tm-measure__legs { display: grid; gap: var(--space-1); }
+.tm-measure__leg {
+  display: grid;
+  grid-template-columns: 18px auto 1fr;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--tm-soft);
+}
+.tm-measure__n {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum","zero";
+  font-weight: var(--fw-extra);
+  font-size: var(--text-sm);
+  color: var(--tm-ink);
+  white-space: nowrap;
+}
+/* The key is a piece of the line itself, drawn at the size the map draws it:
+   gold and broken for the empty run out to the load, green and solid for the
+   loaded move. The total has no line because nothing on the map is only the
+   total; it is the two above it added up, and it says so by being ruled off. */
+.tm-measure__key {
+  align-self: center;
+  height: 3px;
+  border-radius: 2px;
+}
+.tm-measure__key.is-pickup {
+  background: repeating-linear-gradient(90deg,
+    var(--tm-gold) 0 5px, transparent 5px 8px);
+}
+.tm-measure__key.is-trip { background: var(--tm-brand); }
+.tm-measure__key.is-total { background: none; }
+.tm-measure__leg.is-total {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--tm-brand-line);
+}
+.tm-measure__leg.is-total .tm-measure__n { color: var(--tm-brand); }
+.tm-measure__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--tm-muted);
+}
+
+/* The three marks on that map. Three SHAPES, never three colours of one shape:
+   a dot is a person, a teardrop is a place, a rounded square is a vehicle, and
+   that reading survives a phone in the sun and an eye that cannot split the
+   hues. They are built from --black / --white rather than from the theme,
+   because the satellite imagery under them is the same picture in either. */
+.tm-mark {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--white);
+  box-shadow: var(--shadow-1);
+}
+.tm-mark.is-me {
+  border-radius: var(--radius-pill);
+  background: var(--info);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--info) 22%, transparent), var(--shadow-1);
+}
+.tm-mark.is-home {
+  width: 16px;
+  height: 16px;
+  background: var(--tm-brand);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+}
+.tm-mark.is-truck {
+  background: var(--tm-gold);
+  border-radius: 3px;
+}
 
 /* A line that reports a state rather than a fact: measuring, refused, failed. */
 .tm-msg {
@@ -348,6 +517,48 @@
 
 .tm-card__where { font-size: var(--text-xs); color: var(--tm-muted); }
 
+/* ---- the headline answer ------------------------------------------------- */
+/*
+   How far this lorry is from the load used to be one pill among nine, in the
+   same shape and size as "Verified". At 390px those nine pills were five
+   wrapped lines, and the fact that decides whether to ring anybody was
+   somewhere in the middle of them. It is the headline now.
+*/
+.tm-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--tm-brand-dim);
+  border: 1px solid var(--tm-brand-line);
+  min-width: 0;
+}
+.tm-lead__n {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum","zero";
+  font-size: var(--text-base);
+  font-weight: var(--fw-extra);
+  color: var(--tm-brand);
+  line-height: 1.1;
+}
+.tm-lead__n.is-blank { display: inline-flex; color: var(--tm-muted); }
+.tm-lead__tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.tm-lead__t {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--tm-soft);
+}
+.tm-lead__d { font-size: var(--text-xs); color: var(--tm-muted); }
+/* Still being measured, or measurable by nobody. Neither is an achievement to
+   paint in brand green. */
+.tm-lead.is-wait, .tm-lead.is-none {
+  background: transparent;
+  border-color: var(--tm-line);
+}
+.tm-lead.is-wait { opacity: .75; }
+
 /* ---- the fit row: the answers, as chips --------------------------------- */
 .tm-fits { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .tm-fit {
@@ -371,7 +582,28 @@
 .tm-fit.is-dist { font-family: var(--font-mono); font-feature-settings: "tnum","zero"; }
 
 /* ---- the actions --------------------------------------------------------- */
-.tm-acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/*
+   ONE ACTION IN FRONT, THREE BEHIND IT.
+
+   Four equal buttons with labels that must not wrap, inside a 270px column, is
+   what a phone was being handed. "Route in Google Maps" is on its own wider
+   than half that row, so it overflowed its box, and the button carrying the
+   whole measured move looked exactly like the one that dials a number.
+
+   The route now takes the full width. The three ways of REACHING somebody
+   share the line under it, and below 420px they drop to their icons, which
+   they can afford to do because actsHtml() puts a real aria-label on each.
+*/
+.tm-acts { display: grid; gap: var(--space-2); }
+.tm-acts__lead { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.tm-acts__lead > * { flex: 1 1 100%; }
+.tm-acts__reach { display: flex; gap: var(--space-2); }
+.tm-acts__reach > * { flex: 1 1 0; min-width: 0; }
+.tm-acts__reach .tm-act span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .tm-act {
   flex: 1 1 auto;
   display: inline-flex;
@@ -395,6 +627,17 @@
 .tm-act:hover { background: var(--tm-panel-2); }
 .tm-act svg { width: 14px; height: 14px; }
 .tm-act--map  { background: var(--tm-brand); border-color: var(--tm-brand); color: var(--tm-on-brand); }
+/* Acts on the SCREEN rather than on a stranger, so it is the quietest thing in
+   the group: no fill, no border, and shorter than a real button. Four cards
+   each carrying a filled button for one map above them is four shouts for one
+   thing. It keeps a full 44px of touch target through its padding. */
+.tm-act--show {
+  border-color: transparent;
+  background: transparent;
+  color: var(--tm-brand);
+  min-height: 34px;
+}
+.tm-act--show:hover { background: var(--tm-brand-dim); }
 .tm-act--map:hover { filter: brightness(1.07); background: var(--tm-brand); }
 .tm-act--call { border-color: var(--tm-brand-line); color: var(--tm-brand); }
 .tm-act--wa   { border-color: color-mix(in srgb, var(--tm-wa) 40%, transparent); color: var(--tm-wa); }
@@ -420,10 +663,25 @@
    actual lorry is the fact people trust most, and dropping it to save 92px
    trades the wrong thing.
    =========================================================================== */
-@media (max-width: 400px) {
+@media (max-width: 420px) {
   .tm-card { grid-template-columns: 72px 1fr; gap: var(--space-2); }
-  .tm-act { flex-basis: calc(50% - var(--space-2)); }
+  /* Sharing one line, the price (mono, and never shrinkable, because a price
+     with its unit cut off is not a price) left the title 85px and three dots.
+     Stacked, the title gets the whole column and the price keeps its unit. */
+  .tm-card__top { flex-wrap: wrap; }
+  .tm-card__title { flex: 1 1 100%; white-space: normal; }
+  .tm-load { padding: 6px var(--space-3); }
   .tm-leg { grid-template-columns: 20px 1fr auto; gap: var(--space-2); }
+  /* The three ways of reaching somebody become their marks. Each anchor
+     carries its own aria-label, so nothing is lost to a screen reader, and
+     three labelled buttons at 60px each is three truncated words. */
+  .tm-acts__reach .tm-act span { display: none; }
+  .tm-acts__reach .tm-act { padding: var(--space-2); }
+  .tm-acts__reach .tm-act svg { width: 16px; height: 16px; }
+  /* A phone is held in one hand and the map is being read, not explored. */
+  .tm-measure { padding: var(--space-2); }
+  .tm-measure__map { height: 168px; }
+  .tm-measure__leg { grid-template-columns: 16px auto 1fr; gap: 6px; }
 }
 
 /* Somebody who has asked for less motion gets none of the lift. */

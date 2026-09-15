@@ -2504,6 +2504,17 @@ window.I18N = {
     tm_where_go: "Use this",
     tm_looking: "Looking that place up.",
     tm_where_miss: "We could not find that place. Try the ward or the town.",
+    // The four doors on "where are your things", and the measurement drawn.
+    tm_set: "Set",
+    tm_from_q: "Where are your things now?",
+    tm_lead_to_you: "to your things",
+    tm_lead_min: "about {min} minutes of driving",
+    tm_not_measured: "not measured",
+    tm_leg_pickup: "The lorry to your things, empty",
+    tm_leg_pickup_of: "{name} to your things, empty",
+    tm_leg_trip: "Your things to the new home, loaded",
+    tm_leg_total: "What the driver drives in all",
+    tm_show_on_map: "Show this one on the map",
     tm_find: "Find trucks for this move",
     tm_finding: "Finding trucks.",
     tm_locating: "Getting your location.",
@@ -2576,7 +2587,7 @@ window.I18N = {
     // ---- house.html: the section that starts the move ----------------------
     hs_tab_move: "Moving in",
     hs_h_move: "Moving your things here",
-    hs_move_sub: "One press finds the lorries that can do this move, closest to you first. Nothing to type.",
+    hs_move_sub: "Say where your things are and we find the lorries that can do this move, closest first. Use your location, a place you saved, or type an area.",
     // ---- near-me.html
     nm_ai_ph: "Ask in your words, e.g. “2-bed for rent near Mikocheni” or “trucks near Mwanza”",
     nm_ai_btn: " AI search",
@@ -6321,6 +6332,17 @@ window.I18N = {
     tm_where_go: "Tumia hili",
     tm_looking: "Tunatafuta eneo hilo.",
     tm_where_miss: "Hatujapata eneo hilo. Jaribu kata au mji.",
+    // Milango minne ya "mizigo yako ipo wapi", na kipimo kikiwa kwenye ramani.
+    tm_set: "Weka",
+    tm_from_q: "Mizigo yako ipo wapi sasa?",
+    tm_lead_to_you: "hadi kwenye mizigo yako",
+    tm_lead_min: "kama dakika {min} za kuendesha",
+    tm_not_measured: "hakijapimwa",
+    tm_leg_pickup: "Lori hadi kwenye mizigo yako, likiwa tupu",
+    tm_leg_pickup_of: "{name} hadi kwenye mizigo yako, likiwa tupu",
+    tm_leg_trip: "Mizigo yako hadi nyumbani kwako kupya, likiwa limebeba",
+    tm_leg_total: "Umbali wote atakaoendesha dereva",
+    tm_show_on_map: "Onyesha hili kwenye ramani",
     tm_find: "Tafuta malori ya kuhamia",
     tm_finding: "Tunatafuta malori.",
     tm_locating: "Tunapata eneo lako.",
@@ -6393,7 +6415,7 @@ window.I18N = {
     // ---- house.html -------------------------------------------------------
     hs_tab_move: "Kuhamia",
     hs_h_move: "Kuhamishia mizigo yako hapa",
-    hs_move_sub: "Bonyezo moja hupata malori yanayoweza kufanya uhamisho huu, yaliyo karibu nawe kwanza. Huhitaji kuandika kitu.",
+    hs_move_sub: "Sema mizigo yako ilipo nasi tutapata malori yanayoweza kufanya uhamisho huu, yaliyo karibu kwanza. Tumia eneo lako, sehemu uliyohifadhi, au andika eneo.",
     // ---- near-me.html
     nm_ai_ph: "Uliza kwa maneno yako, mf. “chumba 2 cha kupanga karibu na Mikocheni” au “malori karibu na Mwanza”",
     nm_ai_btn: " Tafuta kwa AI",

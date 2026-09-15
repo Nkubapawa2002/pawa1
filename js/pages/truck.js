@@ -174,6 +174,7 @@
           `<span class="tm-trip__note">${esc(T("tm_trip_note",
             "The owner quotes the price. This is the distance they will be quoting for."))}</span></div>`
         : "") +
+      UI.leadHtml(row, ctx) +
       UI.fitsHtml(row, ctx) +
       UI.actsHtml(row, ctx);
   }
