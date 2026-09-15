@@ -1089,6 +1089,151 @@ body[data-page="house"] :focus-visible {
    "Directions in Google Maps" is the only one of the three that ends with the
    person actually walking somewhere, so it is the only one drawn as a button.
    --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   YOU, AND THIS HOME, AS TWO ENDS OF ONE JOURNEY  (js/lib/house-you.js)
+
+   It reads top to bottom, not left to right, and that is the whole layout
+   decision. A row puts two names, two addresses and a number on one line and,
+   at 390px, truncates the only two words that say what the reader is looking
+   at. Stacked, each end keeps its name and its address, and the distance sits
+   in the join between them, which is where a distance belongs.
+
+   The two marks are deliberately different SHAPES, not two colours of the same
+   shape: a dot is a person and a pin is a place, and that survives being read
+   by somebody who cannot tell the blue from the green.
+   --------------------------------------------------------------------------- */
+.hd-you { margin-top: var(--space-3); }
+
+/* Before we know. Dashed, so it reads as an offer rather than as the action:
+   the filled button directly underneath is the one most people want, and two
+   solid buttons in a stack is a screen that cannot say which. */
+.hd-you__ask {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--hit-min);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--hx-line-strong);
+  background: var(--hx-rail);
+  color: var(--hx-ink);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-app);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.hd-you__ask:hover { border-color: var(--hx-accent-line); background: var(--hx-accent-dim); }
+.hd-you__ask:disabled { opacity: .6; cursor: default; }
+.hd-you__ask-ic { flex: 0 0 auto; display: grid; place-items: center; color: var(--hx-accent); }
+.hd-you__ask-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hd-you__ask-t { font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app); }
+.hd-you__ask-d { font: var(--fw-normal) var(--text-xs)/1.45 var(--font-app); color: var(--hx-ink-muted); }
+.hd-you.is-warn .hd-you__ask { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.hd-you.is-warn .hd-you__ask-ic { color: var(--warn); }
+
+/* After. */
+.hd-you__pair {
+  border: 1px solid var(--hx-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--hx-rail);
+  padding: var(--space-3);
+}
+.hd-you__end {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 28px;
+}
+.hd-you__end-tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hd-you__end-t { font: var(--fw-semibold) var(--text-sm)/1.3 var(--font-app); color: var(--hx-ink); }
+.hd-you__end-d {
+  font: var(--fw-normal) var(--text-xs)/1.4 var(--font-app);
+  color: var(--hx-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A dot for a person. */
+.hd-you__mark {
+  justify-self: center;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+.hd-you__mark.is-me {
+  border-radius: var(--radius-pill);
+  background: var(--info);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--info) 28%, transparent);
+}
+/* A pin for a place: the same teardrop the map marker uses, in miniature. */
+.hd-you__mark.is-home {
+  background: var(--hx-accent);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+}
+
+/* The join. The dashed rule lines up with the two marks above and below it, so
+   the three read as one spine rather than as three rows that happen to touch. */
+.hd-you__span {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-1) 0;
+  padding: var(--space-2) 0 var(--space-2) var(--space-6);
+  border-left: 1px dashed var(--hx-line-strong);
+  margin-left: 7px;          /* half the 16px mark column, so the rule bisects it */
+}
+.hd-you__km {
+  font: var(--fw-extra) var(--text-base)/1 var(--font-mono);
+  font-feature-settings: "tnum","zero";
+  color: var(--hx-accent);
+}
+/* Measured on a road is the accent; a straight-line estimate is amber, exactly
+   as the two LINES on the map above are, so the number and the line it came
+   from never disagree about how much they are claiming. */
+.hd-you__km.is-est { color: var(--warn); }
+.hd-you__km.is-wait { color: var(--hx-ink-muted); display: inline-flex; }
+.hd-you__km.is-wait svg { animation: hd-you-spin 900ms linear infinite; }
+.hd-you__gap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: var(--fw-normal) var(--text-xs)/1.45 var(--font-app);
+  color: var(--hx-ink-muted);
+}
+.hd-you__gap svg { flex: 0 0 auto; opacity: .85; }
+
+.hd-you__again {
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--hx-line-strong);
+  background: transparent;
+  color: var(--hx-ink-muted);
+  font: var(--fw-semibold) var(--text-xs)/1.2 var(--font-app);
+  cursor: pointer;
+}
+.hd-you__again:hover { border-color: var(--hx-accent-line); color: var(--hx-ink); }
+.hd-you__again:disabled { opacity: .5; cursor: default; }
+
+@keyframes hd-you-spin { to { transform: rotate(360deg); } }
+
+/* The reader, on the map. A dot inside a halo, which is what every map app on
+   the phone already uses for "you", so nobody has to be taught it. The house
+   keeps the teardrop pin: one shape per kind of thing. */
+.hd-you-marker {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: var(--info);
+  border: 2px solid var(--white);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--info) 22%, transparent),
+              var(--shadow-1);
+}
+
 .hd-go { margin-top: var(--space-3); }
 .hd-go__main {
   display: flex;

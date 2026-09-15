@@ -87,6 +87,16 @@ function mountMap(h) {
   attachNearbyOverlay(map, h.lat, h.lng);
   attachCommuteTool(map, h.lat, h.lng);
   showNearestMainRoad(h.lat, h.lng);
+  // You, beside the house, on the same square. Mounted last because it is the
+  // only thing here that may move the camera, and it must be moving a map that
+  // has already had its pin and its overlays put on it.
+  if (window.HouseYou) {
+    window.HouseYou.mount({
+      map: map,
+      home: { lat: Number(h.lat), lng: Number(h.lng) },
+      where: [h.area, h.region].filter(Boolean).join(", "),
+    });
+  }
 }
 
 /**

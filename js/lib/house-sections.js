@@ -463,6 +463,14 @@ function placeSectionHtml(h, mapsUrl, meetCode, pinLine) {
     <div class="hx-card__head">${ico(ICO.map)}<h3>${esc(T("hs_h_place", "Where it is"))}</h3></div>
     <p class="hx-sub">${esc(T("hs_place_sub", "The pin, the way there, and how far it is from the places you go."))}</p>
     <div class="hd-map" id="hdMap"></div>
+    <!-- You, and this home, as two ends of one journey. It sits between the
+         map and the hand-off deliberately: it is the caption that makes the
+         square of satellite above it readable, and the sentence that makes the
+         button below it a hand-off rather than a leap. One compact row, never
+         a panel, because the rule on this screen is that the map and the
+         action everybody wants stay within a thumb of each other.
+         js/lib/house-you.js fills it. -->
+    <div class="hd-you" id="hdYou" hidden></div>
 
     <div class="hd-go">
       <a class="hd-go__main" id="hdDirBtn"${mapsUrl ? ` href="${mapsUrl}"` : hasPin}
