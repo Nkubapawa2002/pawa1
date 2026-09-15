@@ -245,6 +245,13 @@ body[data-page="truck"] #footer-slot { display: none !important; }
 .td-cta-call { background: var(--c-brand); color: var(--c-brand-on, var(--white)); }
 .td-cta-wa   { background: var(--whatsapp); color: var(--text-on-brand); }
 .td-cta-move { background: var(--c-accent); color: var(--text-on-brand); }
+/* Sending the listing ONWARDS, which is the opposite direction to the three
+   buttons above it: those reach the owner, this reaches whoever you are
+   comparing lorries with. Quietest of the four, and outlined rather than
+   filled, because it is the one nobody came to this page to press. */
+.td-cta-send { background: transparent; color: var(--c-text);
+  border: 1px solid var(--c-border); }
+.td-cta-send svg { width: 16px; height: 16px; flex: 0 0 auto; }
 
 .td-minimap {
   height: 220px;

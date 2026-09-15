@@ -263,6 +263,7 @@
     // own it waits on the list, which is the honest thing to do — the app
     // cannot know who the pin is for.
     try { takeRequestedPlace(); } catch (_) {}
+    try { takeRequestedListing(); } catch (_) {}
     try { await openRequestedPeer(); } catch (_) {}
   }
 
@@ -317,6 +318,42 @@
       label: String(label || hit.label || "").slice(0, 120),
       source: "link",
     });
+    showSeg("chats");
+    return true;
+  }
+
+  /**
+   * A listing handed over by its own page, as
+   * `p-message.html?listing=<kind>:<id>` and optionally `&t=<its title>`.
+   *
+   * Same shape and the same reasoning as takeRequestedPlace above: the link
+   * carries WHAT, never WHO. Choosing the recipient is a decision, and a link
+   * that made it for you is a link that can put a room in front of somebody
+   * you never meant to show it to.
+   *
+   * The title is a convenience for the strip above the composer only, so the
+   * sender sees which room they are holding before anyone has been chosen. It
+   * is never sent and never drawn on the other end: the card there looks the
+   * listing up for itself, which is what stops a doctored link naming a room
+   * one thing here and another thing in the catalogue.
+   */
+  function takeRequestedListing() {
+    if (!ready || !window.PMListingCard) return false;
+    var raw = "", title = "";
+    try {
+      var q = new URLSearchParams(location.search);
+      raw = q.get("listing") || "";
+      title = q.get("t") || "";
+    } catch (_) { return false; }
+    if (!raw) return false;
+
+    var cut = String(raw).indexOf(":");
+    if (cut < 1) return false;
+    var kind = raw.slice(0, cut);
+    var id = raw.slice(cut + 1);
+    if (!window.PMListingCard.KINDS[kind] || !id) return false;
+
+    attachListing({ kind: kind, id: id, title: String(title).slice(0, 120) });
     showSeg("chats");
     return true;
   }
@@ -422,6 +459,19 @@
         if (el.pmFpBtn) el.pmFpBtn.hidden = false;
         await refreshInbox();
         watchInbox();
+        // Whatever the link was carrying is picked up HERE as well as in
+        // boot(), because a guest never reaches boot()'s copy: there was no
+        // identity when it ran, so it returned at the gate above. Somebody
+        // comparing rooms is exactly the person who has no account, so the
+        // one reader most likely to arrive holding a listing was the one
+        // certain to have it dropped on the way in. The same was true of a
+        // pin, and has been since ?place= existed.
+        //
+        // Before showSeg, deliberately: both pickups ask for the chats list,
+        // and a guest with no conversations yet wants the agents list, which
+        // is where the recipient they still have to choose actually is.
+        try { takeRequestedPlace(); } catch (_) {}
+        try { takeRequestedListing(); } catch (_) {}
         showSeg("people");           // a guest came here to find an agent
         // Unless they arrived on a ?to= link, in which case they came here
         // for one particular person and the gate was in the way, not the
@@ -951,11 +1001,20 @@
       var invite = (!m.failed && !gone && !place && window.PMInviteCard)
         ? window.PMInviteCard.read(text) : null;
       if (invite) shown = window.PMInviteCard.stripped(text);
+      // A room, a service or a truck gets a card under exactly the same rule
+      // as an invite, and js/lib/pm-listing-card.js applies the same
+      // same-origin parser. Third in the chain rather than first: a message
+      // carrying both a pin and a listing is a person describing where a room
+      // is, and the pin is the part that cannot be looked up again later.
+      var listing = (!m.failed && !gone && !place && !invite && window.PMListingCard)
+        ? window.PMListingCard.read(text) : null;
+      if (listing) shown = window.PMListingCard.stripped(text);
 
       return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") +
         (gone ? " gone" : "") +
         (place ? " has-place" : "") +
         (invite ? " has-invite" : "") +
+        (listing ? " has-listing" : "") +
         '" data-msg="' + esc(m.id || "") + '">' +
         quoteHtml(m) + (place ? window.PMPlace.card(place, {
           // Who sent it, so that saving the pin keeps the one fact the pin
@@ -968,6 +1027,10 @@
           msgId: m.id || "", at: m.at || "",
         }) : "") +
         (invite ? window.PMInviteCard.card(invite, { mine: !!m.mine }) : "") +
+        // Drawn empty and filled in by hydrateListings() after the log is in
+        // the DOM. Looking the room up here would mean an await inside a
+        // synchronous redraw that runs on every incoming message.
+        (listing ? window.PMListingCard.card(listing, { reach: !m.mine }) : "") +
         esc(shown) +
         '<span class="pm-msg-at">' + who + esc(clock(m.at)) +
         // Answering is offered on every message including one this device
@@ -989,6 +1052,11 @@
         "</span></div>";
     }).join("") + hiddenNoteHtml();
     el.pmLog.scrollTop = el.pmLog.scrollHeight;
+    // Listing cards are drawn as empty frames above and filled in here, from
+    // DataStore's cache. Deliberately not awaited: the log is already on
+    // screen and correct, and a room that takes a moment to load must never
+    // hold up the sentence somebody wrote above it.
+    if (window.PMListingCard) window.PMListingCard.hydrate(el.pmLog);
   }
 
   /**
@@ -1331,8 +1399,15 @@
     // place without the sentence.
     var body = text;
     var pin = pendingPlace();
+    var listing = pendingListing();
     if (pin && window.PMPlace) {
       body = window.PMPlace.compose(pin, text);
+      clearAttach();
+    } else if (listing && window.PMListingCard) {
+      // The link joins the words for the same reason the pin does. "This one
+      // is nearer the hospital" and the room it is about are one statement,
+      // and two messages can arrive in either order.
+      body = window.PMListingCard.compose(listing, text);
       clearAttach();
     }
     try {
@@ -1371,6 +1446,9 @@
   function placeOfButton(b) { return window.PMPlaceUI.placeOf(b); }
   /** The pin waiting to go with the next message, or null. Never cached. */
   function pendingPlace() { return window.PMPlaceUI.pending(); }
+  /** The listing waiting to go with it. At most one of the two is ever set. */
+  function pendingListing() { return window.PMPlaceUI.pendingListing(); }
+  function attachListing(ref) { return window.PMPlaceUI.attachListing(ref); }
   // ---- PN-Zaki -------------------------------------------------------------
   //
   //  The brain, the tool belt and the voice session are in js/lib/pn-zaki.js;
@@ -1867,8 +1945,9 @@
       var text = el.pmInput.value.trim();
       // A pin on its own is a complete message. Requiring words as well would
       // mean somebody standing at a gate has to think of a sentence before
-      // they can say where they are.
-      if (!text && !pendingPlace()) return;
+      // they can say where they are. A room on its own is the same: "look at
+      // this one" is what the card already says.
+      if (!text && !pendingPlace() && !pendingListing()) return;
       // The disabled textarea is the visible gate; this is the one that holds
       // if anything ever re-enables it without clearing the alarm.
       if (open && open.trust && open.trust.changed) { openVerify(); return; }

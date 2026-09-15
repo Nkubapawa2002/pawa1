@@ -325,6 +325,14 @@ function wireFavShare(h, price) {
   if (favBtn) favBtn.hidden = false;
   if (shareBtn) shareBtn.hidden = false;
 
+  // The third door: into a P-Message conversation rather than out to whatever
+  // the phone's share sheet offers. Shown only when the module is loaded and
+  // the link builds, so it is never a button pointing at nothing.
+  const sendBtn = document.getElementById("hdSendBtn");
+  const sendHref = window.PMListingCard
+    ? window.PMListingCard.sendHref("house", h.id, h.title) : "";
+  if (sendBtn && sendHref) { sendBtn.href = sendHref; sendBtn.hidden = false; }
+
   const paint = () => {
     if (!favBtn) return;
     const on = getFavs().has(h.id);

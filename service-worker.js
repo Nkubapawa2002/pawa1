@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v338-2026-09-12-notifications-stay-gone";
+const VERSION = "v339-2026-09-15-send-a-listing";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 

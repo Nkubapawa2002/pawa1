@@ -47,6 +47,9 @@
 
   /** The pin waiting to go with the next message, owned here. */
   var pendingPlace = null;
+  // The listing waiting to be sent, which is the other thing the composer can
+  // be holding. Never both: see attachPlace() / attachListing().
+  var pendingListing = null;
   //
   //  Four doors, because a location arrives four different ways and refusing
   //  three of them would mean the feature works for whoever happens to be
@@ -413,8 +416,14 @@
     };
   }
 
-  // ---- the pin waiting to be sent ------------------------------------------
+  // ---- what is waiting to be sent ------------------------------------------
+  //  A pin and a listing are two things the composer can be holding, and it
+  //  holds at most ONE of them. They are not combinable on purpose: a message
+  //  carrying both would have to choose which card to draw, and a person who
+  //  wants to send a room and then where it is wants two messages, because
+  //  that is two things the other person will want to reply to separately.
   function attachPlace(place) {
+    pendingListing = null;
     pendingPlace = {
       lat: Number(place.lat), lng: Number(place.lng),
       acc: place.acc == null ? null : Math.round(Number(place.acc)),
@@ -425,11 +434,30 @@
     if (el.pmInput && !el.pmInput.disabled) el.pmInput.focus();
   }
 
-  function clearAttach() { pendingPlace = null; drawAttach(); }
+  /**
+   * A room, a service or a truck waiting to be sent.
+   *
+   * `ref` is { kind, id } and nothing else. Deliberately not the row: the
+   * card on the other end looks the listing up for itself from the public
+   * catalogue, so a price cannot be quoted at somebody out of a stale copy
+   * held in this composer since yesterday.
+   */
+  function attachListing(ref) {
+    if (!ref || !window.PMListingCard) return;
+    var url = window.PMListingCard.urlFor(ref.kind, ref.id);
+    if (!url) return;
+    pendingPlace = null;
+    pendingListing = { kind: ref.kind, id: String(ref.id), url: url, title: String(ref.title || "") };
+    drawAttach();
+    if (el.pmInput && !el.pmInput.disabled) el.pmInput.focus();
+  }
+
+  function clearAttach() { pendingPlace = null; pendingListing = null; drawAttach(); }
 
   function drawAttach() {
     drawPlaceHint();
     if (!el.pmAttach) return;
+    if (pendingListing) { drawListingAttach(); return; }
     if (!pendingPlace) { el.pmAttach.hidden = true; el.pmAttach.innerHTML = ""; return; }
     // The heading names the destination rather than the action. "Sending a
     // place" described what the strip was; it did not say where the place was
@@ -470,6 +498,29 @@
     if (mk) mk.addEventListener("click", function () { mintPlaceCode(pendingPlace); });
     var again = document.getElementById("pmAttachRetry");
     if (again) again.addEventListener("click", retryGps);
+  }
+
+  /**
+   * The same strip, for a listing.
+   *
+   * No "give a code" here and no accuracy line, because neither applies: a
+   * listing is already public and already has a URL, so the thing a code
+   * exists to solve, reaching somebody who is not in this conversation, is
+   * solved by copying the link. The heading still names the recipient, which
+   * is the one question worth a second look before tapping send.
+   */
+  function drawListingAttach() {
+    var word = window.PMListingCard && window.PMListingCard.KINDS[pendingListing.kind];
+    el.pmAttach.innerHTML =
+      '<span class="pm-at-tx"><b>' + esc(recipientLine()) + "</b>" +
+      '<span class="pm-at-body">' +
+        esc(pendingListing.title || (word ? word.word() : t("pmp_a_listing", "A listing"))) +
+      "</span></span>" +
+      '<button class="pm-rb-x" type="button" id="pmAttachX" aria-label="' +
+        esc(t("pmp_detach", "Do not send it")) + '">×</button>';
+    el.pmAttach.hidden = false;
+    var x = document.getElementById("pmAttachX");
+    if (x) x.addEventListener("click", clearAttach);
   }
 
   /**
@@ -574,13 +625,18 @@
    */
   function drawPlaceHint() {
     if (!el.pmPlaceHint) return;
-    if (!pendingPlace) {
+    var held = pendingPlace || pendingListing;
+    if (!held) {
       el.pmPlaceHint.hidden = true;
       el.pmPlaceHint.innerHTML = "";
       return;
     }
-    el.pmPlaceHint.innerHTML = "<b>" + esc(t("pmp_pick_who", "Choose who to send this place to.")) + "</b><br>" +
-      esc(pendingPlace.label || window.PlaceBook.coords(pendingPlace.lat, pendingPlace.lng)) +
+    el.pmPlaceHint.innerHTML = "<b>" + esc(pendingListing
+        ? t("pmp_pick_who_l", "Choose who to send this listing to.")
+        : t("pmp_pick_who", "Choose who to send this place to.")) + "</b><br>" +
+      esc(pendingListing
+        ? (pendingListing.title || window.PMListingCard.KINDS[pendingListing.kind].word())
+        : (pendingPlace.label || window.PlaceBook.coords(pendingPlace.lat, pendingPlace.lng))) +
       ' <button class="pm-place-b" type="button" id="pmHintDrop" style="margin-left:6px">' +
       esc(t("pmp_detach", "Do not send it")) + "</button>";
     el.pmPlaceHint.hidden = false;
@@ -731,13 +787,18 @@
     attach: attach,
     pick: showPlacePicker,
     attachPlace: attachPlace,
+    attachListing: attachListing,
     clear: clearAttach,
     openMap: openPlaceMap,
     closeMap: closePlaceMap,
     save: savePlace,
     placeOf: placeOfButton,
-    // A getter, not the value: the composer asks on every submit and the
-    // answer changes under it.
+    // Getters, not the values: the composer asks on every submit and both
+    // answers change under it. Two functions rather than one that returns
+    // whichever is held, because the composer has to compose them differently
+    // and a caller that had to ask "which kind is this" would be the same
+    // branch written somewhere worse.
     pending: function () { return pendingPlace; },
+    pendingListing: function () { return pendingListing; },
   };
 })();

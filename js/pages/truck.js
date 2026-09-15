@@ -295,6 +295,7 @@
               ${phone ? `<a class="td-cta-call" href="tel:${esc(cleanPhone(phone))}">${esc(T("of_call", "Call"))} ${esc(phone)}</a>` : ""}
               ${wa ? `<a class="td-cta-wa" href="https://wa.me/${esc(waNumber(wa))}?text=${waText}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
               <a class="td-cta-move" href="meet.html" target="_blank" rel="noopener">${esc(T("td_share_loc", "Share live location for the pickup"))}</a>
+              ${window.PMListingCard ? window.PMListingCard.sendButton("truck", t, { className: "td-cta-send" }) : ""}
             </div>
             <!-- Only when there is no move to route. With a plan carried in,
                  the panel above already offers "Route in Google Maps", which

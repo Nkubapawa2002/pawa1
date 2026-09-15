@@ -615,6 +615,52 @@
     .pm-inv-card-b.is-go { background: var(--pm-gold); color: var(--pm-on-brand);
       border-color: transparent; }
 
+    /* ---- a room, a service or a truck sent inside a conversation ----------
+       Neither brand green nor gold, and that is the point. A pin is a fact
+       about the world and an invite is a credential; this is a REFERENCE to
+       something in the catalogue, and it should read as a quoted object
+       rather than as a claim the sender is making. So: the ordinary field
+       surface, the ordinary border, and the only colour on it is the price. */
+    .pm-lc { display: block; margin: -1px 0 5px; padding: 8px;
+      background: var(--pm-field); border: 1px solid var(--c-border);
+      border-radius: 12px; }
+    .pm-lc-h { display: flex; align-items: center; gap: 6px; color: var(--pm-ink-soft);
+      font-size: 10.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .pm-lc-h svg { width: 14px; height: 14px; flex: 0 0 auto; }
+    .pm-lc-body { display: flex; gap: 9px; align-items: flex-start; margin-top: 6px; min-width: 0; }
+    /* Fixed box, not an aspect ratio on the image itself: four cards loading
+       four photos of four shapes would otherwise reflow the log under the
+       reader's thumb as each one arrives. */
+    .pm-lc-img { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 9px;
+      object-fit: cover; background: var(--pm-line); }
+    .pm-lc-tx { min-width: 0; display: block; }
+    .pm-lc-t { display: block; font-size: 13px; font-weight: 700; color: var(--pm-ink);
+      line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Money is mono everywhere in this app, and a price quoted in a message is
+       still a price. Tabular figures so two rooms compared in one thread line
+       up digit for digit. */
+    .pm-lc-p { display: block; margin-top: 2px; font-family: var(--font-mono);
+      font-feature-settings: "tnum","zero"; font-size: 12px; font-weight: 700;
+      color: var(--pm-brand); }
+    .pm-lc-sub { display: block; margin-top: 2px; font-size: 11.5px; color: var(--pm-ink-faint);
+      line-height: 1.45; }
+    .pm-lc-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+    .pm-lc-tag { font-size: 10px; font-weight: 800; letter-spacing: .04em;
+      padding: 2px 6px; border-radius: var(--radius-pill);
+      background: var(--pm-brand-soft); color: var(--pm-brand); }
+    .pm-lc-tag.is-owner { background: var(--pm-gold-soft); color: var(--pm-gold); }
+    .pm-lc-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .pm-lc-b { display: inline-block; background: var(--pm-field);
+      border: 1px solid var(--c-border); color: var(--pm-ink); border-radius: 9px;
+      padding: 6px 10px; font: inherit; font-size: 11.5px; font-weight: 700;
+      cursor: pointer; text-decoration: none; }
+    .pm-lc-b.is-go { background: var(--pm-brand); color: var(--pm-on-brand);
+      border-color: transparent; }
+    /* A listing that is no longer there is not an error, it is an answer, so
+       it is dimmed rather than reddened. The words carry the rest. */
+    .pm-lc.is-gone { opacity: .72; }
+    .pm-lc.is-gone .pm-lc-t { font-weight: 600; color: var(--pm-ink-soft); white-space: normal; }
+
     /* Sending the link into a conversation instead of out of the app. */
     .pm-inv-here { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--c-border); }
     .pm-inv-here-d { margin: 6px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--pm-ink-faint); }
@@ -1196,6 +1242,23 @@
        linkifier anywhere near it. It recognises exactly one shape, an invite
        on this app's own origin, which is the whole of the phishing fence. -->
   <script src="js/lib/pm-invite-card.js"></script>
+  <!-- A room, a service or a truck, sent inside a message. Same wire format
+       and the same origin fence as the invite card above: the listing's own
+       public URL, in the encrypted body, recognised with the URL constructor
+       and never linkified.
+
+       The two below it are what turn the reference back into a listing.
+       explore-index.js is the one place that knows each table's column names,
+       so the card quotes the same title, photo and price the catalogue does;
+       pm-reach.js is the door onto whoever posted it. Both are guarded, and a
+       card without them is a poorer card rather than a broken one.
+
+       house-spec.js is deliberately NOT here. It is 966 lines of room
+       specification and the only thing this card wants from it is the word
+       "per month", which pm-listing-card.js carries through i18n instead. -->
+  <script src="js/lib/explore-index.js"></script>
+  <script src="js/lib/pm-reach.js"></script>
+  <script src="js/lib/pm-listing-card.js"></script>
   <script src="js/lib/geolocate.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.js"></script>
   <script src="js/lib/pm-store.js"></script>

@@ -171,6 +171,7 @@
               ${phone ? `<a class="sd-cta-call" href="tel:${esc(cleanPhone(phone))}">${esc(T("of_call"))} ${esc(phone)}</a>` : ""}
               ${wa ? `<a class="sd-cta-wa" href="https://wa.me/${esc(waNumber(wa))}?text=${waText}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
               <a class="sd-cta-move" href="meet.html" target="_blank" rel="noopener">${esc(T("of_share_loc"))}</a>
+              ${window.PMListingCard ? window.PMListingCard.sendButton("service", s, { className: "sd-cta-send" }) : ""}
             </div>
             ${(Number.isFinite(+s.lat) && Number.isFinite(+s.lng)) ? `<div class="sd-minimap" id="sdMap"></div>` : ""}
           </div>

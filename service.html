@@ -69,6 +69,13 @@
     .sd-cta-call { background: var(--c-brand,#0a6f4d); color: #fff; }
     .sd-cta-wa { background: var(--wa-green, #25d366); color: var(--wa-on, #06170F); }
     .sd-cta-move { background: var(--c-accent,#bc5c00); color: #fff; }
+    /* Sending the listing ONWARDS, which is the opposite direction to the
+       three buttons above it: those reach the provider, this reaches whoever
+       you are comparing with. Quietest of the four, and outlined rather than
+       filled, because it is the one nobody came to this page to press. */
+    .sd-cta-send { background: transparent; color: var(--c-text,#2a2a26);
+      border: 1px solid var(--c-border,#e7e4dd); }
+    .sd-cta-send svg { width: 16px; height: 16px; flex: 0 0 auto; }
     .sd-owner { font-weight: 700; }
     .sd-minimap { height: 220px; border-radius: 14px; overflow: hidden; border: 1px solid var(--c-border,#e7e4dd); margin-top: 10px; }
     .sd-h { font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: var(--c-muted,#888); margin: 0 0 8px; }
@@ -145,6 +152,10 @@
        decisions around it (the URL shape, the guard, the wording) live in
        one place so all four catalogues offer the same thing. -->
   <script src="js/lib/pm-reach.js"></script>
+  <!-- The other direction: sending this listing to somebody rather than
+       reaching whoever posted it. One place builds that URL, for the same
+       reason pm-reach.js owns its own. -->
+  <script src="js/lib/pm-listing-card.js"></script>
   <!-- The one place a stored kind becomes a word a person reads.
        Three page scripts used to carry their own copy of that map. -->
   <script src="js/lib/listing-kinds.js"></script>

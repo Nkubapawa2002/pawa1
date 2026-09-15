@@ -74,6 +74,18 @@
         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
       </svg>
     </button>
+    <!-- Share puts the link wherever the phone's own sheet offers. This puts
+         it in an encrypted conversation on Pawa, which is the one destination
+         that sheet cannot reach, and the only one where the reader gets a card
+         with the current price on it rather than a screenshot. -->
+    <a id="hdSendBtn" class="hx-iconbtn" href="#" hidden
+       aria-label="Send it to someone" data-i18n-aria-label="pml_send"
+       title="Send it to someone" data-i18n-title="pml_send">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21.4 2.6 10.8 13.2M21.4 2.6l-6.7 18.8-3.9-8.2-8.2-3.9z"/>
+      </svg>
+    </a>
   </header>
 
   <main class="hd-wrap">
@@ -158,6 +170,10 @@
        decisions around it (the URL shape, the guard, the wording) live in
        one place so all four catalogues offer the same thing. -->
   <script src="js/lib/pm-reach.js"></script>
+  <!-- The other direction: sending this listing to somebody rather than
+       reaching whoever posted it. One place builds that URL, for the same
+       reason pm-reach.js owns its own. -->
+  <script src="js/lib/pm-listing-card.js"></script>
   <!-- "Move my things here". truck-match.js works out which lorry suits this
        move and why; truck-move-ui.js draws it; truck-move-panel.js is the
        section on this page. All three are shared with trucks.html, and the

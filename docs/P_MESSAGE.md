@@ -568,6 +568,60 @@ Both send paths carry it. A room above the sender-key threshold is exactly the
 room where replies matter most, so wiring only the small-room path would have
 shipped the feature to the conversations that need it least.
 
+### Sending a room, a service or a truck
+
+Every catalogue page could already start a conversation with whoever posted a
+listing (`js/lib/pm-reach.js`). The other half of the same sentence was
+missing: a seeker comparing nine rooms wanting to ask a friend "what do you
+think of this one", and an agent holding four rooms in Mikocheni wanting to put
+them in front of the customer who just described Mikocheni.
+
+So it went by screenshot, which carries no price you can trust, no link, no way
+to tell whether the room is still free, and no way to reach whoever posted it.
+
+`js/lib/pm-listing-card.js` is the same shape as the invite card: the listing's
+own public URL, **in the message body**, sealed exactly as the words are. No
+marker character, no attachment table, nothing new on the server.
+
+```
+Have a look at this one
+https://<this app>/house.html?id=7f3c...
+```
+
+Three things follow from that, and each is the reason for the next:
+
+- **the reference carries the kind and the id and nothing else.** The card at
+  the far end looks the listing up for itself from the public catalogue, so a
+  price can never be quoted at somebody out of a stale copy, and a doctored
+  link cannot name a room one thing in a conversation and another thing in the
+  catalogue;
+- **the card arrives empty and fills in.** `read()` is synchronous because the
+  log is redrawn synchronously on every incoming message; `hydrate()` fills the
+  frames afterwards from `DataStore`'s cache, one fetch per kind rather than
+  one per card. A card that never fills in says "not on Pawa any more", which
+  is a real answer and the one a screenshot can never give;
+- **`isOurs()` is the whole of the phishing fence.** Message bodies are escaped
+  and never linkified. This file recognises exactly one shape, a listing page
+  on this app's own origin, parsed with the `URL` constructor. It must not be
+  relaxed into a hostname substring test, which is what makes
+  `maisha-na-lifeza.attacker.com` work.
+
+The door in is `p-message.html?listing=<kind>:<id>`, built in one place
+(`sendHref`) and offered on `house.html`, `service.html` and `truck.html`. It
+carries **what**, never **who**: choosing a recipient is a decision taken on the
+messages screen in front of the list of people it could go to, and a link that
+made it for you is a link that can put somebody's room in front of somebody
+they never meant to show it to.
+
+The composer holds a pin **or** a listing, never both. A message carrying both
+would have to choose which card to draw, and somebody who wants to send a room
+and then where it is wants two messages, because that is two things the other
+person will answer separately.
+
+Day jobs are absent on purpose: they have no detail page, so there is no URL to
+put in a message, and inventing one would produce a card that opens onto the
+jobs board instead of the job.
+
 ---
 
 ## Files
@@ -580,6 +634,8 @@ js/lib/pm-device-lock.js                WebAuthn PRF: the private key sealed by 
 js/lib/pm-store.js                      identity, calls, decryption; no DOM
 js/lib/pm-presence.js                   the heartbeat, and the words for a timestamp
 js/lib/listing-kinds.js                 the ONE map from a stored kind to a word
+js/lib/pm-listing-card.js               a room, a service or a truck inside a message;
+                                        same wire format and same origin fence as the invite card
 js/pages/p-message.js                   the screen
 p-message.html                          markup + styles
 agent.html · js/pages/agent.js          one agent's storefront
@@ -720,6 +776,8 @@ for the same reason.
 | `tests/p_message_audience_test.mjs` | 53 — against the **real database**, written as the attacks the permission change has to survive. The one worth reading twice is section 4: gather a shopfront into a room, have both of you talk in it, and they are **still** not advertisable. That is the test that fails if the fence is ever simplified back to announcements only. Also: a one-sided thread is not a relationship, a guest opens nothing, a blocked person cannot be added back, the admin is exempt from the reach fence and not from a block, and `pm_blocks` has RLS on with no policy and no SELECT grant |
 | `tests/p_message_presence_db_test.mjs` | 31 — against the **real database**: that `pm_presence` is readable through no policy at all, that the storefront refuses anon and guests and returns no phone number, and that a reply cannot name a message in another conversation |
 | `tests/p_message_guest_test.mjs` | 19 — against the real database: mostly proving the DOWNSIDE was closed (a guest cannot post a house, a service or an agent profile) rather than that the feature works |
+| `tests/pm_listing_card_test.mjs` | 50 — the listing card with no browser, written as attacks on the one thing that is security rather than presentation: somebody else's domain, our origin carried inside theirs as a parameter, our host as a prefix of a longer one, http where we are https, and `/mad-house.html`, which every `endsWith` implementation accepts. Plus the promise that the reference carries the kind and the id and nothing else, so no price ever travels in a message |
+| `tests/pm_listing_send_test.mjs` | 40 — the same feature in a browser: the door exists on all three catalogues and all three build one link, the card fills in from the catalogue rather than the message, a listing that is gone says so instead of spinning, and section 6, which is the bug this feature shipped with — a guest following the link met the name gate, and the room they came to send was dropped on the way in |
 | `tests/profile_page_test.mjs` | 41 — Profile's three states, and that a guest is never offered a door the database will refuse |
 | `tests/_shot_pn_zaki.mjs` | 30 — PN-Zaki in both themes: the pane, an answered question (bullets, page links and money all rendered from one stubbed reply), the voice dock, `?seg=ai`, and the assertion that no AI client survives on `chat.html`. The model is stubbed at `fetch`, not at the network — puppeteer's cross-origin interception does not reliably settle a POST, and this test is about what PN-Zaki does with a reply |
 
@@ -749,8 +807,10 @@ Run the middle one only when you mean to — it writes to production.
   account write to one row, so "online" means one of them is. Splitting it
   would mean holding a row per device, which is more tracking, not less.
 - **Day jobs have no detail page**, so a job card on a storefront leads to the
-  jobs board rather than to the job. One line in `js/pages/agent.js`
-  (`listingHref`) when they grow one.
+  jobs board rather than to the job, and a job cannot be sent into a
+  conversation the way a room can. One line in `js/pages/agent.js`
+  (`listingHref`) and one row in `js/lib/pm-listing-card.js` when they grow
+  one.
 - **A block does not silence a shared ROOM.** It silences a direct
   conversation (`pm_can_speak`, `p_message_hush.sql`) but not a room the two
   of you are both in, because one member must not be able to switch off a room
