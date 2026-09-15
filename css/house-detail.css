@@ -1776,6 +1776,14 @@ body[data-page="house"] .hp-skip-link { background: var(--hx-accent); color: var
   --hx-glass:       color-mix(in srgb, var(--white) 78%, transparent);
   --hx-rail:        var(--gray-light);
 
+  /* The ink for anything FILLED with --hx-accent. The shim above hands
+     --c-brand to the shared components (css/truck-move.css reads --c-brand-on
+     through --tm-on-brand), and with no value here they fell back to
+     --text-on-brand, a near-black drawn for the neon emerald. On this light
+     theme's much darker --green that is 2.9:1, so "Find trucks for this move"
+     and every other filled control on the screen failed AA in light mode. */
+  --c-brand-on:     var(--white);
+
   background:
     radial-gradient(76% 46% at 50% -8%, color-mix(in srgb, var(--green) 8%, transparent) 0%, transparent 68%),
     linear-gradient(180deg, var(--gray-light) 0%, var(--white) 100%);
@@ -1788,6 +1796,11 @@ body[data-page="house"] .hp-skip-link { background: var(--hx-accent); color: var
 :root[data-theme="light"] .hd-cta-call,
 :root[data-theme="light"] .hd-commute-btn,
 :root[data-theme="light"] .hx-rail__link.is-active,
+/* The empty state's one button. tests/mobile_audit.mjs measured it at 2.92:1
+   on House / light / 390px, which is the same near-black-on-deep-green this
+   block exists for; it was simply missing from the list. */
+:root[data-theme="light"] body[data-page="house"] .hp-empty__cta,
+:root[data-theme="light"] body[data-page="house"] .hp-empty__cta:hover,
 :root[data-theme="light"] .hd-poi-chip.active { color: var(--white); }
 :root[data-theme="light"] .hd-pin-prov {
   background: var(--green-light);

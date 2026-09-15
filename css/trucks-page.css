@@ -230,6 +230,11 @@ body[data-page="trucks"] #footer-slot { display: none !important; }
 .tk-btn--gps { background: var(--c-brand); border-color: var(--c-brand); color: var(--c-brand-on, var(--text-on-brand)); }
 .tk-btn--gps:disabled { opacity: .6; cursor: default; }
 .tk-btn--list { background: var(--c-accent); border-color: var(--c-accent); color: var(--text-on-brand); }
+/* In light theme --c-accent is #a85200, a dark burnt orange css/theme-light.css
+   picked so the gold works as INK on white. Filled, that needs white ink:
+   --text-on-brand is a near-black drawn for the neon green and lands at 3.33:1
+   here, which tests/mobile_audit.mjs measures on Trucks / light / 390px. */
+:root[data-theme="light"] .tk-btn--list { color: var(--white); }
 
 /* ===========================================================================
    4. RESULTS AND MAP
