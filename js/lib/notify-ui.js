@@ -73,13 +73,12 @@
     shield:  '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.6-7 9.5-4.1-1.9-7-5.2-7-9.5V6z"/><path d="M12 9v4M12 16h.01"/>',
     clock:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.4l3.4 2"/>',
     stamp:   '<path d="M5 20h14M7 16h10v1.5H7z"/><path d="M9 16c0-2-2.5-3-2.5-6a5.5 5.5 0 0 1 11 0c0 3-2.5 4-2.5 6"/>',
+    // The mark for "clear this row". A cross, which every phone on earth has
+    // already taught its owner to read as "put this away", and which is still
+    // legible at the 16px this button is drawn at. A broom was tried and drawn
+    // here first: at 16px it was an unreadable blob and at 96px it read as a
+    // fountain pen, which on a row is worse than unreadable.
     close:   '<path d="M6 6l12 12M18 6L6 18"/>',
-    // A broom, for "clear this". Not the cross, which everywhere else on the
-    // web means "close what I am looking at" and never "put this away for
-    // good", and not the bin, which is reserved below for a row that is
-    // genuinely deleted from the database.
-    broom:   '<path d="M14 4l6 6"/><path d="M11.5 6.5 17.5 12.5l-4.7 4.7a3 3 0 0 1-2.6.8L5 17l-.9-5a3 3 0 0 1 .8-2.6z"/>' +
-             '<path d="M4.2 17 2 22l5-2.2"/>',
     // A bin, not a cross. The cross on the subscription row HIDES a state that
     // is still true; this one deletes a row for good, and the two must not
     // look like the same promise.
@@ -310,7 +309,7 @@
     return '<div class="nt-line' + (block ? " nt-line--block" : "") + '">' + inner +
       '<button type="button" class="nt-put" data-put="' + esc(what) + '" aria-label="' +
         esc(label) + '" title="' + esc(label) + '">' +
-        icon("broom") + "</button></div>";
+        icon("close") + "</button></div>";
   }
 
   /**
@@ -534,7 +533,7 @@
         '<button type="button" class="nt-clear" data-foot="read" hidden>' + icon("check") +
           "<span>" + esc(tx("nt_mark_all", "Mark all as read")) + "</span></button>" +
         '<button type="button" class="nt-clear nt-clear--kill" data-foot="wipe" hidden>' +
-          icon("broom") +
+          icon("trash") +
           "<span>" + esc(tx("nt_clear_all", "Clear everything")) + "</span></button>" +
         // The question lives in the panel rather than in a window.confirm.
         // The panel is already a modal, and stacking a browser dialog on it is
