@@ -1970,7 +1970,20 @@
     // Pure app-shell: in-app bottom tab bar (js/core/app-shell.js) replaces the
     // desktop top nav + footer. This is the "Explore" tab destination.
     window.applyTranslations();
-    window.initHousesPage();
+    // .catch, because this is an async function called as a statement: any
+    // throw inside it became an unhandled rejection with NOTHING on screen.
+    // The deep links (?life=1, ?alert=1, ?request=1) are wired near the end of
+    // init, so a failure anywhere before them meant tapping a card on P-Chat
+    // and arriving at a page that simply never opened the thing it promised.
+    window.initHousesPage().catch(function (err) {
+      console.error("[houses] init failed", err);
+      var list = document.getElementById("housesList");
+      if (list && !list.children.length) {
+        list.innerHTML = '<div class="hp-empty" role="status"><div class="hp-empty__title">' +
+          (window.t ? window.t("hp_boot_fail_t") : "") + "</div><div class=\"hp-empty__sub\">" +
+          (window.t ? window.t("hp_boot_fail_d") : "") + "</div></div>";
+      }
+    });
   </script>
 
   <script src="js/core/app-shell.js"></script>

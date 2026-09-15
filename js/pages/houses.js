@@ -88,6 +88,13 @@ window.initHousesPage = async () => {
   let commuteScores = new Map();   // house id -> { legs, total, pass } when myPlaces active
   let commuteRoadKm = new Map();   // "placeId|houseId" -> real road km (number) | null (no road) — cached
   let enrichingCommute = false;
+  // How many times a routing batch has come back completely empty, per place.
+  // Bounds the retry in enrichCommuteRoad, so a router that is simply down
+  // does not print "no road route" on every card the first time it fails.
+  const commuteTries = new Map();
+  // True while that is happening, so a leg with no distance can say "we could
+  // not measure this" instead of making a claim about the house.
+  let routerDown = false;
 
   // ---- Segments (Rent / Sale / Business) + list arrangement --------------
   // A "segment" is the top-level world the user is browsing. Residential
@@ -2023,6 +2030,21 @@ window.initHousesPage = async () => {
     commuteRoadKm.clear();
     localStorage.setItem("pawa_house_my_places", JSON.stringify(arr));
   }
+  /**
+   * Forget every place, and say so on screen.
+   *
+   * One function because it is reached from three places now — "Clear all
+   * filters", the narrower "Take the places off", and the modal's own Clear —
+   * and because forgetting the places without redrawing the chips leaves a
+   * strip above the list still claiming to be ranking it.
+   */
+  function clearMyPlaces() {
+    if (!myPlaces.length) return;
+    myPlaces = [];
+    saveMyPlaces(myPlaces);
+    renderPlacesChips();
+  }
+
   function modeOf(m)  { return MODES[m] || MODES.car; }
   function kindOf(k)  { return PLACE_KINDS[k] || PLACE_KINDS.custom; }
   function travelMin(km, mode) { return window.pawaCommute.travelMin(km, mode); }
@@ -2071,28 +2093,88 @@ window.initHousesPage = async () => {
   // Bounded (top listings only) and self-terminating once every pair is known.
   async function enrichCommuteRoad() {
     if (!myPlaces.length || enrichingCommute || !window.pawaRoute) return;
-    const dests = visible.filter(h => Number.isFinite(h.lat) && Number.isFinite(h.lng)).slice(0, 40);
+    // THE WINDOW USED TO BE `.slice(0, 40)` AND IT COULD NEVER MOVE.
+    //
+    // Forty is a sensible batch. The trouble was that it was always the FIRST
+    // forty of `visible`, and js/lib/commute-score.js sorts an unmeasured
+    // listing into tier MEASURING, below every measured one. So the moment
+    // forty were measured they took the top forty places, the unmeasured ones
+    // sank underneath them, and the window — which reads from the top — could
+    // never reach any of them again. "measuring the road distance" was
+    // permanent for listing 41 onwards, and self-reinforcing: the more that
+    // got measured, the further the rest sank.
+    //
+    // Taking the first forty UNMEASURED ones instead walks the whole list, one
+    // batch per pass, however the sort moves underneath it. The last pass
+    // finds nothing missing and stops, exactly as before.
+    const withPoint = visible.filter(h => Number.isFinite(h.lat) && Number.isFinite(h.lng));
+    const unmeasured = withPoint.filter(h =>
+      myPlaces.some(p => !commuteRoadKm.has(p.id + "|" + h.id)));
+    const dests = (unmeasured.length ? unmeasured : withPoint).slice(0, 40);
     if (!dests.length) return;
     const missing = myPlaces.some(p => dests.some(h => !commuteRoadKm.has(p.id + "|" + h.id)));
     if (!missing) return;
     enrichingCommute = true;
     try {
       let changed = false;
+      // Anything at all went into the cache this pass, a null included. A null
+      // is a RESULT — it moves a leg off "measuring the road distance" — so a
+      // pass that settled forty of them and found no distance still has to
+      // redraw, or the wording it just decided on is never shown.
+      let wrote = false;
       for (const p of myPlaces) {
         if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
         const need = dests.filter(h => !commuteRoadKm.has(p.id + "|" + h.id));
         if (!need.length) continue;
         const kms = await window.pawaRoute.table({ lat: p.lat, lng: p.lng },
           need.map(h => ({ lat: +h.lat, lng: +h.lng })));
+
+        // A WHOLE BATCH OF NULLS IS THE ROUTER BEING DOWN, NOT FORTY HOUSES
+        // WITH NO ROAD TO THEM. geo.js drops a failed chunk with `continue`,
+        // leaving its entries null, which is the same value it uses for "the
+        // router answered, and there is no route" — so a five-minute OSRM
+        // outage printed "no road route" on forty cards, which is a claim
+        // about the houses and stays on screen long after the outage ends.
+        //
+        // Nothing is cached for a failed batch, so it is retried. `tries`
+        // bounds that: after two failures the nulls go in, because a walk that
+        // never terminates is the worse bug of the two.
+        //
+        // `routerDown` SURVIVES that settling, and is not cleared here. It is
+        // the only thing standing between a router outage and forty cards each
+        // stating that no road reaches the house, so clearing it on the pass
+        // that writes the nulls would have left nothing to read them — which
+        // is to say the honest wording would never once have been printed.
+        // Only an answer clears it: a batch with a real distance in it is the
+        // router working, and nothing else is.
+        const anyFinite = (kms || []).some(v => Number.isFinite(v));
+        const key = "batch|" + p.id;
+        const tries = (commuteTries.get(key) || 0);
+        if (!anyFinite && need.length > 1) {
+          routerDown = true;
+          if (tries < 2) { commuteTries.set(key, tries + 1); continue; }
+        } else if (anyFinite) {
+          routerDown = false;
+        }
+        commuteTries.delete(key);
         need.forEach((h, i) => {
           const v = kms && kms[i];
           commuteRoadKm.set(p.id + "|" + h.id, Number.isFinite(v) ? v : null);
           if (Number.isFinite(v)) changed = true;
+          wrote = true;
         });
       }
-      // Re-run the pipeline so the new road km re-filter (max-time) + re-rank.
-      // Converges: every pair is now cached, so the next pass finds nothing missing.
-      if (changed) apply();
+      // Re-run the pipeline so the new road km re-filter (max-time) + re-rank,
+      // and so the NEXT batch of unmeasured listings gets walked.
+      //
+      // Terminates: every pair this pass asked about is now in the cache,
+      // including the ones that came back null, so the unmeasured set is
+      // strictly smaller on each pass and the `missing` guard above stops the
+      // last one. `wrote` matters on its own — a batch where the router
+      // answered nothing leaves `changed` false, and without it the walk would
+      // stall there with the rest of the list stuck on "measuring" for the
+      // same reason as before.
+      if (changed || wrote || unmeasured.length > dests.length) apply();
     } finally { enrichingCommute = false; }
   }
 
@@ -2109,8 +2191,23 @@ window.initHousesPage = async () => {
     if (!placesChips) return;
     if (!myPlaces.length) { placesChips.hidden = true; placesChips.innerHTML = ""; return; }
     placesChips.hidden = false;
+    // "Matching your life:" is a claim about the ORDER of the list, and two
+    // other things quietly outrank it: a sort chosen in the results bar (kept
+    // in localStorage, so it can have been chosen weeks ago and forgotten)
+    // wins in applySort(), and a landmark search wins in rankAndRender(). The
+    // strip went on claiming the ranking in both cases, which made the whole
+    // feature look like it had done nothing.
+    //
+    // The sort is NOT cleared to make the claim true. A preference somebody
+    // set deliberately should not be overwritten by a different feature; the
+    // honest move is for the label to say which of the two is running. The
+    // places are still filtering either way, which is the half that is
+    // unaffected and worth saying.
+    const ranking = sortMode === "recommended" && !landmarkLoc;
     placesChips.innerHTML =
-      `<span class="hp-place-head">${esc(tr("mp_chips_head", "Matching your life:"))}</span>` +
+      `<span class="hp-place-head">${esc(ranking
+        ? tr("mp_chips_head", "Matching your life:")
+        : tr("mp_chips_head_filter", "Close enough to:"))}</span>` +
       myPlaces.map(p => {
         // The place NAME, not just the label. "Work ≤60m" does not say where
         // work is, and a week after pinning it that is the only thing the
@@ -2926,6 +3023,22 @@ window.initHousesPage = async () => {
           : "No matching property found";
         notFoundSub = "Such a property does not exist in our current listings. Try different criteria or clear the search to browse all available properties.";
       }
+
+      // THE COMMUTE LIMIT IS THE MOST COMMON REASON THIS SCREEN IS EMPTY AND
+      // IT NEVER SAID SO. A 10-minute daladala limit is about a kilometre of
+      // travel once the 8-minute fixed cost is taken off, so "Match homes to
+      // my life" can empty the page on its own — and then "Clear all filters"
+      // below cleared six selects and left myPlaces untouched, so pressing the
+      // way out did nothing at all. That is the whole of "very broken and not
+      // user friendly": a dead end whose exit is wired to the wrong thing.
+      const cut = myPlaces.filter((p) => Number(p.maxMin) > 0);
+      if (cut.length) {
+        const mins = Math.min.apply(null, cut.map((p) => Number(p.maxMin)));
+        notFoundTitle = tr("hp_empty_life_t", "Nothing is close enough to the places you named");
+        notFoundSub = tr("hp_empty_life_d",
+          "You asked for somewhere within {n} minutes. Nothing on the board is that close, so either widen the time or take the places off.")
+          .replace("{n}", mins);
+      }
       listEl.innerHTML = `<div class="hp-empty" role="status">
         <div class="hp-empty__art" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -2936,6 +3049,7 @@ window.initHousesPage = async () => {
         <div class="hp-empty__sub">${notFoundSub}</div>
         <div class="hp-empty__actions">
           <button class="hp-empty__cta" type="button" id="hpClearFilters">${esc(tr("hp_clear_filters", "Clear all filters"))}</button>
+          ${cut.length ? `<button class="hp-empty__cta hp-empty__cta--ghost" type="button" id="hpClearLife">${esc(tr("hp_clear_life", "Take the places off"))}</button>` : ""}
           <button class="hp-empty__cta hp-empty__cta--ghost" type="button" id="hpPinArea"> ${esc(tr("hp_pin_area", "Pin this area & get alerted"))}</button>
         </div>
         <div id="hpPinForm" hidden></div>
@@ -2944,7 +3058,18 @@ window.initHousesPage = async () => {
       clearBtn?.addEventListener("click", () => {
         [fListing, fType, fArea, fBeds, fRoom, fPrice].forEach(el => { if (el) el.value = ""; });
         if (fSearch) fSearch.value = "";
+        // "Clear ALL filters" has to mean all of them. The places somebody
+        // named are the strongest filter on this page — they can empty it on
+        // their own — and leaving them behind meant the one button offered as
+        // the way out of an empty screen left the screen empty.
+        clearMyPlaces();
         setSegment("all", { silent: true });
+        apply();
+      });
+      // The narrower way out, for somebody who wants to keep their search and
+      // only drop the commute limit.
+      document.getElementById("hpClearLife")?.addEventListener("click", () => {
+        clearMyPlaces();
         apply();
       });
       wireDemandCta();
@@ -3055,7 +3180,12 @@ window.initHousesPage = async () => {
                     .replace("{mins}", fmtMin(l.min) + " " + modeOf(l.place.mode).label))
             : l.state === "measuring"
               ? esc(tr("mp_leg_measuring", "measuring the road distance"))
-              : esc(tr("mp_leg_noroad", "no road route"));
+              // "no road route" is a claim about the HOUSE. Only make it when
+              // the router actually answered; while it is unreachable, say so
+              // about ourselves instead.
+              : routerDown
+                ? esc(tr("mp_leg_nolink", "could not measure this just now"))
+                : esc(tr("mp_leg_noroad", "no road route"));
           const cls = l.state === "road" ? (l.ok ? "" : " over") : " pending";
           return `<span class="hc-leg${cls}"><b>${head}</b> ${val}</span>`;
         }).join("")
