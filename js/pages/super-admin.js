@@ -12,6 +12,58 @@
 // instead of breaking the whole page.
 
 window.initSuperAdmin = async () => {
+  // window.t returns the KEY when a string is missing, so the fallback is what
+  // stops "sa_forbidden" appearing on the screen.
+  const tt = (key, fallback) => {
+    const v = window.t ? window.t(key) : key;
+    return (!v || v === key) ? fallback : v;
+  };
+  // tt() with {placeholders} filled. The counts are rewritten here after the
+  // queries land, so the markup's data-i18n hook would be overwritten with
+  // English a second later if these were left as literals.
+  const tf = (key, fallback, vars) => {
+    let out = tt(key, fallback);
+    Object.keys(vars || {}).forEach((k) => {
+      out = out.split("{" + k + "}").join(vars[k]);
+    });
+    return out;
+  };
+  const escT = (x) => String(x == null ? "" : x)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+  /**
+   * The refusal, as ONE sentence with two things dropped into it: the address
+   * you are signed in as, and the name of the constant you have to go and
+   * edit. Both are data inside a sentence rather than fragments joined in
+   * English order, so a language can put either one anywhere.
+   *
+   * ADMIN_EMAILS is deliberately NOT translated. It is the one word on this
+   * screen somebody has to type somewhere else exactly as written.
+   */
+  function showForbidden(email, alsoNote) {
+    const host = document.getElementById("saForbidMsg");
+    if (!host) return;
+    const who = "<strong>" + escT(email) +
+      (alsoNote ? " (" + escT(tt("sa_not_in_table", "not in the admins table")) + ")" : "") +
+      "</strong>";
+    host.innerHTML = tt("sa_forbidden",
+      "Signed in as {who} but this account is not in {list}.")
+      .split("{who}").map((chunk) => escT(chunk)).join(who)
+      .split("{list}").join("<code>ADMIN_EMAILS</code>");
+  }
+
+  // The intro, whose link sits inside the sentence rather than after it.
+  (function paintIntro() {
+    const host = document.getElementById("saIntro");
+    if (!host) return;
+    const link = '<a href="admin.html">' +
+      escT(tt("sa_intro_link", "Admin panel")) + "</a>";
+    host.innerHTML = tt("sa_intro",
+      "A read-only pulse of the whole marketplace. Day-to-day management lives in the {link}: approving agents, recording payments and tracking renters.")
+      .split("{link}").map((chunk) => escT(chunk)).join(link);
+  })();
+
   const sb     = window.SB;
   const gate   = document.getElementById("saLoginGate");
   const forb   = document.getElementById("saForbidden");
@@ -46,7 +98,7 @@ window.initSuperAdmin = async () => {
     window.AuthGuard?.clearNote(gate);
     const email = session.user?.email || "";
     if (!window.Auth.isAllowedEmail(email)) {
-      document.getElementById("saWhoami").textContent = email;
+      showForbidden(email, false);
       hide(gate); hide(panel); show(forb);
       return;
     }
@@ -57,7 +109,7 @@ window.initSuperAdmin = async () => {
       inAdminsTable = (count ?? 0) > 0;
     } catch (e) { /* ignore — RLS may block read */ }
     if (!inAdminsTable) {
-      document.getElementById("saWhoami").textContent = email + " (not in admins table)";
+      showForbidden(email, true);
       hide(gate); hide(panel); show(forb);
       return;
     }
@@ -132,7 +184,7 @@ window.initSuperAdmin = async () => {
 
   // ---- Main load ----------
   async function loadOverview() {
-    flash("ok", "Loading platform overview…", 0);
+    flash("ok", tt("sa_loading", "Loading platform overview…"), 0);
 
     await Promise.all([
       loadPulse(),
@@ -150,8 +202,10 @@ window.initSuperAdmin = async () => {
     const housesLive = await countWhere("houses", (q) => q.or("available.is.null,available.eq.true"));
     const housesTotal = await countWhere("houses");
     setText("pHouses", fmtNum(housesLive));
-    setSub("pHousesSub", housesTotal == null ? "live rooms" :
-      `${fmtNum(housesLive)} live of ${fmtNum(housesTotal)} total`);
+    setSub("pHousesSub", housesTotal == null
+      ? tt("sa_t_houses_s", "live rooms")
+      : tf("sa_houses_of", "{live} live of {total} total",
+           { live: fmtNum(housesLive), total: fmtNum(housesTotal) }));
 
     const services = await countWhere("services");
     setText("pServices", fmtNum(services));
@@ -163,7 +217,10 @@ window.initSuperAdmin = async () => {
     const jobsOpen = await countWhere("day_jobs", (q) => q.in("status", ["open", "full"]));
     const jobsTotal = await countWhere("day_jobs");
     setText("pJobs", fmtNum(jobsOpen));
-    setSub("pJobsSub", jobsTotal == null ? "open jobs" : `${fmtNum(jobsOpen)} hiring of ${fmtNum(jobsTotal)} posted`);
+    setSub("pJobsSub", jobsTotal == null
+      ? tt("sa_t_jobs_s", "open jobs")
+      : tf("sa_jobs_of", "{open} hiring of {total} posted",
+           { open: fmtNum(jobsOpen), total: fmtNum(jobsTotal) }));
 
     // Seeker demand pins (people looking — agents' lead board).
     const demand = await countWhere("house_demand_pins");
@@ -173,8 +230,11 @@ window.initSuperAdmin = async () => {
     const agents = await countWhere("agent_billing");
     const pending = await countWhere("agent_billing", (q) => q.is("approved_at", null));
     setText("pAgents", fmtNum(agents));
-    setSub("pAgentsSub", pending == null ? "registered" :
-      (pending > 0 ? `${fmtNum(pending)} awaiting approval` : "all approved"));
+    setSub("pAgentsSub", pending == null
+      ? tt("sa_t_agents_s", "registered")
+      : (pending > 0
+          ? tf("sa_awaiting", "{n} awaiting approval", { n: fmtNum(pending) })
+          : tt("sa_all_approved", "all approved")));
   }
 
   // 2) Revenue — real money collected (source of truth = agent_payments ledger).
@@ -220,7 +280,7 @@ window.initSuperAdmin = async () => {
 
     const map = new Map(); // region -> { houses, services, trucks }
     const bump = (rows, key) => rows.forEach((r) => {
-      const region = (r.region || "").trim() || "Unspecified";
+      const region = (r.region || "").trim() || tt("sa_unspecified", "Unspecified");
       const e = map.get(region) || { houses: 0, services: 0, trucks: 0 };
       e[key]++; map.set(region, e);
     });

@@ -110,10 +110,18 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
 // first (71 and 11 strings), which is a different piece of work from making
 // the check real. So it is armed against the debt that existed the day it was
 // armed. Lower it when you clean strings; never raise it.
-// All 10 of these are super-admin.html. admin.html was 70 of them (44 strings
-// plus 26 <option> labels with no hook at all) and is at zero now. The other
-// 26 pages on the list are at zero too.
-const BASELINE = 10;
+// ZERO. Every page on the list is fully bilingual.
+//
+// It was 80 when this ratchet was armed, all of it in the two admin consoles:
+// admin.html carried 70 (44 strings plus 26 <option> labels with no hook on
+// them at all) and super-admin.html the other 10, though super-admin turned
+// out to be worse than the scan could see -- a two-word tile like "live rooms"
+// or "for moving" carries no function word, so most of its stat grid was
+// invisible to this check and English anyway.
+//
+// A baseline of 0 means the next untranslated string fails the build, which is
+// the whole point of getting here. Do not raise it to land a feature.
+const BASELINE = 0;
 
 // Words that are the same in Swahili, or are not words at all. Kept small and
 // explicit — a big allowlist is how a checker stops finding anything.

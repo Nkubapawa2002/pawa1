@@ -5,7 +5,7 @@
   <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Super Admin — Pawa SaaS</title>
+  <title>Super Admin — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/auth.css" />
   <style>
@@ -105,8 +105,8 @@
 
   <section class="page-hero" style="background-image:url('https://kkdpacoiwntrcukgwksh.supabase.co/storage/v1/object/public/site-photos/patrick-tomasso-5hvn-2WW6rY-unsplash.jpg')">
     <div class="page-hero-inner">
-      <h1 class="page-title">Super Admin</h1>
-      <p class="page-subtitle">Platform overview the whole marketplace at a glance.</p>
+      <h1 class="page-title" data-i18n="sa_title">Super Admin</h1>
+      <p class="page-subtitle" data-i18n="sa_sub">Platform overview: the whole marketplace at a glance.</p>
     </div>
   </section>
 
@@ -131,8 +131,8 @@
           <span class="auth-logo" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
           </span>
-          <h1 class="auth-title">Super admin</h1>
-          <p class="auth-lead">Platform overview the whole marketplace at a glance.</p>
+          <h1 class="auth-title" data-i18n="sa_login_t">Super admin</h1>
+          <p class="auth-lead" data-i18n="sa_sub">Platform overview: the whole marketplace at a glance.</p>
         </div>
         <form id="saLoginForm" class="auth-form" novalidate>
           <div class="auth-field">
@@ -143,16 +143,16 @@
             </div>
           </div>
           <div class="auth-field">
-            <label for="saPassword">Password</label>
+            <label for="saPassword" data-i18n="sa_login_pw">Password</label>
             <div class="auth-input-wrap">
               <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input class="auth-input auth-input--pw" type="password" id="saPassword" required minlength="6" autocomplete="current-password" placeholder="Your password" />
-              <button type="button" class="auth-eye" aria-label="Show password" aria-pressed="false">
+              <input class="auth-input auth-input--pw" type="password" id="saPassword" required minlength="6" autocomplete="current-password" data-i18n-placeholder="sa_login_pw_ph" placeholder="Your password" />
+              <button type="button" class="auth-eye" data-i18n-aria-label="sa_login_eye" aria-label="Show password" aria-pressed="false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
           </div>
-          <button class="auth-submit" type="submit">Sign in</button>
+          <button class="auth-submit" type="submit" data-i18n="sa_login_go">Sign in</button>
           <div id="saLoginError" class="auth-msg" role="alert" aria-live="polite"></div>
         </form>
       </div>
@@ -162,14 +162,21 @@
 
     <section id="saForbidden" class="sa-section" hidden>
       <div class="sa-banner err">
-        Signed in as <strong id="saWhoami"></strong> but this account is not in <code>ADMIN_EMAILS</code>.
+        <!-- Built in js/pages/super-admin.js: the address and the constant
+             name are data inside a sentence, so the sentence is one key with
+             two placeholders rather than three fragments in English order. -->
+        <span id="saForbidMsg"></span>
       </div>
-      <button id="saSignOut" class="btn btn-outline">Sign out</button>
+      <button id="saSignOut" class="btn btn-outline" data-i18n="sa_signout">Sign out</button>
     </section>
 
     <section id="saPanel" hidden>
       <div class="sa-toolbar">
-        <p class="sa-intro">A read-only pulse of the whole marketplace. Day-to-day management — approving agents, recording payments, tracking renters — lives in the <a href="admin.html">Admin panel</a>.</p>
+        <!-- The link is a word inside the sentence, so the sentence is the key
+             and js/pages/super-admin.js splits it on {link}. It also carried a
+             pair of spaced dashes wrapped around a list, which is what a colon
+             is for. -->
+        <p class="sa-intro" id="saIntro"></p>
         <button id="saRefresh" class="btn btn-outline">↻ Refresh</button>
       </div>
 
@@ -177,50 +184,50 @@
 
       <!-- 1) Marketplace pulse -->
       <section class="sa-section">
-        <h2>Marketplace pulse</h2>
+        <h2 data-i18n="sa_h_pulse">Marketplace pulse</h2>
         <div class="sa-counts sa-counts--grid">
-          <div class="sa-count"><div class="n" id="pHouses">—</div><div class="l">Houses &amp; rooms</div><div class="s" id="pHousesSub">live rooms</div></div>
-          <div class="sa-count"><div class="n" id="pServices">—</div><div class="l">Services</div><div class="s">listed</div></div>
-          <div class="sa-count"><div class="n" id="pTrucks">—</div><div class="l">Trucks</div><div class="s">for moving</div></div>
-          <div class="sa-count"><div class="n" id="pJobs">—</div><div class="l">Day jobs</div><div class="s" id="pJobsSub">open jobs</div></div>
-          <div class="sa-count"><div class="n" id="pDemand">—</div><div class="l">Seeker demand</div><div class="s">people looking</div></div>
-          <div class="sa-count"><div class="n" id="pAgents">—</div><div class="l">Agents</div><div class="s" id="pAgentsSub">registered</div></div>
+          <div class="sa-count"><div class="n" id="pHouses">—</div><div class="l" data-i18n="sa_t_houses">Houses and rooms</div><div class="s" id="pHousesSub" data-i18n="sa_t_houses_s">live rooms</div></div>
+          <div class="sa-count"><div class="n" id="pServices">—</div><div class="l" data-i18n="sa_t_services">Services</div><div class="s" data-i18n="sa_t_services_s">listed</div></div>
+          <div class="sa-count"><div class="n" id="pTrucks">—</div><div class="l" data-i18n="sa_t_trucks">Trucks</div><div class="s" data-i18n="sa_t_trucks_s">for moving</div></div>
+          <div class="sa-count"><div class="n" id="pJobs">—</div><div class="l" data-i18n="sa_t_jobs">Day jobs</div><div class="s" id="pJobsSub" data-i18n="sa_t_jobs_s">open jobs</div></div>
+          <div class="sa-count"><div class="n" id="pDemand">—</div><div class="l" data-i18n="sa_t_demand">Seeker demand</div><div class="s" data-i18n="sa_t_demand_s">people looking</div></div>
+          <div class="sa-count"><div class="n" id="pAgents">—</div><div class="l" data-i18n="sa_t_agents">Agents</div><div class="s" id="pAgentsSub" data-i18n="sa_t_agents_s">registered</div></div>
         </div>
       </section>
 
       <!-- 2) Revenue -->
       <section class="sa-section">
-        <h2>Revenue collected</h2>
+        <h2 data-i18n="sa_h_revenue">Revenue collected</h2>
         <div class="sa-counts sa-counts--grid">
-          <div class="sa-count"><div class="n" id="rTotal">—</div><div class="l">Total collected</div><div class="s">all time</div></div>
-          <div class="sa-count"><div class="n" id="rMonth">—</div><div class="l">This month</div><div class="s">so far</div></div>
-          <div class="sa-count"><div class="n" id="rActive">—</div><div class="l">Active subscriptions</div><div class="s">paid &amp; live</div></div>
-          <div class="sa-count"><div class="n" id="rReceipts">—</div><div class="l">Receipts logged</div><div class="s">payment records</div></div>
+          <div class="sa-count"><div class="n" id="rTotal">—</div><div class="l" data-i18n="sa_t_total">Total collected</div><div class="s" data-i18n="sa_t_total_s">all time</div></div>
+          <div class="sa-count"><div class="n" id="rMonth">—</div><div class="l" data-i18n="sa_t_month">This month</div><div class="s" data-i18n="sa_t_month_s">so far</div></div>
+          <div class="sa-count"><div class="n" id="rActive">—</div><div class="l" data-i18n="sa_t_subs">Active subscriptions</div><div class="s" data-i18n="sa_t_subs_s">paid and live</div></div>
+          <div class="sa-count"><div class="n" id="rReceipts">—</div><div class="l" data-i18n="sa_t_receipts">Receipts logged</div><div class="s" data-i18n="sa_t_receipts_s">payment records</div></div>
         </div>
       </section>
 
       <!-- 3) Regional coverage -->
       <section class="sa-section">
-        <h2>Regional coverage <span class="sa-sub" id="coverageCount"></span></h2>
+        <h2><span data-i18n="sa_h_coverage">Regional coverage</span> <span class="sa-sub" id="coverageCount"></span></h2>
         <table class="sa-table" id="coverageTable">
           <thead>
-            <tr><th>Region</th><th>Houses</th><th>Services</th><th>Trucks</th><th>Total</th></tr>
+            <tr><th data-i18n="sa_c_region">Region</th><th data-i18n="sa_c_houses">Houses</th><th data-i18n="sa_c_services">Services</th><th data-i18n="sa_c_trucks">Trucks</th><th data-i18n="sa_c_total">Total</th></tr>
           </thead>
           <tbody></tbody>
         </table>
-        <div class="sa-empty" id="coverageEmpty" hidden>No listings with a region yet.</div>
+        <div class="sa-empty" id="coverageEmpty" hidden data-i18n="sa_empty_coverage">No listings with a region yet.</div>
       </section>
 
       <!-- 4) Platform access -->
       <section class="sa-section">
-        <h2>Platform access</h2>
+        <h2 data-i18n="sa_h_access">Platform access</h2>
         <table class="sa-table" id="accessTable">
           <thead>
-            <tr><th>Admin</th><th>Since</th></tr>
+            <tr><th data-i18n="sa_c_admin">Admin</th><th data-i18n="sa_c_since">Since</th></tr>
           </thead>
           <tbody></tbody>
         </table>
-        <div class="sa-empty" id="accessEmpty" hidden>No admins found.</div>
+        <div class="sa-empty" id="accessEmpty" hidden data-i18n="sa_empty_access">No admins found.</div>
       </section>
     </section>
   </main>
