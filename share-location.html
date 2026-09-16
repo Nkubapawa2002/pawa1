@@ -19,7 +19,18 @@
     * { box-sizing: border-box; }
     body {
       margin: 0; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #E9F3EE; min-height: var(--app-vh, 100vh); display: flex; align-items: center; justify-content: center;
+      color: #E9F3EE; min-height: var(--app-vh, 100vh);
+      /* A COLUMN, and the direction is the whole fix.
+         This was `display:flex; align-items:center; justify-content:center`,
+         written when .sl-card was the only thing in the body. The adaptive
+         shell then injects <nav class="app-webnav"> as a SECOND child, and in
+         a row that nav sat BESIDE the card rather than above it. The layout
+         came out 492px wide on a 320px phone, so Chrome widened the layout
+         viewport and rendered the whole page at 65% -- not clipped, just
+         small, which is why it never looked like an overflow bug.
+         The card is centred by `margin:auto` below instead, which centres it
+         in whatever space is left once the nav has taken its band. */
+      display: flex; flex-direction: column;
       /* The app shell's fixed tab bar covers the bottom of the viewport. The
          card used to be short enough never to reach it; with both ways out on
          screen it is not, and the last control was landing underneath it. */
@@ -27,6 +38,8 @@
       background: radial-gradient(1100px 760px at 50% -10%, #13241D 0%, #0a120e 60%, #050806 100%);
     }
     .sl-card {
+      /* Centres itself in the space the nav did not take, on both axes. */
+      margin: auto;
       background: rgba(255,255,255,.04); color: #E9F3EE; max-width: 460px; width: 100%; border-radius: 22px;
       padding: 26px 22px; text-align: center;
       border: 1px solid rgba(255,255,255,.10);
@@ -132,7 +145,12 @@
     :root[data-theme="light"] .sl-act:disabled,
     :root[data-theme="light"] .sl-go:disabled,
     :root[data-theme="light"] #slBtn:disabled {
-      background: #f0efe9; color: #8d8b82; border-color: rgba(20,30,25,.12);
+      /* #8d8b82 on this ground is 2.96:1. WCAG exempts a disabled control from
+         the contrast floor, so this was not a violation, but "a control
+         waiting for its turn" still has to be readable enough to tell you
+         WHICH control is waiting. #6b6960 is the muted ink this page already
+         uses for .sl-ways-hint, and it clears 4.5:1. */
+      background: #f0efe9; color: #6b6960; border-color: rgba(20,30,25,.12);
     }
 
     :root[data-theme="light"] .sl-ways-hint { color: #6b6960; }
@@ -170,7 +188,14 @@
       border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05);
       color: #E9F3EE; font-family: inherit; font-size: .93rem;
     }
+    /* The LABEL is the tap target, so it is the label that has to clear the
+       floor, exactly as .lg-check does on the sign-in card. The 18px square
+       below is only the drawing. This row measured 38px on every phone from
+       the iPhone 13 up, which is the two pixels that make a control feel like
+       it ignored you. align-items stays flex-start because the sentence wraps
+       to two lines and the box belongs beside the FIRST one. */
     .sl-check { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 9px;
+      min-height: var(--hit-min, 44px);
       font-size: .82rem; color: rgba(233,243,238,.66); font-weight: 600; line-height: 1.45; cursor: pointer; }
     .sl-check input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--green-emerald); flex: none; }
 

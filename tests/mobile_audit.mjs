@@ -346,7 +346,15 @@ const MEASURE = () => {
     const onTop = mid && (mid === el || el.contains(mid) || mid.contains(el));
     // Fully inside the viewport, or the sampled box would include the grey
     // beyond the edge of the shot.
-    if (own && onTop && r.top >= 0 && r.bottom <= vh) {
+    // A DISABLED control is exempt, and that is WCAG's own rule (1.4.3 does
+    // not apply to "inactive user interface components"), not a convenience.
+    // A control that is greyed BECAUSE it is waiting for its turn is supposed
+    // to look different from one you can press, and reporting it as a failure
+    // pushes the fix in the wrong direction: make the disabled state louder
+    // until it stops looking disabled.
+    const inert = typeof el.closest === "function" &&
+      !!el.closest('[disabled], [aria-disabled="true"], fieldset:disabled');
+    if (own && onTop && !inert && r.top >= 0 && r.bottom <= vh) {
       const size = parseFloat(cs.fontSize) || 16;
       const weight = Number(cs.fontWeight) || 400;
       const large = size >= 24 || (size >= 18.66 && weight >= 700);
