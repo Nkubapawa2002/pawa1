@@ -27,6 +27,33 @@ const ok = (cond, msg, detail) => {
 const section = (s) => process.stdout.write("\n" + s + "\n");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Deleting an account ends by navigating to index.html, and reading the page
+// WHILE that navigation is in flight throws "Execution context was destroyed"
+// -- a crash, not a failure, so the suite dies with the remaining sections
+// unrun. A fixed sleep cannot fix this: it only decides which runs lose the
+// race. 9a happened to win it (the Edge Function 404s, and the extra fallback
+// round trip pushes the navigation past the sleep) and 9c lost it every time.
+//
+// So wait for the CONDITION -- the new document answering -- and throw if it
+// never arrives. sessionStorage is same-origin and survives the navigation,
+// which is why the assertions can still read what they logged beforehand.
+async function landedOn(page, re, ms = 10000) {
+  const t0 = Date.now();
+  for (;;) {
+    let url = "";
+    try { url = page.url(); } catch (_) {}
+    if (re.test(url)) {
+      // The URL changes before the new context is ready to answer. One
+      // evaluate that does not throw is the signal that it is.
+      try { await page.evaluate(() => document.readyState); return; } catch (_) {}
+    }
+    if (Date.now() - t0 > ms) {
+      throw new Error(`never landed on ${re} within ${ms}ms (last url: ${url || "?"})`);
+    }
+    await sleep(100);
+  }
+}
+
 // `inAdminsTable` is the DATABASE's answer, which is a different question from
 // "is this address on the allowlist in config.js". Profile now asks the
 // database (Auth.isDbAdmin reads the RLS-protected `admins` table) because the
@@ -641,7 +668,7 @@ try {
        "their own address does, whatever the case");
 
     await page.evaluate(() => document.getElementById("pfDelYes").click());
-    await sleep(1200);
+    await landedOn(page, /index\.html$/);
 
     const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("__rpc") || "[]"));
     const calls = log.map((c) => c.name);
@@ -693,7 +720,7 @@ try {
       f.dispatchEvent(new Event("input"));
       document.getElementById("pfDelYes").click();
     });
-    await sleep(1200);
+    await landedOn(page, /index\.html$/);
     const calls = await page.evaluate(() =>
       JSON.parse(sessionStorage.getItem("__rpc") || "[]").map((c) => c.name));
     // The function calls account_erase itself, server-side, as the caller.
