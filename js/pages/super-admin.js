@@ -1,6 +1,8 @@
 // =====================================================
 // Super Admin — platform overview (owner's bird's-eye pulse).
-// Gated by APP_CONFIG.ADMIN_EMAILS + admins table membership.
+// Gated by `admins` table membership, answered by the server about the caller.
+// (It used to also consult APP_CONFIG.ADMIN_EMAILS, a roster shipped to every
+//  browser. That is deleted; see js/core/auth.js.)
 // =====================================================
 // This is the READ-ONLY top-level view of the whole marketplace: how many
 // agents, live listings (houses / services / trucks), open day-jobs and seeker
@@ -38,20 +40,10 @@ window.initSuperAdmin = async () => {
    * edit. Both are data inside a sentence rather than fragments joined in
    * English order, so a language can put either one anywhere.
    *
-   * ADMIN_EMAILS is deliberately NOT translated. It is the one word on this
-   * screen somebody has to type somewhere else exactly as written.
    */
-  function showForbidden(email, alsoNote) {
-    const host = document.getElementById("saForbidMsg");
-    if (!host) return;
-    const who = "<strong>" + escT(email) +
-      (alsoNote ? " (" + escT(tt("sa_not_in_table", "not in the admins table")) + ")" : "") +
-      "</strong>";
-    host.innerHTML = tt("sa_forbidden",
-      "Signed in as {who} but this account is not in {list}.")
-      .split("{who}").map((chunk) => escT(chunk)).join(who)
-      .split("{list}").join("<code>ADMIN_EMAILS</code>");
-  }
+  // showForbidden() is gone. It printed the address you were signed in as,
+  // next to the literal string ADMIN_EMAILS -- confirming the page, the
+  // account, and the mechanism, to whoever had just failed to open it.
 
   // The intro, whose link sits inside the sentence rather than after it.
   (function paintIntro() {
@@ -65,9 +57,20 @@ window.initSuperAdmin = async () => {
   })();
 
   const sb     = window.SB;
-  const gate   = document.getElementById("saLoginGate");
-  const forb   = document.getElementById("saForbidden");
-  const panel  = document.getElementById("saPanel");
+  const notHere = document.getElementById("saNotHere");
+  const panel   = document.getElementById("saPanel");
+
+  /** Leave nothing behind. See the twin of this in js/pages/admin.js. */
+  function vanish() {
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+    // The hero too. It reads "Super Admin / Platform overview: the whole
+    // marketplace at a glance", which tells a stranger everything the
+    // not-found below it is refusing to say.
+    var hero = document.getElementById("saHero");
+    if (hero && hero.parentNode) hero.parentNode.removeChild(hero);
+    if (notHere) notHere.hidden = false;
+    document.title = tt("nf_title", "This page isn't here.");
+  }
   const status = document.getElementById("saStatus");
 
   function show(el) { el.hidden = false; }
@@ -81,61 +84,41 @@ window.initSuperAdmin = async () => {
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])));
 
   // ---- Auth gate (unchanged from the old tenant panel) ----------
+  /**
+   * One question, asked of the server, and it FAILS CLOSED.
+   *
+   * The version this replaces did two checks and the second one could not
+   * refuse anybody. It read:
+   *
+   *     let inAdminsTable = true;
+   *     try { ...count admins... } catch (e) { -- ignore, RLS may block read }
+   *     if (!inAdminsTable) { ...refuse... }
+   *
+   * The flag starts TRUE and the catch leaves it alone, so any throw at all --
+   * a network blip, a policy change, a renamed table -- fell through to the
+   * console being shown. The comment called that "optional double-check",
+   * which is exactly what it had become.
+   *
+   * Auth.isDbAdmin() returns false on every error path, and its own SELECT is
+   * RLS-fenced, so a non-admin gets nothing back whether or not this page asks
+   * nicely.
+   */
   async function evaluateAuth() {
-    const session = await window.Auth.getSession();
-    // An anonymous guest session is not an account. It goes to the gate with
-    // the reason, not to "forbidden", which would print an empty email back
-    // at somebody who never gave one.
-    const guest = window.AuthGuard
-      ? window.AuthGuard.isGuest(session)
-      : !!(session && session.user && session.user.is_anonymous === true);
-    if (!session || guest) {
-      hide(forb); hide(panel); show(gate);
-      if (guest) window.AuthGuard?.paintNote(gate);
-      else window.AuthGuard?.clearNote(gate);
-      return;
-    }
-    window.AuthGuard?.clearNote(gate);
-    const email = session.user?.email || "";
-    if (!window.Auth.isAllowedEmail(email)) {
-      showForbidden(email, false);
-      hide(gate); hide(panel); show(forb);
-      return;
-    }
-    // Optional double-check: are they in `admins` table too?
-    let inAdminsTable = true;
-    try {
-      const { count } = await sb.from("admins").select("*", { count: "exact", head: true });
-      inAdminsTable = (count ?? 0) > 0;
-    } catch (e) { /* ignore — RLS may block read */ }
-    if (!inAdminsTable) {
-      showForbidden(email, true);
-      hide(gate); hide(panel); show(forb);
-      return;
-    }
-    hide(gate); hide(forb); show(panel);
+    let isAdmin = false;
+    try { isAdmin = await window.Auth.isDbAdmin(); } catch (_) { isAdmin = false; }
+    if (!isAdmin) { vanish(); return; }
+    if (notHere && notHere.parentNode) notHere.parentNode.removeChild(notHere);
+    show(panel);
     await loadOverview();
   }
 
-  // ---- Login form ----------
-  document.getElementById("saLoginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("saEmail").value.trim();
-    const password = document.getElementById("saPassword").value;
-    const errEl = document.getElementById("saLoginError");
-    window.authMsg(errEl, "", "");
-    try {
-      await window.Auth.signIn(email, password);
-      await evaluateAuth();
-    } catch (err) {
-      window.authMsg(errEl, "error", err.message || String(err));
-    }
-  });
-
-  document.getElementById("saSignOut").addEventListener("click", async () => {
-    await window.Auth.signOut();
-    location.reload();
-  });
+  // ---- there is no login form here any more ----------
+  // It was the second of the app's two unthrottled credential doors: this page
+  // never loaded js/lib/auth-policy.js, so the lockout that guards login.html
+  // did not apply to it. Sign in at login.html and come back.
+  //
+  // The sign-out button went with the refusal screen it lived on; the console's
+  // own header still has one.
 
   document.getElementById("saRefresh")?.addEventListener("click", () => {
     loadOverview();
@@ -320,17 +303,14 @@ window.initSuperAdmin = async () => {
     tbody.innerHTML = "";
 
     if (!admins.length) {
-      // RLS commonly hides the row list even from an admin (head-count works,
-      // full read may not) — fall back to the configured allow-list so the
-      // section is never blank for a legitimate owner.
-      const cfgEmails = (window.APP_CONFIG?.ADMIN_EMAILS) || [];
-      if (!cfgEmails.length) { if (empty) empty.hidden = false; return; }
-      if (empty) empty.hidden = true;
-      cfgEmails.forEach((em) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${escapeHTML(em)}</td><td><em>config allow-list</em></td>`;
-        tbody.appendChild(tr);
-      });
+      // An empty list is now just an empty list. This used to fall back to
+      // printing APP_CONFIG.ADMIN_EMAILS as if those rows were admins, which
+      // was two wrong things at once: the allow-list never granted anything,
+      // so the table showed people who might not be admins at all; and it
+      // rendered the roster into the DOM on a page whose whole subject is who
+      // holds power. The roster no longer exists. If RLS hides the rows from
+      // an admin, the honest answer is that this section could not be read.
+      if (empty) empty.hidden = false;
       return;
     }
 

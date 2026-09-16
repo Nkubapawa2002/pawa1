@@ -16,7 +16,7 @@
 //
 //   usage:  node tests/agent_notices_test.mjs
 // ============================================================================
-import { runSql, literal } from "../scripts/db/sql.mjs";
+import { runSql, literal, adminEmail as dbAdminEmail } from "../scripts/db/sql.mjs";
 
 let pass = 0, fail = 0;
 const ok = (cond, msg, detail) => {
@@ -42,11 +42,12 @@ const asUser = (sub, sql) => claimed(sub, null, sql);
 // reads the email claim, so the sub can be anything: it is the address that
 // makes somebody an admin here, which is worth knowing before writing a test
 // that hands it a user id and wonders why it is refused.
-const { readFileSync } = await import("node:fs");
-const adminEmail = (readFileSync("js/core/config.js", "utf8")
-  .match(/ADMIN_EMAILS:\s*\[\s*"([^"]+)"/) || [])[1];
-const adminIsReal = (await runSql(
-  `select count(*)::int as n from public.admins where lower(email) = lower(${literal(adminEmail)});`))[0].n === 1;
+// Read from public.admins, not scraped out of js/core/config.js: that roster
+// is deleted (it shipped the one address worth attacking to every browser) and
+// it never decided anything. is_admin() reads this table, so the fixture does
+// too, which also makes adminIsReal below a tautology rather than a guess.
+const adminEmail = await dbAdminEmail();
+const adminIsReal = !!adminEmail;
 const asAdmin = (sql) => claimed("notitest_admin", adminEmail, sql);
 
 const AGENT = "notitest_agent", OTHER = "notitest_other";

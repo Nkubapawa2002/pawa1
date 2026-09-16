@@ -320,7 +320,13 @@ window.initLoginPage = () => {
     const uid = session.user.id;
     const email = session.user.email || "";
     const found = new Set();
-    if (A.isAllowedEmail && A.isAllowedEmail(email)) found.add("admin");
+    // THE SERVER DECIDES, and it is asked about the caller. This read
+    // APP_CONFIG.ADMIN_EMAILS, a roster shipped to every browser, so the one
+    // address worth attacking was published to every visitor and this screen
+    // drew the console's door from a list anybody could read. isDbAdmin()
+    // asks the `admins` table, which carries RLS and answers about nobody
+    // else. It fails closed.
+    try { if (await A.isDbAdmin()) found.add("admin"); } catch (_) {}
     if (!sb) return PORTALS.filter((p) => found.has(p.key));
     // Every probe is independent and failure-tolerant: a denial simply means
     // "not linked to that portal", never an error on screen.
@@ -360,7 +366,22 @@ window.initLoginPage = () => {
     const isGuest = window.AuthGuard
       ? window.AuthGuard.isGuest(session)
       : !!(session.user && session.user.is_anonymous === true);
-    const shown = isGuest ? [] : (mine.length ? mine : PORTALS);
+
+    // THE SAME BUG, ONE STEP ALONG, AND IT WAS STILL LIVE.
+    //
+    // The guest half was fixed and the fallback it was hiding behind was not.
+    // `mine` is empty for a guest by construction -- but it is ALSO empty for
+    // an ordinary, real, non-guest account that simply owns nothing yet, which
+    // is every account for the first few minutes after it registers. For that
+    // person `mine.length ? mine : PORTALS` handed over the entire list,
+    // System admin included, as a real visible link with "Agents, listings,
+    // tenants, day jobs" written under it.
+    //
+    // So the fallback no longer reaches the admin entry at all. ADMIN is not a
+    // portal somebody might have; it is one the server confirmed, and a
+    // fallback is by definition the branch where nothing was confirmed.
+    const OFFERABLE = PORTALS.filter((p) => p.key !== "admin");
+    const shown = isGuest ? [] : (mine.length ? mine : OFFERABLE);
 
     if (isGuest) {
       empty.hidden = false;

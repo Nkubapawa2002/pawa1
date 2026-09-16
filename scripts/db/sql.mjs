@@ -102,3 +102,31 @@ export function literal(v) {
   if (v === null || v === undefined) return "null";
   return "'" + String(v).replace(/'/g, "''") + "'";
 }
+
+/**
+ * The address of an admin, read from the `admins` table.
+ *
+ * Six suites used to scrape this out of js/core/config.js:
+ *
+ *     readFileSync(".../config.js").match(/ADMIN_EMAILS:\s*\[\s*"([^"]+)"/)
+ *
+ * That roster is deleted. It shipped the one address worth attacking to every
+ * browser on all 27 pages, and it never authorised anything: `public.admins`
+ * is what is_admin() reads and is the only thing that ever decided.
+ *
+ * So the fixtures now ask the same table the application asks. This runs as
+ * `postgres` through the Management API, which is how these suites already
+ * plant and clean their rows, so RLS does not hide it here.
+ *
+ * Returns null when the table is empty, which is a real state: a fresh project
+ * has no admins, and a suite should say "admin paths not exercised" rather
+ * than invent an address.
+ */
+export async function adminEmail() {
+  try {
+    const rows = await runSql("select email from public.admins order by email limit 1;");
+    return (rows && rows[0] && rows[0].email) || null;
+  } catch (_) {
+    return null;
+  }
+}

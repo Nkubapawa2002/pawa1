@@ -39,22 +39,33 @@
     var session = got && got.data && got.data.session;
     if (!session || !session.user) return (meCache = { userId: null });
     var email = session.user.email || null;
-    var admins = (window.APP_CONFIG && window.APP_CONFIG.ADMIN_EMAILS) || [];
+    var guest = session.user.is_anonymous === true;
+
+    // ASKED OF THE SERVER, not of a list in this browser.
+    //
+    // This compared `email` against APP_CONFIG.ADMIN_EMAILS, which shipped the
+    // one address worth attacking to every visitor. The roster is deleted;
+    // Auth.isDbAdmin() asks the `admins` table, which is RLS-fenced and
+    // answers about the caller only. It caches for a minute and collapses
+    // concurrent callers, so this costs one query per session, not per draw.
+    //
+    // The guest test stays and stays FIRST: a guest has no email so the answer
+    // would be false anyway, but "an admin is never a guest" belongs where the
+    // flag is made rather than assumed on each of the five screens that read
+    // it. It also saves the round trip for every anonymous tab.
+    var admin = false;
+    if (!guest && email && window.Auth && window.Auth.isDbAdmin) {
+      try { admin = await window.Auth.isDbAdmin(); } catch (_) { admin = false; }
+    }
+
     meCache = {
       userId: session.user.id,
       email: email,
-      // A guest is a real authenticated user who has not proved who they are.
       // Supabase marks the session; the database checks the same claim itself
       // in app_is_guest(), so this is only for deciding what to DRAW.
-      isGuest: session.user.is_anonymous === true,
+      isGuest: guest,
       // Likewise checked again by is_admin() on every privileged call.
-      // The anonymous test is belt and braces: a guest has no email so the
-      // list can never match one, but this value decides what gets DRAWN on
-      // five screens, and "an admin is never a guest" should be stated where
-      // the flag is made rather than assumed at each of them.
-      isAdmin: session.user.is_anonymous !== true && !!email &&
-        admins.map(function (e) { return e.toLowerCase(); })
-          .indexOf(String(email).toLowerCase()) >= 0,
+      isAdmin: admin,
     };
     return meCache;
   }

@@ -156,14 +156,14 @@
     var ClerkAuth = {
       async getSession() { return mapSessionWithToken(); },
       async currentEmail() { var s = mapSession(); return s ? s.user.email : null; },
-      isAllowedEmail: function (email) {
-        var list = (cfg.ADMIN_EMAILS || []).map(function (e) { return e.toLowerCase().trim(); });
-        return !!email && list.indexOf(String(email).toLowerCase().trim()) !== -1;
-      },
+      // isAllowedEmail is gone here too, and for the same reason as in
+      // js/core/auth.js: APP_CONFIG.ADMIN_EMAILS published the one address
+      // worth attacking to every browser, and authorised nothing. `admins`
+      // carries RLS, so the SELECT below is already the whole fence.
       async isDbAdmin() {
         var sb = window.SB || (window.DataStore && window.DataStore.sb);
         var email = await ClerkAuth.currentEmail();
-        if (!sb || !email || !ClerkAuth.isAllowedEmail(email)) return false;
+        if (!sb || !email) return false;
         var res = await sb.from("admins").select("email").limit(1);
         return !res.error && Array.isArray(res.data) && res.data.length > 0;
       },

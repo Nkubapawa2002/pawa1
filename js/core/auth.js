@@ -7,8 +7,11 @@
 // carries codes ("unavailable"), and the words live in auth-errors.js, so
 // there is exactly one place to audit for leaks.
 //
-// Admin gating still lives here: only emails in APP_CONFIG.ADMIN_EMAILS AND
-// present in the `admins` table can pass isDbAdmin().
+// Admin gating still lives here, and it is now ONE test rather than two:
+// presence in the `admins` table, answered by the server about the caller.
+// This used to read "only emails in APP_CONFIG.ADMIN_EMAILS AND present in the
+// admins table" -- that client-side roster is deleted; see isDbAdmin() below
+// for why it was never authority and why it must not return.
 // =====================================================
 
 window.Auth = (() => {
@@ -100,12 +103,22 @@ window.Auth = (() => {
     return s?.user?.email || null;
   }
 
-  function isAllowedEmail(email) {
-    const list = (cfg.ADMIN_EMAILS || []).map(e => e.toLowerCase().trim());
-    return !!email && list.includes(email.toLowerCase().trim());
-  }
+  // isAllowedEmail() IS GONE. It read APP_CONFIG.ADMIN_EMAILS, a roster shipped
+  // to every browser on all 27 pages, so the one address worth attacking was
+  // published in plain text to anyone who opened view-source.
+  //
+  // It was never authority. It could not be: the fence is public.is_admin() in
+  // the database, and `admins` carries RLS, so the SELECT below returns nothing
+  // at all to a caller who is not in the table. The list only ever saved a
+  // round trip, and a round trip is a cheap thing to pay for not naming your
+  // administrators to the world.
+  //
+  // Nothing may reintroduce a client-side list. The question a browser is
+  // allowed to ask is "am I an admin"; "who are the admins" is not its
+  // business, and the answer to the first does not require the second.
 
-  // Verifies the email is also in the `admins` DB table (RLS-protected).
+  // Is the CALLER in the `admins` table? Answered by the server, about them,
+  // and about nobody else.
   async function isDbAdmin() {
     if (!sb) return false;
     // {fresh: true} on PURPOSE, and it is the whole correctness of this
@@ -126,8 +139,12 @@ window.Auth = (() => {
     // no access_token, which turned a caching detail into an authorisation
     // rule and locked out every session shaped even slightly differently. A
     // session with no token is checked normally and simply not remembered.
+    // An anonymous session has no email and cannot be in `admins`; skipping the
+    // query for one is an optimisation, not a rule. Every signed-in account with
+    // an address asks the server, because the server is the only thing that
+    // knows.
     const email = session && session.user && session.user.email;
-    if (!email || !isAllowedEmail(email)) { adminCache = null; return false; }
+    if (!email) { adminCache = null; return false; }
 
     const token = tokenOf(session);
     if (token && adminCache && adminCache.token === token &&
@@ -272,7 +289,7 @@ window.Auth = (() => {
   function isReady() { return !!sb; }
 
   return {
-    getSession, currentEmail, isAllowedEmail, isDbAdmin,
+    getSession, currentEmail, isDbAdmin,
     signIn, signUp, resendConfirmation,
     sendCode, verifyCode,
     sendReset, updatePassword,

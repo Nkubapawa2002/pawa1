@@ -19,6 +19,26 @@
 // And in the first three, nothing of the console is in the page: not the
 // sections, not the tables, and no request for what is in them.
 //
+// WHAT CHANGED, AND WHY THE ASSERTIONS INVERTED
+// This file used to prove a three-state console: a sign-in gate, a refusal
+// that named the address you were signed in as, and the panel. All three are
+// gone. A non-admin now gets the same not-found a mistyped URL gets, and the
+// console markup is REMOVED from the document rather than carrying `hidden`.
+//
+// Two reasons, and the second one is the sharper:
+//
+//   1. Every one of those states confirmed the page exists, and the refusal
+//      confirmed the account as well.
+//   2. admin.html and super-admin.html each had their own email + password
+//      form, and NEITHER loaded js/lib/auth-policy.js -- the escalating
+//      lockout that guards login.html. So the two highest-value credential
+//      targets in the app were the two with no brute-force resistance at all.
+//      Deleting the forms beats copying the throttle: one door, defended.
+//
+// A trap this file fell into and now guards against: `hidden` is the wrong
+// question for an element that has been REMOVED. `!el?.hidden` is `!undefined`
+// is `true`, so a deleted node reads as "showing". Check existence first.
+//
 //   usage:  node server.js   then:  node tests/admin_access_test.mjs
 // ============================================================================
 import puppeteer from "puppeteer";
@@ -80,85 +100,123 @@ async function visit(page, session, opts) {
   return p;
 }
 
-const view = (p) => p.evaluate(() => ({
-  gate: !document.getElementById("loginGate")?.hidden,
-  forbidden: !document.getElementById("forbidden")?.hidden,
-  panel: !document.getElementById("adminPanel")?.hidden,
-  // Is any of the console's own furniture on screen for somebody who should
-  // not have it? Hidden ancestors make offsetParent null, which is the
-  // question a person would ask by looking.
-  sectionsVisible: [...document.querySelectorAll(".adm-rail .tab-btn")]
-    .filter((b) => b.offsetParent !== null).length,
-  asked: (window.__asked || []).filter((n) => /agent_billing|agent_messages|account_kinds|owner_posts|tenanc/.test(n)).length,
-}));
+// PRESENT, not merely visible. The console is REMOVED from the DOM for anybody
+// who is not an admin, so `hidden` is the wrong question now -- and asking it
+// the old way was actively misleading: `!document.getElementById(gone)?.hidden`
+// evaluates to `!undefined`, which is true, so a deleted element read as
+// "showing". Every check below tests existence first.
+const view = (p) => p.evaluate(() => {
+  const panel = document.getElementById("adminPanel");
+  const text = (document.body.innerText || "");
+  return {
+    panelInDom: !!panel,
+    panelShown: !!panel && !panel.hidden,
+    notHereShown: (() => {
+      const n = document.getElementById("notHere") || document.getElementById("saNotHere");
+      return !!n && !n.hidden;
+    })(),
+    // Is any of the console's own furniture on screen for somebody who should
+    // not have it? Hidden ancestors make offsetParent null, which is the
+    // question a person would ask by looking.
+    sectionsVisible: [...document.querySelectorAll(".adm-rail .tab-btn")]
+      .filter((b) => b.offsetParent !== null).length,
+    asked: (window.__asked || []).filter((n) => /agent_billing|agent_messages|account_kinds|owner_posts|tenanc/.test(n)).length,
+    // The page must not SAY anything either. A refusal that reads "not
+    // authorized as an admin" confirms the page exists as loudly as a link to
+    // it does, and the old one also read the signed-in address back.
+    saysAdmin: /\badmin\b|\bforbidden\b|not authorized|restricted/i.test(text),
+    saysEmail: /@/.test(text),
+  };
+});
 
 try {
-  section("1. admin.html");
-  {
-    const p = await visit("admin.html", OUT);
+  section("1. admin.html tells nobody it is admin.html");
+  // FOUR DIFFERENT VISITORS, ONE IDENTICAL ANSWER, and that sameness is the
+  // property under test. Signed out, browsing as a guest, signed in as
+  // somebody ordinary, and signed in as an address that used to be on the
+  // shipped allow-list but is not in the `admins` table: none of them may
+  // learn anything about this page, including which of the four they are.
+  for (const [who, session, opts] of [
+    ["signed out", OUT, undefined],
+    ["a guest session", GUEST, undefined],
+    ["an ordinary account", ACCOUNT, undefined],
+    ["an address the admins TABLE does not know", ADMIN, { isAdminRow: false }],
+  ]) {
+    const p = await visit("admin.html", session, opts);
     const v = await view(p);
-    ok(v.gate && !v.panel && !v.forbidden, "signed out lands on the sign-in gate", JSON.stringify(v));
-    ok(v.sectionsVisible === 0, "and none of the console's sections are on the page", String(v.sectionsVisible));
-    ok(v.asked === 0, "and it asks the database for none of the console's tables", String(v.asked));
+    ok(!v.panelInDom,
+       `${who}: the console is REMOVED from the page, not hidden on it`,
+       JSON.stringify(v));
+    ok(v.notHereShown, `${who}: and gets the same not-found a mistyped URL gets`);
+    ok(!v.saysAdmin,
+       `${who}: the page never says "admin", "forbidden", "not authorized" or "restricted"`,
+       JSON.stringify(v));
+    ok(!v.saysEmail, `${who}: and never reads an address back`);
+    ok(v.sectionsVisible === 0 && v.asked === 0,
+       `${who}: nothing of the console is drawn and none of its tables are asked for`,
+       JSON.stringify(v));
     await p.close();
   }
   {
-    const p = await visit("admin.html", GUEST);
-    const v = await view(p);
-    ok(v.gate && !v.panel && !v.forbidden,
-       "a guest session goes to the gate, not to a card naming an email it has not got", JSON.stringify(v));
-    ok(v.sectionsVisible === 0 && v.asked === 0, "with nothing of the console drawn or fetched");
-    await p.close();
-  }
-  {
-    const p = await visit("admin.html", ACCOUNT);
-    const v = await view(p);
-    ok(v.forbidden && !v.panel, "an ordinary account is told plainly that it is not authorized", JSON.stringify(v));
-    const who = await p.evaluate(() => document.getElementById("whoami")?.textContent || "");
-    ok(who === "dalali@example.com", "naming the address it IS signed in as, so the fix is obvious", who);
-    ok(v.sectionsVisible === 0 && v.asked === 0, "and still nothing of the console", JSON.stringify(v));
-    await p.close();
-  }
-  {
-    // The allowlist in config.js ships to every browser. It is NOT what
-    // decides: the admins table is, and this is the visitor who is on the
-    // list and not in the table.
-    const p = await visit("admin.html", ADMIN, { isAdminRow: false });
-    const v = await view(p);
-    ok(v.forbidden && !v.panel,
-       "an allowlisted email that the admins TABLE does not know is refused too", JSON.stringify(v));
-    await p.close();
-  }
-  {
+    // The one visitor who is entitled to it still gets the whole thing. This
+    // is the assertion that stops the section above being satisfied by a page
+    // that simply broke.
     const p = await visit("admin.html", ADMIN, { isAdminRow: true });
     const v = await view(p);
-    ok(v.panel && !v.gate && !v.forbidden, "a real admin gets the console", JSON.stringify(v));
-    // SEVEN now, not six: "On duty" joined the rail when who is on support
-    // duty stopped being hand-typed into js/core/config.js and became a row in
-    // public.support_duties that an admin edits here. (The eighth button,
-    // Video space, is in the markup and hidden, so it is not counted.)
+    ok(v.panelInDom && v.panelShown, "a real admin gets the console", JSON.stringify(v));
+    ok(!v.notHereShown, "and not the not-found");
     ok(v.sectionsVisible === 7, "with all seven sections in the rail", String(v.sectionsVisible));
     const active = await p.evaluate(() =>
       document.querySelector(".adm-rail .tab-btn.active")?.dataset.tab || "");
     ok(active === "allagents", "opening on the agents tracker", active);
     await p.close();
   }
-
-  section("2. super-admin.html");
   {
-    const p = await visit("super-admin.html", ACCOUNT);
-    const shown = await p.evaluate(() => ({
-      gate: !document.getElementById("saLoginGate")?.hidden,
-      forbidden: !document.getElementById("saForbidden")?.hidden,
-      panel: !document.getElementById("saPanel")?.hidden,
+    // There is no password box to hammer. This page had the app's only
+    // unthrottled credential form -- login.html runs every attempt through
+    // js/lib/auth-policy.js and admin.html never loaded that file -- so the
+    // form is deleted rather than throttled, leaving one defended door.
+    const p = await visit("admin.html", OUT);
+    const forms = await p.evaluate(() => ({
+      pw: document.querySelectorAll('input[type="password"]').length,
+      forms: document.querySelectorAll("form").length,
     }));
-    ok(!shown.panel, "an ordinary account does not get the platform overview", JSON.stringify(shown));
+    ok(forms.pw === 0, "and no password field to guess at", JSON.stringify(forms));
+    await p.close();
+  }
+
+  section("2. super-admin.html, the same");
+  for (const [who, session, opts] of [
+    ["an ordinary account", ACCOUNT, undefined],
+    ["a visitor who is not signed in", OUT, undefined],
+  ]) {
+    const p = await visit("super-admin.html", session, opts);
+    const v = await p.evaluate(() => {
+      const panel = document.getElementById("saPanel");
+      const nf = document.getElementById("saNotHere");
+      const text = document.body.innerText || "";
+      return {
+        panelInDom: !!panel,
+        notHereShown: !!nf && !nf.hidden,
+        pw: document.querySelectorAll('input[type="password"]').length,
+        saysAdmin: /\badmin\b|\bforbidden\b|not authorized|restricted/i.test(text),
+      };
+    });
+    ok(!v.panelInDom, `${who}: the overview is removed from the page`, JSON.stringify(v));
+    ok(v.notHereShown, `${who}: and gets the not-found`);
+    ok(!v.saysAdmin, `${who}: with nothing on it naming what it is`);
+    ok(v.pw === 0, `${who}: and no password field`);
     await p.close();
   }
   {
-    const p = await visit("super-admin.html", OUT);
-    const shown = await p.evaluate(() => !document.getElementById("saPanel")?.hidden);
-    ok(shown === false, "and neither does a visitor who is not signed in at all");
+    // It used to fail OPEN: `let inAdminsTable = true` followed by a catch that
+    // ignored the error, so any throw at all handed over the console.
+    const p = await visit("super-admin.html", ADMIN, { isAdminRow: true });
+    const shown = await p.evaluate(() => {
+      const panel = document.getElementById("saPanel");
+      return !!panel && !panel.hidden;
+    });
+    ok(shown, "a real admin still gets the platform overview");
     await p.close();
   }
 

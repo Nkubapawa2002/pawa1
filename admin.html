@@ -111,6 +111,13 @@
        The frosted-white header and tab bar that used to sit here are gone with
        the photographic hero they were compensating for. The rail and the cards
        are css/admin.css now. */
+    /* The not-found. Deliberately plain and deliberately unbranded: the whole
+       point is that this looks like any mistyped URL rather than like a door
+       somebody failed to open. No shield, no "restricted", no console colours. */
+    .nf { max-width: 34rem; margin: 18vh auto 0; padding: 0 var(--space-6); text-align: center; }
+    .nf-h { font-size: var(--text-2xl); font-weight: var(--fw-extra); margin: 0 0 var(--space-3); color: var(--text); }
+    .nf-d { color: var(--text-muted); line-height: 1.6; margin: 0 0 var(--space-6); }
+
     #adminPanel {
       --c-surface:    var(--surface);
       --c-bg-elev:    var(--surface-2);
@@ -210,66 +217,52 @@
        somebody who lands there IS being told where they are. -->
   <main class="container">
     <!-- Login gate -->
-    <section id="loginGate" class="auth-scene" hidden>
-      <div class="login-split">
-        <aside class="login-brand">
-          <span class="login-brand__logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
-          </span>
-          <h2 class="login-brand__name">Platform <em>admin</em></h2>
-          <p class="login-brand__lead">Oversee listings, agents and day jobs across Maisha na Lifeza. Authorized administrators only.</p>
-          <ul class="login-brand__list">
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Manage agents &amp; billing</li>
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span> Monitor tenants &amp; listings</li>
-            <li><span class="login-brand__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Restricted, audited access</li>
-          </ul>
-        </aside>
-        <div class="auth-shell">
-      <div class="auth-card">
-        <div class="auth-head">
-          <span class="auth-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
-          </span>
-          <h1 class="auth-title" data-i18n="adm_login_t">Admin login</h1>
-          <p class="auth-lead" data-i18n="adm_login_lead">This area is restricted to authorized administrators.</p>
-        </div>
-        <form id="loginForm" class="auth-form" novalidate>
-          <div class="auth-field">
-            <label for="loginEmail" data-i18n="adm_login_email">Email</label>
-            <div class="auth-input-wrap">
-              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
-              <input class="auth-input" type="email" id="loginEmail" required autocomplete="username" placeholder="you@example.com" />
-            </div>
-          </div>
-          <div class="auth-field">
-            <label for="loginPassword" data-i18n="adm_login_pw">Password</label>
-            <div class="auth-input-wrap">
-              <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input class="auth-input auth-input--pw" type="password" id="loginPassword" required autocomplete="current-password" minlength="6" data-i18n-placeholder="adm_login_pw_ph" placeholder="Your password" />
-              <button type="button" class="auth-eye" data-i18n-aria-label="adm_login_eye" aria-label="Show password" aria-pressed="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </div>
-          </div>
-          <button class="auth-submit" type="submit" data-i18n="adm_login_go">Sign in</button>
-          <div id="loginError" class="auth-msg" role="alert" aria-live="polite"></div>
-        </form>
-        <!-- Same reasoning as the forbidden banner: the link is a word inside
-             a sentence, not a sentence of its own. admin.js splits on {link}. -->
-        <p class="auth-hint" id="admLoginHint" style="margin-top:16px"></p>
-      </div>
-        </div>
-      </div>
-    </section>
+    <!-- ===================================================================
+         THIS PAGE DOES NOT ANNOUNCE ITSELF.
 
-    <!-- Forbidden -->
-    <section id="forbidden" hidden>
-      <!-- One sentence, built in js/pages/admin.js so the address can sit
-           anywhere in it. Splitting it into "You are signed in as" +
-           "but this account is not authorized" would be two half-sentences
-           glued around a name, which Swahili does not order the same way. -->
-      <div class="banner error" id="admForbiddenMsg"></div>
-      <button id="signOutBtn" class="btn btn-outline" data-i18n="adm_signout">Sign out</button>
+         What used to sit here was a full branded sign-in scene: a shield
+         logo, "Platform admin", "Oversee listings, agents and day jobs...
+         Authorized administrators only", three feature bullets, and an
+         email + password form. Anybody who typed this URL was told, in
+         confident marketing copy, exactly what they had found -- and then
+         handed a credential form to try it on.
+
+         TWO SEPARATE PROBLEMS, BOTH GONE WITH IT.
+
+         1. It confirmed the console exists. An attack that starts by
+            guessing URLs wants precisely that confirmation, and the old
+            "forbidden" screen was worse still: it printed the address you
+            were signed in as, confirming both the page AND the account.
+
+         2. IT WAS THE ONLY UNTHROTTLED SIGN-IN FORM IN THE APP. login.html
+            has an escalating lockout (js/lib/auth-policy.js: five failures
+            in fifteen minutes, then 30s / 60s / 5m / 15m, kept in
+            localStorage so a reload does not clear it). admin.html never
+            loaded that file, and neither did super-admin.html. So the two
+            highest-value credential targets in the whole codebase were the
+            two with no brute-force resistance at all. Deleting the form is a
+            better fix than copying the throttle into it: there is now ONE
+            door in the app, and it is the one that is defended.
+
+         An admin signs in at login.html like everybody else and arrives
+         here already authenticated. js/pages/admin.js then either draws the
+         console or leaves this page looking like a mistyped URL.
+
+         KNOWN LIMIT, STATED RATHER THAN PAPERED OVER: this is a static site
+         on GitHub Pages, so `curl .../admin.html` still returns the console
+         TEMPLATE, because there is no server to decide who gets which bytes.
+         What is achieved here is that no visitor is told the page exists, no
+         console markup survives in the DOM for a non-admin (admin.js removes
+         it), and there is nothing to brute-force. Hiding the template itself
+         needs either a real server or the panel markup moved into a script
+         that is only fetched after the check.
+         =================================================================== -->
+    <section id="notHere">
+      <div class="nf">
+        <h1 class="nf-h" data-i18n="nf_title">This page isn't here.</h1>
+        <p class="nf-d" data-i18n="nf_body">The link may be wrong, or the page may have moved.</p>
+        <a class="btn btn-primary" href="index.html" data-i18n="nf_home">Go to the home page</a>
+      </div>
     </section>
 
     <!-- Admin panel -->

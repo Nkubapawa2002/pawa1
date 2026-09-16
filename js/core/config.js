@@ -78,8 +78,24 @@ window.APP_CONFIG = {
   // 165s guard in publish_region_video().
   VIDEO_MAX_DURATION_S: 159,
 
-  // Emails allowed to log into admin.html (must also exist in `admins` table for RLS).
-  ADMIN_EMAILS: ["pawa4761@gmail.com"],
+  // ---------- Admin ----------
+  // THERE IS NO ADMIN_EMAILS LIST HERE ANY MORE, and it must not come back.
+  //
+  // It used to read ADMIN_EMAILS: ["<a real address>"], in this file, which
+  // every one of the 27 pages loads. So the one address worth attacking was
+  // published to every visitor in plain text, readable from view-source. For an
+  // attack that begins with "which account do I hammer", that was the answer
+  // handed over for free.
+  //
+  // It bought nothing in exchange. The list never authorised anything: every
+  // privileged read and write is fenced by public.is_admin(), which reads the
+  // `admins` table against the JWT's own email claim, and `admins` carries RLS
+  // so `select from admins` returns NOTHING to a caller who is not in it. The
+  // list was only ever a way to skip that round trip.
+  //
+  // So the question a browser asks is now "am I an admin", never "who are the
+  // admins". js/core/auth.js isDbAdmin() asks the server and caches the answer.
+  // A browser that is told "no" learns nothing else.
 
   // ---------- n8n Automation ----------
   // Base URL of your n8n instance (no trailing slash).
@@ -344,15 +360,19 @@ if (window.CLERK_ENABLED) {
 
 // Reads the rota, never a constant. Synchronous because the notices that call
 // it are already mid-render, so it takes whatever js/lib/support-duties.js has
-// loaded; with nothing loaded it falls back to the admin email alone, which is
-// true, rather than to a name, which would not be.
+// loaded.
+//
+// WITH NOTHING LOADED IT OFFERS NOTHING, and that is the change. It used to
+// fall back to APP_CONFIG.ADMIN_EMAILS[0] -- printing the admin's own address
+// into a notice on an agent dashboard, which is the same disclosure the list
+// itself was removed for. A rota with nobody on it is a real state and the
+// honest answer is to say support is not set up, not to volunteer the operator's
+// inbox.
 window.adminContactHtml = () => {
   const c = (window.SupportDuties && window.SupportDuties.first()) || null;
   const parts = [];
   if (c && c.whatsapp) parts.push(`<a href="https://wa.me/${c.whatsapp}" target="_blank" rel="noopener">WhatsApp ${c.phone || c.whatsapp}</a>`);
   else if (c && c.phone) parts.push(`<a href="tel:${String(c.phone).replace(/\s/g, "")}">Call ${c.phone}</a>`);
-  const email = (window.APP_CONFIG?.ADMIN_EMAILS || [])[0];
-  if (email) parts.push(`<a href="mailto:${email}">${email}</a>`);
   return parts.length ? `Contact admin: ${parts.join(" · ")}.` : "Please contact the Pawa admin.";
 };
 
@@ -362,9 +382,9 @@ window.adminContactHtml = () => {
 window.agentAdminAction = () => {
   const t = (k, en) => { const v = window.t ? window.t(k) : null; return (v && v !== k) ? v : en; };
   const c = (window.SupportDuties && window.SupportDuties.first()) || null;
-  const email = (window.APP_CONFIG?.ADMIN_EMAILS || [])[0];
-  let href = c ? window.SupportDuties.reachHref(c) : "";
-  if (!href && email) href = "mailto:" + email;
+  // No rota, no button. The mailto fallback to the admin's own address is gone
+  // for the reason given on adminContactHtml above.
+  const href = c ? window.SupportDuties.reachHref(c) : "";
   if (!href) return null;
   return { label: t("anx_admin", "Contact the admin"), href, external: !!(c && c.whatsapp) };
 };

@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { webcrypto } from "node:crypto";
 import vm from "node:vm";
-import { runSql, literal } from "../scripts/db/sql.mjs";
+import { runSql, literal, adminEmail as dbAdminEmail } from "../scripts/db/sql.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -213,8 +213,10 @@ try {
   ok(recips[0].n === 0, "a non-admin still gets no recipient list");
 
   section("4. Broadcasts go to accounts, not to passers-by");
-  const adminEmail = (readFileSync(join(ROOT, "js/core/config.js"), "utf8")
-    .match(/ADMIN_EMAILS:\s*\[\s*"([^"]+)"/) || [])[1];
+  // Read from public.admins, not from a roster in config.js: that list is
+// deleted (it published the one address worth attacking to every browser)
+// and never decided anything. is_admin() reads this table.
+const adminEmail = await dbAdminEmail();
   const all = await runSql(
     `begin;
      do $c$ begin perform set_config('request.jwt.claims',

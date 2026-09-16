@@ -2557,24 +2557,23 @@ window.I18N = {
     adm_col_read: "Read",
     adm_from_system: "automatic",
 
-    // The admin console's sign-in gate and its refusal. 182 adm_ keys already
-    // existed and these were the ones nobody had reached, because admin.html
-    // was never on the list tests/i18n_coverage.mjs walks.
-    adm_login_t: "Admin login",
-    adm_login_lead: "This area is restricted to authorized administrators.",
-    adm_login_email: "Email",
-    adm_login_pw: "Password",
-    adm_login_pw_ph: "Your password",
-    adm_login_eye: "Show password",
-    adm_login_go: "Sign in",
-    // One sentence with a link inside it. The link is its own key so the
-    // sentence can put it anywhere, and js/pages/admin.js splits on {link}
-    // rather than gluing two half-sentences together.
-    adm_login_hint: "First time? Use the same authorized email and click {link} to set a password.",
-    adm_login_hint_link: "create admin account",
-    // Same shape: the address is data, not copy, so it is a placeholder.
-    adm_forbidden: "You are signed in as {who} but this account is not authorized as an admin.",
-    adm_signout: "Sign out",
+    // THE ADMIN SIGN-IN AND REFUSAL COPY IS GONE, and the keys with it:
+    // adm_login_t, _lead, _email, _pw, _pw_ph, _eye, _go, _hint, _hint_link,
+    // adm_forbidden and adm_signout. They described a branded "Platform admin"
+    // scene with its own password form, and a refusal that read back the
+    // address you were signed in as.
+    //
+    // Both told a stranger something. The scene confirmed the console exists;
+    // the refusal confirmed the console AND the account. The form was also the
+    // only credential form in the app with no lockout behind it. admin.html
+    // now looks like a mistyped URL to everybody who is not an admin, so there
+    // is no sentence left to translate. See the comment at the top of that
+    // file.
+    //
+    // The not-found copy is deliberately dull and says nothing about admin.
+    nf_title: "This page isn't here.",
+    nf_body: "The link may be wrong, or the page may have moved.",
+    nf_home: "Go to the home page",
 
     // The filter dropdowns. An <option> with no data-i18n is the quietest way
     // to leave a screen half-translated: the control works, the page looks
@@ -6657,17 +6656,9 @@ window.I18N = {
     adm_col_read: "Imesomwa",
     adm_from_system: "otomatiki",
 
-    adm_login_t: "Kuingia kwa msimamizi",
-    adm_login_lead: "Eneo hili ni kwa wasimamizi walioidhinishwa pekee.",
-    adm_login_email: "Barua pepe",
-    adm_login_pw: "Nenosiri",
-    adm_login_pw_ph: "Nenosiri lako",
-    adm_login_eye: "Onyesha nenosiri",
-    adm_login_go: "Ingia",
-    adm_login_hint: "Mara ya kwanza? Tumia barua pepe iliyoidhinishwa kisha bofya {link} kuweka nenosiri.",
-    adm_login_hint_link: "fungua akaunti ya msimamizi",
-    adm_forbidden: "Umeingia kama {who} lakini akaunti hii haijaidhinishwa kuwa ya msimamizi.",
-    adm_signout: "Toka",
+    nf_title: "Ukurasa huu haupo hapa.",
+    nf_body: "Huenda kiungo si sahihi, au ukurasa umehamishwa.",
+    nf_home: "Nenda ukurasa wa mwanzo",
 
     adm_f_roles_all: "Majukumu yote",
     adm_f_role_house: "Madalali wa nyumba",

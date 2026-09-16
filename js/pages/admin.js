@@ -7,7 +7,6 @@ window.initAdminPage = async () => {
   const STATUSES = ["Registered", "Picked Up", "In Transit", "Arrived", "Delivered"];
 
   const $ = (id) => document.getElementById(id);
-  const escH = window.escHtml;   // escape user data before innerHTML interpolation
 
   // window.t takes a key and nothing else, and returns the KEY ITSELF when a
   // string is missing, so the fallback is what stops "adm_login_hint"
@@ -17,107 +16,85 @@ window.initAdminPage = async () => {
     return (!s || s === key) ? fallback : s;
   };
 
-  // Two sentences on this page wrap an element -- the sign-in hint wraps a
-  // link, the refusal wraps the address you are signed in as. Both are built
-  // here by splitting the translated sentence on its own placeholder, so a
-  // language can put the link or the name anywhere in it. Gluing two
-  // half-sentences around the element would fix the word order in English.
-  function sentenceAround(host, key, fallback, token, innerHtml) {
-    if (!host) return;
-    const parts = t(key, fallback).split(token);
-    host.innerHTML = escH(parts[0]) + innerHtml + escH(parts.slice(1).join(token));
-  }
+  // sentenceAround() lived here and is gone with its two callers. Both
+  // sentences it built belonged to screens this page no longer has: the
+  // sign-in hint and the refusal that named the address you were signed in as.
+  // Neither should come back -- see the comment in admin.html.
 
-  sentenceAround($("admLoginHint"), "adm_login_hint",
-    "First time? Use the same authorized email and click {link} to set a password.",
-    "{link}",
-    '<a href="#" id="signupLink">' +
-      escH(t("adm_login_hint_link", "create admin account")) + "</a>");
-  const loginGate = $("loginGate");
-  const forbidden = $("forbidden");
+  const notHere = $("notHere");
   const adminPanel = $("adminPanel");
 
-  if (!sb) {
-    loginGate.hidden = false;
-    window.authMsg($("loginError"), "error", "Supabase not configured. Check js/core/config.js.");
-    return;
+  /**
+   * Leave the page looking like a mistyped URL, and take the console with it.
+   *
+   * REMOVED FROM THE DOM, NOT HIDDEN. `hidden` is an attribute: the markup
+   * stays in the tree, and anybody can find it with two taps in devtools or a
+   * glance at the elements panel. For a console this page will not admit to
+   * having, that is the difference between a closed door and a curtain.
+   *
+   * It cannot un-remove itself. There is no path back from here to the console
+   * inside one page load; a real admin arrives already authenticated and never
+   * reaches this function.
+   */
+  function vanish() {
+    if (adminPanel && adminPanel.parentNode) adminPanel.parentNode.removeChild(adminPanel);
+    if (notHere) notHere.hidden = false;
+    document.title = t("nf_title", "This page isn't here.");
   }
 
-  // ---------- gate ----------
-  async function showCorrectView() {
-    const session = await window.Auth.getSession();
-    // A guest is an anonymous session: a real session with no account behind
-    // it. It can never be an admin, and telling it "you are not allowed" names
-    // an email it does not have. It belongs on the sign-in gate, with the
-    // reason, exactly like being signed out.
-    const guest = window.AuthGuard
-      ? window.AuthGuard.isGuest(session)
-      : !!(session && session.user && session.user.is_anonymous === true);
-    if (!session || guest) {
-      loginGate.hidden = false;
-      forbidden.hidden = true;
-      adminPanel.hidden = true;
-      if (guest) window.AuthGuard?.paintNote(loginGate);
-      else window.AuthGuard?.clearNote(loginGate);
-      return;
-    }
-    window.AuthGuard?.clearNote(loginGate);
-    const email = session.user.email;
-    const allowed = window.Auth.isAllowedEmail(email);
-    let isAdmin = false;
-    if (allowed) isAdmin = await window.Auth.isDbAdmin();
+  if (!sb) { vanish(); return; }
 
-    if (!isAdmin) {
-      sentenceAround($("admForbiddenMsg"), "adm_forbidden",
-        "You are signed in as {who} but this account is not authorized as an admin.",
-        "{who}", "<strong>" + escH(email) + "</strong>");
-      forbidden.hidden = false;
-      loginGate.hidden = true;
-      adminPanel.hidden = true;
-      return;
-    }
-    loginGate.hidden = true;
-    forbidden.hidden = true;
+  // ---------- gate ----------
+  /**
+   * One question, asked of the server, about the caller.
+   *
+   * It used to be two: isAllowedEmail() against a roster shipped to every
+   * browser, and only then isDbAdmin(). The roster is deleted (see
+   * js/core/auth.js) because it published the one address worth attacking and
+   * authorised nothing -- `admins` carries RLS, so the SELECT behind
+   * isDbAdmin() already returns nothing to anybody who is not in it.
+   *
+   * EVERY OUTCOME EXCEPT "YES" IS THE SAME OUTCOME. Signed out, browsing as a
+   * guest, signed in as somebody ordinary, signed in as an address that was on
+   * the old list but is not in the table: all of them get the not-found and a
+   * removed console. They are not told which of those they are, because the
+   * difference between them is information about this page, and a stranger has
+   * not earned any.
+   */
+  async function showCorrectView() {
+    let isAdmin = false;
+    try { isAdmin = await window.Auth.isDbAdmin(); } catch (_) { isAdmin = false; }
+    if (!isAdmin) { vanish(); return; }
+
+    if (notHere && notHere.parentNode) notHere.parentNode.removeChild(notHere);
     adminPanel.hidden = false;
-    $("adminEmail").textContent = email;
+    const email = await window.Auth.currentEmail();
+    $("adminEmail").textContent = email || "";
     bootAdmin();
   }
 
-  // ---------- login form ----------
-  const setErr = (kind, text) => window.authMsg($("loginError"), kind, text);
-
-  $("loginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    setErr("", "");
-    try {
-      await window.Auth.signIn($("loginEmail").value.trim(), $("loginPassword").value);
-      showCorrectView();
-    } catch (ex) {
-      setErr("error", ex.message || "Sign-in failed.");
-    }
-  });
-
-  $("signupLink").addEventListener("click", async (e) => {
-    e.preventDefault();
-    const email = $("loginEmail").value.trim();
-    const pw = $("loginPassword").value;
-    setErr("", "");
-    if (!email || pw.length < 6) {
-      setErr("error", "Enter your authorized email and a password (>= 6 chars), then click create.");
-      return;
-    }
-    try {
-      await window.Auth.signUp(email, pw);
-      setErr("ok", "Account created. If email confirmation is enabled, check your inbox, then sign in.");
-    } catch (ex) {
-      setErr("error", ex.message || "Sign-up failed.");
-    }
-  });
-
-  $("signOutBtn")?.addEventListener("click", async () => {
-    await window.Auth.signOut();
-    showCorrectView();
-  });
+  // ---------- there is no login form here any more ----------
+  //
+  // THREE HANDLERS WERE DELETED WITH IT: a sign-in submit, a "create admin
+  // account" link that called Auth.signUp() with whatever was typed, and a
+  // sign-out button on the refusal screen.
+  //
+  // The sign-in form was the app's only unthrottled credential form.
+  // login.html runs every attempt through js/lib/auth-policy.js -- five
+  // failures in fifteen minutes, then 30s / 60s / 5m / 15m, held in
+  // localStorage so a reload does not clear it. This page never loaded that
+  // file. Neither did super-admin.html. So the two best targets in the
+  // codebase were the two with no resistance, and copying the throttle here
+  // would have left two doors to defend instead of one.
+  //
+  // The "create admin account" link was worse than unthrottled. It offered
+  // account creation from the console's own front page: the address it made an
+  // account for granted nothing (the `admins` table decides, and only an admin
+  // can write it), but a signup form on a page titled "Platform admin" is an
+  // invitation to try, and every attempt was free.
+  //
+  // An admin signs in at login.html, like everybody else, and arrives here
+  // authenticated. Signing out is what the console's own header button does.
 
   // ---------- main admin boot (only after we know we're admin) ----------
   let booted = false;

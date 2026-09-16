@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { webcrypto } from "node:crypto";
 import vm from "node:vm";
-import { runSql, asUser, literal } from "../scripts/db/sql.mjs";
+import { runSql, asUser, literal, adminEmail as dbAdminEmail } from "../scripts/db/sql.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -47,8 +47,10 @@ const threw = async (fn) => { try { await fn(); return null; } catch (e) { retur
 const AMINA = "pmtest_amina", JUMA = "pmtest_juma", MOLE = "pmtest_mole", NOSY = "pmtest_nosy";
 const IDS = [AMINA, JUMA, MOLE, NOSY];
 const ADMIN = "pmtest_admin";
-const adminEmail = (readFileSync(join(ROOT, "js/core/config.js"), "utf8")
-  .match(/ADMIN_EMAILS:\s*\[\s*"([^"]+)"/) || [])[1];
+// Read from public.admins, not from a roster in config.js: that list is
+// deleted (it published the one address worth attacking to every browser)
+// and never decided anything. is_admin() reads this table.
+const adminEmail = await dbAdminEmail();
 
 async function cleanup() {
   await runSql(`
