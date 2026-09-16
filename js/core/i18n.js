@@ -389,6 +389,28 @@ window.I18N = {
     own_left_one: "1 post left of {limit}.",
     own_left_n: "{n} posts left of {limit}.",
     own_next_free: "The next one frees up on {date}.",
+    own_allowance_t: "Your posting allowance",
+
+    // ---- the four kinds of account (js/lib/account-kind.js) --------------
+    // One sentence each, saying what the kind is FOR. The names themselves
+    // are lg_door_agent / _owner / _company / _user, which already existed for
+    // the picker on login.html and are reused rather than written twice.
+    ak_note_agent: "You list rooms, trucks and services on behalf of other people. A monthly fee applies once your account is approved.",
+    ak_note_owner: "You list your own property, with no agent in between and no monthly fee. Three posts every 180 days instead.",
+    ak_note_company: "You post day jobs and pick the crew. Listing rooms, trucks or services is not part of this account.",
+    ak_note_user: "You find rooms, message agents and owners, and claim day jobs. This account does not list anything.",
+    // Shown where an account has no row at all, which is every account that
+    // predates the picker recording anything. "Treated as" is the honest word:
+    // nobody chose this, it is the default the database falls back to.
+    ak_default_note: "Nobody has set a type on this account, so it is treated as an agent.",
+    ak_t: "Account type",
+    ak_change: "Change",
+    ak_change_to: "Change to {name}",
+    ak_changed: "Your account is now {name}.",
+    ak_changing: "Changing\u2026",
+    ak_cannot_list: "This account does not list rooms, trucks or services.",
+    ak_switch_to_list: "To list something, change your account type to Agent or House owner.",
+    ak_change_failed: "That could not be changed. Try again.",
     ah_edit_lost: "This listing lost track of which one it was editing. Close the form and open it again from the list. Saving now would post a second listing.",
     pm_badge_left: "Left",
     pm_room_sub: "Group room",
@@ -4581,6 +4603,22 @@ window.I18N = {
     own_left_one: "Limebaki tangazo 1 kati ya {limit}.",
     own_left_n: "Yamebaki matangazo {n} kati ya {limit}.",
     own_next_free: "Linalofuata linapatikana tarehe {date}.",
+    own_allowance_t: "Kiwango chako cha kuweka matangazo",
+
+    // ---- aina nne za akaunti (js/lib/account-kind.js) -------------------
+    ak_note_agent: "Unaweka vyumba, malori na huduma kwa niaba ya watu wengine. Ada ya mwezi inatumika baada ya akaunti yako kuidhinishwa.",
+    ak_note_owner: "Unaweka mali yako mwenyewe, bila wakala katikati na bila ada ya mwezi. Badala yake, matangazo matatu kila siku 180.",
+    ak_note_company: "Unaweka vibarua na kuchagua timu. Kuweka vyumba, malori au huduma si sehemu ya akaunti hii.",
+    ak_note_user: "Unatafuta vyumba, unatuma ujumbe kwa mawakala na wenye nyumba, na unachukua vibarua. Akaunti hii haiweki tangazo lolote.",
+    ak_default_note: "Hakuna aliyeweka aina kwenye akaunti hii, hivyo inachukuliwa kama ya wakala.",
+    ak_t: "Aina ya akaunti",
+    ak_change: "Badilisha",
+    ak_change_to: "Badilisha kuwa {name}",
+    ak_changed: "Akaunti yako sasa ni {name}.",
+    ak_changing: "Inabadilisha\u2026",
+    ak_cannot_list: "Akaunti hii haiweki vyumba, malori au huduma.",
+    ak_switch_to_list: "Ili kuweka tangazo, badilisha aina ya akaunti yako kuwa Wakala au Mwenye nyumba.",
+    ak_change_failed: "Hiyo haikuweza kubadilishwa. Jaribu tena.",
     ah_edit_lost: "Tangazo hili limepoteza kumbukumbu ya lipi lilikuwa linahaririwa. Funga fomu na ulifungue tena kutoka kwenye orodha. Ukihifadhi sasa utaweka tangazo la pili.",
     pm_badge_left: "Ameondoka",
     pm_room_sub: "Chumba cha kikundi",

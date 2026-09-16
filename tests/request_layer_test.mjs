@@ -31,7 +31,9 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 function makeWindow(sb) {
   const store = new Map();
   const win = {
-    APP_CONFIG: { ADMIN_EMAILS: ["boss@example.com"] },
+    // No ADMIN_EMAILS. There is no such config key any more, and leaving a
+    // stub of one here would quietly keep testing a mechanism that is gone.
+    APP_CONFIG: {},
     SB: sb,
     localStorage: {
       getItem: (k) => (store.has(k) ? store.get(k) : null),
@@ -88,7 +90,23 @@ function makeSb(opts = {}) {
       ["select", "eq", "order", "limit", "gte", "in", "is", "or", "filter", "range", "match", "neq", "lte"]
         .forEach((m) => { b[m] = () => b; });
       b.maybeSingle = async () => ({ data: null, error: null });
-      b.then = (res) => res({ data: opts.adminRows || [], error: null });
+      b.then = (res) => {
+        // THE `admins` TABLE CARRIES RLS, so it answers about the CALLER: a
+        // non-admin gets zero rows, not somebody else's row. The stub used to
+        // hand opts.adminRows to whoever asked, which was harmless only because
+        // isDbAdmin() refused most callers before querying, using a client-side
+        // allow list. That list is deleted -- it published the one address worth
+        // attacking to every browser -- so the query IS the fence now, and a
+        // stub that ignores who is asking would make this file pass while the
+        // real thing failed.
+        if (name === "admins") {
+          const email = ((session && session.user && session.user.email) || "").toLowerCase();
+          const rows = (opts.adminRows || []).filter(
+            (r) => String(r.email || "").toLowerCase() === email);
+          return res({ data: rows, error: null });
+        }
+        return res({ data: opts.adminRows || [], error: null });
+      };
       return b;
     },
     storage: { from: () => ({ getPublicUrl: () => ({ data: { publicUrl: "" } }) }) },
@@ -180,8 +198,19 @@ try {
     ok(still === false,
        "a different token is not served the previous answer, even with no event fired",
        "got " + still);
-    ok(sb.calls.admins === q,
-       "and it is refused without a query, because the email is not on the allow list");
+    // IT DOES QUERY NOW, and that is the fix rather than a regression. This used
+    // to assert `sb.calls.admins === q` -- refused with NO request, because the
+    // address was not on APP_CONFIG.ADMIN_EMAILS. That list is gone: it shipped
+    // the one address worth attacking to every browser and authorised nothing,
+    // since `admins` is RLS-fenced and already returns nothing to a stranger.
+    //
+    // So the question worth asking inverted. Not "was it refused without
+    // asking" but "was the server asked about the NEW identity", because the
+    // bug this section exists for is a stale answer being served to a changed
+    // token.
+    ok(sb.calls.admins > q,
+       "and the server was asked again about the new identity rather than the old answer being reused",
+       "queries before " + q + ", after " + sb.calls.admins);
   }
 
   // =========================================================================

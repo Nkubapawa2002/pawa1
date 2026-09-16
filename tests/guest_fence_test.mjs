@@ -166,16 +166,30 @@ console.log("\n2. And a real account still opens it");
 console.log("\n3. A guest cannot open either console");
 {
   const a = await open("admin.html");
-  ok(!(await shown(a.page, "#adminPanel")), "admin.html keeps the panel shut");
-  ok(!(await shown(a.page, "#forbidden")),
-     "and does not print an empty email back at somebody who never gave one");
-  ok(await shown(a.page, "#loginGate"), "it shows the sign-in gate");
+  ok(!(await a.page.evaluate(() => !!document.getElementById("adminPanel"))),
+     "admin.html: the console is removed from the page, not merely shut");
+  // THE GATE ASSERTION IS GONE BECAUSE THE GATE IS. admin.html used to answer a
+  // guest with a branded scene ("Platform admin", "Authorized administrators
+  // only") plus an email + password form that loaded none of the lockout
+  // guarding login.html. It answers with the same not-found a mistyped URL gets
+  // now, and the console markup is REMOVED rather than left carrying `hidden`.
+  // So what a guest must not see grew, and these assertions grew with it.
+  ok(await shown(a.page, "#notHere"),
+     "and gets the not-found, with no email read back at somebody who never gave one");
+  ok(!(await a.page.evaluate(() =>
+       /admin|forbidden|not authorized|restricted/i.test(document.body.innerText || ""))),
+     "and nothing on the page names what the page is");
+  ok((await a.page.evaluate(() => document.querySelectorAll('input[type="password"]').length)) === 0,
+     "and there is no password box for a guest to try");
   await a.close();
 
   const s = await open("super-admin.html");
-  ok(!(await shown(s.page, "#saPanel")), "super-admin.html keeps the panel shut");
-  ok(!(await shown(s.page, "#saForbidden")), "and does not call a guest forbidden either");
-  ok(await shown(s.page, "#saLoginGate"), "it shows the sign-in gate");
+  ok(!(await s.page.evaluate(() => !!document.getElementById("saPanel"))),
+     "super-admin.html: the overview is removed too");
+  ok(await shown(s.page, "#saNotHere"),
+     "and gets the not-found rather than being called forbidden");
+  ok((await s.page.evaluate(() => document.querySelectorAll('input[type="password"]').length)) === 0,
+     "with no password box either");
   await s.close();
 }
 

@@ -143,6 +143,23 @@
     /* The one checkbox on this page. It sits in the end-guest dialog and asks
        a question with a real cost behind it, so it is a full-width row with a
        44px target rather than a 13px box somebody has to aim at. */
+    /* The four account kinds, in the dialog that changes them. A row per kind
+       with its own sentence, because the difference between them is what they
+       let you do and a bare list of four words does not say that. The one you
+       already are carries a label instead of a button: claiming what you
+       already are is a no-op in the database and a dead control on screen. */
+    .pf-kind { display: flex; align-items: flex-start; gap: var(--space-3);
+      padding: var(--space-3) 0; border-bottom: 1px solid var(--pm-line, var(--border)); }
+    .pf-kind:last-child { border-bottom: 0; }
+    .pf-kind.is-now { opacity: .92; }
+    .pf-kind-tx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .pf-kind-tx b { font-size: 14px; font-weight: var(--fw-extra); }
+    .pf-kind-tx span { font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+    .pf-kind-now { flex: 0 0 auto; align-self: center; font-size: 11px; font-weight: 800;
+      padding: 5px 9px; border-radius: var(--radius-pill);
+      background: var(--pm-brand-soft, rgba(46,230,166,.14)); color: var(--pm-brand, var(--green-emerald)); }
+    .pf-kind .pm-btn { flex: 0 0 auto; align-self: center; min-height: var(--hit-min, 44px); }
+
     .pf-check { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0 0;
       min-height: var(--hit-min); cursor: pointer; font-size: 13px; line-height: 1.5;
       color: var(--pm-ink); }
@@ -297,6 +314,11 @@
        set — AgentProfile.ensure() only ever prompts when something required
        is missing, so without this door the bio could never be edited. -->
   <script src="js/lib/agent-profile.js"></script>
+  <script src="js/lib/owner-account.js"></script>
+  <!-- Which of the four account kinds this is, and what it may do. Pairs with
+       js/lib/owner-account.js: that one reads the owner allowance, this one
+       answers the capability questions for all four kinds. -->
+  <script src="js/lib/account-kind.js"></script>
   <!-- What the admin said, and where the subscription stands. Shared with
        the bell (js/core/notify.js) so the two cannot disagree. -->
   <script src="js/lib/notices.js"></script>

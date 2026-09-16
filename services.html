@@ -5,12 +5,12 @@
   <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Daily services near you — Pawa</title>
+  <title>Daily services near you — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.css" />
 
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#0a6f4d" />
+  <meta name="theme-color" content="var(--green)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -36,7 +36,7 @@
     .svc-actions { display: flex; gap: 8px; grid-column: 1 / -1; flex-wrap: wrap; }
     .svc-near-me {
       display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border: none;
-      border-radius: 10px; cursor: pointer; background: var(--c-brand, #0a6f4d); color: #fff; font-weight: 700; font-size: .9rem;
+      border-radius: 10px; cursor: pointer; background: var(--c-brand, var(--green)); color: #fff; font-weight: 700; font-size: .9rem;
     }
     .svc-near-me svg { width: 18px; height: 18px; }
     .svc-near-me:disabled { opacity: .6; cursor: default; }
@@ -50,7 +50,7 @@
       flex: 1; padding: 10px; border: 1px solid var(--c-border, #e7e4dd); background: #fff;
       border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--c-text,#1a1915);
     }
-    .svc-mobile-tabs button.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: transparent; }
+    .svc-mobile-tabs button.active { background: var(--c-brand, var(--green)); color: #fff; border-color: transparent; }
     .svc-stage { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; align-items: start; }
     .svc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
     .svc-map-wrap { position: sticky; top: 14px; }
@@ -69,7 +69,7 @@
       transition: background .12s ease, color .12s ease, transform .12s ease;
     }
     .svc-chip:hover { transform: translateY(-1px); }
-    .svc-chip.active { background: var(--c-brand, #0a6f4d); color: #fff; border-color: transparent; }
+    .svc-chip.active { background: var(--c-brand, var(--green)); color: #fff; border-color: transparent; }
 
     .svc-card {
       background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e7e4dd);
@@ -102,7 +102,7 @@
       transition: filter .12s ease;
     }
     .sca-btn:hover { filter: brightness(1.08); }
-    .sca-btn.call  { background: var(--c-brand, #0a6f4d); color: #fff; }
+    .sca-btn.call  { background: var(--c-brand, var(--green)); color: #fff; }
     .sca-btn.wa    { background: #1fa855; color: #fff; }
     .sca-btn.route { background: var(--c-surface-2, #f3f1ea); color: var(--c-text, #1a1915); border: 1px solid var(--c-border, #e7e4dd); }
     .svc-card-photo {
@@ -114,10 +114,10 @@
     .sc-badge { font-size: .68rem; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(3px); }
     .sc-badge.verified { background: var(--c-success, #0d8050); }
     .sc-badge.dist { background: rgba(0,0,0,.55); }
-    .sc-badge.dist.road { background: var(--c-brand, #0a6f4d); }   /* exact road km + min */
+    .sc-badge.dist.road { background: var(--c-brand, var(--green)); }   /* exact road km + min */
     .sc-badge.cat { background: var(--c-accent, #bc5c00); }
     .svc-card-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 5px; }
-    .svc-card-price { font-weight: 800; color: var(--c-brand, #0a6f4d); font-size: 1.02rem; }
+    .svc-card-price { font-weight: 800; color: var(--c-brand, var(--green)); font-size: 1.02rem; }
     .svc-card-price small { font-weight: 600; color: var(--c-muted, #6b6960); font-size: .72rem; }
     .svc-card-title { font-weight: 700; font-size: .92rem; line-height: 1.25; }
     .svc-card-meta { font-size: .8rem; color: var(--c-muted, #6b6960); display: flex; flex-wrap: wrap; gap: 4px 10px; }

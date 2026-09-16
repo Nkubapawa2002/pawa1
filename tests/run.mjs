@@ -32,17 +32,30 @@
 // house_commute_place_test says so out loud, "STARVED geocoder call:
 // net::ERR_ABORTED".
 //
-// FOUR SUITES ARE KNOWN TO DO THIS, and all four are green on their own:
+// SIX SUITES ARE KNOWN TO DO THIS, and all six are green on their own:
 //
 //   pchat_life_test           53/53 alone
 //   house_commute_place_test  16/16 alone
 //   basemap_chain_test        26/26 alone, crashed on all 3 attempts in a sweep
 //   login_page_test           90/90 alone, four runs, one of them with three
 //                             other map suites running concurrently
+//   owner_pages_test          ten navigations in one browser; seen fail 4 times
+//                             in a row and then pass 2 of 3 on a quiet machine,
+//                             which is what finally identified it. Navigation
+//                             timeouts at a DIFFERENT line each time
+//   jobs_page_test            59/59 alone, 23 of 59 in a sweep. All 23 cascade
+//                             from ONE: the pay field is empty at submit, so
+//                             nothing posts and everything after it follows.
+//                             GPS and reverse-geocode heavy, same family
 //
-// If one of these is red in a sweep, RUN IT ALONE BEFORE BELIEVING IT. That is
-// not a shrug: two of the four were carried as "genuinely failing" for a while
-// and one of them had a session's afternoon spent on it.
+// If one of these is red in a sweep, RUN IT ALONE BEFORE BELIEVING IT -- and
+// RUN IT MORE THAN ONCE. That is not a shrug: two of them were carried as
+// "genuinely failing" for a while, and owner_pages_test failed four consecutive
+// runs while a change was in the tree, passed twice with that change stashed,
+// and then passed 2 of 3 with the change back in place. Four reds in a row is
+// not proof of causation on this host. The tell is that the timeout lands on a
+// DIFFERENT navigation each run, and that reverting the only file the failing
+// page even loads changes nothing.
 //
 // A suite that printed a tally is reported as FAILED and never retried, and
 // that is deliberate: a tally is the code speaking, and rolling again until it

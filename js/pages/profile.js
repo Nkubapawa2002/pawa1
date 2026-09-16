@@ -193,6 +193,9 @@
   }
 
   var ICON = {
+    // Which of the four kinds this account is. A person, because that is what
+    // the row is about; sky-blue because it sits in Settings with the others.
+    person: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.4" stroke="#7FB2FF" stroke-width="1.7"/><path d="M5 20c0-3.4 3.1-5.2 7-5.2s7 1.8 7 5.2" stroke="#7FB2FF" stroke-width="1.7" stroke-linecap="round"/></svg>',
     key: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4" stroke="#2EE6A6" stroke-width="1.7"/><path d="M12 12h9l-2 2.5M17 12v3" stroke="#2EE6A6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     save: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v17l-7-4-7 4z" stroke="#2EE6A6" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     house: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7M5 10v10h14V10" stroke="#F6C45A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -404,7 +407,17 @@
     // dashboard link that says how many things are behind it is the difference
     // between a menu and a page: "My Services 0" is the one row on this screen
     // that has ever told an agent something they did not know.
-    if (me.userId && !me.isGuest) {
+    // THE THREE LISTING DOORS ARE FOR THE KINDS THAT MAY LIST.
+    //
+    // A company account hires and a "Just looking" account browses; neither may
+    // put a room, a truck or a service in the catalogue, and the database
+    // refuses the insert with a sentence
+    // (supabase/features/account/account_kinds_real.sql). Drawing three doors
+    // that all end in a refusal is an invitation to fail, so they are not drawn
+    // -- but the account-type row below is, and it is the way out. Hiding is
+    // never the fence here; the trigger is.
+    var mayList = !window.AccountKind || window.AccountKind.can("list");
+    if (me.userId && !me.isGuest && mayList) {
       html += group(t("pf_g_work", "Your listings"), [
         row({ href: "agent-houses.html", icon: ICON.house, tint: "ic-gold", title: t("nav_agent_houses", "My House Listings"),
               desc: t("pf_houses_d", "Post rooms and houses, and see who asked about them."),
@@ -436,7 +449,27 @@
           trucks: countOf("n_trucks"), jobs: countOf("n_jobs"),
         })
       : [];
+    // WHICH OF THE FOUR KINDS THIS ACCOUNT IS, and the way to change it.
+    //
+    // Not to be confused with myTypes just above, and the comment above THAT
+    // one is about the other thing: AccountPrefs.typesOf derives which
+    // CATALOGUES an account has posted in, from counts, and is correctly not a
+    // field on a row. This is different -- it is agent / owner / company /
+    // user, it IS a row (public.account_kinds), and it decides who pays a fee
+    // and who may list at all. Both are called "type" in English and they are
+    // not the same question.
+    var AK = window.AccountKind;
+    var kindRow = AK
+      ? row({ act: "acctkind", icon: ICON.person, tint: "ic-sky",
+              title: t("ak_t", "Account type"),
+              desc: AK.isDefault() ? t("ak_default_note",
+                "Nobody has set a type on this account, so it is treated as an agent.")
+                : AK.note(),
+              value: AK.name() })
+      : "";
+
     html += group(t("pf_g_settings", "Settings"), [
+      kindRow,
       (myTypes.length
         ? row({ act: "prefs", icon: ICON.tool, tint: "ic-sky",
                 title: t("pf_prefs", "How your listings are shown"),
@@ -544,6 +577,7 @@
       if (act === "blocked") return window.PMBlock && window.PMBlock.list();
       if (act === "delacct") return askDeleteAccount();
       if (act === "notif") return showNotifPrefs();
+      if (act === "acctkind") return showAccountKind();
 
       if (act === "agentbio") {
         var sb = window.DataStore && window.DataStore.sb;
@@ -750,6 +784,75 @@
    * them. Notify.MUTABLE is the single definition; this reads it rather than
    * keeping a second list that would drift.
    */
+  /**
+   * What kind of account this is, and moving it to another.
+   *
+   * THE SERVER'S REFUSALS ARE SHOWN VERBATIM, through speakable(), which is
+   * already on this page for the same reason: account_kind_claim() raises real
+   * sentences a person can act on ("This account already has an agent page. Ask
+   * us to move it to an owner account") and machinery nobody can
+   * ("PGRST202..."). Inventing a friendlier message here would mean keeping a
+   * second copy of rules that live in SQL, and they would drift.
+   *
+   * The current kind is offered but not pressable: claiming what you already
+   * are is a no-op in the database and a dead button on the screen.
+   */
+  function showAccountKind() {
+    var AK = window.AccountKind;
+    if (!AK || !window.PMIdentityUI) return;
+
+    var draw = function () {
+      return AK.ORDER.map(function (k) {
+        var isNow = k === AK.kind();
+        return '<div class="pf-kind' + (isNow ? " is-now" : "") + '">' +
+          '<div class="pf-kind-tx"><b>' + esc(AK.name(k)) + "</b>" +
+          "<span>" + esc(AK.note(k)) + "</span></div>" +
+          (isNow
+            ? '<span class="pf-kind-now">' + esc(t("ak_t", "Account type")) + "</span>"
+            : '<button class="pm-btn ghost" type="button" data-kind="' + esc(k) + '">' +
+                esc(t("ak_change", "Change")) + "</button>") +
+          "</div>";
+      }).join("");
+    };
+
+    window.PMIdentityUI.open("<h2>" + esc(t("ak_t", "Account type")) + "</h2>" +
+      "<p>" + esc(AK.isDefault()
+        ? t("ak_default_note", "Nobody has set a type on this account, so it is treated as an agent.")
+        : AK.note()) + "</p>" +
+      '<div id="pfKindList">' + draw() + "</div>" +
+      '<div class="pm-msg-out" id="pfKindMsg"></div>' +
+      '<div class="pm-modal-acts"><button class="pm-btn" id="pfKindX">' +
+      esc(t("pm_close", "Close")) + "</button></div>");
+
+    document.getElementById("pfKindX").addEventListener("click", function () {
+      window.PMIdentityUI.close();
+      render();
+    });
+
+    // One listener on the container: draw() rewrites it after a change.
+    document.getElementById("pfKindList").addEventListener("click", async function (e) {
+      var b = e.target.closest ? e.target.closest("[data-kind]") : null;
+      if (!b) return;
+      var next = b.dataset.kind;
+      var out = document.getElementById("pfKindMsg");
+      b.disabled = true;
+      out.className = "pm-msg-out";
+      out.textContent = t("ak_changing", "Changing\u2026");
+      try {
+        await AK.claim(next);
+        out.className = "pm-msg-out good";
+        out.textContent = t("ak_changed", "Your account is now {name}.")
+          .split("{name}").join(AK.name());
+        document.getElementById("pfKindList").innerHTML = draw();
+      } catch (err) {
+        b.disabled = false;
+        out.className = "pm-msg-out bad";
+        out.textContent = speakable(err) || t("ak_change_failed",
+          "That could not be changed. Try again.");
+      }
+    });
+  }
+
   function showNotifPrefs() {
     var N = window.Notify;
     if (!N || !N.MUTABLE) return;

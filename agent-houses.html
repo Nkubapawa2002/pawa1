@@ -1289,6 +1289,10 @@
   <script src="js/lib/agent-portal.js"></script>
   <script src="js/lib/agent-workspace.js"></script>
   <script src="js/lib/owner-account.js"></script>
+  <!-- Which of the four account kinds this is, and what it may do. Pairs with
+       js/lib/owner-account.js: that one reads the owner allowance, this one
+       answers the capability questions for all four kinds. -->
+  <script src="js/lib/account-kind.js"></script>
   <!-- The bell. It carries what an admin has done to this account and how
        long the subscription has left, which is exactly the news an agent
        out working needs and will never see by opening a dashboard.

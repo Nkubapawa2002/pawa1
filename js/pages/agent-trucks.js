@@ -212,10 +212,30 @@ create policy "truck-photos upload" on storage.objects for insert
       authCard.hidden = true; dashboard.hidden = false; formSection.hidden = true;
       ensureStrip();
       userEmailEl.textContent = s.user.email || T("ap_no_email");
-      // Make sure the owner has declared the region they belong to + the area
+      // Make sure the lister has declared the region they belong to + the area
       // they operate in before they list — so their trucks surface to searchers
       // in that area.
-      try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
+      // OWNER CHECK FIRST, and it is a bug fix rather than a tidy-up.
+      //
+      // AgentProfile.ensure() opens a modal asking for an "area of operations"
+      // and WRITES an agent_profiles row. That row is what makes somebody an
+      // agent everywhere else in this app: pm_publish_key() derives
+      // pm_keys.is_agent from exactly its existence, and the Agent badge across
+      // P-Message, the directory and the public storefront reads that.
+      //
+      // agent-houses.js has guarded this call since the VIP door shipped. This
+      // page and agent-services.js did not. So an account that had claimed
+      // 'owner' -- no monthly fee, three posts per 180 days -- got silently
+      // relabelled is_agent:true the moment it opened this page to list a
+      // truck, while account_kinds still said owner and it still paid nothing.
+      // Two systems disagreeing about the same person, by omission.
+      //
+      // AccountKind.can("agentProfile") is false for owner, company and user.
+      try { await window.AccountKind?.load(); } catch (_) {}
+      if (!window.AccountKind || window.AccountKind.can("agentProfile")) {
+        try { agentProfile = await window.AgentProfile?.ensure(sb); } catch (_) {}
+      }
+      await showOwnerAllowance();
       if (agentProfile?.region && fRegion && !fRegion.value) fRegion.value = agentProfile.region;
       await loadMyTrucks();
       refreshNotices(true);
@@ -238,6 +258,39 @@ create policy "truck-photos upload" on storage.objects for insert
   // the admin inbox, which both drew themselves at dashboard.firstChild in
   // hardcoded light-theme hex, in English only. See js/lib/agent-notice-strip.js.
   // (`strip` itself is declared up beside warnEl, so showFatal can reach it.)
+  /**
+   * Say where an owner stands on their allowance, BEFORE the form.
+   *
+   * owner_post_gate() enforces three posts per 180 days on houses, trucks AND
+   * services -- one shared ledger across all three (see
+   * supabase/features/house/house_owner_accounts.sql). Only agent-houses.js
+   * ever SHOWED it. So an owner who had used their three on houses came here,
+   * filled in a truck, pressed save, and got a raw Postgres exception with a
+   * date in it. The rule was right and the screen never mentioned it.
+   *
+   * This is deliberately a sentence in the notice strip rather than a new
+   * panel: the numbers and both sentences already exist in
+   * js/lib/owner-account.js, which reads them from the database rather than
+   * hardcoding "three", and the strip is already on this page.
+   */
+  async function showOwnerAllowance() {
+    const st = ensureStrip();
+    if (!st || !window.OwnerAccount || !window.AccountKind) return;
+    if (window.AccountKind.kind() !== "owner") { st.set("owner", []); return; }
+    let q = null;
+    try { q = await window.OwnerAccount.quota(); } catch (_) { return; }
+    if (!q || !q.is_owner) { st.set("owner", []); return; }
+    const O = window.OwnerAccount;
+    const body = [O.leftSentence(q), O.nextSentence(q)].filter(Boolean).join(" ");
+    st.set("owner", [{
+      // Not an error until it actually is one: at the ceiling this is the thing
+      // standing between them and a refusal they cannot act on.
+      tone: Number(q.left) <= 0 ? "warn" : "info",
+      title: T("own_allowance_t", "Your posting allowance"),
+      body: body,
+    }]);
+  }
+
   function ensureStrip() {
     if (!strip && warnEl && window.AgentNoticeStrip) {
       strip = window.AgentNoticeStrip.mount({ into: warnEl });

@@ -354,6 +354,10 @@
   <!-- The four doors: who is coming in, and where they land. Must precede
        login.js, which wires them into the step flow. -->
   <script src="js/lib/login-doors.js"></script>
+  <!-- Which of the four kinds this account is, and what that means on screen.
+       The door is the intent; account_kind_claim() behind this module is what
+       records it. Four kinds were offered and only one was ever written down. -->
+  <script src="js/lib/account-kind.js"></script>
   <!-- Records the owner door on the server. js/lib/owner-account.js -->
   <script src="js/lib/owner-account.js"></script>
   <script src="js/pages/login.js"></script>

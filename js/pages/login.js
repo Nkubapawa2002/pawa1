@@ -455,15 +455,34 @@ window.initLoginPage = () => {
     if (said && D) D.set(said);
     const type = said || (D && D.get());
 
-    // Record the OWNER door on the server, once, at the first sign-in that
-    // knows about it. The door itself is user metadata, which the account can
-    // rewrite, so it cannot be the thing that decides who pays an agent fee;
-    // account_kind_claim() writes a row the account cannot touch and refuses
-    // the claim for anybody already trading as an agent. A refusal is not an
-    // error here: it means they are an agent, which is what they were a moment
-    // ago. See supabase/features/house/house_owner_accounts.sql.
-    if (type === "owner" && window.OwnerAccount) {
-      try { await window.OwnerAccount.claim("owner"); } catch (_) {}
+    // RECORD THE DOOR. ALL FOUR OF THEM, not just owner.
+    //
+    // This used to claim only "owner", and the consequence was measured rather
+    // than guessed: on 2026-09-16 public.account_kinds held ZERO rows across 28
+    // accounts, and account_kind() coalesces a missing row to 'agent'. So every
+    // account in the system was an agent as far as the database was concerned,
+    // including the ones that had picked "Just looking" -- and the four-door
+    // picker, which is the first thing anybody sees, decided nothing at all.
+    //
+    // account_kind_claim() has always accepted all four (it validates against
+    // the same list the CHECK constraint uses) and carries refusal rules for
+    // owner only, because owner is the one that claims a fee exemption. The
+    // client simply never called it for the other three.
+    //
+    // A REFUSAL IS NOT AN ERROR HERE, and that is why this is not awaited for
+    // its value. The door is a statement of intent made before the account
+    // existed; the database decides whether it is available. Somebody already
+    // trading as an agent who taps "House owner" is refused with a sentence
+    // that tells them to ask us to move it, and they remain what they were a
+    // moment ago, which is correct. Nothing on this screen depends on the
+    // answer, so a failure leaves the account exactly as it was.
+    //
+    // WHY HERE AND NOT ON THE SIGN-UP SUBMIT: signup may need an email
+    // confirmation, in which case there is no session to act as yet. This runs
+    // at the first sign-in that knows about the door, which is the first moment
+    // the claim can be made at all.
+    if (type && window.AccountKind) {
+      try { await window.AccountKind.claim(type); } catch (_) {}
     }
 
     // A company and a plain user each have exactly one place to be, so send
