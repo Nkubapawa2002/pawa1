@@ -67,7 +67,34 @@ const LEAFLET_STUB = `(function () {
     off: function () { return this; },
     fire: function (ev, arg) { (h[ev] || []).forEach(function (fn) { fn(arg); }); },
   }; }
-  function Layer() { var o = handlers(); o.addTo = function () { return o; }; return o; }
+  // A layer AND a layer group, because the page uses both and the difference
+  // never reaches the assertions.
+  //
+  // WHY clearLayers/addLayer ARE HERE. request-place.js calls
+  // window.addSatelliteHybrid(map, {control:false}), which is PawaBasemaps'
+  // door (js/core/config.js). leafletBase() builds an L.layerGroup() and
+  // immediately calls group.clearLayers() and group.addLayer(tiles) on it.
+  // With neither defined, that threw INSIDE request-place's own try/catch
+  // around map creation, which set map to null and carried on -- so the modal
+  // kept working, the caption kept telling the truth, and every single map
+  // assertion in this file came back null while the page reported no error.
+  //
+  // The app was never broken: real Leaflet has both. This stub was written
+  // before the basemap chain existed and never caught up. Anything the chain
+  // calls on a group belongs here, or the next provider it adds fails the same
+  // silent way.
+  function Layer() {
+    var o = handlers();
+    o.layers = [];
+    o.addTo = function () { return o; };
+    o.clearLayers = function () { o.layers.length = 0; return o; };
+    o.addLayer = function (l) { o.layers.push(l); return o; };
+    o.removeLayer = function () { return o; };
+    o.setUrl = function () { return o; };
+    o.setOpacity = function () { return o; };
+    o.bringToFront = function () { return o; };
+    return o;
+  }
   var L = {
     map: function () {
       var m = handlers();

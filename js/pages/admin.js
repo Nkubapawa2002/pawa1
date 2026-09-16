@@ -8,6 +8,31 @@ window.initAdminPage = async () => {
 
   const $ = (id) => document.getElementById(id);
   const escH = window.escHtml;   // escape user data before innerHTML interpolation
+
+  // window.t takes a key and nothing else, and returns the KEY ITSELF when a
+  // string is missing, so the fallback is what stops "adm_login_hint"
+  // appearing on the screen.
+  const t = (key, fallback) => {
+    const s = window.t ? window.t(key) : key;
+    return (!s || s === key) ? fallback : s;
+  };
+
+  // Two sentences on this page wrap an element -- the sign-in hint wraps a
+  // link, the refusal wraps the address you are signed in as. Both are built
+  // here by splitting the translated sentence on its own placeholder, so a
+  // language can put the link or the name anywhere in it. Gluing two
+  // half-sentences around the element would fix the word order in English.
+  function sentenceAround(host, key, fallback, token, innerHtml) {
+    if (!host) return;
+    const parts = t(key, fallback).split(token);
+    host.innerHTML = escH(parts[0]) + innerHtml + escH(parts.slice(1).join(token));
+  }
+
+  sentenceAround($("admLoginHint"), "adm_login_hint",
+    "First time? Use the same authorized email and click {link} to set a password.",
+    "{link}",
+    '<a href="#" id="signupLink">' +
+      escH(t("adm_login_hint_link", "create admin account")) + "</a>");
   const loginGate = $("loginGate");
   const forbidden = $("forbidden");
   const adminPanel = $("adminPanel");
@@ -43,7 +68,9 @@ window.initAdminPage = async () => {
     if (allowed) isAdmin = await window.Auth.isDbAdmin();
 
     if (!isAdmin) {
-      $("whoami").textContent = email;
+      sentenceAround($("admForbiddenMsg"), "adm_forbidden",
+        "You are signed in as {who} but this account is not authorized as an admin.",
+        "{who}", "<strong>" + escH(email) + "</strong>");
       forbidden.hidden = false;
       loginGate.hidden = true;
       adminPanel.hidden = true;

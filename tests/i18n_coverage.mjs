@@ -110,9 +110,10 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
 // first (71 and 11 strings), which is a different piece of work from making
 // the check real. So it is armed against the debt that existed the day it was
 // armed. Lower it when you clean strings; never raise it.
-// All 80 of these are admin.html and super-admin.html. The other 25 pages on
-// the list are at zero.
-const BASELINE = 80;
+// All 10 of these are super-admin.html. admin.html was 70 of them (44 strings
+// plus 26 <option> labels with no hook at all) and is at zero now. The other
+// 26 pages on the list are at zero too.
+const BASELINE = 10;
 
 // Words that are the same in Swahili, or are not words at all. Kept small and
 // explicit — a big allowlist is how a checker stops finding anything.
