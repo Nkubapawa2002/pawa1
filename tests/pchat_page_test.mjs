@@ -28,6 +28,11 @@ const EXPECTED = [
   // with sharing now, so the row that survives is the page itself.
   { kind: "link", href: "meet.html?from=pchat", label: "Meet & Locate" },
   { kind: "link", href: "share-location.html?from=pchat", label: "Share a location" },
+  // The other half of a location code. Sharing one and opening one are done by
+  // opposite people, so the receive door is its own row rather than something
+  // hidden inside the send page — the same reasoning that gave
+  // share-location.html two tabs.
+  { kind: "link", href: "share-location.html?recv=1&from=pchat", label: "Open a code somebody read out to you" },
   { kind: "link", href: "jobs.html?from=pchat", label: "Jobs and staff" },
 ];
 
@@ -123,8 +128,15 @@ try {
   process.stdout.write("\n2. No door leads to the same place twice\n");
   const dests = rows.map((r) => r.href || r.id).filter(Boolean);
   ok(new Set(dests).size === dests.length, "no destination repeats inside the tab", dests.join(" "));
+  // The PAGE's own links. The adaptive shell puts BOTH of its navigations in
+  // the DOM -- the bottom tab bar for the app shell and the top rail for the
+  // web one, with CSS deciding which is on -- so Home/Explore/P-Chat/
+  // P-Message/Profile legitimately appear twice and this assertion was
+  // reporting the shell as five duplicate doors. What it is actually for is
+  // the page offering the same destination under two different names.
   const localHrefs = await page.$$eval("a[href$='.html'], a[href*='.html?']",
-    (n) => n.map((a) => a.getAttribute("href")));
+    (n) => n.filter((a) => !a.closest(".app-tabbar, .app-webnav"))
+            .map((a) => a.getAttribute("href")));
   ok(new Set(localHrefs).size === localHrefs.length,
      "no destination repeats anywhere on the page, secondary links included", localHrefs.join(" "));
 

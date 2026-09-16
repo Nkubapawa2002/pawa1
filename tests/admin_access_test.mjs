@@ -133,7 +133,11 @@ try {
     const p = await visit("admin.html", ADMIN, { isAdminRow: true });
     const v = await view(p);
     ok(v.panel && !v.gate && !v.forbidden, "a real admin gets the console", JSON.stringify(v));
-    ok(v.sectionsVisible === 6, "with all six sections in the rail", String(v.sectionsVisible));
+    // SEVEN now, not six: "On duty" joined the rail when who is on support
+    // duty stopped being hand-typed into js/core/config.js and became a row in
+    // public.support_duties that an admin edits here. (The eighth button,
+    // Video space, is in the markup and hidden, so it is not counted.)
+    ok(v.sectionsVisible === 7, "with all seven sections in the rail", String(v.sectionsVisible));
     const active = await p.evaluate(() =>
       document.querySelector(".adm-rail .tab-btn.active")?.dataset.tab || "");
     ok(active === "allagents", "opening on the agents tracker", active);

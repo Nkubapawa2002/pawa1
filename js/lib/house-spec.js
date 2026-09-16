@@ -868,6 +868,48 @@
     });
   }
 
+  // ---- business space ------------------------------------------------------
+  //
+  // A Frame is "a room for business", so frame.js has to be able to ask
+  // whether a room is business space rather than somewhere to live. It was
+  // already asking -- `window.HouseSpec.businessRooms(h)` at frame.js:419 --
+  // and the function did not exist. The call sits inside a try/catch that
+  // returns [], so it failed silently and returned "no business rooms" for
+  // every listing in the country. The test immediately above it
+  // (`if (businessRoomsOf(h).length) return true`) therefore never fired once,
+  // and the Frame quietly missed any building whose business-ness lives in a
+  // ROOM inside it rather than in its top-level type or its title.
+  //
+  // Six of the nineteen kinds are business space. The free-text half matters
+  // just as much: the kind box has never refused anything an agent typed, so
+  // "frem ya biashara" and "duka la barabarani" have to be caught by the same
+  // vocabulary the Frame's own title scan uses, in both languages.
+  var BUSINESS_KINDS = {
+    shop_frame: 1, kiosk: 1, office_suite: 1, godown: 1, hall: 1, parking_bay: 1,
+  };
+  // Deliberately NOT a loose substring match. "mwembe radu" is a place, and a
+  // place name typed into the kind box must not turn a home into a shop, which
+  // is why every word here is anchored on its own boundaries.
+  var BUSINESS_WORDS =
+    /\b(frem|frame|duka|maduka|shop|store|stall|genge|kibanda|kiosk|ofisi|office|ghala|godown|go-down|warehouse|ukumbi|hall|biashara|business|commercial|lockup|lock-up)\b/;
+
+  /**
+   * Is this room kind business space? Takes a ROOM_KINDS key or whatever the
+   * agent typed. Blank is not a business room; a missing answer is not a yes.
+   */
+  function isBusinessKind(kind) {
+    if (kind == null) return false;
+    var k = String(kind).toLowerCase().trim();
+    if (!k) return false;
+    if (BUSINESS_KINDS[k]) return true;
+    return BUSINESS_WORDS.test(k);
+  }
+
+  /** Every room on this listing that is business space, in sheet order. */
+  function businessRooms(row) {
+    return fromRow(row).rooms.filter(function (r) { return isBusinessKind(r.kind); });
+  }
+
   /**
    * Does this listing offer a room that satisfies ALL of these at once?
    *
@@ -961,6 +1003,8 @@
     isRoomByRoom: isRoomByRoom,
     roomKinds: roomKinds,
     roomWords: roomWords,
+    isBusinessKind: isBusinessKind,
+    businessRooms: businessRooms,
     offers: offers,
   };
 })();
