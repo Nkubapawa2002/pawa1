@@ -8,7 +8,7 @@
 // name no longer matches, so an unchanged VERSION leaves existing installs
 // serving a precache full of the OLD js/ paths — which, after the core/lib/
 // pages restructure, no longer exist.
-const VERSION = "v354-2026-09-16-supabase-pinned";
+const VERSION = "v355-2026-09-16-design-tokens";
 const PRECACHE  = "pawa-precache-" + VERSION;
 const RUNTIME   = "pawa-runtime-"  + VERSION;
 

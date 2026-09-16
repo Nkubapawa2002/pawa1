@@ -20,40 +20,40 @@
 /* ── Tokens ────────────────────────────────────────────────────────── */
 :root {
   /* Tanzania brand re-imagined as neon */
-  --n-green:        #10b981;
-  --n-green-bright: #34d399;
-  --n-green-deep:   #064e3b;
-  --n-green-soft:   rgba(16, 185, 129, 0.10);
-  --n-green-line:   rgba(16, 185, 129, 0.25);
+  --n-green:        var(--green-neon);
+  --n-green-bright: var(--green-bright);
+  --n-green-deep:   var(--green-deep);
+  --n-green-soft:   var(--green-soft);
+  --n-green-line:   var(--green-line);
 
-  --n-gold:         #fcd116;
-  --n-gold-bright:  #ffe066;
-  --n-gold-soft:    rgba(252, 209, 22, 0.10);
-  --n-gold-line:    rgba(252, 209, 22, 0.30);
+  --n-gold:         var(--gold);
+  --n-gold-bright:  var(--gold-bright);
+  --n-gold-soft:    var(--gold-soft);
+  --n-gold-line:    var(--gold-line);
 
   /* Surfaces — never pure black (OLED + readability) */
-  --n-bg:         #07120d;
-  --n-bg-2:       #0b1a13;
-  --n-surface:    #0f221a;
-  --n-surface-2:  #142b22;
-  --n-surface-3:  #1a3528;
-  --n-surface-warn: #2a1d05;   /* dark amber for warning panels */
-  --n-surface-err:  #2a0d0d;   /* dark red for error panels */
-  --n-surface-ok:   #052619;   /* dark green for success panels */
+  --n-bg:         var(--bg);
+  --n-bg-2:       var(--bg-2);
+  --n-surface:    var(--surface);
+  --n-surface-2:  var(--surface-2);
+  --n-surface-3:  var(--surface-3);
+  --n-surface-warn: var(--surface-warn);   /* dark amber for warning panels */
+  --n-surface-err:  var(--surface-err);   /* dark red for error panels */
+  --n-surface-ok:   var(--surface-ok);   /* dark green for success panels */
 
   /* Text */
-  --n-text:       #f0f5f2;
-  --n-text-soft:  #c8d3cd;
-  --n-text-muted: #8a9c92;
-  --n-text-faint: #586a60;
-  --n-text-on-brand: #051a10;
-  --n-text-warn:  #fde68a;
-  --n-text-err:   #fecaca;
-  --n-text-ok:    #86efac;
+  --n-text:       var(--text);
+  --n-text-soft:  var(--text-soft);
+  --n-text-muted: var(--text-muted);
+  --n-text-faint: var(--text-faint);
+  --n-text-on-brand: var(--text-on-brand);
+  --n-text-warn:  var(--text-warn);
+  --n-text-err:   var(--text-err);
+  --n-text-ok:    var(--text-ok);
 
   /* Borders */
   --n-border:        rgba(255, 255, 255, 0.06);
-  --n-border-strong: rgba(255, 255, 255, 0.12);
+  --n-border-strong: var(--glass-border);
 
   /* Glows — tamed (v1 had 18-40px halos that washed out text) */
   --n-glow-green:   0 0 8px rgba(16, 185, 129, 0.30);
@@ -71,10 +71,10 @@
     radial-gradient(48% 38% at 12% 0%, rgba(16, 185, 129, 0.15) 0%, transparent 65%),
     radial-gradient(42% 36% at 92% 12%, rgba(252, 209, 22, 0.08) 0%, transparent 70%),
     radial-gradient(60% 50% at 50% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 75%),
-    linear-gradient(180deg, #07120d 0%, #050d09 100%);
+    linear-gradient(180deg, var(--bg) 0%, #050d09 100%);
 
-  --n-grad-brand:    linear-gradient(135deg, #064e3b 0%, #10b981 60%, #34d399 100%);
-  --n-grad-gold:     linear-gradient(135deg, #b88800 0%, #fcd116 55%, #ffe066 100%);
+  --n-grad-brand:    linear-gradient(135deg, var(--green-deep) 0%, var(--green-neon) 60%, var(--green-bright) 100%);
+  --n-grad-gold:     linear-gradient(135deg, #b88800 0%, var(--gold) 55%, var(--gold-bright) 100%);
 
   --n-ease:       cubic-bezier(0.22, 1, 0.36, 1);
   --n-dur-fast:   140ms;
@@ -441,7 +441,7 @@ tr:hover td { background: var(--n-green-soft); }
 .id-warning { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; border-color: var(--n-gold-line) !important; }
 .seat.held { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; border-color: var(--n-gold-line) !important; }
 .seat.free:hover { background: var(--n-green-soft) !important; }
-.badge-registered { background: rgba(59,130,246,0.15) !important; color: #93c5fd !important; }
+.badge-registered { background: var(--surface-info) !important; color: var(--text-info) !important; }
 .badge-picked { background: var(--n-surface-warn) !important; color: var(--n-text-warn) !important; }
 
 /* ── claude-design.css: pay-btn was pure #000 ────────────────────── */
@@ -902,7 +902,7 @@ body[data-bg] {
   --gray-light: #f9fafb;
   --gray-mid: #e5e7eb;
   --border: #e5e7eb;
-  --green-light: #e8f5ee;
+  --green-light: var(--green-light);
 }
 
 body[data-bg],

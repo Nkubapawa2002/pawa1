@@ -216,4 +216,70 @@ if (AS_JSON) {
   }
 }
 
+// ---------------------------------------------------------------------------
+//  THE RATCHET.
+//
+//  --strict exits 1 on any finding at all, which is the right end state and is
+//  480 literals away. Until this file was given a baseline the DEFAULT run
+//  exited 0 no matter what, so the count could grow forever and nothing said
+//  so: the same shape tests/i18n_coverage.mjs was in before it was armed, and
+//  the same shape rule 2 in tests/copy_rules_test.mjs was in before it reached
+//  zero.
+//
+//  So the number is recorded here and may only ever go DOWN. Replace the
+//  literals on the screen you are already working on, lower the number, and
+//  the rule tightens itself.
+//
+//  WHY THIS ONE CANNOT BE CLEARED IN A BATCH, unlike the spaced dashes. A dash
+//  is punctuation and swapping it is safe. A colour literal is load-bearing,
+//  and there are three separate ways a "correct" substitution goes wrong:
+//
+//   1. THE TOKEN HAS TO EXIST AND REACH THE PAGE. An undefined token does not
+//      fall back, it kills the whole declaration. This repo has already lost
+//      nine `font:` rules on house.html to a `--fw-regular` that did not
+//      exist, and they silently rendered at 16px. Check that every page
+//      loading the file also loads css/design-system.css.
+//
+//   2. A THEMED TOKEN IS NOT A SAFE SUBSTITUTE FOR A DELIBERATE LITERAL, and
+//      this is the one the suggestions get wrong. css/theme-light.css line 303
+//      paints `.manifesto { background: #07120d }` INSIDE the light theme, and
+//      the comment above it says why: the band is a deliberate dark feature
+//      and needs a solid dark background pinned under it. The suggestion is
+//      var(--bg) — which theme-light.css itself redefines to cream. Taking the
+//      suggestion would invert the exact thing the comment exists to prevent.
+//      Before substituting, check whether the token is overridden in
+//      theme-light.css. If it is, the literal may be doing a job.
+//
+//   3. THE SAME VARIABLE CARRIES DIFFERENT FALLBACKS. --n-border-strong is
+//      used with .12, .14 and .18 opacity and only .12 matches a token; a
+//      blanket replace flattens three distinct borders into one.
+//
+//  scripts/design/apply_tokens.mjs does the mechanical half safely (it takes
+//  the checker's line-and-literal list and refuses to touch prose), but the
+//  judgement in 2 is per-literal and cannot be automated.
+//
+//  Cleared so far, both verified as no-ops rather than assumed:
+//    css/neon-pro.css       35  its palette now references the tokens it was
+//                               duplicating, values identical, light theme and
+//                               a dark screenshot both checked
+//    js/lib/agent-profile.js 36  var(--n-x, #hex) -> var(--n-x, var(--token)),
+//                               and on the one page without neon-pro the base
+//                               token equals the literal exactly
+const BASELINE = 409;
+
 if (STRICT && findings.length) process.exit(1);
+
+if (!STRICT) {
+  if (findings.length > BASELINE) {
+    console.log(`  FAIL  ${findings.length} literals, baseline ${BASELINE}. ` +
+                `${findings.length - BASELINE} more than when this was last ratcheted.`);
+    console.log(`        Use var(--token). Check the token exists and that the page loads the tokens.\n`);
+    process.exit(1);
+  }
+  if (findings.length < BASELINE) {
+    console.log(`  PASS  ${findings.length} literals, baseline ${BASELINE}. ` +
+                `Lower BASELINE to ${findings.length} in this file to keep the ground you just took.\n`);
+  } else {
+    console.log(`  PASS  ${findings.length} literals, baseline ${BASELINE}.\n`);
+  }
+}
