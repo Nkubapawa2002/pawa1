@@ -7,13 +7,20 @@
 //
 //  Rules 1 and 3 are HARD: any hit fails.
 //
-//  Rule 2 is a RATCHET, not a wall. There were 350 spaced dashes in i18n.js
-//  when the rule was written, spread across every page in the site. Failing on
-//  all of them would have meant either a 350-string rewrite in one commit,
-//  which nobody can review, or the rule being switched off within a week,
-//  which is the same as not having it. So the count is recorded here and may
-//  only ever go DOWN: clean the strings on the screen you are already
-//  touching, lower the number, and the rule tightens itself.
+//  Rule 2 was a RATCHET and is now a wall. There were 350 spaced dashes in
+//  i18n.js when the rule was written, spread across every page in the site.
+//  Failing on all of them at once would have meant either a 350-string rewrite
+//  nobody could review, or the rule being switched off within a week, which is
+//  the same as not having it. So the count was recorded and allowed only to go
+//  down: clean the strings on the screen you are already touching, lower the
+//  number, and the rule tightens itself. It reached 0.
+//
+//  A dash between spaces is a comma, a colon, a semicolon or a full stop that
+//  somebody skipped, and WHICH one it is has to be decided per sentence. The
+//  trap when clearing a batch of them is a sentence carrying two: replacing
+//  both with the same mark gives you "services: cleaning, plumbing and more:
+//  from verified providers", which is worse than the dash was. Two dashes are
+//  nearly always two sentences.
 //
 //  Run: node tests/copy_rules_test.mjs
 //       node tests/copy_rules_test.mjs --list    (show every remaining hit)
@@ -24,8 +31,9 @@ import path from "path";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const LIST = process.argv.includes("--list");
 
-// The ratchet. Lower it when you clean strings; never raise it.
-const DASH_BASELINE = 155;
+// Zero, and it stays zero. This is no longer a number to lower; it is the
+// count a new spaced dash has to beat, which it cannot.
+const DASH_BASELINE = 0;
 
 // Unicode's own answer to "is this an emoji", rather than a hand-rolled block
 // range. Extended_Pictographic draws the line exactly where the rule wants it:
