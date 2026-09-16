@@ -110,6 +110,7 @@ window.initAdminPage = async () => {
     // read is admin-only, and a browser that has not passed the gate has no
     // business asking for any of it, refused or not.
     window.initAdminOwners?.();
+    window.initAdminDuties?.();
     window.initAdminNotices?.();
 
     // Tabs

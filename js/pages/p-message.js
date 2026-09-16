@@ -99,6 +99,54 @@
     });
   }
 
+  // ---- what the database said, in the reader's own language ----------------
+  //
+  // Every refusal from pm_group_create, pm_group_add and pm_broadcast is a
+  // `raise exception` written in English in a .sql file. They were shown
+  // verbatim, so a Swahili session got a fully translated dialog wrapped
+  // around an English-only sentence — and the sentence was always the one
+  // explaining WHY the room could not be opened, which is the single line on
+  // that screen somebody actually has to understand.
+  //
+  // MATCHED ON A FRAGMENT, NOT ON THE WHOLE STRING. Two of these interpolate a
+  // number with `%`, and every one of them is a sentence somebody may reword
+  // in a later migration. A fragment match degrades to the English original
+  // when a wording moves, which is what it already did; an equality test would
+  // degrade to nothing at all.
+  //
+  // THE NUMBER IS CARRIED OVER, not re-derived. pm_group_max_open() is 60
+  // today and is a one-line immutable function precisely so it can be changed
+  // without a deploy, so a cap hardcoded here would start lying the moment
+  // somebody used that. It is read back out of the sentence instead.
+  var DB_SAYS = [
+    [/set up p-message on this device/i, "pm_err_nokey",
+     "Set up P-Message on this device first. Open it once and it will do that by itself."],
+    [/none of those people have set up p-message/i, "pm_err_nobodykeyed",
+     "None of the people you chose have opened P-Message yet, so there is no way to encrypt anything to them. Send them an invite instead."],
+    [/you can only open a room with people you already deal with/i, "pm_err_noreach",
+     "You can only put somebody in a room once you have written to each other, or if they have listed something. Send them an invite, and they can be added after they open it."],
+    [/nobody you already deal with is in that list/i, "pm_err_nocast",
+     "You can only announce to people you have written to, or who opened your invite. A room is the wider of the two, and works today."],
+    [/holds at most/i, "pm_err_cap", "A room you open holds at most {n} people."],
+    [/rooms a day/i, "pm_err_perday", "You can open {n} rooms a day. Try again tomorrow."],
+    [/announcements a day/i, "pm_err_castperday", "You can send {n} announcements a day. Try again tomorrow."],
+    [/a guest session cannot/i, "pm_err_guest",
+     "This device is browsing as a guest. Sign in to open a room."],
+    [/choose at least one person/i, "pm_pick_none_msg", "Choose at least one person."],
+    [/that room name is too long/i, "pm_err_longname", "That room name is too long."],
+    [/sign in first/i, "pm_err_signin", "Sign in first."],
+  ];
+
+  function explain(err) {
+    var raw = (err && err.message) || String(err || "");
+    for (var i = 0; i < DB_SAYS.length; i++) {
+      if (!DB_SAYS[i][0].test(raw)) continue;
+      var n = (raw.match(/\d+/) || [])[0];
+      return t(DB_SAYS[i][1], DB_SAYS[i][2], n ? { n: n } : null);
+    }
+    return raw;
+  }
+
   // The picker draws people, and drawing a person means saying where they work
   // and what they deal in. Those two answers now live in one module, shared
   // with the picker, the roster and the agent list, so it is handed this
@@ -263,6 +311,7 @@
     // own it waits on the list, which is the honest thing to do — the app
     // cannot know who the pin is for.
     try { takeRequestedPlace(); } catch (_) {}
+    try { takeRequestedCode(); } catch (_) {}
     try { takeRequestedListing(); } catch (_) {}
     try { await openRequestedPeer(); } catch (_) {}
   }
@@ -318,6 +367,31 @@
       label: String(label || hit.label || "").slice(0, 120),
       source: "link",
     });
+    showSeg("chats");
+    return true;
+  }
+
+  /**
+   * A sealed location code handed over as `p-message.html?loc=<code>`.
+   *
+   * THE ONLY WAY share-location.html AND p-chat.html HAND A PLACE TO A PERSON
+   * NOW. Both used to call navigator.share with a plain Google Maps URL, which
+   * is editable text: two changed digits move the place across town and nothing
+   * in the message can tell. The nine characters that arrive here are the
+   * decryption key for coordinates already sealed on the server, so a wrong
+   * character fails closed instead of resolving somewhere else. The full
+   * argument is on sendInPMessage() in js/pages/share-location.js and at the top
+   * of js/lib/pm-code-card.js.
+   *
+   * NOT OPENED HERE. It is attached and sent as it is; see attachCode().
+   */
+  function takeRequestedCode() {
+    if (!ready || !window.PMPlaceUI || !window.LocCode) return false;
+    var raw = "";
+    try { raw = new URLSearchParams(location.search).get("loc") || ""; }
+    catch (_) { return false; }
+    if (!raw) return false;
+    if (!window.PMPlaceUI.attachCode(raw)) return false;
     showSeg("chats");
     return true;
   }
@@ -471,6 +545,7 @@
         // and a guest with no conversations yet wants the agents list, which
         // is where the recipient they still have to choose actually is.
         try { takeRequestedPlace(); } catch (_) {}
+        try { takeRequestedCode(); } catch (_) {}
         try { takeRequestedListing(); } catch (_) {}
         showSeg("people");           // a guest came here to find an agent
         // Unless they arrived on a ?to= link, in which case they came here
@@ -518,8 +593,21 @@
     catch (err) { el.pmInbox.innerHTML = '<div class="pm-empty">' + esc((err && err.message) || err) + "</div>"; return; }
 
     if (!rows.length) {
+      // AN EMPTY INBOX IS THE FIRST SCREEN EVERY ACCOUNT SEES, and until now
+      // the only thing it named was the Agents pane. A person who wants to
+      // gather four people into one conversation read "open Agents to find
+      // someone who works in your area", went looking for a way to make a
+      // room, and found a button called "Rooms" in the row above it. Both
+      // things you can start from nothing are offered here now, as buttons,
+      // because a sentence naming an action is not the action.
       el.pmInbox.innerHTML = '<div class="pm-empty">' +
-        esc(t("pm_no_chats", "No conversations yet. Open Agents to find someone who works in your area.")) + "</div>";
+        esc(t("pm_no_chats2", "No conversations yet. Open a room for several people, or find somebody who works in your area.")) +
+        '<div class="pm-empty-acts">' +
+          '<button class="pm-btn" type="button" data-inbox-act="room">' +
+            esc(t("pm_rooms_new", "New room")) + "</button>" +
+          '<button class="pm-btn ghost" type="button" data-inbox-act="people">' +
+            esc(t("pm_seg_people", "Agents")) + "</button>" +
+        "</div></div>";
       return;
     }
 
@@ -912,7 +1000,7 @@
   // js/lib/pm-rooms-ui.js now: four questions that are really one question,
   // "this conversation as an object", rather than anything you do inside it.
   if (window.PMRoomsUI) window.PMRoomsUI.attach({
-    t: t, esc: esc, modal: modal, closeModal: closeModal,
+    t: t, esc: esc, modal: modal, closeModal: closeModal, explain: explain,
     say: function (m) { say(m); },
     initials: initials,
     whereOf: function (p, o) { return whereOf(p, o); },
@@ -1009,12 +1097,23 @@
       var listing = (!m.failed && !gone && !place && !invite && window.PMListingCard)
         ? window.PMListingCard.read(text) : null;
       if (listing) shown = window.PMListingCard.stripped(text);
+      // A sealed location code gets a card too, and it needs no same-origin
+      // rule because it is not a URL: there is no domain to misread and the
+      // only thing the button can do is hand nine characters to
+      // LocShare.open(). Last in the chain, because it is the cheapest to be
+      // wrong about -- a message carrying both a plaintext pin and a code is
+      // somebody sending the same place twice, and the pin is the one that can
+      // still be read with no account and no openings left.
+      var locCode = (!m.failed && !gone && !place && !invite && !listing && window.PMCodeCard)
+        ? window.PMCodeCard.read(text) : null;
+      if (locCode) shown = window.PMCodeCard.stripped(text);
 
       return '<div class="pm-msg' + (m.mine ? " mine" : "") + (m.failed ? " failed" : "") +
         (gone ? " gone" : "") +
         (place ? " has-place" : "") +
         (invite ? " has-invite" : "") +
         (listing ? " has-listing" : "") +
+        (locCode ? " has-code" : "") +
         '" data-msg="' + esc(m.id || "") + '">' +
         quoteHtml(m) + (place ? window.PMPlace.card(place, {
           // Who sent it, so that saving the pin keeps the one fact the pin
@@ -1031,6 +1130,7 @@
         // the DOM. Looking the room up here would mean an await inside a
         // synchronous redraw that runs on every incoming message.
         (listing ? window.PMListingCard.card(listing, { reach: !m.mine }) : "") +
+        (locCode ? window.PMCodeCard.card(locCode, { mine: !!m.mine }) : "") +
         esc(shown) +
         '<span class="pm-msg-at">' + who + esc(clock(m.at)) +
         // Answering is offered on every message including one this device
@@ -1400,7 +1500,14 @@
     var body = text;
     var pin = pendingPlace();
     var listing = pendingListing();
-    if (pin && window.PMPlace) {
+    var codeRef = pendingCode();
+    if (codeRef && window.PMCodeCard) {
+      // Before the pin branch, though the two can never both be set: the order
+      // here is the order a reader checks them in renderLog(), and keeping the
+      // two lists in the same order is how they stay in step.
+      body = window.PMCodeCard.compose(codeRef, text);
+      clearAttach();
+    } else if (pin && window.PMPlace) {
       body = window.PMPlace.compose(pin, text);
       clearAttach();
     } else if (listing && window.PMListingCard) {
@@ -1448,6 +1555,7 @@
   function pendingPlace() { return window.PMPlaceUI.pending(); }
   /** The listing waiting to go with it. At most one of the two is ever set. */
   function pendingListing() { return window.PMPlaceUI.pendingListing(); }
+  function pendingCode() { return window.PMPlaceUI.pendingCode(); }
   function attachListing(ref) { return window.PMPlaceUI.attachListing(ref); }
   // ---- PN-Zaki -------------------------------------------------------------
   //
@@ -1614,7 +1722,7 @@
   // audience, a room is not an announcement -- travels with them in that file's
   // header rather than sitting in the middle of this one.
   if (window.PMAnnounceUI) window.PMAnnounceUI.attach({
-    t: t, esc: esc, modal: modal, closeModal: closeModal,
+    t: t, esc: esc, modal: modal, closeModal: closeModal, explain: explain,
     refreshInbox: function () { return refreshInbox(); },
   });
   function showBroadcast() { window.PMAnnounceUI.announce(); }
@@ -1834,6 +1942,14 @@
       // test failing.
       var menuBtn = e.target.closest("[data-chat-menu]");
       if (menuBtn) { showChatMenu(menuBtn); return; }
+      // The two buttons on an empty inbox. Before the row lookup, for the same
+      // reason the dots are: neither is inside a [data-thread].
+      var act = e.target.closest("[data-inbox-act]");
+      if (act) {
+        if (act.dataset.inboxAct === "room") showRooms();
+        else showSeg("people");
+        return;
+      }
       var row = e.target.closest("[data-thread]");
       if (!row) return;
       openThread({
@@ -1911,6 +2027,21 @@
         toSave.textContent = t("pmp_saved", "Saved");
         return;
       }
+      // The code rides on the button, for the same reason the pin and the
+      // invite link do: the log is rewritten on every incoming message, so an
+      // index into it is stale by the time a thumb lands.
+      var toCode = e.target.closest("[data-code-open]");
+      if (toCode) {
+        // Disabled for the round trip. LocShare.open() spends one of a finite
+        // number of openings, and a double tap on a code that allows one would
+        // burn it and report "opened as many times as it was allowed".
+        toCode.disabled = true;
+        var wasC = toCode.textContent;
+        toCode.textContent = t("pmp_code_opening", "Opening…");
+        Promise.resolve(window.PMPlaceUI.openCode(toCode.dataset.codeOpen))
+          .then(function () { toCode.disabled = false; toCode.textContent = wasC; });
+        return;
+      }
       // Same reasoning as the pin: the link rides on the button rather than an
       // index into a log that is rewritten on every incoming message.
       var invCopy = e.target.closest("[data-inv-copy]");
@@ -1947,7 +2078,7 @@
       // mean somebody standing at a gate has to think of a sentence before
       // they can say where they are. A room on its own is the same: "look at
       // this one" is what the card already says.
-      if (!text && !pendingPlace() && !pendingListing()) return;
+      if (!text && !pendingPlace() && !pendingListing() && !pendingCode()) return;
       // The disabled textarea is the visible gate; this is the one that holds
       // if anything ever re-enables it without clearing the alarm.
       if (open && open.trust && open.trust.changed) { openVerify(); return; }

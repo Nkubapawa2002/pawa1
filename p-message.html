@@ -147,19 +147,23 @@
        (`:empty` would not help — the buttons are always present, just
        hidden.) */
     .pm-tools { display: flex; flex-wrap: wrap; gap: 7px; }
-    .pm-tools .pm-admin-btn,
     .pm-tools .pm-tool-btn { margin-top: 11px; }
 
-    /* A tool anyone may use, as opposed to .pm-admin-btn. Same shape, so the
-       row reads as one row; different colour, so "Invite a customer" does not
-       look like a thing the database is about to refuse you. */
+    /* One shape for every tool in the row. There is no second, "privileged"
+       shape any more: see the comment on .pm-tools in the markup.
+
+       min-height is the token, not 34px. At `padding: 8px` with 12px type
+       these came out about 34 tall, which tests/mobile_audit.mjs counts as a
+       miss and a thumb on a moving daladala counts as two. */
     .pm-tool-btn {
       flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+      min-height: var(--hit-min, 44px);
       background: var(--pm-field); color: var(--pm-ink-soft);
       border: 1px solid var(--c-border);
       border-radius: 12px; padding: 8px 12px; font: inherit; font-size: 12px;
       font-weight: 800; cursor: pointer;
     }
+    .pm-tool-btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
     .pm-tool-btn.is-primary {
       background: var(--pm-brand-soft); color: var(--pm-brand);
       border-color: var(--pm-brand-line);
@@ -180,15 +184,9 @@
 
     /* [hidden] is a UA display:none, and ANY author display wins over it.
        Several controls here set display, so the attribute is honoured
-       explicitly — without this an ordinary user sees the Announce button.
-       (The database refuses them either way; this is about not lying.) */
+       explicitly, or a control hidden until the gate has run flashes on load
+       and a guest sees a button meant for an account. */
     body[data-page="p-message"] [hidden] { display: none !important; }
-
-    .pm-admin-btn {
-      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
-      background: var(--pm-violet-soft); color: var(--pm-violet); border: 1px solid var(--pm-violet-line);
-      border-radius: 12px; padding: 8px 12px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
-    }
 
     /* Segments */
     .pm-segs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 12px;
@@ -615,6 +613,43 @@
     .pm-inv-card-b.is-go { background: var(--pm-gold); color: var(--pm-on-brand);
       border-color: transparent; }
 
+    /* ---- a place sent as a sealed code ------------------------------------
+       Brand green, the same as a pin, because that is what it is: a place.
+       It is not gold, because gold is this screen's colour for a credential
+       somebody can bear away, and a location code opens a map rather than an
+       identity.
+
+       The nine characters are set in --font-mono with tabular figures, the way
+       every code, price and id in this app is: a code is read one character at
+       a time and out loud down a phone, and a proportional 0 next to a
+       proportional O is how somebody ends up at the wrong house. */
+    .pm-code-card { display: block; margin: -1px 0 5px; padding: 9px 10px;
+      background: var(--pm-brand-soft); border: 1px solid var(--pm-brand-line);
+      border-radius: 12px; }
+    .pm-code-card-h { display: flex; align-items: center; gap: 6px; color: var(--pm-brand);
+      font-size: 13px; font-weight: 800; min-width: 0; }
+    .pm-code-card-h svg { width: 15px; height: 15px; flex: 0 0 auto; }
+    .pm-code-card-c { display: block; margin-top: 6px;
+      font-family: var(--font-mono), ui-monospace, monospace;
+      font-feature-settings: "tnum", "zero";
+      font-size: 17px; font-weight: 700; letter-spacing: .07em;
+      color: var(--pm-ink); word-break: break-all; }
+    .pm-code-card-d { display: block; margin-top: 5px; font-size: 11.5px; line-height: 1.45;
+      color: var(--pm-ink-soft); }
+    .pm-code-card-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .pm-code-card-b { display: inline-flex; align-items: center; justify-content: center;
+      min-height: var(--hit-min, 44px);
+      background: var(--pm-field); border: 1px solid var(--c-border); color: var(--pm-ink);
+      border-radius: 9px; padding: 6px 12px; font: inherit; font-size: 11.5px;
+      font-weight: 700; cursor: pointer; text-decoration: none; }
+    .pm-code-card-b.is-go { background: var(--pm-brand); color: var(--pm-on-brand);
+      border-color: transparent; }
+    .pm-code-card-b[disabled] { opacity: .6; cursor: default; }
+    /* The same treatment on the attachment strip, where the code is all there
+       is to show: at this point the sender has not opened it either. */
+    .pm-at-code { font-family: var(--font-mono), ui-monospace, monospace;
+      font-feature-settings: "tnum", "zero"; letter-spacing: .06em; }
+
     /* ---- a room, a service or a truck sent inside a conversation ----------
        Neither brand green nor gold, and that is the point. A pin is a fact
        about the world and an invite is a credential; this is a REFERENCE to
@@ -782,7 +817,10 @@
        ordinary-looking button. */
     .pm-btn.danger { background: rgba(255,138,122,.16); color: #ffb9ae; border: 1px solid rgba(255,138,122,.34); }
     :root[data-theme="light"] .pm-btn.danger { background: rgba(176,42,24,.08); color: #7d2113; border-color: rgba(176,42,24,.3); }
-    .pm-scroll { max-height: 42vh; overflow-y: auto; margin-top: 6px; }
+    /* --app-vh, not bare vh: the same reason .pm-modal in css/pm-identity.css
+       uses it. A scroller sized against a viewport taller than the screen
+       pushes whatever follows it off the bottom of the dialog. */
+    .pm-scroll { max-height: calc(var(--app-vh, 100vh) * .42); overflow-y: auto; margin-top: 6px; }
 
     /* Choosing who is in a room. The scope proposes and the admin decides, so
        every candidate is a row you can untick rather than a number you have to
@@ -886,7 +924,12 @@
     .pm-pk-way p { margin: 0 0 12px; font-size: 12.5px; line-height: 1.6;
       color: var(--pm-ink-soft); }
     .pm-pk-way-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-    .pm-pk-list { max-height: 40vh; overflow-y: auto; }
+    /* The people list inside "Open a room". This is the one that mattered
+       most: above it sit a title, a paragraph, a name field, three source
+       tabs and a search box, and below it a basket and two buttons. Sized
+       against the layout viewport it took 40% of 812px on a screen showing
+       635, and "Open room" ended up under the home indicator. */
+    .pm-pk-list { max-height: calc(var(--app-vh, 100vh) * .4); overflow-y: auto; }
 
     /* Somebody an announcement cannot reach is drawn and explained rather than
        hidden: a row that vanishes teaches nothing, and the reason is about the
@@ -902,6 +945,12 @@
     .pm-note b { color: var(--pm-ink); }
     .pm-note.warn { border-color: var(--pm-gold-line); background: var(--pm-gold-soft); }
     .pm-empty { text-align: center; padding: 34px 16px; color: var(--pm-ink-soft); font-size: 13.5px; line-height: 1.6; }
+    /* The actions on an empty inbox. Wrapping, because two buttons plus a
+       gutter is wider than 320px once Swahili has had its say. */
+    .pm-empty-acts {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin-top: 16px;
+    }
 
     .pm-btn { background: var(--pm-brand); color: var(--pm-on-brand); border: 0; border-radius: 12px; padding: 11px 16px;
       font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer; }
@@ -1037,14 +1086,27 @@
     <!-- A row of their own, below the title, so nothing here can be pushed
          under the floating theme toggle or off the side of a phone.
 
-         Three kinds of button live here and they are no longer one colour.
-         Announce and Rooms are the ADMIN's, and stay violet. Invite is what an
-         ordinary agent came to this screen to do, so it is the brand action.
-         The safety number is a door, not a task, so it is the quiet one. -->
+         THESE WERE VIOLET, AND VIOLET MEANT "ADMIN ONLY" EVERYWHERE ELSE IN
+         THIS APP. They stopped being admin-only when p_message_open.sql took
+         the `Admins only` line out of pm_group_create and pm_broadcast, and
+         js/pages/p-message.js has shown them to every non-guest account ever
+         since. Only the colour, the class name and this comment still claimed
+         otherwise, which is the worst possible half-state: a control that
+         works, dressed as one the database is about to refuse you. The class
+         .pm-admin-btn is deleted rather than recoloured, so it cannot come
+         back by being reused.
+
+         "Rooms" was also not the name of an action. It is the name of a place,
+         on a button whose only job is to make a new one, on a screen where the
+         complaint was that making one was hard to find. It says what it does
+         now, it leads, and it carries the one plus sign in the row. -->
     <div class="pm-tools">
-      <button class="pm-admin-btn" id="pmBroadcastBtn" type="button" hidden data-i18n="pm_broadcast">Announce</button>
-      <button class="pm-admin-btn" id="pmRoomsBtn" type="button" hidden data-i18n="pm_rooms">Rooms</button>
-      <button class="pm-tool-btn is-primary" id="pmInviteBtn" type="button" hidden data-i18n="pm_invite">Invite a customer</button>
+      <button class="pm-tool-btn is-primary" id="pmRoomsBtn" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+        <span data-i18n="pm_rooms_new">New room</span>
+      </button>
+      <button class="pm-tool-btn" id="pmBroadcastBtn" type="button" hidden data-i18n="pm_broadcast">Announce</button>
+      <button class="pm-tool-btn" id="pmInviteBtn" type="button" hidden data-i18n="pm_invite">Invite a customer</button>
       <!-- Thirty digits used to be printed here, wrapping mid-number in 11px
            grey, on a button that opened the BACKUP dialog. The number belongs
            where it can be read (Profile's card, and the dialog behind this
@@ -1259,6 +1321,12 @@
   <script src="js/lib/explore-index.js"></script>
   <script src="js/lib/pm-reach.js"></script>
   <script src="js/lib/pm-listing-card.js"></script>
+  <!-- A place sent as a sealed nine-character code, which is the ONLY way
+       share-location.html and p-chat.html hand a place to another person now.
+       Both used to call navigator.share with a plain google.com/maps URL: two
+       edited digits moved the place and nothing in the message could tell.
+       Needs loc-code.js above it, which is already loaded for the picker. -->
+  <script src="js/lib/pm-code-card.js"></script>
   <script src="js/lib/geolocate.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.js"></script>
   <script src="js/lib/pm-store.js"></script>

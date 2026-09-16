@@ -37,6 +37,33 @@
 //  says something new), a changed safety number is the peer plus the moment it
 //  changed (so the same peer changing keys again next month is a new warning).
 //  Those decisions live with the thing being counted, in js/core/notify.js.
+//
+//  AND IT NOW OUTLIVES THE DEVICE IT WAS CLEARED ON.
+//  Everything above was right and it was all kept in localStorage, which is one
+//  browser profile on one device. That is why "the notifications still show
+//  things I already saw" was a real report about a feature that worked: clear
+//  on the laptop, open the phone, and every row is new again. Reinstalling the
+//  app, clearing site data, or the OS reclaiming storage did the same thing.
+//
+//  So there are two stores now and the rule between them is simple: THE UNION,
+//  AND LOCAL FIRST.
+//
+//    · localStorage stays the one the filters read. It is synchronous and it
+//      works offline, and the bell filters a whole catalogue on every poll, so
+//      a round trip in that path would be slower for a fact that hardly ever
+//      differs.
+//    · public.notify_cleared is the durable copy. sync() merges it in once per
+//      page and remember() writes through to it.
+//
+//  They can never CONFLICT, only lag: there is no un-clear anywhere in the UI,
+//  so both lists only grow and the union is always the right answer. That is
+//  what makes a merge safe with no version, no clock and no resolution rule.
+//
+//  EVERY NETWORK PATH HERE IS OPTIONAL. Signed out, offline, RPC missing, the
+//  table not yet applied: all of them leave the old localStorage behaviour
+//  exactly as it was. Clearing a notification must never fail because of the
+//  network, and a dismissal that did not reach the server is one this device
+//  still honours.
 // ============================================================================
 (function () {
   "use strict";
@@ -85,6 +112,14 @@
    * "what have I already seen" as a side effect of clearing a row.
    */
   function remember(key, ids) {
+    var wrote = rememberLocal(key, ids);
+    // Write-through, after the local write and never instead of it. See push().
+    if (wrote) push(key, ids);
+    return wrote;
+  }
+
+  /** The local half on its own, which is also what sync() merges into. */
+  function rememberLocal(key, ids) {
     if (!key || !ids || !ids.length) return false;
     var s = read() || {};
     s.gone = s.gone || {};
@@ -108,11 +143,84 @@
     return (rows || []).filter(function (r) { return !gone[idOf(r)]; });
   }
 
+  // ---- the durable half ----------------------------------------------------
+
+  // window.SB first, then DataStore.sb. Both are the CLIENT OBJECT, not a
+  // getter: js/core/data.js assigns window.SB at create time and exports the
+  // same reference as DataStore.sb. Calling it was a real bug -- "sb is not a
+  // function" -- caught by tests/notify_test.mjs. Same accessor as
+  // js/pages/admin-owners.js, deliberately.
+  function client() {
+    return window.SB || (window.DataStore && window.DataStore.sb) || null;
+  }
+
+  /**
+   * Write a batch through to the server. Fire and forget, on purpose.
+   *
+   * remember() must stay synchronous and must always succeed: the row has
+   * already gone from the screen by the time this runs, and a dismissal that
+   * could fail would be a dismissal that sometimes bounces back. If this call
+   * never lands, the clear is still honoured on this device forever; it just
+   * does not travel, which is precisely the old behaviour.
+   */
+  function push(key, ids) {
+    var c = client();
+    if (!c || !ids || !ids.length) return;
+    try {
+      var p = c.rpc("notify_clear_remember", { p_kind: key, p_items: ids });
+      if (p && p.then) p.then(function () {}, function () {});
+    } catch (_) { /* never fatal */ }
+  }
+
+  var synced = false;
+
+  /**
+   * Merge what the ACCOUNT has cleared into what this DEVICE has cleared.
+   *
+   * A union, never a replacement. A device that has been offline for a week
+   * holds dismissals the server has not heard of, and overwriting the local
+   * list with the server's would resurrect every one of them: the exact bug
+   * this whole file exists to prevent, reintroduced by the fix for it.
+   *
+   * Once per page. Resolves either way, including when there is no session and
+   * no network, so a caller can always await it before the first draw.
+   */
+  function sync() {
+    if (synced) return Promise.resolve(false);
+    synced = true;
+    var c = client();
+    if (!c) return Promise.resolve(false);
+    var call;
+    try { call = c.rpc("notify_cleared_mine", { p_limit: MAX }); }
+    catch (_) { return Promise.resolve(false); }
+    if (!call || !call.then) return Promise.resolve(false);
+    return call.then(function (res) {
+      if (res.error || !res.data || !res.data.length) return false;
+      var byKind = Object.create(null);
+      res.data.forEach(function (r) {
+        var k = r && r.kind;
+        if (!k) return;
+        (byKind[k] = byKind[k] || []).push(String(r.item_id));
+      });
+      var touched = false;
+      // remember() already unions with what is there and keeps newest-first,
+      // so this is one call per kind and no second merge routine.
+      Object.keys(byKind).forEach(function (k) {
+        if (rememberLocal(k, byKind[k])) touched = true;
+      });
+      return touched;
+    }).catch(function () { return false; });
+  }
+
   window.NotifyCleared = {
     MAX: MAX,
     list: list,
     set: set,
     remember: remember,
     drop: drop,
+    sync: sync,
+    // Tests drive these directly rather than standing up a fake bell.
+    _rememberLocal: rememberLocal,
+    _reset: function () { synced = false; },
   };
 })();

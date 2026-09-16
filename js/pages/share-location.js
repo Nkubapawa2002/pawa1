@@ -122,20 +122,39 @@
   }
 
   /**
-   * Web Share, then the clipboard, then a prompt to copy out of.
+   * Hand a place over, INSIDE THE APP, as a sealed code.
    *
-   * The same ladder js/pages/house.js uses and for the same reason: the
-   * clipboard API fails on http:// and inside some in-app browsers, and a
-   * "Copy" button that silently does nothing is worse than no button.
+   * WHAT THIS REPLACED, AND WHY
+   * There used to be a handOver() ladder here: navigator.share, then the
+   * clipboard, then a window.prompt to copy out of. What it handed over was
+   * mapsUrl() -- a plain
+   *
+   *     https://www.google.com/maps/search/?api=1&query=-6.812345,39.279876
+   *
+   * which is freely editable text. Anybody between the sender and the reader,
+   * including the reader's own well-meaning forward of it, can change two
+   * digits and the place moves across town with nothing to say so. That is the
+   * scam-link shape: the reader cannot tell a sent link from an edited one,
+   * because there is nothing in it to check.
+   *
+   * A CODE CANNOT BE EDITED INTO ANOTHER PLACE. The nine characters are not a
+   * pointer, they are the key: the coordinates were sealed under them with
+   * AES-GCM in this browser before anything was uploaded (js/lib/loc-code.js),
+   * the server holds only a peppered hash of the handle, and the check symbol
+   * plus that lookup mean one wrong character fails closed rather than
+   * resolving somewhere else. There is no edit that produces a different valid
+   * place.
+   *
+   * AND IT GOES THROUGH P-MESSAGE, nowhere else. No navigator.share, no
+   * clipboard, no prompt: those are all doors out of the app into a channel
+   * where a message can be rewritten before it is read. This is an ordinary
+   * same-origin navigation carrying the code, and P-Message sends it as an
+   * encrypted message like any other.
    */
-  async function handOver(text, url, title) {
-    if (navigator.share) {
-      try { await navigator.share({ title: title, text: text, url: url }); return "shared"; }
-      catch (_) { return "cancelled"; }
-    }
-    try { await navigator.clipboard.writeText(text); return "copied"; } catch (_) {}
-    try { window.prompt(T("sl_copy_manual"), url || text); } catch (_) {}
-    return "manual";
+  function sendInPMessage(code) {
+    const c = window.LocCode ? window.LocCode.normalize(code) : String(code || "");
+    if (!c) return;
+    location.href = "p-message.html?loc=" + encodeURIComponent(c);
   }
 
   // ---------------------------------------------------------------- send mode
@@ -168,11 +187,25 @@
       }
     });
 
-    $("slSendLink").addEventListener("click", async () => {
+    // Mint a sealed code, then hand it to P-Message. The selects in the code
+    // section below are deliberately NOT read here: this is the one-tap way
+    // out and it takes the safe defaults, two hours and one opening. Somebody
+    // who wants a different lifetime uses the section that asks about it.
+    $("slSendPm").addEventListener("click", async (e) => {
       if (!captured) return;
-      const url = mapsUrl(captured.lat, captured.lng);
-      const how = await handOver(T("sl_share_text") + "\n" + url, url, T("sl_share_title"));
-      if (how === "copied") statusEl.textContent = T("sl_copied");
+      const go = e.currentTarget;
+      if (!window.LocShare) { statusEl.textContent = T("sl_unavailable"); return; }
+      go.disabled = true;
+      statusEl.textContent = T("sl_code_making", "Making a code…");
+      const res = await window.LocShare.create(
+        { lat: captured.lat, lng: captured.lng, acc: captured.accuracy, label: "" },
+        { ttlMinutes: 120, maxOpens: 1 });
+      if (!res.ok) {
+        go.disabled = false;
+        statusEl.textContent = mintReason(res.reason);
+        return;
+      }
+      sendInPMessage(res.share.code);
     });
 
     $("slMake").addEventListener("click", () => { if (captured) mintCode(captured); });
@@ -198,8 +231,8 @@
 
   /** Both ways out are usable exactly when there is a place to hand over. */
   function setWaysEnabled(on) {
-    const link = $("slSendLink"), make = $("slMake");
-    if (link) link.disabled = !on;
+    const send = $("slSendPm"), make = $("slMake");
+    if (send) send.disabled = !on;
     if (make) make.disabled = !on;
   }
 
@@ -293,15 +326,11 @@
     out.innerHTML =
       `<div class="sl-code">${esc(pretty)}</div>` +
       `<p class="sl-code-note">${esc(T("sl_code_say", "Read these nine characters to them. O is the number zero; I and L are the number one."))}</p>` +
-      `<div class="sl-actions"><button id="slCodeCopy" class="sl-act sl-act-primary" type="button">${esc(T("sl_code_copy", "Send the code"))}</button></div>`;
+      `<div class="sl-actions"><button id="slCodeSend" class="sl-act sl-act-primary" type="button">${esc(T("sl_code_send_pm", "Send it in P-Message"))}</button></div>`;
 
-    $("slCodeCopy").addEventListener("click", async () => {
-      const how = await handOver(
-        T("sl_code_msg", "My location code is {c} — open it at {u}")
-          .replace("{c}", pretty)
-          .replace("{u}", location.origin + location.pathname),
-        null, T("sl_share_title"));
-      if (how === "copied") statusEl.textContent = T("sl_copied");
+    // The code already exists by here, so this only has to carry it.
+    $("slCodeSend").addEventListener("click", () => {
+      sendInPMessage(res.share.code);
     });
 
     renderMine();

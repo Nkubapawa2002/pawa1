@@ -244,10 +244,18 @@ window.APP_CONFIG = {
   STUN_URLS: [],          // optional extra STUN servers (added to Google's)
 
   // ---------- Support Contacts ----------
-  SUPPORT_CONTACTS: [
-    { role: "support_role_manager", name: "xcracker pawa",  phone: "+255 741 632 744", whatsapp: "255741622744" },
-    { role: "support_role_organizer", name: "Fatuma Said", phone: "+255 713 000 002", whatsapp: "255713000002" }
-  ],
+  // GONE, ON PURPOSE. Two people used to be hand-typed here, and both rows
+  // were wrong: the manager's call number and WhatsApp number disagreed by two
+  // digits, and the second row was a placeholder (+255 713 000 002) that has
+  // been in production telling people to ring it. Neither could be fixed
+  // without a deploy, which is not a cadence a duty rota runs at.
+  //
+  // Who is on duty is a row in public.support_duties now, changed from
+  // admin.html and read through js/lib/support-duties.js. See
+  // supabase/features/account/support_duties.sql.
+  //
+  // Do not reintroduce a default here. An empty rota draws nothing, and that
+  // is correct: a built-in fallback person is the exact bug this removed.
 
   // ---------- Analytics (PostHog · js/core/analytics.js) ----------
   // Product analytics + autocapture + (optional) session replay. Leave
@@ -334,11 +342,15 @@ if (window.CLERK_ENABLED) {
 // defines a my_agent_subscription() that emits them, and whichever SQL file
 // was applied last is what a given project runs.
 
+// Reads the rota, never a constant. Synchronous because the notices that call
+// it are already mid-render, so it takes whatever js/lib/support-duties.js has
+// loaded; with nothing loaded it falls back to the admin email alone, which is
+// true, rather than to a name, which would not be.
 window.adminContactHtml = () => {
-  const c = (window.APP_CONFIG?.SUPPORT_CONTACTS || [])[0] || {};
+  const c = (window.SupportDuties && window.SupportDuties.first()) || null;
   const parts = [];
-  if (c.whatsapp) parts.push(`<a href="https://wa.me/${c.whatsapp}" target="_blank" rel="noopener">WhatsApp ${c.phone || c.whatsapp}</a>`);
-  else if (c.phone) parts.push(`<a href="tel:${String(c.phone).replace(/\s/g, "")}">Call ${c.phone}</a>`);
+  if (c && c.whatsapp) parts.push(`<a href="https://wa.me/${c.whatsapp}" target="_blank" rel="noopener">WhatsApp ${c.phone || c.whatsapp}</a>`);
+  else if (c && c.phone) parts.push(`<a href="tel:${String(c.phone).replace(/\s/g, "")}">Call ${c.phone}</a>`);
   const email = (window.APP_CONFIG?.ADMIN_EMAILS || [])[0];
   if (email) parts.push(`<a href="mailto:${email}">${email}</a>`);
   return parts.length ? `Contact admin: ${parts.join(" · ")}.` : "Please contact the Pawa admin.";
@@ -349,14 +361,12 @@ window.adminContactHtml = () => {
 // up impossible to translate and impossible to clamp.
 window.agentAdminAction = () => {
   const t = (k, en) => { const v = window.t ? window.t(k) : null; return (v && v !== k) ? v : en; };
-  const c = (window.APP_CONFIG?.SUPPORT_CONTACTS || [])[0] || {};
+  const c = (window.SupportDuties && window.SupportDuties.first()) || null;
   const email = (window.APP_CONFIG?.ADMIN_EMAILS || [])[0];
-  let href = "";
-  if (c.whatsapp) href = "https://wa.me/" + c.whatsapp;
-  else if (c.phone) href = "tel:" + String(c.phone).replace(/\s/g, "");
-  else if (email) href = "mailto:" + email;
+  let href = c ? window.SupportDuties.reachHref(c) : "";
+  if (!href && email) href = "mailto:" + email;
   if (!href) return null;
-  return { label: t("anx_admin", "Contact the admin"), href, external: !!c.whatsapp };
+  return { label: t("anx_admin", "Contact the admin"), href, external: !!(c && c.whatsapp) };
 };
 
 /**

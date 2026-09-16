@@ -437,6 +437,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9/dist/leaflet.js"></script>
   <script src="js/core/config.js"></script>
+  <!-- Who is on duty, for the contact line on a billing or admin notice.
+       A row an admin edits, never a constant; js/core/config.js used to
+       carry two hand-typed people and one of them was a placeholder. -->
+  <script src="js/lib/support-duties.js"></script>
   <!-- The Mapbox token, which cannot live in a tracked file. Gitignored,
        so it 404s harmlessly on a deploy that does not ship it, leaving the
        MapTiler key from config.js to carry the map. -->

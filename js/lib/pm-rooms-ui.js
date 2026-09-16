@@ -44,6 +44,16 @@
   var modal = function (h) { if (ctx.modal) ctx.modal(h); };
   var closeModal = function () { if (ctx.closeModal) ctx.closeModal(); };
   var say = function (m) { if (ctx.say) ctx.say(m); };
+  /**
+   * A refusal from the database, in the reader's language. One table, owned by
+   * the page; see the same helper in pm-announce-ui.js. pm_group_add raises
+   * several of the sentences pm_group_create does, which is why this is not
+   * defined twice.
+   */
+  var explain = function (err) {
+    if (ctx.explain) return ctx.explain(err);
+    return (err && err.message) || String(err);
+  };
   var initials = function (n) { return ctx.initials ? ctx.initials(n) : ""; };
   var whereOf = function (p, o) { return ctx.whereOf ? ctx.whereOf(p, o) : { html: "" }; };
   var closeThread = function () { if (ctx.closeThread) ctx.closeThread(); };
@@ -101,7 +111,7 @@
         say(t("pm_room_del_ok", "The room is closed."));
       } catch (err) {
         out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
+        out.textContent = explain(err);
         btn.disabled = false;
       }
     });
@@ -244,7 +254,7 @@
       var out = document.getElementById("pmCmMsg");
       if (!out) return;
       out.className = "pm-msg-out bad";
-      out.textContent = (err && err.message) || String(err);
+      out.textContent = explain(err);
     };
 
     var chat = document.getElementById("pmCmDelChat");
@@ -325,7 +335,7 @@
           : t("pm_chat_del_already", "That conversation had already gone."));
       } catch (err) {
         out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
+        out.textContent = explain(err);
         btn.disabled = false;
       }
     });
@@ -388,7 +398,7 @@
         var out = document.getElementById("pmMemMsg");
         if (!out) return;
         out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
+        out.textContent = explain(err);
       });
       if (!went) btn.disabled = false;
     });
@@ -405,7 +415,7 @@
         showMembers();                 // redraw from the database, not from here
       } catch (err) {
         out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
+        out.textContent = explain(err);
         btn.disabled = false;
       }
     });
@@ -490,7 +500,7 @@
         setTimeout(function () { showMembers(); }, 700);
       } catch (err) {
         out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
+        out.textContent = explain(err);
         btn.disabled = false;
       }
     });

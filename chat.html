@@ -253,11 +253,19 @@
   <!-- No AI client, no voice engine and no tool belt are loaded here any
        more. They all moved to PN-Zaki (js/lib/pn-zaki.js), which p-message.html
        loads. This page holds phone numbers. -->
+  <!-- Who is on duty. A row in public.support_duties an admin edits on
+       admin.html, never a constant: js/core/config.js used to carry two
+       hand-typed people, one of them a placeholder number. -->
+  <script src="js/lib/support-duties.js"></script>
   <script src="js/pages/chat.js"></script>
   <script>
     window.applyTranslations();
     (async () => {
       await (window.loadTenantContext && window.loadTenantContext());
+      // Awaited BEFORE the render, not alongside it: renderSupportContacts()
+      // reads the cache synchronously, so drawing first would draw the
+      // "nobody is on duty" state and never come back to correct it.
+      await window.SupportDuties.load();
       window.renderSupportContacts();
     })();
   </script>

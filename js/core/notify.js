@@ -754,6 +754,26 @@
   }
 
   function start() {
+    // WHAT THIS ACCOUNT HAS ALREADY DISMISSED, BEFORE THE FIRST COUNT.
+    //
+    // NotifyCleared used to keep that in localStorage alone, so a second
+    // device, a reinstall or cleared site data resurrected every row somebody
+    // had already cleared -- which is exactly the "it still shows what I
+    // already saw" report. sync() merges the account's own list in from
+    // public.notify_cleared.
+    //
+    // refresh() is called BOTH ways round on purpose. Once immediately, so a
+    // slow or absent network never delays the badge, and once after the merge
+    // lands, so anything the server knew about and this device did not
+    // disappears without waiting for the next poll. sync() resolves false when
+    // it changed nothing, including when there is no session at all, and the
+    // second refresh is skipped.
+    var c = window.NotifyCleared;
+    if (c && c.sync) {
+      try {
+        c.sync().then(function (changed) { if (changed) refresh(); }, function () {});
+      } catch (_) { /* never fatal */ }
+    }
     refresh();
     subscribe();
     if (pollTimer) clearInterval(pollTimer);

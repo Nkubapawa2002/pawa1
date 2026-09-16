@@ -446,15 +446,25 @@
           return '<div class="pc-code-row">' +
             '<span class="pc-code-c">' + esc(pretty) + "</span>" +
             '<span class="pc-code-w">' + esc(left) + "</span>" +
-            '<button type="button" class="pc-code-b" data-code="' + esc(pretty) + '">' +
-              esc(window.t("pc_codes_copy")) + "</button></div>";
+            '<button type="button" class="pc-code-b" data-code="' + esc(r.code) + '">' +
+              esc(window.t("pc_codes_send")) + "</button></div>";
         }).join("");
 
+        // THIS WAS A COPY BUTTON, and the clipboard is a door out of the app:
+        // what left through it was nine characters in a message somebody else
+        // would carry, in a channel where the message can be rewritten. The
+        // code itself cannot be edited into another place (see
+        // sendInPMessage in js/pages/share-location.js), but the sentence
+        // wrapped around it can, and a reader with a wrong "open it here"
+        // address is the phishing half of the same trick.
+        //
+        // So it hands the code to P-Message instead. Same navigation
+        // share-location.html uses, the raw normalised code rather than the
+        // dashed display form, and nothing touches the clipboard.
         list.addEventListener("click", function (e) {
           const b = e.target.closest("[data-code]");
           if (!b) return;
-          try { navigator.clipboard.writeText(b.dataset.code); } catch (_) {}
-          b.textContent = window.t("pc_codes_copied");
+          location.href = "p-message.html?loc=" + encodeURIComponent(b.dataset.code);
         });
         box.hidden = false;
       }

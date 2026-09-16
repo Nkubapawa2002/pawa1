@@ -277,15 +277,23 @@
       <div class="sl-ways" id="slWays" hidden>
         <p class="sl-ways-hint" id="slWaysHint" data-i18n="sl_ways_hint">Capture the place first. Then pick how to hand it over.</p>
 
-        <!-- A link. For somebody holding the message. -->
-        <section class="sl-way" id="slWayLink">
+        <!-- Inside the app. This used to be "Send a link", and the link was a
+             plain google.com/maps URL handed to navigator.share: two edited
+             digits moved the place across town and nothing in the message could
+             tell. It sends a sealed code through P-Message now. The reasoning
+             is on sendInPMessage() in js/pages/share-location.js.
+
+             "Open in maps" stays, and is a different thing: it navigates the
+             person who captured the place to their own maps app. Nothing is
+             handed to anybody. -->
+        <section class="sl-way" id="slWayPm">
           <h2 class="sl-way-h">
-            <span class="sl-way-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/></svg></span>
-            <span data-i18n="sl_way_link">Send a link</span>
+            <span class="sl-way-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>
+            <span data-i18n="sl_way_pm">Send it in P-Message</span>
           </h2>
-          <p class="sl-way-d" data-i18n="sl_way_link_d">For anyone holding your message. It opens in their maps app. Nothing is stored anywhere, so the link is yours to send.</p>
+          <p class="sl-way-d" data-i18n="sl_way_pm_d">It goes inside the app, encrypted, to anyone in your conversations. What travels is a sealed code, not a map link, so nobody can change it into a different place along the way.</p>
           <div class="sl-actions">
-            <button id="slSendLink" class="sl-act sl-act-primary" type="button" disabled data-i18n="sl_send_link">Send the link</button>
+            <button id="slSendPm" class="sl-act sl-act-primary" type="button" disabled data-i18n="sl_send_pm">Send in P-Message</button>
             <a id="slOpen" class="sl-act" href="#" target="_blank" rel="noopener" hidden data-i18n="sl_open_maps">Open in maps</a>
           </div>
         </section>

@@ -54,6 +54,18 @@
 
   var modal = function (html) { if (ctx.modal) ctx.modal(html); };
   var closeModal = function () { if (ctx.closeModal) ctx.closeModal(); };
+  /**
+   * A refusal from the database, in the reader's language.
+   *
+   * Owned by the page (js/pages/p-message.js) rather than here, because
+   * pm-rooms-ui.js surfaces the same sentences from pm_group_add and one copy
+   * of that table is the point. Falls back to the raw message, which is what
+   * every one of these used to be.
+   */
+  var explain = function (err) {
+    if (ctx.explain) return ctx.explain(err);
+    return (err && err.message) || String(err);
+  };
   var refreshInbox = function () {
     return ctx.refreshInbox ? ctx.refreshInbox() : Promise.resolve();
   };
@@ -130,7 +142,7 @@
         out.className = "pm-msg-out bad";
         out.textContent = (err && err.message) === "NOBODY_REACHABLE"
           ? t("pm_cast_nokeys", "Nobody you chose has set up P-Message on a device yet.")
-          : ((err && err.message) || String(err));
+          : explain(err);
         btn.disabled = false;
       }
     });
@@ -188,7 +200,7 @@
         await refreshInbox();
       } catch (err) {
         out.className = "pm-msg-out bad";
-        out.textContent = (err && err.message) || String(err);
+        out.textContent = explain(err);
         btn.disabled = false;
       }
     });

@@ -423,6 +423,11 @@
       }).join("");
     }
 
+    // Whether the opening source has been allowed to change its mind. See the
+    // comment in load(); it may happen once, on the first paint, and never
+    // again — a later empty search must not move the tabs under a thumb.
+    var settled = false;
+
     /** Ask the database, then ask it who may be reached, then draw. */
     function load() {
       var mine = ++seq;
@@ -468,6 +473,28 @@
           ? window.PMMatch.rank(res.rows, need)
           : res.rows.map(function (r) { return { agent: r }; });
         say("");
+        // THE FIRST PAINT IS ALLOWED TO CHANGE ITS MIND, ONCE.
+        //
+        // "People you deal with" is empty for every account that has not had a
+        // conversation yet, which on a young database is every account. It was
+        // worse than that: reach needed a mutual direct thread or an accepted
+        // invite, and production held zero of each, so the default tab was
+        // empty for EVERYBODY including the admin. wayForward() below draws an
+        // honest sentence and two buttons for exactly this case, and an
+        // explanation is still not the same thing as the screen working: the
+        // first thing you saw when you tapped "Open a room" was a paragraph
+        // about why you could not.
+        //
+        // So when the tab this opened on can take nobody, fall through to the
+        // directory before drawing anything, and let the person see people.
+        // The basket is untouched, the tab strip moves with it (the click goes
+        // through the tab, not around it), and it cannot happen twice.
+        if (!settled && source === "mine" && !takeable().length) {
+          settled = true;
+          var jump = host.querySelector('[data-src="all"]');
+          if (jump) { jump.click(); return; }
+        }
+        settled = true;
         draw();
       }).catch(function (err) {
         if (mine !== seq) return;

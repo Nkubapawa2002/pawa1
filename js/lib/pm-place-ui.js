@@ -50,6 +50,11 @@
   // The listing waiting to be sent, which is the other thing the composer can
   // be holding. Never both: see attachPlace() / attachListing().
   var pendingListing = null;
+  // And a sealed location code, which is the third. Handed over by
+  // share-location.html and p-chat.html as `p-message.html?loc=<code>`, so
+  // those two pages can stop reaching for navigator.share. Never held at the
+  // same time as either of the others, for the reason given on attachPlace().
+  var pendingCode = null;
   //
   //  Four doors, because a location arrives four different ways and refusing
   //  three of them would mean the feature works for whoever happens to be
@@ -376,6 +381,49 @@
     closePicker();
   }
 
+  /**
+   * Open a code somebody SENT in a message, and show the place on the map sheet.
+   *
+   * The sibling of openPickedCode() above, which reads the same code out of an
+   * input box. Two entry points rather than one taking an optional element,
+   * because the failure REPORTING is most of the body and it differs: the picker
+   * has a status line under its input, and a card in the middle of a
+   * conversation log has nowhere to put a sentence, so this one raises a dialog.
+   *
+   * It lands on the map sheet rather than the attachment strip. A code that
+   * arrived in a conversation is something to look at, and attaching it would be
+   * answering "where is this?" with "who shall I send it to?".
+   */
+  async function openSentCode(code) {
+    if (!window.LocShare || !window.LocCode) {
+      codeFailed(t("pmp_code_unavailable", "Codes are not available right now."));
+      return;
+    }
+    var problem = window.LocCode.problem(code);
+    if (problem) { codeFailed(codeReason(problem)); return; }
+    var r = await window.LocShare.open(code);
+    if (!r.ok) { codeFailed(codeReason(r.reason)); return; }
+    var rec = { lat: r.place.lat, lng: r.place.lng, acc: r.place.acc,
+                label: r.place.label || "", source: "code" };
+    // Kept, for the reason openPickedCode keeps it: the openings are finite, so
+    // a place that was looked at once should not need a second one.
+    if (window.PlaceBook) window.PlaceBook.add(rec);
+    openPlaceMap(rec);
+  }
+
+  /** One sentence, in a dialog, because a message log has no status line. */
+  function codeFailed(why) {
+    if (!ctx.modal) return;
+    ctx.modal("<h2>" + esc(t("pmc_title", "A place, as a code")) + "</h2>" +
+      "<p>" + esc(why) + "</p>" +
+      '<div class="pm-modal-acts"><button class="pm-btn" id="pmCodeFailX">' +
+        esc(t("pm_close", "Close")) + "</button></div>");
+    var x = document.getElementById("pmCodeFailX");
+    if (x) x.addEventListener("click", function () {
+      if (ctx.closeModal) ctx.closeModal();
+    });
+  }
+
   // Every one of these is an ordinary thing that happens to people, so each
   // gets a sentence rather than a code.
   function codeReason(reason) {
@@ -424,6 +472,7 @@
   //  that is two things the other person will want to reply to separately.
   function attachPlace(place) {
     pendingListing = null;
+    pendingCode = null;
     pendingPlace = {
       lat: Number(place.lat), lng: Number(place.lng),
       acc: place.acc == null ? null : Math.round(Number(place.acc)),
@@ -447,17 +496,45 @@
     var url = window.PMListingCard.urlFor(ref.kind, ref.id);
     if (!url) return;
     pendingPlace = null;
+    pendingCode = null;
     pendingListing = { kind: ref.kind, id: String(ref.id), url: url, title: String(ref.title || "") };
     drawAttach();
     if (el.pmInput && !el.pmInput.disabled) el.pmInput.focus();
   }
 
-  function clearAttach() { pendingPlace = null; pendingListing = null; drawAttach(); }
+  /**
+   * A sealed location code waiting to be sent.
+   *
+   * THE CODE IS NOT OPENED HERE, and that is the whole reason this is a third
+   * kind of attachment rather than "open it and attach the pin inside it".
+   * A code opens a limited number of times, once by default. Spending that one
+   * opening in the sender's own browser, to recover coordinates the sender
+   * already had, would leave the recipient holding a code that was used up
+   * before it arrived.
+   *
+   * So it travels as nine characters and is opened by whoever it was sent to.
+   * js/lib/pm-code-card.js is the wire format and the card.
+   */
+  function attachCode(code) {
+    var c = window.LocCode ? window.LocCode.normalize(code) : String(code || "");
+    if (!c || !window.LocCode || window.LocCode.problem(c)) return false;
+    pendingPlace = null;
+    pendingListing = null;
+    pendingCode = { code: c, pretty: window.LocCode.format(c) };
+    drawAttach();
+    if (el.pmInput && !el.pmInput.disabled) el.pmInput.focus();
+    return true;
+  }
+
+  function clearAttach() {
+    pendingPlace = null; pendingListing = null; pendingCode = null; drawAttach();
+  }
 
   function drawAttach() {
     drawPlaceHint();
     if (!el.pmAttach) return;
     if (pendingListing) { drawListingAttach(); return; }
+    if (pendingCode) { drawCodeAttach(); return; }
     if (!pendingPlace) { el.pmAttach.hidden = true; el.pmAttach.innerHTML = ""; return; }
     // The heading names the destination rather than the action. "Sending a
     // place" described what the strip was; it did not say where the place was
@@ -509,6 +586,25 @@
    * solved by copying the link. The heading still names the recipient, which
    * is the one question worth a second look before tapping send.
    */
+  /**
+   * The strip above the composer while a code is held.
+   *
+   * It prints the code rather than a word like "a place", because at this point
+   * the sender has not opened it either and neither side knows where it points.
+   * Calling it "a place" would be the screen claiming to know something it does
+   * not. The nine characters are the honest description.
+   */
+  function drawCodeAttach() {
+    el.pmAttach.innerHTML =
+      '<span class="pm-at-tx"><b>' + esc(recipientLine()) + "</b>" +
+      '<span class="pm-at-body pm-at-code">' + esc(pendingCode.pretty) + "</span></span>" +
+      '<button class="pm-rb-x" type="button" id="pmAttachX" aria-label="' +
+        esc(t("pmp_detach", "Do not send it")) + '">\u00d7</button>';
+    el.pmAttach.hidden = false;
+    var x = document.getElementById("pmAttachX");
+    if (x) x.addEventListener("click", clearAttach);
+  }
+
   function drawListingAttach() {
     var word = window.PMListingCard && window.PMListingCard.KINDS[pendingListing.kind];
     el.pmAttach.innerHTML =
@@ -800,5 +896,8 @@
     // branch written somewhere worse.
     pending: function () { return pendingPlace; },
     pendingListing: function () { return pendingListing; },
+    pendingCode: function () { return pendingCode; },
+    attachCode: attachCode,
+    openCode: openSentCode,
   };
 })();

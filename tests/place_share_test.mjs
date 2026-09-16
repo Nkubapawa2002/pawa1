@@ -158,7 +158,7 @@ try {
       const off = (id) => { const el = document.getElementById(id); return el ? el.disabled : null; };
       return {
         make: seen("slMake"), makeOff: off("slMake"),
-        link: seen("slSendLink"), linkOff: off("slSendLink"),
+        link: seen("slSendPm"), linkOff: off("slSendPm"),
         ttl: seen("slTtl"), opens: seen("slOpens"), coarse: seen("slCoarse"),
         text: (document.getElementById("slSend").innerText || "").toLowerCase(),
       };
@@ -185,7 +185,7 @@ try {
 
     const shape = await p.evaluate(() => ({
       panel: (document.getElementById("slSend") || {}).tagName || null,
-      button: (document.getElementById("slSendLink") || {}).tagName || null,
+      button: (document.getElementById("slSendPm") || {}).tagName || null,
       resultShown: !document.getElementById("slResult").hidden,
       hasMake: !!document.getElementById("slMake"),
     }));
@@ -198,7 +198,7 @@ try {
     // not build them, or the two halves drift apart again.
     const warm = await p.evaluate(() => ({
       makeOff: document.getElementById("slMake").disabled,
-      linkOff: document.getElementById("slSendLink").disabled,
+      linkOff: document.getElementById("slSendPm").disabled,
       hintGone: document.getElementById("slWaysHint").hidden,
       again: !document.getElementById("slAgain").hidden,
     }));
@@ -208,24 +208,49 @@ try {
     ok(warm.hintGone, "and retires the line telling you to capture one first");
     ok(warm.again, "with a way back to a different spot");
 
-    // The bug in one assertion: the share handler must belong to the button,
-    // not to an ancestor every other control also sits inside.
+    // THIS USED TO ASK A WEAKER QUESTION. It watched navigator.share and the
+    // clipboard, and asserted that tapping "Make a code" did not fire either --
+    // i.e. that the share handler was bound to its own button rather than to an
+    // ancestor. Worth asking when there WAS a share handler.
+    //
+    // There is not any more. Both ways out of this page go through P-Message
+    // now, because what the share sheet used to carry was a plain
+    // google.com/maps URL and two edited digits moved the place with nothing in
+    // the message to say so. So the question is the stronger one: nothing on
+    // this page can reach the share sheet or the clipboard AT ALL, whatever is
+    // tapped. A door that does not exist cannot be bound to the wrong element.
     const leaks = await p.evaluate(() => {
-      let shared = 0;
+      let escaped = 0;
       const real = navigator.share;
-      navigator.share = () => { shared++; return Promise.reject(new Error("cancelled")); };
+      navigator.share = () => { escaped++; return Promise.reject(new Error("cancelled")); };
       const realClip = navigator.clipboard && navigator.clipboard.writeText;
       try {
         Object.defineProperty(navigator, "clipboard",
-          { configurable: true, value: { writeText: () => { shared++; return Promise.resolve(); } } });
+          { configurable: true, value: { writeText: () => { escaped++; return Promise.resolve(); } } });
       } catch (_) {}
-      document.getElementById("slMake").click();      // a tap on a DIFFERENT control
-      const afterMake = shared;
+      // Every button on the page, not just one: the claim is about the page.
+      document.querySelectorAll("#slSend button").forEach((b) => {
+        try { b.click(); } catch (_) {}
+      });
       navigator.share = real;
       if (realClip) { try { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: realClip } }); } catch (_) {} }
-      return afterMake;
+      return escaped;
     });
-    ok(leaks === 0, "tapping “Make a code” does not fire the share sheet", "share calls: " + leaks);
+    ok(leaks === 0,
+       "NO button on this page reaches the share sheet or the clipboard. Both ways out go through P-Message, where the artifact is a sealed code rather than an editable map link",
+       "escapes: " + leaks);
+
+    // And the source says so too, which is the assertion that survives somebody
+    // adding a button this test does not know to click.
+    const { readFileSync: rf } = await import("node:fs");
+    const slSrc = rf("js/pages/share-location.js", "utf8");
+    const code = slSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    ok(!/navigator\.share/.test(code),
+       "navigator.share appears nowhere in the code, only in the comment explaining why");
+    ok(!/navigator\.clipboard/.test(code), "and neither does the clipboard");
+    ok(!/window\.prompt/.test(code), "nor the prompt that was the last rung of that ladder");
+    ok(/p-message\.html\?loc=/.test(code),
+       "what it does instead is hand a sealed code to P-Message");
     ok(errs.length === 0, "the page threw nothing", errs.join(" | "));
     await ctx.close();
   }

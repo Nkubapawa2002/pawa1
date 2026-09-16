@@ -10,15 +10,26 @@
    app-shell pages that paint their own dark ground.
    ============================================================================ */
 
+/* 1001, one above the floating theme toggle, which js/core/theme.js pins at
+   `position:fixed; z-index:1000`. At an equal z-index the later element in the
+   DOM wins, the toggle is appended to <body> at runtime, and it was therefore
+   painting on top of every dialog on these two screens — including, on a
+   390px phone, the top-right corner of the "Open a room" sheet. The header
+   already reserves 62px for it; a modal cannot, because it is centred. */
 .pm-back-drop {
-  position: fixed; inset: 0; z-index: 1000; background: rgba(2, 6, 23, .66);
+  position: fixed; inset: 0; z-index: 1001; background: rgba(2, 6, 23, .66);
   display: none; align-items: flex-end; justify-content: center;
 }
 .pm-back-drop.is-on { display: flex; }
 @media (min-width: 560px) { .pm-back-drop { align-items: center; padding: 20px; } }
 
+/* --app-vh, never bare vh. js/core/viewport.js publishes the height that is
+   actually VISIBLE; `92vh` is 92% of the layout viewport, which on an iPhone X
+   is 747px against 635 you can see. The bottom of this sheet — which is where
+   "Open room" and "Cancel" live — was below the fold of a dialog that believed
+   it fitted, and `overflow:auto` cannot rescue a box that never overflowed. */
 .pm-modal {
-  width: 100%; max-width: 460px; max-height: 92vh; overflow: auto;
+  width: 100%; max-width: 460px; max-height: calc(var(--app-vh, 100vh) * .92); overflow: auto;
   background: #101815; border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 20px 20px 0 0; padding: 20px;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;

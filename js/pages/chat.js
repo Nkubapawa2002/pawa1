@@ -40,7 +40,7 @@
   window.renderSupportContacts = function () {
     var list = document.getElementById("supportContactsList");
     if (!list) return;
-    var contacts = (window.APP_CONFIG && window.APP_CONFIG.SUPPORT_CONTACTS) || [];
+    var contacts = (window.SupportDuties && window.SupportDuties.cached()) || [];
 
     if (!contacts.length) {
       // No numbers configured is a deployment fact. Say it plainly rather than
@@ -51,7 +51,7 @@
     }
 
     list.innerHTML = contacts.map(function (c) {
-      var role = t(c.role, c.role);
+      var role = window.SupportDuties.dutyName(c.dutyKey);
       var tel = String(c.phone || "").replace(/\s+/g, "");
       return '<article class="sp-card">' +
         '<span class="sp-av">' + ICON.person + "</span>" +
