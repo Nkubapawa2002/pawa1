@@ -30,6 +30,7 @@ win.window = win;
 const ctx = vm.createContext(win);
 for (const f of [
   "js/lib/tz-places.js",
+  "js/lib/money-range.js",
   "js/lib/explore-index.js",
   "js/lib/explore-query.js",
   "js/lib/explore-rank.js",

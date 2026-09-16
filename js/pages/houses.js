@@ -1555,15 +1555,6 @@ window.initHousesPage = async () => {
       gym:"Gym", garden:"Garden", elevator:"Elevator",
       water_connection:"Water", electricity_connection:"Electricity" })[k] || k;
   }
-  function parseMoney(numStr, suffix) {
-    let n = parseFloat(String(numStr).replace(/[,\s]/g, ""));
-    if (!isFinite(n)) return null;
-    const s = (suffix || "").toLowerCase();
-    if (/^b/.test(s)) n *= 1e9;
-    else if (/^m/.test(s)) n *= 1e6;
-    else if (/^k/.test(s) || /thousand/.test(s)) n *= 1e3;
-    return Math.round(n);
-  }
   function shortTzs(p) {
     if (p >= 1e9) return (p/1e9).toFixed(p % 1e9 ? 1 : 0) + "B";
     if (p >= 1e6) return (p/1e6).toFixed(p % 1e6 ? 1 : 0) + "M";
@@ -1571,40 +1562,20 @@ window.initHousesPage = async () => {
     return String(p);
   }
 
-  // Parse a free-typed budget phrase into { priceMin, priceMax } in TZS, so a
-  // user can filter by writing their own words instead of picking a bucket:
-  //   "900k"            → max 900,000
-  //   "under 2m"        → max 2,000,000      "over 500k" → min 500,000
-  //   "min 1m max 3m"   → 1,000,000 – 3,000,000
-  //   "500k - 1.5m"     → 500,000 – 1,500,000   ("to" works too)
-  // Shared by the budget filter box and the smart natural-language search.
-  // Longest suffixes first + a "not followed by a letter" guard so the "b" in
-  // "bedroom" (or "m" in "modern") is never read as billions/millions.
-  const MONEY_RE = "([\\d][\\d.,]*)\\s*(billion|bn|b|million|mil|m|thousand|k)?(?![a-z])";
-  function parsePriceText(raw) {
-    const text = " " + String(raw || "").toLowerCase().replace(/\s+/g, " ") + " ";
-    const out = { priceMin: null, priceMax: null };
-    let m;
-    if ((m = text.match(new RegExp("(?:under|below|max|up to|upto|less than|within|maximum of?|budget of?)\\s*(?:tzs|tsh|sh)?\\s*" + MONEY_RE)))) out.priceMax = parseMoney(m[1], m[2]);
-    if ((m = text.match(new RegExp("(?:over|above|from|min|at least|minimum of?|starting at)\\s*(?:tzs|tsh|sh)?\\s*" + MONEY_RE)))) out.priceMin = parseMoney(m[1], m[2]);
-    // Range "a - b" / "a to b" when no explicit bound word was found.
-    if (out.priceMin == null && out.priceMax == null) {
-      const r = text.match(new RegExp(MONEY_RE + "\\s*(?:-|–|—|to)\\s*" + MONEY_RE));
-      if (r) {
-        const a = parseMoney(r[1], r[2]), b = parseMoney(r[3], r[4]);
-        if (a != null && b != null) { out.priceMin = Math.min(a, b); out.priceMax = Math.max(a, b); }
-      }
-    }
-    // Bare figure → treat as a budget ceiling. Skip small unsuffixed integers so
-    // a stray "3" (bedrooms) never becomes a price.
-    if (out.priceMin == null && out.priceMax == null) {
-      for (const a of text.matchAll(new RegExp(MONEY_RE, "g"))) {
-        const sfx = (a[2] || "").toLowerCase(), val = parseMoney(a[1], a[2]);
-        if (val != null && (sfx || val >= 50000)) { out.priceMax = val; break; }
-      }
-    }
-    return out;
-  }
+  // The budget parser lives in js/lib/money-range.js, which Explore also uses.
+  // This file used to keep its own older copy, and docs/EXPLORE.md already
+  // named the drift. Two things were wrong with it, and both were wrong
+  // ANSWERS rather than missing ones:
+  //
+  //   - English only. "chini ya 500k" matched nothing here, so the budget was
+  //     dropped and every price was shown -- on the main catalogue, in an app
+  //     whose rule is that every screen works in both languages.
+  //   - "between 200k and 400k" silently became "under 200k". The copy did not
+  //     accept "and" as a range separator, so the range never matched and the
+  //     bare-figure rule took the FIRST number as a ceiling.
+  //
+  // tests/money_range_test.mjs pins both.
+  function parsePriceText(raw) { return window.MoneyRange.parse(raw); }
 
   function setupSmartSearch() {
     if (!ssForm) return;

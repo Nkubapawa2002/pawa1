@@ -29,66 +29,14 @@
   "use strict";
 
   // ---- Money ----------------------------------------------------------------
-  // Longest suffixes first, plus a "not followed by a letter" guard so the "b"
-  // in "bedroom" is never read as billions. Same contract as houses.js.
-  var MONEY_RE = "([\\d][\\d.,]*)\\s*(billion|bn|b|million|mil|m|elfu|thousand|k)?(?![a-z])";
-  var MULT = {
-    k: 1e3, elfu: 1e3, thousand: 1e3,
-    m: 1e6, mil: 1e6, million: 1e6,
-    b: 1e9, bn: 1e9, billion: 1e9,
-  };
-
-  function parseMoney(digits, suffix) {
-    var n = parseFloat(String(digits || "").replace(/,/g, ""));
-    if (!isFinite(n)) return null;
-    return Math.round(n * (MULT[(suffix || "").toLowerCase()] || 1));
-  }
-
-  // A figure is a price if it carries a magnitude suffix ("300k") or is simply
-  // too big to be anything else. The 50,000 floor is the same one the bare-
-  // figure branch uses: below it, a number in a Tanzanian property search is
-  // far more likely to be a bedroom count, a tonnage or a year.
-  function looksLikeMoney(suffix, value) {
-    return !!suffix || value >= 50000;
-  }
-
-  function parsePrice(raw) {
-    var text = " " + String(raw || "").toLowerCase().replace(/\s+/g, " ") + " ";
-    var out = { priceMin: null, priceMax: null }, m;
-    var UNDER = "(?:under|below|max|up to|upto|less than|within|maximum of?|budget of?|chini ya|hadi|isiyozidi)";
-    var OVER  = "(?:over|above|from|min|at least|minimum of?|starting at|zaidi ya|kuanzia)";
-
-    if ((m = text.match(new RegExp(UNDER + "\\s*(?:tzs|tsh|sh)?\\s*" + MONEY_RE)))) out.priceMax = parseMoney(m[1], m[2]);
-    if ((m = text.match(new RegExp(OVER  + "\\s*(?:tzs|tsh|sh)?\\s*" + MONEY_RE)))) out.priceMin = parseMoney(m[1], m[2]);
-
-    // Ranges. "and" / "na" have to be accepted as separators because "between
-    // 200k and 400k" is how people write it — but they are also what joins
-    // "3 bedroom and 2 bathroom", which would otherwise parse as the range
-    // 2–3. So both sides must look like money (a magnitude suffix, or a figure
-    // too large to be a room count) before this is believed.
-    if (out.priceMin == null && out.priceMax == null) {
-      var r = text.match(new RegExp(MONEY_RE + "\\s*(?:-|–|—|to|hadi|and|na)\\s*" + MONEY_RE));
-      if (r) {
-        var a = parseMoney(r[1], r[2]), b = parseMoney(r[3], r[4]);
-        if (a != null && b != null && looksLikeMoney(r[2], a) && looksLikeMoney(r[4], b)) {
-          out.priceMin = Math.min(a, b);
-          out.priceMax = Math.max(a, b);
-        }
-      }
-    }
-    // A bare figure is a budget ceiling — that is how people type. Unsuffixed
-    // small integers are skipped so "3" (bedrooms) never becomes a price.
-    if (out.priceMin == null && out.priceMax == null) {
-      var all = text.match(new RegExp(MONEY_RE, "g")) || [];
-      for (var i = 0; i < all.length; i++) {
-        var one = all[i].match(new RegExp(MONEY_RE));
-        if (!one) continue;
-        var sfx = (one[2] || "").toLowerCase(), val = parseMoney(one[1], one[2]);
-        if (val != null && (sfx || val >= 50000)) { out.priceMax = val; break; }
-      }
-    }
-    return out;
-  }
+  // Lives in js/lib/money-range.js, which js/pages/houses.js also uses. There
+  // were two copies of this parser and the other one had drifted: it was
+  // English-only ("chini ya 500k" matched nothing) and it read
+  // "between 200k and 400k" as a flat ceiling of 200k. One parser, two
+  // callers, and docs/EXPLORE.md no longer has to warn about the difference.
+  var MR = function () { return window.MoneyRange; };
+  function parseMoney(digits, suffix) { return MR().parseMoney(digits, suffix); }
+  function parsePrice(raw) { return MR().parse(raw); }
 
   // ---- Domain cues ----------------------------------------------------------
   // Weight reflects how *exclusive* a word is, not how common. "lori" can only
