@@ -892,6 +892,9 @@ window.I18N = {
     pf_g_danger: "Closing your account",
     pf_del: "Delete my account",
     pf_del_d: "Takes down everything you have listed and removes your account for good. It cannot be undone.",
+    // Shown when the server's own message was machinery rather than a sentence
+    // somebody wrote for a reader. See speakable() in js/pages/profile.js.
+    pf_del_failed: "Your account was not deleted and nothing was changed. Please try again, and tell the admin if it keeps happening.",
     pf_del_t: "Delete your account?",
     pf_del_d1: "This removes your account and everything you have put on this app. It cannot be undone, and the same email can be used to start again from nothing.",
     pf_del_list: "What goes:",
@@ -4879,6 +4882,7 @@ window.I18N = {
     pf_g_danger: "Kufunga akaunti yako",
     pf_del: "Futa akaunti yangu",
     pf_del_d: "Inaondoa kila kitu ulichotangaza na kufuta akaunti yako kabisa. Haiwezi kutenduliwa.",
+    pf_del_failed: "Akaunti yako haikufutwa na hakuna kilichobadilika. Tafadhali jaribu tena, na mjulishe msimamizi kama hali hii itaendelea.",
     pf_del_t: "Ufute akaunti yako?",
     pf_del_d1: "Hii inaondoa akaunti yako na kila kitu ulichoweka kwenye programu hii. Haiwezi kutenduliwa, na barua pepe hiyo hiyo inaweza kutumika kuanza upya kutoka mwanzo.",
     pf_del_list: "Vinavyoondoka:",

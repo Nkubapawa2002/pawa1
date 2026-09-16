@@ -113,6 +113,11 @@ window.supabase = { createClient: function () {
       }
       if (name === "account_erase") {
         order("erase");
+        // window.__eraseError lets a section make the erase fail with a chosen
+        // message, so both halves of speakable() can be driven.
+        if (window.__eraseError) {
+          return Promise.resolve({ data: null, error: { message: window.__eraseError } });
+        }
         return Promise.resolve({ data: { houses: 2, services: 1 }, error: null });
       }
       if (name === "pm_guest_forget") {
@@ -705,6 +710,50 @@ try {
     ok(!r.some((x) => x.act === "delacct"), "no delete-account row for a guest",
        JSON.stringify(r.map((x) => x.act)));
     await page.close();
+  }
+
+  section("9bb. A refusal is repeated; machinery is not");
+  {
+    // THE SHAPE THIS CATCHES. With account_delete.sql not yet applied, the RPC
+    // comes back "Could not find the function public.account_erase(...) in the
+    // schema cache", and that was pasted onto the screen followed by advice
+    // about the reader's connection. Two things wrong at once: it names what
+    // the app is built on, which this project sweeps for elsewhere, and it
+    // blames a connection that was never the problem.
+    async function deleteWith(message) {
+      const { page } = await openProfile(
+        { access_token: "t", user: { id: "u_del3", email: "amina@example.com", is_anonymous: false } },
+        { withKey: KEYPAIR });
+      await page.evaluate((m) => { window.__eraseError = m; }, message);
+      await page.evaluate(() => document.querySelector('[data-act="delacct"]').click());
+      await sleep(500);
+      await page.evaluate(() => {
+        const f = document.getElementById("pfDelEmail");
+        f.value = "amina@example.com";
+        f.dispatchEvent(new Event("input"));
+        document.getElementById("pfDelYes").click();
+      });
+      await page.waitForFunction(
+        () => (document.getElementById("pfDelMsg") || {}).className === "pm-msg-out bad",
+        { timeout: 6000 }).catch(() => {});
+      const said = await page.evaluate(() =>
+        (document.getElementById("pfDelMsg") || {}).textContent || "");
+      await page.close();
+      return said;
+    }
+
+    const machinery = await deleteWith(
+      "Could not find the function public.account_erase(p_wipe_messages) in the schema cache");
+    ok(!/schema cache|account_erase|public\./.test(machinery),
+       "a PostgREST error does not put the function name on the screen", machinery);
+    ok(machinery.trim().length > 0, "but the person is still told it did not happen", machinery);
+    ok(!/connection/i.test(machinery),
+       "and is not blamed for a connection that was never the problem", machinery);
+
+    const refusal = await deleteWith(
+      "You are the only admin. Add another before deleting this account.");
+    ok(/only admin/i.test(refusal),
+       "a sentence the database MEANT for a person is shown as written", refusal);
   }
 
   section("9c. When the Edge Function IS deployed, the database is not asked twice");

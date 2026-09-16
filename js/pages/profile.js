@@ -876,8 +876,15 @@
       } catch (err) {
         btn.disabled = false;
         out.className = "pm-msg-out bad";
-        out.textContent = ((err && err.message) || String(err)) + " " +
-          t("pf_end_fail", "Nothing was changed. Try again when you have a connection.");
+        var said = speakable(err);
+        // The database's own sentence when it has one, and a plain sentence
+        // when what came back was machinery. Pasting the raw message here put
+        // "Could not find the function public.account_erase(p_wipe_messages)
+        // in the schema cache" on the screen, followed by advice about the
+        // reader's connection, which was not the problem either.
+        out.textContent = said || t("pf_del_failed",
+          "Your account was not deleted and nothing was changed. Please try again, and tell the admin if it keeps happening.");
+        if (!said) try { console.warn("account delete failed:", err); } catch (_) {}
         return;
       }
 
@@ -904,6 +911,31 @@
    * unpublishes their key. So a 404 from the function is not a failure — it
    * is the state of the deployment, and the data is gone either way.
    */
+  /**
+   * The half of a server error that belongs on a screen.
+   *
+   * account_erase() raises sentences it MEANT a person to read -- "You are the
+   * only admin. Add another before deleting this account." is the entire point
+   * of that refusal, and swallowing it would leave somebody stuck with no idea
+   * why. Everything else is machinery: PostgREST reporting a function missing
+   * from its schema cache, a constraint name, a driver's network text. This
+   * app has a standing rule that nothing on a rendered page names what it is
+   * built on, and tests/login_page_test.mjs sweeps for exactly that.
+   *
+   * Returns "" when the message is machinery, so the caller can say something
+   * true instead.
+   */
+  function speakable(err) {
+    var m = String((err && err.message) || err || "").trim();
+    if (!m) return "";
+    // Any of these means the message was written for a developer.
+    if (/schema cache|could not find the function|PGRST|pgrst|violates .*constraint|does not exist|permission denied for|duplicate key|syntax error|JWT|fetch failed|NetworkError|Failed to fetch/i.test(m)) return "";
+    // A sentence a person can read is short and has spaces in it. A stack
+    // trace or a JSON blob is neither.
+    if (m.length > 200 || !/\s/.test(m) || /[{}<>]|\bat \w+\./.test(m)) return "";
+    return m;
+  }
+
   async function deleteAccountOnServer() {
     var sb = window.SB || (window.DataStore && window.DataStore.sb);
     if (!sb) throw new Error(t("pf_del_offline", "No connection to the server."));

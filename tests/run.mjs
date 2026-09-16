@@ -124,24 +124,40 @@ for (const file of chosen) {
   let r = await runOnce(file);
   let attempts = 1;
 
+  // NOT EVERY SUITE PRINTS A TALLY. theme_light_check ends "All pages flipped
+  // to a readable light theme ✔", truck_match_test ends "all good", and
+  // i18n_coverage ends with its own PASS line against a baseline. Treating a
+  // missing summary as a crash reported three passing suites as CRASHED and
+  // retried each of them twice for nothing -- and, far worse, it meant the
+  // exit code was being ignored, so a suite that died silently with code 0
+  // would have looked the same as one that failed loudly.
+  //
+  // So the EXIT CODE is the authority and the tally is extra detail. A crash
+  // is a non-zero exit with no tally to explain it.
+  const crashed = (x) => !x.summarised && x.code !== 0;
+
   // Retry ONLY a crash. A suite that printed a tally has spoken, and rolling
   // the dice again until it says something nicer is how a real failure gets
   // laundered into a green tick.
-  while (!r.summarised && attempts <= RETRIES) {
+  while (crashed(r) && attempts <= RETRIES) {
     process.stdout.write("crash, retrying… ");
     r = await runOnce(file);
     attempts++;
   }
 
-  const status = !r.summarised ? "CRASHED"
+  const status = crashed(r) ? "CRASHED"
     : r.failed > 0 ? "FAILED"
+    : r.code !== 0 ? "FAILED"
     : attempts > 1 ? "FLAKY"
     : "ok";
   results.push({ name, file, status, attempts, ...r });
 
-  if (status === "ok")      process.stdout.write(`ok    ${r.passed}\n`);
+  // A suite that reports in its own words has no count to show, so say so
+  // rather than printing a confident "ok 0".
+  if (status === "ok")      process.stdout.write(r.summarised ? `ok    ${r.passed}\n` : "ok    (no tally)\n");
   else if (status === "FLAKY")  process.stdout.write(`FLAKY ${r.passed} (passed on attempt ${attempts})\n`);
-  else if (status === "FAILED") process.stdout.write(`FAIL  ${r.failed} of ${r.passed + r.failed}\n`);
+  else if (status === "FAILED") process.stdout.write(
+    r.summarised ? `FAIL  ${r.failed} of ${r.passed + r.failed}\n` : `FAIL  (exit ${r.code})\n`);
   else                          process.stdout.write(`CRASH after ${attempts} attempt(s)\n`);
 }
 
