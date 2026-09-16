@@ -18,19 +18,19 @@
 :root {
   /* ── Brand & gradient tokens ── */
   --brand-1:        #065f46;   /* deep emerald */
-  --brand-2:        #0a6f4d;
+  --brand-2:        var(--green);
   --brand-3:        #059669;
-  --brand-4:        #34d399;
+  --brand-4:        var(--green-bright);
   --accent-gold:    #fbbf24;
   --accent-warm:    #f97316;
 
-  --grad-brand:     linear-gradient(135deg, #064e3b 0%, #065f46 35%, #059669 70%, #10b981 100%);
+  --grad-brand:     linear-gradient(135deg, var(--green-deep) 0%, #065f46 35%, #059669 70%, var(--green-neon) 100%);
   --grad-brand-soft: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
   --grad-glow:      radial-gradient(circle at 30% 20%, rgba(52,211,153,.35) 0%, transparent 50%),
                     radial-gradient(circle at 80% 60%, rgba(251,191,36,.18) 0%, transparent 50%),
                     radial-gradient(circle at 60% 90%, rgba(6,95,70,.30)   0%, transparent 55%);
   --grad-card:      linear-gradient(160deg, rgba(255,255,255,.85), rgba(255,255,255,.55));
-  --grad-dark:      linear-gradient(135deg, #042f1e 0%, #064e3b 50%, #065f46 100%);
+  --grad-dark:      linear-gradient(135deg, #042f1e 0%, var(--green-deep) 50%, #065f46 100%);
   --grad-hero-glow: radial-gradient(60% 50% at 20% 0%, rgba(255,255,255,.35) 0%, transparent 60%),
                     radial-gradient(40% 40% at 80% 100%, rgba(251,191,36,.20) 0%, transparent 60%);
 
@@ -134,7 +134,7 @@ h3 { font-size: clamp(1.05rem, 3vw, 1.3rem); }
 
 /* Hero gradient text helper — opt-in via class */
 .hero h1, .saas-hero h1, .page-title, .gradient-text {
-  background: linear-gradient(135deg, #064e3b 0%, #047857 40%, #059669 70%, #10b981 100%);
+  background: linear-gradient(135deg, var(--green-deep) 0%, #047857 40%, #059669 70%, var(--green-neon) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -192,7 +192,7 @@ h3 { font-size: clamp(1.05rem, 3vw, 1.3rem); }
 .bottom-nav a:active, .mnav-more-btn:active { transform: scale(.95); }
 .bottom-nav a.active::before {
   height: 4px; border-radius: 0 0 6px 6px;
-  background: linear-gradient(90deg, #10b981, #34d399, #fbbf24);
+  background: linear-gradient(90deg, var(--green-neon), var(--green-bright), #fbbf24);
   box-shadow: 0 2px 8px rgba(16, 185, 129, .45);
 }
 
@@ -419,14 +419,14 @@ input:focus, select:focus, textarea:focus {
 
 /* ── Hold-countdown banner: more dramatic ──────────────────────────────── */
 .hold-countdown {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-  border: 2px solid #f59e0b !important;
+  background: linear-gradient(135deg, #fef3c7 0%, var(--text-warn) 100%) !important;
+  border: 2px solid var(--warn) !important;
   box-shadow: 0 8px 24px rgba(245, 158, 11, .25), inset 0 1px 0 rgba(255,255,255,.5) !important;
   backdrop-filter: blur(8px);
 }
 .hold-countdown.expiring {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
-  border-color: #dc2626 !important;
+  background: linear-gradient(135deg, #fee2e2 0%, var(--text-err) 100%) !important;
+  border-color: var(--danger) !important;
   box-shadow: 0 8px 24px rgba(220, 38, 38, .35), inset 0 1px 0 rgba(255,255,255,.5) !important;
 }
 
@@ -439,7 +439,7 @@ input:focus, select:focus, textarea:focus {
 .bus-card.selected {
   background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important;
   border-color: var(--brand-3) !important;
-  box-shadow: 0 0 0 4px rgba(16, 185, 129, .25), var(--shadow-3d-lg) !important;
+  box-shadow: 0 0 0 4px var(--green-line), var(--shadow-3d-lg) !important;
 }
 .bus-card-photo-placeholder {
   background: var(--grad-brand-soft) !important;
@@ -458,14 +458,14 @@ input:focus, select:focus, textarea:focus {
 /* ── Badges / pills ────────────────────────────────────────────────────── */
 .pill, .pill-status, .verified-badge, .badge, .route-pill {
   background: var(--grad-brand-soft) !important;
-  border: 1px solid rgba(16, 185, 129, .25) !important;
+  border: 1px solid var(--green-line) !important;
   color: var(--brand-1) !important;
   font-weight: 700;
   letter-spacing: .2px;
   border-radius: var(--radius-pill) !important;
 }
 .online-pill {
-  background: linear-gradient(90deg, #10b981, #34d399) !important;
+  background: linear-gradient(90deg, var(--green-neon), var(--green-bright)) !important;
   color: #fff !important;
   box-shadow: 0 4px 12px rgba(16, 185, 129, .35);
   font-weight: 800;
@@ -568,7 +568,7 @@ input:focus, select:focus, textarea:focus {
   body {
     background:
       var(--grad-glow),
-      linear-gradient(180deg, #0b1220 0%, #0f172a 50%, #064e3b 100%);
+      linear-gradient(180deg, #0b1220 0%, #0f172a 50%, var(--green-deep) 100%);
     color: #e2e8f0;
   }
   .card, .bf-card, .agent-card, .bus-card,
@@ -578,7 +578,7 @@ input:focus, select:focus, textarea:focus {
   input, select, textarea {
     background: rgba(15, 23, 42, .55) !important;
     color: #e2e8f0 !important;
-    border-color: rgba(255, 255, 255, .12) !important;
+    border-color: var(--glass-border) !important;
   }
   .hero, .saas-hero { background: var(--grad-dark) !important; }
 

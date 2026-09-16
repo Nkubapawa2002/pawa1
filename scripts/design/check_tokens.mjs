@@ -262,10 +262,14 @@ if (AS_JSON) {
 //    css/neon-pro.css       35  its palette now references the tokens it was
 //                               duplicating, values identical, light theme and
 //                               a dark screenshot both checked
-//    js/lib/agent-profile.js 36  var(--n-x, #hex) -> var(--n-x, var(--token)),
+//    js/lib/agent-profile.js 36  var(--n-x, <hex>) -> var(--n-x, var(--token)),
 //                               and on the one page without neon-pro the base
 //                               token equals the literal exactly
-const BASELINE = 409;
+//    css/premium.css        19  its brand and gradient tokens
+//    css/styles.css         34  the site-wide palette, shared by 23 pages.
+//                               None of the 15 tokens it needed is overridden
+//                               in theme-light.css, which is what made it safe
+const BASELINE = 355;
 
 if (STRICT && findings.length) process.exit(1);
 
