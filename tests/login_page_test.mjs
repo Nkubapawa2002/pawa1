@@ -8,9 +8,24 @@
 //  redirect guard — and the one that matters most, a sweep of the rendered
 //  page for any word that would tell a stranger what this is built on.
 //
-//  The provider is stubbed at the CDN script (jsDelivr is not reachable from
-//  this machine anyway — see the browser-test recipe) so each failure mode can
-//  be produced on demand instead of waited for.
+//  The provider is stubbed at the CDN script so each failure mode can be
+//  produced on demand instead of waited for. That is the whole reason, and it
+//  is a good one: a lockout you have to trigger for real is a test nobody runs.
+//
+//  THIS USED TO SAY "jsDelivr is not reachable from this machine anyway", AND
+//  THAT WAS NOT TRUE. It is reachable, and one curl of the leaflet URL on
+//  cdn.jsdelivr.net answers 200 in about a second. The claim is deleted rather
+//  than corrected because it was never load-bearing: stubbing is right whether
+//  or not the CDN answers.
+//
+//  It is worth saying why it is deleted so firmly. A reader took that
+//  parenthetical as current fact, carried it into a diagnosis of
+//  request_map_test (which stubs Leaflet for the same good reason and was
+//  failing for an entirely different one), and used it to justify NOT pinning
+//  the unpinned @supabase/supabase-js@2 that every page loads with no
+//  integrity hash, on the grounds that the pin could not be checked from here.
+//  It can. A false aside in a header comment outlived whatever was once true
+//  of this machine and cost a real decision.
 //
 //    usage:  node server.js      then, in another shell:
 //            node tests/login_page_test.mjs

@@ -26,15 +26,29 @@
 // A suite that only passes on retry is reported as FLAKY so it stays visible
 // rather than being laundered into a green tick.
 //
-// A SWEEP IS HARSHER THAN A SINGLE RUN, and the map suites feel it. Running
-// all 76 in a row leaves the browser and this host under enough pressure that
-// pchat_life_test and house_commute_place_test start losing intercepted
-// requests -- the latter says so out loud, "STARVED geocoder call:
-// net::ERR_ABORTED". Both pass 53/53 and 16/16 when run on their own. They are
-// reported as FAILED rather than retried, and that is deliberate: a tally is
-// the code speaking, and rolling again until it says something nicer is how a
-// real failure hides. If a map suite fails in a sweep, run it alone before
-// believing it.
+// A SWEEP IS HARSHER THAN A SINGLE RUN, and the browser-heavy suites feel it.
+// Running all 76 in a row leaves the browser and this host under enough
+// pressure that puppeteer starts losing its own intercepted requests --
+// house_commute_place_test says so out loud, "STARVED geocoder call:
+// net::ERR_ABORTED".
+//
+// FOUR SUITES ARE KNOWN TO DO THIS, and all four are green on their own:
+//
+//   pchat_life_test           53/53 alone
+//   house_commute_place_test  16/16 alone
+//   basemap_chain_test        26/26 alone, crashed on all 3 attempts in a sweep
+//   login_page_test           90/90 alone, four runs, one of them with three
+//                             other map suites running concurrently
+//
+// If one of these is red in a sweep, RUN IT ALONE BEFORE BELIEVING IT. That is
+// not a shrug: two of the four were carried as "genuinely failing" for a while
+// and one of them had a session's afternoon spent on it.
+//
+// A suite that printed a tally is reported as FAILED and never retried, and
+// that is deliberate: a tally is the code speaking, and rolling again until it
+// says something nicer is how a real failure hides. A CRASH is the host
+// speaking, so that is retried -- after a backoff, for the reason given at the
+// retry loop itself.
 //
 //   usage:  node server.js     then, in another shell:
 //           node tests/run.mjs                 every offline suite
@@ -122,6 +136,12 @@ function runOnce(file) {
   });
 }
 
+// Between suites, and multiplied for a retry. Small enough that 76 suites pay
+// under twenty seconds for it in total, long enough that the sockets from the
+// browser that just exited are on their way out before the next one launches.
+const COOLDOWN_MS = 250;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 const t0 = Date.now();
 process.stdout.write(`\nRunning ${chosen.length} suites` +
   (WITH_DB ? " (including the ones that hit production)" : "") +
@@ -131,6 +151,7 @@ const results = [];
 for (const file of chosen) {
   const name = file.replace(/\.mjs$/, "");
   process.stdout.write(`  ${name.padEnd(34)} `);
+  if (results.length) await sleep(COOLDOWN_MS);
   let r = await runOnce(file);
   let attempts = 1;
 
@@ -149,8 +170,22 @@ for (const file of chosen) {
   // Retry ONLY a crash. A suite that printed a tally has spoken, and rolling
   // the dice again until it says something nicer is how a real failure gets
   // laundered into a green tick.
+  //
+  // WITH A BACKOFF, and that is the point of it rather than politeness.
+  // A crash here is the HOST, not the code, and the host is exhausted in a way
+  // that takes seconds to drain: puppeteer starves its own intercepted
+  // requests, and Windows is sitting on a few thousand localhost sockets in
+  // TIME_WAIT from the browser launches so far. Retrying 200ms later asks the
+  // same exhausted machine the same question and gets the same answer.
+  //
+  // Measured, not assumed: basemap_chain_test crashed on all three attempts
+  // inside a sweep and passes 26/26 on its own, and login_page_test does the
+  // same at 90/90. Neither leaks a browser -- there are zero chrome processes
+  // between suites -- so there is nothing to reap, only time to give back.
   while (crashed(r) && attempts <= RETRIES) {
-    process.stdout.write("crash, retrying… ");
+    const backoff = COOLDOWN_MS * attempts * 4;
+    process.stdout.write(`crash, waiting ${(backoff / 1000).toFixed(0)}s… `);
+    await sleep(backoff);
     r = await runOnce(file);
     attempts++;
   }
