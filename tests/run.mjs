@@ -26,6 +26,16 @@
 // A suite that only passes on retry is reported as FLAKY so it stays visible
 // rather than being laundered into a green tick.
 //
+// A SWEEP IS HARSHER THAN A SINGLE RUN, and the map suites feel it. Running
+// all 76 in a row leaves the browser and this host under enough pressure that
+// pchat_life_test and house_commute_place_test start losing intercepted
+// requests -- the latter says so out loud, "STARVED geocoder call:
+// net::ERR_ABORTED". Both pass 53/53 and 16/16 when run on their own. They are
+// reported as FAILED rather than retried, and that is deliberate: a tally is
+// the code speaking, and rolling again until it says something nicer is how a
+// real failure hides. If a map suite fails in a sweep, run it alone before
+// believing it.
+//
 //   usage:  node server.js     then, in another shell:
 //           node tests/run.mjs                 every offline suite
 //           node tests/run.mjs pm_ p_message   only suites matching these
