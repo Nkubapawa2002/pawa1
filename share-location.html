@@ -92,10 +92,15 @@
     }
 
     /* ---- the two ways out -----------------------------------------------
-       A link and nine characters are not a primary and a fallback. Which one
-       is right depends entirely on how the other person is reachable, and
-       only the sender knows that, so they are two equal panels rather than
-       one button with the other hidden behind it.
+       Sending it in P-Message and reading nine characters out are not a
+       primary and a fallback. Which one is right depends entirely on how the
+       other person is reachable, and only the sender knows that, so they are
+       two equal panels rather than one button with the other hidden behind it.
+
+       The first panel used to be "Send a link" and handed a plain
+       google.com/maps URL to navigator.share. Both panels now produce the same
+       sealed code; they differ only in how it travels, and neither can be
+       edited into pointing at a different place.
 
        Both are on screen before there is a place to put in them, dimmed and
        disabled. That is the whole fix: the code half used to be built by
