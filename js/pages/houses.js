@@ -957,11 +957,11 @@ window.initHousesPage = async () => {
       if (!drawPts.length) return;
       const latlngs = drawPts.map(([lng, lat]) => [lat, lng]);
       drawLayer = (drawPts.length >= 3
-        ? L.polygon(latlngs, { color: "#0a6f4d", weight: 2, fillColor: "#0a6f4d", fillOpacity: 0.18, dashArray: "6 4" })
-        : L.polyline(latlngs, { color: "#0a6f4d", weight: 2, dashArray: "6 4" })).addTo(alertModalMap);
+        ? L.polygon(latlngs, { color: "var(--green)", weight: 2, fillColor: "var(--green)", fillOpacity: 0.18, dashArray: "6 4" })
+        : L.polyline(latlngs, { color: "var(--green)", weight: 2, dashArray: "6 4" })).addTo(alertModalMap);
       drawPts.forEach(([lng, lat]) =>
         drawMarkers.push(L.circleMarker([lat, lng],
-          { radius: 5, color: "#fff", weight: 2, fillColor: "#0a6f4d", fillOpacity: 1 }).addTo(alertModalMap)));
+          { radius: 5, color: "#fff", weight: 2, fillColor: "var(--green)", fillOpacity: 1 }).addTo(alertModalMap)));
     }
     function addDrawPoint(lat, lng) { drawPts.push([lng, lat]); redrawDrawing(); refreshSaveState(); updateCoords(); }
     if (undoBtn)  undoBtn.onclick  = () => { drawPts.pop(); redrawDrawing(); refreshSaveState(); updateCoords(); };
@@ -1029,7 +1029,7 @@ window.initHousesPage = async () => {
       if (committedLayer) { committedLayer.remove(); committedLayer = null; }
       if (!committedAreas.length) return;
       committedLayer = L.layerGroup().addTo(alertModalMap);
-      const style = { color: "#0a6f4d", weight: 2, opacity: .7, fillColor: "#0a6f4d", fillOpacity: .1, dashArray: "4 5" };
+      const style = { color: "var(--green)", weight: 2, opacity: .7, fillColor: "var(--green)", fillOpacity: .1, dashArray: "4 5" };
       committedAreas.forEach((ar) => {
         if (ar.geo) L.geoJSON({ type: "Feature", geometry: ar.geo }, { style, interactive: false }).addTo(committedLayer);
         else if (ar.radius_m) L.circle([ar.lat, ar.lng], { radius: ar.radius_m, interactive: false, ...style }).addTo(committedLayer);
@@ -1065,8 +1065,8 @@ window.initHousesPage = async () => {
         // no `until` in preview — date only silences future firing, not "matches now"
       };
     }
-    const DOT_MATCH = { radius: 6, color: "#fff", weight: 2, fillColor: "#0a6f4d", fillOpacity: 1 };
-    const DOT_OTHER = { radius: 3, color: "#0a6f4d", weight: 1, opacity: .4, fillColor: "#0a6f4d", fillOpacity: .22, interactive: false };
+    const DOT_MATCH = { radius: 6, color: "#fff", weight: 2, fillColor: "var(--green)", fillOpacity: 1 };
+    const DOT_OTHER = { radius: 3, color: "var(--green)", weight: 1, opacity: .4, fillColor: "var(--green)", fillOpacity: .22, interactive: false };
     const MAX_OTHER_DOTS = 500;   // cap faint dots so dense cities stay smooth
     function renderListingDots() {
       if (!alertModalMap) return;
@@ -1336,8 +1336,8 @@ window.initHousesPage = async () => {
       } else {
         alertRadiusCircle = L.circle([alertPicked.lat, alertPicked.lng], {
           radius: +radiusIn.value,
-          color: "#0a6f4d",
-          fillColor: "#0a6f4d",
+          color: "var(--green)",
+          fillColor: "var(--green)",
           fillOpacity: 0.18,
           weight: 2,
           dashArray: "6 4"
@@ -1855,7 +1855,7 @@ window.initHousesPage = async () => {
     s.textContent = `
       .landmark-marker{display:flex;align-items:center;gap:4px;transform:translateY(2px);pointer-events:none}
       .landmark-marker .lm-pin{font-size:26px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
-      .landmark-marker .lm-label{background:#0a6f4d;color:#fff;font:600 11px/1.2 system-ui,sans-serif;
+      .landmark-marker .lm-label{background:var(--green);color:#fff;font:600 11px/1.2 system-ui,sans-serif;
         padding:3px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3);max-width:160px;
         overflow:hidden;text-overflow:ellipsis}`;
     document.head.appendChild(s);
@@ -3438,10 +3438,10 @@ window.initHousesPage = async () => {
   // boot sequence — so renderReferenceMarkers() can fire safely during init.
   function refColor(kind) {
     if (kind === "university" || kind === "college" || kind === "institute") return "#1d4ed8";
-    if (kind === "hospital") return "#dc2626";
+    if (kind === "hospital") return "var(--danger)";
     if (kind === "airport" || kind === "transport") return "#7c3aed";
     if (kind === "mall" || kind === "market" || kind === "stadium") return "#b45309";
-    return "#0a6f4d";   // areas + everything else = brand green
+    return "var(--green)";   // areas + everything else = brand green
   }
   function ensureRefStyles() {
     if (document.getElementById("refMarkerStyles")) return;
@@ -3528,9 +3528,9 @@ window.initHousesPage = async () => {
     else {
       map.addSource(AREA_CIRCLE_SRC, { type: "geojson", data });
       map.addLayer({ id: AREA_CIRCLE_SRC + "-fill", type: "fill", source: AREA_CIRCLE_SRC,
-        paint: { "fill-color": "#0a6f4d", "fill-opacity": 0.10 } });
+        paint: { "fill-color": "var(--green)", "fill-opacity": 0.10 } });
       map.addLayer({ id: AREA_CIRCLE_SRC + "-line", type: "line", source: AREA_CIRCLE_SRC,
-        paint: { "line-color": "#0a6f4d", "line-width": 2, "line-dasharray": [2, 1.5] } });
+        paint: { "line-color": "var(--green)", "line-width": 2, "line-dasharray": [2, 1.5] } });
     }
     if (fit) {
       const dLat = radius_m / 111320;
@@ -3932,7 +3932,7 @@ window.initHousesPage = async () => {
     s.id = "hpDemandStyles";
     s.textContent = `
       .hp-empty__actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-      .hp-empty__cta--ghost{background:transparent;color:#0a6f4d;box-shadow:inset 0 0 0 1.5px #0a6f4d}
+      .hp-empty__cta--ghost{background:transparent;color:var(--green);box-shadow:inset 0 0 0 1.5px var(--green)}
       .hp-pin-form{margin:14px auto 0;max-width:380px;text-align:left;background:#f7faf8;
         border:1px solid #d8e6df;border-radius:14px;padding:14px 16px}
       .hp-pin-form__lead{margin:0 0 10px;font-size:.86rem;line-height:1.45;color:#33403a}
@@ -3941,10 +3941,10 @@ window.initHousesPage = async () => {
       .hp-pin-form__by small{font-weight:400;color:#6b7a73}
       .hp-pin-form__by input{margin-top:4px}
       .hp-pin-form input{width:100%;padding:10px 12px;border:1px solid #cdd9d3;border-radius:9px;font-size:.92rem}
-      .hp-pin-form input:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
+      .hp-pin-form input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(10,111,77,.15)}
       .hp-pin-form .hp-empty__cta{width:100%}
       .hp-pin-form__msg{margin-top:8px;font-size:.82rem;color:#b91c1c}
-      .hp-pin-form--done{display:flex;flex-direction:column;gap:3px;font-size:.88rem;color:#0a6f4d}
+      .hp-pin-form--done{display:flex;flex-direction:column;gap:3px;font-size:.88rem;color:var(--green)}
       .hp-pin-form--done span{color:#33403a}`;
     document.head.appendChild(s);
   }

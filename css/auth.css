@@ -31,7 +31,7 @@
   --auth-radius:      20px;
   --auth-radius-sm:   12px;
   --auth-field-h:     50px;            /* >= 44px touch target */
-  --auth-ring:        var(--c-brand, #0a6f4d);
+  --auth-ring:        var(--c-brand, var(--green));
 
   /* Glass tokens — tuned so text stays AA-readable on any backdrop. */
   --auth-glass-bg:     rgba(255, 255, 255, .72);
@@ -115,7 +115,7 @@
 .auth-logo {
   display: inline-flex; align-items: center; justify-content: center;
   width: 58px; height: 58px; border-radius: 17px;
-  background: linear-gradient(150deg, #10a36e 0%, var(--c-brand, #0a6f4d) 55%, var(--c-brand-deep, #064a33) 100%);
+  background: linear-gradient(150deg, #10a36e 0%, var(--c-brand, var(--green)) 55%, var(--c-brand-deep, #064a33) 100%);
   color: #fff; margin-bottom: 14px;
   box-shadow: 0 10px 22px -8px rgba(10, 111, 77, .65), inset 0 1px 0 rgba(255,255,255,.4);
 }
@@ -182,7 +182,7 @@
 .auth-input-wrap { position: relative; display: flex; align-items: center; }
 .auth-field-icon {
   position: absolute; left: 14px; width: 18px; height: 18px;
-  color: var(--c-brand, #0a6f4d); opacity: .72; pointer-events: none;
+  color: var(--c-brand, var(--green)); opacity: .72; pointer-events: none;
   transition: opacity .15s ease, color .15s ease;
 }
 .auth-input {
@@ -218,7 +218,7 @@
   padding-right: 44px !important;
 }
 
-.auth-input:hover { border-color: var(--c-brand, #0a6f4d); }
+.auth-input:hover { border-color: var(--c-brand, var(--green)); }
 .auth-input:focus,
 .auth-input:focus-visible {
   outline: none;
@@ -262,7 +262,7 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   width: 100%; margin-top: 24px;
   min-height: var(--auth-field-h);
   border: 0; border-radius: var(--auth-radius-sm);
-  background: linear-gradient(135deg, #10a36e 0%, var(--c-brand, #0a6f4d) 60%, var(--c-brand-deep, #064a33) 100%);
+  background: linear-gradient(135deg, #10a36e 0%, var(--c-brand, var(--green)) 60%, var(--c-brand-deep, #064a33) 100%);
   color: var(--c-brand-on, #fff);
   font: inherit; font-weight: 700; font-size: 1.04rem; cursor: pointer;
   box-shadow: 0 12px 24px -10px rgba(10, 111, 77, .6), var(--auth-sheen);
@@ -298,13 +298,13 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   font: inherit; font-weight: 600; font-size: .95rem; cursor: pointer;
   transition: border-color .15s ease, background .15s ease, transform .15s ease;
 }
-.auth-secondary:hover { border-color: var(--c-brand, #0a6f4d); background: rgba(240, 247, 242, .9); transform: translateY(-1px); }
+.auth-secondary:hover { border-color: var(--c-brand, var(--green)); background: rgba(240, 247, 242, .9); transform: translateY(-1px); }
 
 /* Aux row (forgot password etc.) */
 .auth-aux { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; flex-wrap: wrap; gap: 8px; }
 .auth-link-btn {
   background: none; border: 0; cursor: pointer; padding: 4px 0;
-  color: var(--c-brand, #0a6f4d); font: inherit; font-weight: 600; font-size: .85rem;
+  color: var(--c-brand, var(--green)); font: inherit; font-weight: 600; font-size: .85rem;
 }
 /* The underline was this control's only hover feedback, so it is replaced
    rather than simply deleted — a link that does nothing on hover reads as
@@ -345,7 +345,7 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
 }
 .auth-route:hover {
-  border-color: var(--c-brand, #0a6f4d);
+  border-color: var(--c-brand, var(--green));
   background: rgba(240, 247, 242, .85);
   transform: translateY(-1px);
   box-shadow: 0 8px 18px -10px rgba(6, 74, 51, .4);
@@ -354,11 +354,11 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 40px; height: 40px; border-radius: 11px;
   background: linear-gradient(150deg, rgba(16,163,110,.18), rgba(6,74,51,.16));
-  color: var(--c-brand, #0a6f4d);
+  color: var(--c-brand, var(--green));
 }
 .auth-route-ic svg { width: 20px; height: 20px; }
 .auth-route small { display: block; font-weight: 400; font-size: .76rem; color: var(--c-text-muted, #5d5b52); margin-top: 2px; }
-.auth-route .auth-route-go { margin-left: auto; color: var(--c-brand, #0a6f4d); transition: transform .15s ease; }
+.auth-route .auth-route-go { margin-left: auto; color: var(--c-brand, var(--green)); transition: transform .15s ease; }
 .auth-route:hover .auth-route-go { transform: translateX(3px); }
 
 /* ── Portal chooser (post sign-in routing) ───────────────────────── */
@@ -374,14 +374,14 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
 }
 .auth-portal:hover {
-  border-color: var(--c-brand, #0a6f4d);
+  border-color: var(--c-brand, var(--green));
   background: rgba(240, 247, 242, .85);
   transform: translateY(-1px);
   box-shadow: 0 8px 18px -10px rgba(6, 74, 51, .4);
 }
 .auth-portal .auth-route-ic { background: linear-gradient(150deg, rgba(16,163,110,.26), rgba(6,74,51,.2)); }
 .auth-portal small { display: block; font-weight: 400; font-size: .76rem; color: var(--c-text-muted, #5d5b52); margin-top: 2px; }
-.auth-portal .auth-route-go { margin-left: auto; color: var(--c-brand, #0a6f4d); transition: transform .15s ease; }
+.auth-portal .auth-route-go { margin-left: auto; color: var(--c-brand, var(--green)); transition: transform .15s ease; }
 .auth-portal:hover .auth-route-go { transform: translateX(3px); }
 .auth-empty { font-size: .88rem; color: var(--c-text-muted, #5d5b52); line-height: 1.5; margin: 4px 0 14px; }
 .auth-signout { margin-top: 18px; text-align: center; }
@@ -394,7 +394,7 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
 /* Spinner (portal detection) */
 .auth-spinner {
   width: 24px; height: 24px; margin: 16px auto;
-  border: 3px solid rgba(120,130,120,.28); border-top-color: var(--c-brand, #0a6f4d);
+  border: 3px solid rgba(120,130,120,.28); border-top-color: var(--c-brand, var(--green));
   border-radius: 50%; animation: auth-spin .8s linear infinite;
 }
 @keyframes auth-spin { to { transform: rotate(360deg); } }
@@ -406,7 +406,7 @@ select.auth-input { padding-left: 14px; cursor: pointer; }
   display: flex; align-items: center; justify-content: center; gap: 6px;
   margin-top: 18px; font-size: .76rem; color: var(--c-text-muted, #5d5b52);
 }
-.auth-secure svg { width: 13px; height: 13px; color: var(--c-brand, #0a6f4d); }
+.auth-secure svg { width: 13px; height: 13px; color: var(--c-brand, var(--green)); }
 
 /* ── Two-column form rows (registration) ─────────────────────────── */
 .auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
@@ -427,7 +427,7 @@ body[data-page="login"]::before {
     radial-gradient(42% 52% at 84% 12%, rgba(16, 185, 129, .45), transparent 70%),
     radial-gradient(48% 58% at 82% 86%, rgba(6, 74, 51, .85), transparent 72%),
     radial-gradient(44% 54% at 18% 90%, rgba(13, 148, 110, .5), transparent 72%),
-    linear-gradient(135deg, #052e21 0%, #0a6f4d 55%, #04261b 100%);
+    linear-gradient(135deg, #052e21 0%, var(--green) 55%, #04261b 100%);
   background-size: 200% 200%;
   animation: aurora-flow 18s ease-in-out infinite;
 }

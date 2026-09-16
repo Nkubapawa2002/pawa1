@@ -269,7 +269,7 @@ if (AS_JSON) {
 //    css/styles.css         34  the site-wide palette, shared by 23 pages.
 //                               None of the 15 tokens it needed is overridden
 //                               in theme-light.css, which is what made it safe
-const BASELINE = 355;
+const BASELINE = 277;
 
 if (STRICT && findings.length) process.exit(1);
 

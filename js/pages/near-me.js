@@ -300,10 +300,10 @@
   let refLayer = null;
   function refColor(kind) {
     if (kind === "university" || kind === "college" || kind === "institute") return "#1d4ed8";
-    if (kind === "hospital") return "#dc2626";
+    if (kind === "hospital") return "var(--danger)";
     if (kind === "airport" || kind === "transport") return "#7c3aed";
     if (kind === "mall" || kind === "market" || kind === "stadium") return "#b45309";
-    return "#0a6f4d";   // areas + everything else = brand green
+    return "var(--green)";   // areas + everything else = brand green
   }
   function ensureRefStyles() {
     if (document.getElementById("nmRefStyles")) return;
@@ -368,7 +368,7 @@
     routeLayer = L.layerGroup().addTo(map);
     const lines = [];
     const styleFor = (chosen) => chosen
-      ? { color: "#0a6f4d", weight: 6, opacity: .95, dashArray: null }
+      ? { color: "var(--green)", weight: 6, opacity: .95, dashArray: null }
       : { color: "#5e8a79", weight: 4, opacity: .75, dashArray: "7 7" };
     const popupFor = (o, i) =>
       `<strong>${esc(it.title)}</strong><br>` +
@@ -416,7 +416,7 @@
       m.bindPopup(
         `<strong>${esc(it.title)}</strong><br>` +
         `${esc(it.priceValue)}${esc(it.priceUnit)}<br>` +
-        (userLoc ? `<button type="button" class="nm-route-btn" style="margin:4px 0;border:0;background:#0a6f4d;color:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600;"> Show road route</button><br>` : "") +
+        (userLoc ? `<button type="button" class="nm-route-btn" style="margin:4px 0;border:0;background:var(--green);color:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600;"> Show road route</button><br>` : "") +
         `<a href="${it.href}">View ${it.kind === "room" ? "room" : "truck"} →</a>`
       );
       m.on("popupopen", (e) => {
@@ -445,7 +445,7 @@
       if (map) {
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.circleMarker([userLoc.lat, userLoc.lng], {
-          radius: 8, color: "#0a6f4d", fillColor: "#0a6f4d", fillOpacity: .9, weight: 2,
+          radius: 8, color: "var(--green)", fillColor: "var(--green)", fillOpacity: .9, weight: 2,
         }).addTo(map).bindPopup("You are here");
       }
       render();
@@ -497,7 +497,7 @@
         if (map) {
           if (userMarker) map.removeLayer(userMarker);
           userMarker = L.circleMarker([hit.lat, hit.lng], {
-            radius: 8, color: "#0a6f4d", fillColor: "#0a6f4d", fillOpacity: .9, weight: 2,
+            radius: 8, color: "var(--green)", fillColor: "var(--green)", fillOpacity: .9, weight: 2,
           }).addTo(map).bindPopup(esc(hit.name || "Search area"));
           map.setView([hit.lat, hit.lng], 13);
         }

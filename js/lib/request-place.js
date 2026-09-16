@@ -193,11 +193,11 @@
       .rp-row label small{font-weight:400;color:#7a877f}
       .rp-row input,.rp-row select{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cdd9d3;
         border-radius:10px;font-size:1rem;background:#fff;color:#16201b}
-      .rp-row input:focus,.rp-row select:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
+      .rp-row input:focus,.rp-row select:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(10,111,77,.15)}
       .rp-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
       .rp-loc{margin-top:7px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:6px;
-        padding:9px 12px;min-height:44px;box-sizing:border-box;border:1px dashed #0a6f4d;border-radius:10px;
-        background:#f2faf6;color:#0a6f4d;font-weight:700;font-size:.86rem;cursor:pointer}
+        padding:9px 12px;min-height:44px;box-sizing:border-box;border:1px dashed var(--green);border-radius:10px;
+        background:#f2faf6;color:var(--green);font-weight:700;font-size:.86rem;cursor:pointer}
       .rp-loc:disabled{opacity:.6;cursor:default}
       .rp-sug{position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #d8e6df;
         border-radius:0 0 10px 10px;max-height:210px;overflow:auto;box-shadow:0 12px 30px rgba(0,0,0,.14)}
@@ -207,24 +207,24 @@
       .rp-sug button:hover{background:#f2f7f4}
       .rp-sug b{display:block;font-size:.9rem}
       .rp-sug span{font-size:.78rem;color:#6b7a73}
-      .rp-picked{font-size:.8rem;color:#0a6f4d;margin-top:5px;font-weight:600}
+      .rp-picked{font-size:.8rem;color:var(--green);margin-top:5px;font-weight:600}
       .rp-anchor-note{font-size:.86rem;line-height:1.5;color:#7a5b12;background:#fff8e6;
         border:1px solid #f2dda0;border-radius:10px;padding:10px 12px;margin-bottom:10px}
       .rp-anchor-say{font-size:.82rem;line-height:1.5;color:#4c6a5d;margin-top:8px;min-height:1.2em}
-      .rp-anchor-say b{color:#0a6f4d}
-      .rp-go{width:100%;padding:13px;border:0;border-radius:11px;background:#0a6f4d;color:#fff;font-weight:800;
+      .rp-anchor-say b{color:var(--green)}
+      .rp-go{width:100%;padding:13px;border:0;border-radius:11px;background:var(--green);color:#fff;font-weight:800;
         font-size:1rem;cursor:pointer;margin-top:4px}
       .rp-go:disabled{opacity:.6;cursor:default}
       .rp-foot{display:flex;gap:8px;margin-top:8px}
       .rp-link{flex:1;padding:10px;min-height:44px;border:0;border-radius:11px;background:none;color:#64748b;
         font-size:.92rem;cursor:pointer}
-      .rp-link.rp-strong{color:#0a6f4d;font-weight:700}
+      .rp-link.rp-strong{color:var(--green);font-weight:700}
       .rp-msg{min-height:18px;font-size:.84rem;color:#b91c1c;margin:2px 0 6px}
-      .rp-msg.ok{color:#0a6f4d}
+      .rp-msg.ok{color:var(--green)}
       .rp-done{text-align:center;padding:10px 4px}
-      .rp-done .rp-tick{width:54px;height:54px;border-radius:50%;background:#e7f5ee;color:#0a6f4d;display:flex;
+      .rp-done .rp-tick{width:54px;height:54px;border-radius:50%;background:#e7f5ee;color:var(--green);display:flex;
         align-items:center;justify-content:center;font-size:28px;margin:6px auto 12px}
-      .rp-done h3{margin:0 0 6px;font-size:1.1rem;color:#0a6f4d}
+      .rp-done h3{margin:0 0 6px;font-size:1.1rem;color:var(--green)}
       .rp-done p{margin:0 0 14px;color:#41504a;font-size:.92rem;line-height:1.5}
       .rp-mine{margin:8px 0 0;padding:0;list-style:none}
       .rp-mine li{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;
@@ -238,7 +238,7 @@
       .rp-empty{color:#52605a;font-size:.9rem;text-align:center;padding:14px 4px}
       .rp-row textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cdd9d3;
         border-radius:10px;font:inherit;font-size:.95rem;resize:vertical;color:#16201b}
-      .rp-row textarea:focus{outline:none;border-color:#0a6f4d;box-shadow:0 0 0 3px rgba(10,111,77,.15)}
+      .rp-row textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(10,111,77,.15)}
       .rp-check{display:flex;align-items:center}
       .rp-chk{display:flex;align-items:center;gap:8px;min-height:40px;font-weight:600;color:#34403a;cursor:pointer;margin:0}
       .rp-chk input{width:auto;flex-shrink:0;margin:0}
@@ -248,7 +248,7 @@
         min-height:40px;box-sizing:border-box;border:1px solid #cdd9d3;border-radius:999px;background:#fff;
         cursor:pointer;color:#34403a}
       .rp-amen input{width:auto;margin:0}
-      .rp-amen label:has(input:checked){border-color:#0a6f4d;background:#eafaf3;color:#0a6f4d;font-weight:600}
+      .rp-amen label:has(input:checked){border-color:var(--green);background:#eafaf3;color:var(--green);font-weight:600}
       /* ---- the area map ------------------------------------------------
          A short map: it has to sit between "where" and "what" inside a sheet
          that already scrolls, so it earns its height by being glanceable, not
@@ -270,17 +270,17 @@
       .rp-map-veil[hidden]{display:none}
       .rp-map-cap{margin:6px 0 0;font-size:.78rem;line-height:1.45;color:#52605a;min-height:17px}
       .rp-map-cap.rp-cap-soft{color:#8a5a12}   /* an approximate point, said plainly */
-      .rp-map-cap.rp-cap-firm{color:#0a6f4d;font-weight:600}
+      .rp-map-cap.rp-cap-firm{color:var(--green);font-weight:600}
       /* ---- radius ------------------------------------------------------ */
       .rp-rad{margin-top:11px}
       .rp-rad-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
       .rp-rad-top label{margin:0}
-      .rp-rad output{font-size:.82rem;font-weight:700;color:#0a6f4d;white-space:nowrap}
+      .rp-rad output{font-size:.82rem;font-weight:700;color:var(--green);white-space:nowrap}
       /* A native range track is ~4px tall and the thumb ~16px. Padding the
          input up to 40px gives the thumb a row a finger can actually find,
          without changing how the control looks. */
       .rp-rad input[type=range]{width:100%;height:40px;margin:0;padding:0;background:none;
-        accent-color:#0a6f4d;cursor:pointer;box-sizing:border-box}
+        accent-color:var(--green);cursor:pointer;box-sizing:border-box}
       .rp-rad-help{margin:0;font-size:.76rem;line-height:1.45;color:#7a877f}`;
     document.head.appendChild(s);
   }
@@ -832,8 +832,8 @@
         marker.setLatLng(ll);
       }
       if (!circle) {
-        circle = L.circle(ll, { radius: radiusM(), color: "#0a6f4d", weight: 2,
-          fillColor: "#0a6f4d", fillOpacity: 0.12, interactive: false }).addTo(map);
+        circle = L.circle(ll, { radius: radiusM(), color: "var(--green)", weight: 2,
+          fillColor: "var(--green)", fillOpacity: 0.12, interactive: false }).addTo(map);
       } else {
         circle.setLatLng(ll); circle.setRadius(radiusM());
       }
