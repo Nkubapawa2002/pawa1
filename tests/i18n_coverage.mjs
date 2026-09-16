@@ -79,7 +79,40 @@ const PAGES = process.argv[2] ? [process.argv[2]] : [
   // The houses detail sheet, the third of the three and the same blind spot:
   // without an ?id= it renders "no listing selected" and nothing else.
   "house.html",
+  // Saved houses. Profile links to it as "Saved listings", and it was never on
+  // this list, which is the fourth time that sentence appears in this file: it
+  // was English from its <title> ("My Favorites Pnzaki Houses") through its
+  // sort menu to its empty state.
+  "favorites.html",
+  // The Explore tab. Two aria-labels, which is the shape this scan is best at
+  // and a person is worst at: nothing on the screen looked wrong, and a screen
+  // reader set to Swahili announced two English labels.
+  "explore.html",
+  // The door everybody comes through.
+  "login.html",
+  // The assistant pane. Clean when it was added here, and on the list so it
+  // stays that way.
+  "chat.html",
+  // The two consoles. These are the untranslated remainder the BASELINE below
+  // covers: they are on the list so the number cannot grow, not because they
+  // are finished.
+  "admin.html",
+  "super-admin.html",
 ];
+
+// The ratchet, same shape as DASH_BASELINE in tests/copy_rules_test.mjs and
+// for the same reason. Before this, the file ended in `process.exit(0)` and
+// could NOT fail: CLAUDE.md calls it a test, and it was a report. Every page
+// above that was clean stayed clean by luck, and six pages were simply never
+// looked at.
+//
+// Arming it against zero would have meant translating the two admin consoles
+// first (71 and 11 strings), which is a different piece of work from making
+// the check real. So it is armed against the debt that existed the day it was
+// armed. Lower it when you clean strings; never raise it.
+// All 80 of these are admin.html and super-admin.html. The other 25 pages on
+// the list are at zero.
+const BASELINE = 80;
 
 // Words that are the same in Swahili, or are not words at all. Kept small and
 // explicit — a big allowlist is how a checker stops finding anything.
@@ -250,6 +283,13 @@ for (const path of PAGES) {
         if (s.length < 4) continue;                       // "OK", "×", "3 km"
         if (!/[A-Za-z]/.test(s)) continue;                // numbers/punctuation/emoji
         if (/^[\d\s.,:/+×·—–-]+$/.test(s)) continue;
+        // An address is a SHAPE, not a sentence. "you@example.com" is the same
+        // hint in every language (example.com is reserved for exactly this),
+        // and it only reached this far because it contains the word "you".
+        // Demanding a translation of it would mean inventing a second fake
+        // domain, which teaches the reader nothing and can only go stale.
+        if (/^\S+@\S+\.\S+$/.test(s)) continue;           // you@example.com
+        if (/^(https?:\/\/|www\.)\S+$/i.test(s)) continue; // a bare URL
         // Words that carry the judgement. Data from the database (place names,
         // listing titles) is usually one or two capitalised words; a SENTENCE
         // with a lowercase function word is almost always UI copy.
@@ -284,4 +324,23 @@ for (const { path, found } of report) {
   if (found.length > 40) process.stdout.write(`  … and ${found.length - 40} more\n`);
 }
 process.stdout.write(`\n${total} untranslated strings across ${report.length} pages\n`);
+
+// A single page passed as argv[2] is a probe, not the suite: it cannot be
+// measured against a baseline that describes all of them, so it only reports.
+if (process.argv[2]) process.exit(0);
+
+if (total > BASELINE) {
+  process.stdout.write(
+    `\nFAIL  ${total} untranslated, baseline ${BASELINE}. ` +
+    `${total - BASELINE} more than when this was last ratcheted.\n` +
+    `      Every visible string lives in js/core/i18n.js under both en and sw.\n`);
+  process.exit(1);
+}
+if (total < BASELINE) {
+  process.stdout.write(
+    `\nPASS  ${total} untranslated, baseline ${BASELINE}. ` +
+    `Lower BASELINE to ${total} in this file to keep the ground you just took.\n`);
+  process.exit(0);
+}
+process.stdout.write(`\nPASS  ${total} untranslated, baseline ${BASELINE}.\n`);
 process.exit(0);

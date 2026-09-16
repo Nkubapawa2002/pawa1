@@ -5,7 +5,7 @@
   <script src="js/core/viewport.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>My Favorites Pnzaki Houses</title>
+  <title>Saved houses — Maisha na Lifeza</title>
   <link rel="stylesheet" href="css/styles.css" />
 
   <link rel="manifest" href="manifest.json" />
@@ -275,26 +275,29 @@
   <link rel="stylesheet" href="css/adaptive.css" />
 </head>
 <body data-houses-pro data-page="favorites" data-app-shell="favorites.html">
-  <a href="#favGrid" class="hp-skip-link">Skip to favorites</a>
+  <a href="#favGrid" class="hp-skip-link" data-i18n="fav_skip">Skip to saved houses</a>
   <div id="nav-slot"></div>
 
   <header class="tw-head">
     <h1 class="tw-title" data-i18n="tab_saved">Saved</h1>
-    <p class="tw-sub">Houses you've saved with the heart button stored on this device.</p>
+    <p class="tw-sub" data-i18n="fav_sub">Houses you kept with the heart button. The list stays on this device.</p>
   </header>
 
   <main class="fav-wrap">
 
     <div id="favToolbar" class="fav-toolbar" hidden>
-      <div class="fav-count"><strong id="favCount">0</strong> saved</div>
+      <!-- One string, not a number with an English word welded to its right.
+           "{n} saved" and "{n} zimehifadhiwa" put the count in the same place,
+           but a language that did not would have had nowhere to move it. -->
+      <div class="fav-count" id="favCount"></div>
       <div class="fav-toolbar-actions">
         <select id="favSort" class="fav-sort">
-          <option value="recent">Recently saved</option>
-          <option value="price_asc">Price: low to high</option>
-          <option value="price_desc">Price: high to low</option>
-          <option value="title">Title (A → Z)</option>
+          <option value="recent"     data-i18n="fav_sort_recent">Recently saved</option>
+          <option value="price_asc"  data-i18n="fav_sort_price_asc">Price: low to high</option>
+          <option value="price_desc" data-i18n="fav_sort_price_desc">Price: high to low</option>
+          <option value="title"      data-i18n="fav_sort_title">Title (A to Z)</option>
         </select>
-        <button id="favClearAll" class="fav-clear-btn" type="button">Clear all</button>
+        <button id="favClearAll" class="fav-clear-btn" type="button" data-i18n="fav_clear">Clear all</button>
       </div>
     </div>
 

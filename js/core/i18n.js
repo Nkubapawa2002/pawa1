@@ -131,6 +131,39 @@ window.I18N = {
     tab_pchat: "P-Chat",
     tab_saved: "Saved",
 
+    // Saved houses (favorites.html). The page Profile calls "Saved listings".
+    // Every string below was English-only until now, in both the markup and
+    // js/pages/favorites.js, because the page was never on the list
+    // tests/i18n_coverage.mjs walks. It is on it now.
+    fav_skip: "Skip to saved houses",
+    fav_sub: "Houses you kept with the heart button. The list stays on this device.",
+    fav_count: "{n} saved",
+    fav_sort_recent: "Recently saved",
+    fav_sort_price_asc: "Price: low to high",
+    fav_sort_price_desc: "Price: high to low",
+    fav_sort_title: "Title (A to Z)",
+    fav_clear: "Clear all",
+    fav_clear_confirm: "Remove all {n} saved houses? This cannot be undone.",
+    fav_err_t: "Could not load the houses",
+    fav_retry: "Try again",
+    fav_empty_t: "Nothing saved yet",
+    fav_empty_sub: "Tap the heart on any house to keep it here. Your list stays on this device.",
+    fav_browse: "Browse houses",
+    // No spaced dash: this was "…still work — they're stored locally", which
+    // is a comma pretending to be punctuation you cannot read aloud.
+    fav_hint: "Browsing privately? Saved houses still work, because the list never leaves this device.",
+    fav_for_rent: "For rent",
+    fav_for_sale: "For sale",
+    fav_verified: "Verified",
+    fav_view: "View details",
+    fav_remove_aria: "Remove {title} from saved",
+    fav_removed: "Removed {title}",
+    fav_undo: "Undo",
+    fav_beds: "{n} bed",
+    fav_beds_p: "{n} beds",
+    fav_baths: "{n} bath",
+    fav_baths_p: "{n} baths",
+
     // P-Chat (p-chat.html) — the "reach out" tab. Rows that also appear on the
     // homepage deliberately reuse the home_find_* / meet_* keys rather than
     // getting a second wording that would drift.
@@ -3199,6 +3232,12 @@ window.I18N = {
     xp_f_place: "Place",
     xp_f_region: "Region",
     xp_f_radius: "How far",
+    // Both of these are read aloud rather than drawn, which is exactly how
+    // they stayed English: nothing on the screen showed them, so no scan of
+    // the page looked wrong. A screen reader in Swahili announced two English
+    // labels.
+    xp_scopes_aria: "What to search",
+    xp_radius_aria: "Search radius",
     xp_done: "Done",
     xp_empty_region_t: "Nothing in {r}",
     xp_empty_region_p: "{n} match this search elsewhere in Tanzania.",
@@ -4115,6 +4154,34 @@ window.I18N = {
     tab_explore: "Vinjari",
     tab_pchat: "P-Chat",
     tab_saved: "Hifadhi",
+
+    // Nyumba zilizohifadhiwa (favorites.html).
+    fav_skip: "Rukia nyumba zilizohifadhiwa",
+    fav_sub: "Nyumba ulizohifadhi kwa kitufe cha moyo. Orodha hii inabaki kwenye kifaa hiki.",
+    fav_count: "{n} zimehifadhiwa",
+    fav_sort_recent: "Zilizohifadhiwa karibuni",
+    fav_sort_price_asc: "Bei: ndogo kwenda kubwa",
+    fav_sort_price_desc: "Bei: kubwa kwenda ndogo",
+    fav_sort_title: "Jina (A hadi Z)",
+    fav_clear: "Futa zote",
+    fav_clear_confirm: "Ondoa nyumba zote {n} zilizohifadhiwa? Hili haliwezi kutenduliwa.",
+    fav_err_t: "Imeshindwa kupakia nyumba",
+    fav_retry: "Jaribu tena",
+    fav_empty_t: "Hakuna kilichohifadhiwa bado",
+    fav_empty_sub: "Gusa moyo kwenye nyumba yoyote ili kuiweka hapa. Orodha yako inabaki kwenye kifaa hiki.",
+    fav_browse: "Vinjari nyumba",
+    fav_hint: "Unavinjari kwa faragha? Nyumba zilizohifadhiwa bado zinafanya kazi, kwa sababu orodha haitoki kwenye kifaa hiki.",
+    fav_for_rent: "Kupangisha",
+    fav_for_sale: "Kuuza",
+    fav_verified: "Imethibitishwa",
+    fav_view: "Ona maelezo",
+    fav_remove_aria: "Ondoa {title} kwenye zilizohifadhiwa",
+    fav_removed: "Imeondolewa {title}",
+    fav_undo: "Tendua",
+    fav_beds: "chumba {n}",
+    fav_beds_p: "vyumba {n}",
+    fav_baths: "bafu {n}",
+    fav_baths_p: "bafu {n}",
 
     // P-Chat — kichupo cha "wasiliana".
     pc_sub: "Omba unachohitaji, fuatilia eneo, au kutana na mtu. Zana zote za kuwasiliana katika kichupo kimoja.",
@@ -7074,6 +7141,8 @@ window.I18N = {
     xp_f_place: "Mahali",
     xp_f_region: "Mkoa",
     xp_f_radius: "Umbali",
+    xp_scopes_aria: "Nini cha kutafuta",
+    xp_radius_aria: "Umbali wa kutafuta",
     xp_done: "Nimemaliza",
     xp_empty_region_t: "Hakuna kitu {r}",
     xp_empty_region_p: "{n} zinapatikana mahali pengine Tanzania.",

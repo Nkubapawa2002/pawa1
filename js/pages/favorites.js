@@ -10,6 +10,26 @@
 // ============================================================================
 
 window.initFavoritesPage = async () => {
+  // INSIDE this function on purpose. A top-level `function t()` in a classic
+  // script IS window.t, so declaring one here would replace i18n's own
+  // function with this one, and the first line below would then call itself
+  // until the stack ran out. That is not hypothetical: it is what the first
+  // version of this change did, and the page died with "Maximum call stack
+  // size exceeded" before it drew anything.
+  //
+  // Otherwise the same helper as profile.js, for the same reason: window.t
+  // takes a key and nothing else, and it returns the KEY ITSELF when a string
+  // is missing, so without the fallback a missing key renders as "fav_empty_t"
+  // on the screen. The vars pass fills {n} and {title}.
+  const t = (key, fallback, vars) => {
+    let s = window.t ? window.t(key) : key;
+    if (!s || s === key) s = fallback;
+    if (vars) Object.keys(vars).forEach((k) => {
+      s = String(s).replace(new RegExp("\\{" + k + "\\}", "g"), vars[k]);
+    });
+    return s;
+  };
+
   const toolbarEl = document.getElementById("favToolbar");
   const countEl   = document.getElementById("favCount");
   const sortEl    = document.getElementById("favSort");
@@ -34,9 +54,9 @@ window.initFavoritesPage = async () => {
           <circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16" r="1"/>
         </svg>
       </div>
-      <div class="hp-empty__title">Couldn't load properties</div>
+      <div class="hp-empty__title">${esc(t("fav_err_t", "Could not load the houses"))}</div>
       <div class="hp-empty__sub">${esc(e.message || String(e))}</div>
-      <button class="hp-empty__cta" type="button" onclick="location.reload()">Try again</button>
+      <button class="hp-empty__cta" type="button" onclick="location.reload()">${esc(t("fav_retry", "Try again"))}</button>
     </div>`;
     return;
   }
@@ -47,7 +67,9 @@ window.initFavoritesPage = async () => {
   // ---- Clear all ----------------------------------------------------------
   clearBtn.addEventListener("click", () => {
     if (!favs.size) return;
-    if (!confirm(`Remove all ${favs.size} favorites? This can't be undone.`)) return;
+    if (!confirm(t("fav_clear_confirm",
+                   "Remove all {n} saved houses? This cannot be undone.",
+                   { n: favs.size }))) return;
     favs.clear();
     saveFavs(favs);
     saveOrder([]);
@@ -90,38 +112,52 @@ window.initFavoritesPage = async () => {
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
         </div>
-        <div class="hp-empty__title">No favorites yet</div>
-        <div class="hp-empty__sub">Tap the heart icon on any property to save it here. Your list stays on this device.</div>
+        <div class="hp-empty__title">${esc(t("fav_empty_t", "Nothing saved yet"))}</div>
+        <div class="hp-empty__sub">${esc(t("fav_empty_sub", "Tap the heart on any house to keep it here. Your list stays on this device."))}</div>
         <a class="hp-empty__cta" href="houses.html">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>
-          Browse properties
+          ${esc(t("fav_browse", "Browse houses"))}
         </a>
-        <div class="hp-empty__hint">Browsing privately? Your favorites still work — they're stored locally.</div>
+        <div class="hp-empty__hint">${esc(t("fav_hint", "Browsing privately? Saved houses still work, because the list never leaves this device."))}</div>
       </div>`;
       return;
     }
 
     toolbarEl.hidden = false;
-    countEl.textContent = visible.length;
+    // The number keeps its own emphasis, but the sentence around it comes from
+    // i18n, so a language can put the count anywhere in it. Split on the
+    // placeholder and put the count back as the only unescaped part.
+    const said = t("fav_count", "{n} saved").split("{n}");
+    countEl.innerHTML = esc(said[0]) + "<strong>" + visible.length + "</strong>" +
+                        esc(said.slice(1).join("{n}"));
     stateEl.innerHTML = "";
     gridEl.setAttribute("aria-busy", "false");
 
     gridEl.innerHTML = visible.map(h => {
       const photo    = window.DataStore.housePhotoUrl(h.photo);
-      const listing  = h.listing === "sale" ? "For sale" : "For rent";
+      const listing  = h.listing === "sale"
+        ? t("fav_for_sale", "For sale")
+        : t("fav_for_rent", "For rent");
       const price    = formatPrice(h);
-      const verified = h.verified ? `<span class="verified"> Verified</span>` : "";
+      const verified = h.verified
+        ? `<span class="verified"> ${esc(t("fav_verified", "Verified"))}</span>` : "";
+      // Swahili does not pluralise by adding an "s", so the singular and the
+      // plural are two keys rather than one key with a suffix bolted on.
       const meta = [
-        h.bedrooms ? `<span> ${h.bedrooms} bed${h.bedrooms !== 1 ? "s" : ""}</span>` : "",
-        h.bathrooms ? `<span> ${h.bathrooms} bath${h.bathrooms !== 1 ? "s" : ""}</span>` : "",
+        h.bedrooms ? `<span> ${esc(t(h.bedrooms === 1 ? "fav_beds" : "fav_beds_p",
+                                     h.bedrooms === 1 ? "{n} bed" : "{n} beds",
+                                     { n: h.bedrooms }))}</span>` : "",
+        h.bathrooms ? `<span> ${esc(t(h.bathrooms === 1 ? "fav_baths" : "fav_baths_p",
+                                      h.bathrooms === 1 ? "{n} bath" : "{n} baths",
+                                      { n: h.bathrooms }))}</span>` : "",
         h.size_sqm ? `<span> ${h.size_sqm} m²</span>` : ""
       ].filter(Boolean).join("");
 
       return `<div class="fav-card" data-id="${esc(h.id)}">
         <div class="fav-card-photo" data-loading="true" style="background-image:url('${photo}')">
-          <span class="badge">${listing}</span>
+          <span class="badge">${esc(listing)}</span>
           ${verified}
-          <button class="remove" type="button" aria-label="Remove ${esc(h.title)} from favorites" title="Remove from favorites">
+          <button class="remove" type="button" aria-label="${esc(t("fav_remove_aria", "Remove {title} from saved", { title: h.title || "" }))}" title="${esc(t("fav_remove_aria", "Remove {title} from saved", { title: h.title || "" }))}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           </button>
         </div>
@@ -130,7 +166,7 @@ window.initFavoritesPage = async () => {
           <div class="fav-card-title">${esc(h.title)}</div>
           <div class="fav-card-meta">${meta}</div>
           <div class="fav-card-loc"> ${esc(h.area || "—")}${h.region ? `, ${esc(h.region)}` : ""}</div>
-          <a class="fav-card-view" href="house.html?id=${encodeURIComponent(h.id)}">View details →</a>
+          <a class="fav-card-view" href="house.html?id=${encodeURIComponent(h.id)}">${esc(t("fav_view", "View details"))} →</a>
         </div>
       </div>`;
     }).join("");
@@ -143,7 +179,8 @@ window.initFavoritesPage = async () => {
         const removed = byId.get(id);
         removeFav(id);
         lastRemoved = removed;
-        showToast(`Removed "${(removed?.title || "listing")}"`, true);
+        showToast(t("fav_removed", "Removed {title}",
+                    { title: "“" + (removed?.title || "") + "”" }), true);
         render();
       });
     });
@@ -169,7 +206,7 @@ window.initFavoritesPage = async () => {
 
     const toast = document.createElement("div");
     toast.className = "fav-toast";
-    toast.innerHTML = `<span>${esc(text)}</span>${undoable ? `<button class="undo" type="button">Undo</button>` : ""}`;
+    toast.innerHTML = `<span>${esc(text)}</span>${undoable ? `<button class="undo" type="button">${esc(t("fav_undo", "Undo"))}</button>` : ""}`;
     document.body.appendChild(toast);
 
     if (undoable) {
