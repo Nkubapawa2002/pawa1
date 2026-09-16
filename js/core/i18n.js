@@ -32,7 +32,10 @@ window.I18N = {
     home_cats_title: "Popular services",
     home_cats_sub: "Tap a category to find providers near you.",
     home_list_title: "Earn with PN-Zaki",
-    home_list_sub: "People are already searching near you.",
+    // "near you" was a static string, so it claimed a geography nothing had
+    // checked: five demand pins exist in the whole country, which makes it
+    // false for almost everybody who reads it. The rest is true and stays.
+    home_list_sub: "People are already searching for places like yours.",
     home_list_house: "List your house",
     home_list_house_d: "A room, a whole house or a plot. You set the price.",
     home_list_service: "Offer a service",
@@ -123,7 +126,13 @@ window.I18N = {
     home_quick_title: "Popular services",
     home_view: "View details",
     home_empty: "Nothing here yet",
-    home_empty_sub: "Check back soon. New listings arrive daily.",
+    // "New listings arrive daily" was not true. The board held one house, two
+    // services, one truck and no day jobs when this was written, and the
+    // newest listing was six days old. It is the same fiction the trust strip
+    // above was rebuilt to remove: a promise about the marketplace that the
+    // marketplace was not keeping. This says what somebody can DO instead,
+    // which is true on an empty board and still true on a full one.
+    home_empty_sub: "Tell us what you are looking for and the agents working there will come to you.",
     home_loading: "Loading…",
     // App-shell bottom tab bar
     tab_explore: "Explore",
@@ -4070,7 +4079,7 @@ window.I18N = {
     home_cats_title: "Huduma maarufu",
     home_cats_sub: "Bofya aina ili kupata watoa huduma karibu nawe.",
     home_list_title: "Pata kipato na PN-Zaki",
-    home_list_sub: "Watu tayari wanatafuta karibu nawe.",
+    home_list_sub: "Watu tayari wanatafuta sehemu kama yako.",
     home_list_house: "Orodhesha nyumba",
     home_list_house_d: "Chumba, nyumba nzima au kiwanja. Bei unapanga wewe.",
     home_list_service: "Toa huduma",
@@ -4158,7 +4167,7 @@ window.I18N = {
     home_quick_title: "Huduma maarufu",
     home_view: "Angalia zaidi",
     home_empty: "Hakuna kilichopo bado",
-    home_empty_sub: "Rudi hivi karibuni. Matangazo mapya huingia kila siku.",
+    home_empty_sub: "Tuambie unachotafuta, na madalali wanaofanya kazi eneo hilo watakujia.",
     home_loading: "Inapakia…",
     // App-shell bottom tab bar
     tab_explore: "Vinjari",
