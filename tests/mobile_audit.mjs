@@ -327,10 +327,25 @@ const MEASURE = () => {
       let scroller = el.parentElement, inScroller = false;
       while (scroller && scroller !== document.body) {
         const ov = getComputedStyle(scroller).overflowX;
-        if (ov === "auto" || ov === "scroll") { inScroller = true; break; }
+        // "hidden" and "clip" contain the overflow just as surely as a
+        // scroller does: the part past the edge is unreachable, so it cannot
+        // be the thing making the page fight the thumb.
+        if (ov === "auto" || ov === "scroll" || ov === "hidden" || ov === "clip") {
+          inScroller = true; break;
+        }
         scroller = scroller.parentElement;
       }
-      if (!inScroller) out.wide.push({ el: label(el), right: Math.round(r.right), vw });
+      // A FIXED element cannot widen the document. login.html paints three
+      // decorative aurora blobs in a position:fixed layer, several hundred
+      // pixels wide and deliberately hanging off both edges; the page's
+      // scrollWidth is exactly the viewport and nothing scrolls sideways, but
+      // this check reported one of them as "past the right edge" on every run.
+      let fixed = false;
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+        const p = getComputedStyle(n).position;
+        if (p === "fixed") { fixed = true; break; }
+      }
+      if (!inScroller && !fixed) out.wide.push({ el: label(el), right: Math.round(r.right), vw });
     }
 
     const own = Array.from(el.childNodes)
@@ -599,6 +614,25 @@ try {
         const where = `${spec.label} · ${theme} · ${dev.name} (${dev.w}px)`;
         const seen = new Set();
         const all = { wide: [], contrast: [], taps: [] };
+        // MEASURE A LOADED PAGE, OR DO NOT MEASURE.
+        //
+        // 980 is Chrome's default layout viewport BEFORE a width=device-width
+        // meta has been applied, so a frame caught mid-load reads 980 and the
+        // zoom check below then reports a perfectly responsive page as being
+        // rendered at 40%. services.html did exactly that on one run of a
+        // breadth sweep and passed 28 checks on the next, which is the kind of
+        // finding that makes a whole report untrustworthy.
+        //
+        // Waiting for the meta to have taken effect would MASK a page that
+        // genuinely lacks it, so the wait is conditional on the page actually
+        // declaring one.
+        await page.waitForFunction(() => {
+          if (document.readyState !== "complete") return false;
+          const m = document.querySelector('meta[name="viewport"]');
+          const declares = m && /width\s*=\s*device-width/i.test(m.content || "");
+          return !declares || window.innerWidth !== 980;
+        }, { timeout: 8000 }).catch(() => {});
+
         const geom = await page.evaluate(() => ({
           docH: document.documentElement.scrollHeight,
           vh: window.innerHeight,

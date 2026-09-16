@@ -73,6 +73,25 @@ body[data-page="login"] {
   --lg-field: #FFFFFF;
   --lg-field-focus: #FFFFFF;
   --lg-shadow: 0 20px 48px rgba(20, 40, 32, .10);
+  /* THE FOUR DOOR ACCENTS, which the block further down declares once and this
+     one has to answer. They were the only colours in this file that were not
+     re-pointed here, which is exactly the "half-applied theme" the header at
+     the top warns about.
+     .lg-door-can paints the accent ON a 13% tint of itself. That is a bright
+     mark on a dark card and an invisible one on a white card: on the light
+     theme "Rooms", "Trucks" and "Services" measured 1.51:1, "Direct contact"
+     1.53:1, "Day jobs" and "Hire a crew" 2.12:1, and "Find" and "Message"
+     2.74:1 -- against a floor of 4.5. Eight labels, on the screen everybody
+     signs in through.
+     The values are the ones explore.html already darkened for the same four
+     verticals, so a truck is the same gold on every screen it appears on. */
+  --lg-door-agent: #0A6647;
+  --lg-door-owner: #8A5D00;
+  --lg-door-company: #A33B0C;
+  --lg-door-user: #14557D;
+  /* All four are dark now, so the ink on them is white. Near-black on the
+     darkened gold measured 3.14:1. */
+  --lg-door-ink: #FFFFFF;
 }
 
 body[data-page="login"] *,
@@ -535,6 +554,11 @@ body[data-page="login"] {
   --lg-door-owner: #F6C45A;
   --lg-door-company: #FF8A4C;
   --lg-door-user: #4C8CFF;
+  /* The ink for anything that sits ON one of those four fills, and it has to
+     flip with them. These are BRIGHT, so near-black reads; the light theme's
+     versions are dark, so it does not, and the light block re-points this to
+     white. A single ink for both themes is what put "VIP" at 3.14:1. */
+  --lg-door-ink: var(--text-on-brand);
 }
 
 /* ---- the grid of doors --------------------------------------------------- */
@@ -730,9 +754,10 @@ body[data-page="login"] { --lg-door-accent: var(--lg-accent); }
   padding: 3px 9px; border-radius: var(--radius-pill, 999px);
   font-size: 9.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
   /* NOT --lg-accent-ink. That is white in the light theme, and white on the
-     owner door's gold is 1.9:1. The badge always sits on a saturated fill, so
-     its ink is the design system's on-brand ink in both themes. */
-  color: var(--text-on-brand);
+     owner door's BRIGHT gold is 1.9:1. The badge always sits on one of the
+     four door fills, so its ink follows those fills: near-black on the bright
+     dark-theme versions, white on the darkened light-theme ones. */
+  color: var(--lg-door-ink, var(--text-on-brand));
   background: var(--d);
   /* The sheen crosses the badge every few seconds. It is the only thing on the
      screen that moves on its own after the doors have landed, which is the

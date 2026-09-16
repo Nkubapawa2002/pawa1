@@ -28,7 +28,11 @@
 
   <style>
     .sd-wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
-    .sd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--c-brand,#0a6f4d); text-decoration: none; font-weight: 700; font-size: .9rem; margin-bottom: 12px; }
+    /* min-height is not decoration: this measured 130x22 on an iPhone 13, and
+       the SAME control on the sibling truck sheet (.td-back in
+       css/truck-detail.css) already carries --hit-min. One of the two sheets
+       got the fix and the other did not. */
+    .sd-back { display: inline-flex; align-items: center; gap: 6px; min-height: var(--hit-min, 44px); color: var(--c-brand,#0a6f4d); text-decoration: none; font-weight: 700; font-size: .9rem; margin-bottom: 12px; }
     .sd-grid { display: grid; grid-template-columns: 1.3fr .7fr; gap: 18px; align-items: start; }
     .sd-gallery-main { aspect-ratio: 16/10; border-radius: 16px; overflow: hidden; background: #dfe7e2 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 4rem; }
     .sd-thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
