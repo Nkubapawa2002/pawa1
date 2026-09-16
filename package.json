@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tests/run.mjs",
+    "test:db": "node tests/run.mjs --db",
+    "test:list": "node tests/run.mjs --list",
+    "serve": "node server.js"
   },
   "keywords": [],
   "author": "",

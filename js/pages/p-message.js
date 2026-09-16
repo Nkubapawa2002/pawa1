@@ -505,7 +505,7 @@
    */
   function showGuestGate() {
     gate('<div class="pm-note"><b>' + esc(t("pm_guest_t", "Message an agent without an account")) + "</b><br>" +
-      esc(t("pm_guest_d", "Give a name they can call you by and start straight away. It is encrypted the same way — but it lives on this device, so clearing your browser loses the conversation.")) +
+      esc(t("pm_guest_d", "Give a name they can call you by and start straight away. It is encrypted the same way, but it lives on this device, so clearing your browser loses the conversation.")) +
       "</div>" +
       '<input class="pm-search" id="pmGuestName" maxlength="40" data-i18n-placeholder="pm_guest_name" ' +
       'placeholder="What should agents call you?" />' +

@@ -1029,6 +1029,26 @@ try {
   await admin.page.evaluate(() => { document.getElementById("pmModalBack").classList.remove("is-on"); });
   ok(await admin.page.$eval("#pmRoomsBtn", (n) => getComputedStyle(n).display !== "none"),
      "a Rooms button");
+  // Mint the keys BEFORE the picker opens, not after it.
+  //
+  // Nobody has a published key on a fresh page, and the picker will not offer
+  // somebody there is nothing to encrypt to. This used to run after the open,
+  // and then clicked the "Everyone" tab to pick the new keys up -- which
+  // worked only while that click caused a reload. It no longer does: the
+  // picker now falls through to the directory BY ITSELF when the tab it opened
+  // on can take nobody, so it is already on "Everyone", and onSrc() returns
+  // early for the tab you are already on rather than refetching. The rows on
+  // screen stayed the ones fetched before the keys existed, and all five came
+  // back greyed with "They have not set up P-Message on a device yet."
+  //
+  // Seeding first tests the flow a person actually walks, and does not depend
+  // on which tab the picker decides to land on.
+  await admin.page.evaluate(async () => {
+    for (const id of ["agent_juma", "agent_neema", "agent_blank"]) {
+      const kp = await window.PMCrypto.generateIdentity();
+      window.__PM_DB.keys[id].public_key = kp.publicKey;
+    }
+  });
   await admin.page.evaluate(() => document.getElementById("pmRoomsBtn").click());
   await sleep(600);
   const cats = await admin.page.$$eval("#pmPkCat option", (n) => n.map((o) => o.value));
@@ -1040,23 +1060,47 @@ try {
   // than whoever a scope happened to catch.
   ok(await admin.page.$eval("#pmRoomGo", (n) => n.disabled),
      "and the room cannot be opened until somebody is in it");
-  // Nobody has a published key on a fresh page, and the picker will not offer
-  // somebody there is nothing to encrypt to. Mint some first, or "All" would
-  // correctly tick nobody and the assertion would be measuring the fixture.
-  await admin.page.evaluate(async () => {
-    for (const id of ["agent_juma", "agent_neema", "agent_blank"]) {
-      const kp = await window.PMCrypto.generateIdentity();
-      window.__PM_DB.keys[id].public_key = kp.publicKey;
-    }
+  // Make sure we are on Everyone. The picker usually lands there on its own
+  // (the tab it opens on can take nobody on a fresh page), and clicking the
+  // tab you are already on is a no-op by design, so this is a safety net for
+  // the case where "People you deal with" DID have somebody.
+  await admin.page.evaluate(() => {
+    const tab = document.querySelector('[data-src="all"]');
+    if (tab && !tab.classList.contains("is-on")) tab.click();
   });
-  // Switch to Everyone and take all of them. This is what the old "Every
-  // agent in Tanzania" button did, and it now works against any search.
-  await admin.page.evaluate(() => document.querySelector('[data-src="all"]').click());
-  await sleep(900);
+  // Wait for the rows, not for a clock. setAll() fills the basket from what is
+  // ON SCREEN, so clicking it before the "all" source has finished loading
+  // selects nothing and both assertions below fail -- reporting "the basket
+  // does not fill" when what happened is that the host was slow. A fixed 900ms
+  // sleep passed on a quiet machine and failed on a busy one.
+  const rowsUp = await admin.page.waitForFunction(
+    () => document.querySelectorAll('#pmPkList input[type="checkbox"]:not(:disabled)').length > 0,
+    { timeout: 10000 }).then(() => true).catch(() => false);
+  // When this fails it is worth knowing WHICH of the three ways it failed:
+  // no rows at all (the directory query came back empty), rows that are all
+  // greyed (the reach verdict refused them), or the wrong tab being on.
+  const pk = await admin.page.evaluate(() => {
+    const list = document.getElementById("pmPkList");
+    const boxes = list ? list.querySelectorAll('input[type="checkbox"]') : [];
+    const on = document.querySelector("[data-src].is-on");
+    return {
+      tab: on ? on.dataset.src : "(none)",
+      boxes: boxes.length,
+      enabled: [...boxes].filter((b) => !b.disabled).length,
+      cat: (document.getElementById("pmPkCat") || {}).value,
+      region: (document.getElementById("pmPkReg") || {}).value,
+      text: (list ? list.textContent : "").trim().replace(/\s+/g, " ").slice(0, 120),
+    };
+  });
+  ok(rowsUp, "the Everyone source loads somebody there is a key to encrypt to",
+     `tab=${pk.tab} checkboxes=${pk.boxes} enabled=${pk.enabled} ` +
+     `cat=${JSON.stringify(pk.cat)} region=${JSON.stringify(pk.region)}\n        list: ${pk.text}`);
   await admin.page.evaluate(() => document.querySelector('#pmPkHead [data-all="1"]').click());
-  await sleep(300);
+  await admin.page.waitForFunction(
+    () => /\d/.test(document.querySelector("#pmPkBasket").textContent),
+    { timeout: 5000 }).catch(() => {});
   const chosen = await admin.page.$eval("#pmPkBasket", (n) => n.textContent);
-  ok(/\d/.test(chosen), "choosing All fills the basket", chosen.slice(0, 70));
+  ok(/\d/.test(chosen), "choosing All fills the basket", JSON.stringify(chosen.slice(0, 70)));
   ok(await admin.page.$eval("#pmRoomGo", (n) => !n.disabled),
      "and only then does Open room mean anything");
   // Layout is easier to judge by eye than by assertion, and this run already
