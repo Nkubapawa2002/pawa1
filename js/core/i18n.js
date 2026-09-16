@@ -1211,6 +1211,10 @@ window.I18N = {
     support_page_d: "A real person on the Pawa line — for anything an assistant cannot settle: a payment, a dispute, a listing that is wrong.",
     support_to_ai: "Looking for the assistant? PN-Zaki now lives in P-Message.",
     support_to_ai_go: "Open PN-Zaki",
+    // The empty duty rota. public.support_duties starts with no rows on
+    // purpose (a built-in fallback person was the bug that table removed), so
+    // this is a state a real deployment sits in, not an edge case.
+    sp_none: "No support numbers are set up yet.",
     support_role_manager: "Manager",
     support_role_organizer: "Organizer on Duty",
     support_role_support: "Support",
@@ -1389,6 +1393,12 @@ window.I18N = {
     meet_share_text: "Join me on Maisha Meet",
     meet_wa_live_text: "Follow my live location on Pawa",
     meet_wa_pin_text: "My location right now",
+    // This one was ASKED FOR and never defined, and the call site reads
+    // `window.t("meet_wa_video_text") || "Let's start a video call"`. window.t
+    // returns the KEY when a string is missing, and a key is a truthy string,
+    // so the fallback could never fire: the WhatsApp message people sent said
+    // "meet_wa_video_text".
+    meet_wa_video_text: "Let's start a video call on Pawa Meet",
     meet_need_name: "Please enter your name",
     meet_bad_code: "Code looks too short",
     meet_room_not_found: "Room not found or expired",
@@ -5185,6 +5195,7 @@ window.I18N = {
     support_page_d: "Mtu halisi kwenye laini ya Pawa — kwa lolote ambalo msaidizi hawezi kumaliza: malipo, mgogoro, au tangazo lenye kasoro.",
     support_to_ai: "Unamtafuta msaidizi? PN-Zaki sasa yuko ndani ya P-Message.",
     support_to_ai_go: "Fungua PN-Zaki",
+    sp_none: "Bado hakuna namba za msaada zilizowekwa.",
     support_role_manager: "Meneja",
     support_role_organizer: "Msimamizi wa Zamu",
     support_role_support: "Msaada",
@@ -5358,6 +5369,7 @@ window.I18N = {
     meet_share_text: "Jiunge nami kwenye Maisha Meet",
     meet_wa_live_text: "Fuata mahali nilipo moja kwa moja kwenye Pawa",
     meet_wa_pin_text: "Nilipo sasa hivi",
+    meet_wa_video_text: "Tuanze simu ya video kwenye Pawa Meet",
     meet_need_name: "Tafadhali ingiza jina lako",
     meet_bad_code: "Nambari ni fupi sana",
     meet_room_not_found: "Chumba hakipatikani au kimemalizika",

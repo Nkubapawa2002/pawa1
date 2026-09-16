@@ -530,7 +530,20 @@ try {
   for (const spec of pages) {
     for (const theme of ["dark", "light"]) {
       for (const dev of devices) {
-        const page = await browser.newPage();
+       // ONE BAD FRAME MUST NOT COST THE WHOLE SWEEP.
+       //
+       // This is a fifty-minute run over 27 pages, and puppeteer flakes on
+       // this host several times an hour: a --breadth run died on page 8 of
+       // 27 with "Execution context was destroyed", threw out of the loop, and
+       // the nineteen pages after it were never looked at. The run reported
+       // nothing rather than reporting what it had already found.
+       //
+       // So a frame that throws is RECORDED as a crashed frame and the sweep
+       // moves on. It is counted as a failure, because a frame that could not
+       // be measured is not a frame that passed.
+       let page = null;
+       try {
+        page = await browser.newPage();
         await page.setViewport({ width: dev.w, height: dev.h, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
         await page.setRequestInterception(true);
         page.on("request", (req) => {
@@ -667,8 +680,12 @@ try {
              `${c.ratio}:1 (needs ${c.need}) ${c.el} ${c.size}px "${c.text}" ${c.color} on ${c.bg}`).join("\n        "));
         ok(all.taps.length === 0, `${where}: ${all.taps.length} tap target(s) under 40px`,
            all.taps.slice(0, 20).map((t) => `${t.el} ${t.w}x${t.h}`).join("\n        "));
-
-        await page.close();
+       } catch (err) {
+         ok(false, `${spec.label} · ${theme} · ${dev.name} (${dev.w}px): could not be measured`,
+            String((err && err.message) || err).split("\n")[0]);
+       } finally {
+         if (page) { try { await page.close(); } catch (_) {} }
+       }
       }
     }
     process.stdout.write(`  checked ${spec.label}\n`);
