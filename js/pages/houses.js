@@ -3300,7 +3300,11 @@ window.initHousesPage = async () => {
     const business = browsable.filter(h => isBusinessType(h.type)).length;
     const verified = browsable.filter(h => h.verified).length;
     let favs = 0;
-    try { favs = JSON.parse(localStorage.getItem("pawa.houseFavs") || "[]").length; } catch {}
+    // pawa_house_favs, with underscores. This read said "pawa.houseFavs" — a
+    // key nothing in the repo has ever written, so favs was always 0, and the
+    // "hides itself at zero" rule below then hid the Saved tile permanently.
+    // Somebody could save twenty houses and this page would never say so.
+    try { favs = JSON.parse(localStorage.getItem("pawa_house_favs") || "[]").length; } catch {}
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     // The four that used to be written here as well — total, rent, sale and
     // business — were the segment counts printed a second time in the bento
